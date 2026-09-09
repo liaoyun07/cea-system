@@ -27,6 +27,12 @@ public class RuntimeConfiguration {
     @Bean FlowParser flowParser(FlowValidator validator) { return new FlowParser(validator); }
     @Bean BindingResolver bindingResolver() { return new BindingResolver(); }
     @Bean AccessPolicy accessPolicy() { return new AccessPolicy(); }
+    @Bean com.project.platform.resource.catalog.JdbcResourceRepository resourceRepository(JdbcTemplate jdbc,TransactionTemplate transactions) {
+        return new com.project.platform.resource.catalog.JdbcResourceRepository(jdbc,transactions);
+    }
+    @Bean com.project.platform.resource.catalog.ResourceCatalogService resourceCatalogService(com.project.platform.resource.catalog.JdbcResourceRepository repository,AccessPolicy access) {
+        return new com.project.platform.resource.catalog.ResourceCatalogService(repository,access);
+    }
     @Bean TransactionTemplate transactions(PlatformTransactionManager manager) { return transactionTemplate(manager); }
     @Bean JdbcExecutionStore executionStore(JdbcTemplate jdbc, TransactionTemplate transactions, JsonCodec json) {
         return new JdbcExecutionStore(jdbc, transactions, json);

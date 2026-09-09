@@ -5,6 +5,7 @@ import com.project.platform.dataflow.execution.FlowExecutionService;
 import com.project.platform.runtime.definition.*;
 import com.project.platform.runtime.model.ExecutionRecord;
 import com.project.platform.runtime.model.FlowDefinition;
+import com.project.platform.resource.catalog.ResourceCatalog;
 import com.project.platform.server.api.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,15 +20,17 @@ class ContractTest {
     private Map<String,Object> specification() throws Exception {
         return json.map(Files.readString(Path.of("..","docs","contracts","openapi.json")));
     }
-    @Test void openApiRoutesMatchBothControllers() throws Exception {
+    @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
                 var post = method.getAnnotation(PostMapping.class);
+                var put = method.getAnnotation(PutMapping.class);
                 if (get != null) actual.add("get " + base + (get.value().length == 0 ? "" : get.value()[0]));
                 if (post != null) actual.add("post " + base + (post.value().length == 0 ? "" : post.value()[0]));
+                if (put != null) actual.add("put " + base + (put.value().length == 0 ? "" : put.value()[0]));
             }
         }
         Map<?,?> paths = (Map<?,?>) specification().get("paths");
@@ -56,7 +59,14 @@ class ContractTest {
                 Map.entry("Input",FlowDefinition.Input.class),
                 Map.entry("Retry",FlowDefinition.Retry.class),
                 Map.entry("Concurrency",FlowDefinition.Concurrency.class),
-                Map.entry("Schedule",FlowDefinition.Schedule.class));
+                Map.entry("Schedule",FlowDefinition.Schedule.class),
+                Map.entry("ResourceCluster",ResourceCatalog.Cluster.class),
+                Map.entry("ResourceLocation",ResourceCatalog.Location.class),
+                Map.entry("DatasetVersion",ResourceCatalog.DatasetVersion.class),
+                Map.entry("DatasetRequirement",ResourceCatalog.DatasetRequirement.class),
+                Map.entry("PlacementRequest",ResourceCatalog.PlacementRequest.class),
+                Map.entry("DatasetLocation",ResourceCatalog.DatasetLocation.class),
+                Map.entry("PlacementOption",ResourceCatalog.PlacementOption.class));
         records.forEach((name,type) -> {
             Set<String> fields = new TreeSet<>();
             for (var component : type.getRecordComponents()) {

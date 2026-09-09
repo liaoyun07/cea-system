@@ -1,6 +1,6 @@
 # 系统总览
 
-基线日期：2026-09-09。状态：S1–S3持久执行、失败语义与通用控制流已实现；当前范围见[进度](04-progress.md)。
+基线日期：2026-09-09。状态：S1–S3已实现；S4正在分批实施，首批为资源目录与候选本地性检查。当前范围见[进度](04-progress.md)。
 
 实施边界已确认：backend独立Git仓库，新后端Java21；终端任务断线恢复不在本期范围，服务端Worker恢复保留；速率口径在S5开始时确定。生产部署保障按[已确认范围](06-deployment-safeguards-review.md)落实最小认证、凭据配置、部署和单机恢复验证，其他扩展按选择保留或后置，不追求全套高可用架构。
 
@@ -46,7 +46,9 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 当前调用链：HTTP身份认证 → dataflow权限/版本/提交 → Executor派发持久WorkerJob → Worker事务外执行 → 持久结果 → Executor归并状态/日志/续消息 → dataflow查询。server负责装配，不直接写业务表。定义版本表由dataflow所有；运行表和消息由runtime所有。
 
-S3有10张业务表，模板是数据库数据，不是后端硬编码。执行保存完整版本、输入和变量快照。Log/Sleep由Worker执行；有效Log结果才由Executor同事务写日志。租约epoch隔离旧Worker，接管不增加Attempt；业务失败按策略重试才增加Attempt。Errors/Finally、控制树和取消由同一FlowExecutor推进。DAG支持乱序依赖；If选择持久化；Flow额度跨版本共用，超限FIFO或FAIL；Scheduler通过相同ExecutionService提交，游标与执行同事务。外部容器/HTTP任务尚未实现，不能声称其副作用已做到exactly-once。资源、部署、边缘和卸载模块仍为框架。S1本地权限不是生产IAM，跨站点鉴权在后续阶段验收。
+当前有13张业务表：S1–S3的10张加resource拥有的3张目录表。模板是数据库数据，不是后端硬编码。执行保存完整版本、输入和变量快照。Log/Sleep由Worker执行；有效Log结果才由Executor同事务写日志。租约epoch隔离旧Worker，接管不增加Attempt；业务失败按策略重试才增加Attempt。Errors/Finally、控制树和取消由同一FlowExecutor推进。DAG支持乱序依赖；If选择持久化；Flow额度跨版本共用，超限FIFO或FAIL；Scheduler通过相同ExecutionService提交，游标与执行同事务。外部容器/HTTP任务尚未实现，不能声称其副作用已做到exactly-once。
+
+S4-01新增独立资源调用链：HTTP身份认证 → ResourceCatalogService权限/登记校验 → JdbcResourceRepository。可以保存集群启用标志、数据集版本及对象URI位置，并检查候选集群是否同时满足各个数据集的本地性/格式要求。注册不是连通性或健康观测，候选结果不是最终选址与预约，也没有接入执行派发。部署、边缘和卸载模块仍仅有工程框架。S1本地权限不是生产IAM，跨站点鉴权在S4后续批次验收。
 
 ## 设计来源与效力
 

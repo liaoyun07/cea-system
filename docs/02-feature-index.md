@@ -21,8 +21,8 @@
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
-| RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | NOT_STARTED | NOT_RUN |
-| RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | NOT_STARTED | NOT_RUN |
+| RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
+| RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
 | DEP-001 | 应用目录、镜像契约、参数别名派生 | S4 | platform-deployment | NOT_STARTED | NOT_RUN |
 | DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | NOT_STARTED | NOT_RUN |
 | RUN-001 | Kubernetes 一次性 Job 与产物发布 | S4 | workflow-runtime | NOT_STARTED | NOT_RUN |
@@ -39,7 +39,9 @@
 
 SEC-001 分层落地：S1 保证本地接口边界与身份契约；接入站点/远程Worker API前完成真实鉴权；S2共享专用MySQL的本地Worker进程不提供远程Worker HTTP接口，不能把“后面做权限”当成可上线状态。WF-016 的完整前端实现需明确授权与前端工程范围，新后端当前只规划协议与编辑 Schema。
 
-WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-protocol.md)与[验收记录](verification/VER-S3-001-control-scheduling.md)。本轮75项测试通过并回归S1/S2；控制任务由Executor解释，叶子仍仅Log/Sleep。S4–S7未自动进入。
+WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-protocol.md)与[验收记录](verification/VER-S3-001-control-scheduling.md)。S3历史75项测试通过；控制任务由Executor解释，叶子仍仅Log/Sleep。
+
+S4已授权，工作包见[S4规格](features/S4-resource-runtime.md)。RES-001当前只有集群目录、不可变数据集版本/位置，没有真实资源观测；RES-002当前只有候选本地性检查，没有最终选址、容量预约和释放。本批11项新增测试及75项回归见[S4-01验证](verification/VER-S4-001-resource-catalog.md)，不能据此将RES-001/002整体标为完成。SEC-001复用既有READ/WRITE边界，尚未实现远程通信鉴权。S5–S7未进入。
 
 ## 明确的范围限制
 

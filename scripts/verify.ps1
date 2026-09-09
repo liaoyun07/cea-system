@@ -23,7 +23,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Maven version check failed: $LASTEXITCODE" }
     & $taskMaven -B -ntp -f (Join-Path $taskRoot 'pom.xml') verify
     if ($LASTEXITCODE -ne 0) { throw "Maven verify failed: $LASTEXITCODE" }
-    Write-Output 'PASS: Maven verify. Inspect Surefire reports; S1-S3 include real MySQL, Worker recovery, control flow, concurrency, Scheduler and migration tests.'
+    Write-Output 'PASS: Maven verify. Inspect Surefire reports; includes S1-S3 regression and S4-01 resource catalog/locality tests. Real external tasks are not yet implemented.'
 } finally {
     [Environment]::SetEnvironmentVariable('JAVA_HOME', $taskPreviousJavaHome, 'Process')
     [Environment]::SetEnvironmentVariable('PATH', $taskPreviousPath, 'Process')

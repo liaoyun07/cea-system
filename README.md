@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3：定义与版本、幂等提交、Worker恢复/失败语义、DAG/条件/嵌套并行、Flow并发排队与Cron触发。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。当前验收状态见进度文档。
+独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3：定义与版本、幂等提交、Worker恢复/失败语义、DAG/条件/嵌套并行、Flow并发排队与Cron触发；S4首批新增集群目录、数据集版本/位置和候选本地性检查。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
 
 ## 文档入口
 
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V5，创建10张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V6，创建13张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证按后续阶段落实；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：
@@ -69,7 +69,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:18085/api/namespaces/lab/executions/$($
 
 backend使用独立Git仓库，仓库根为本目录。公开远程仓库为[liaoyun07/cea-system](https://github.com/liaoyun07/cea-system)，使用main分支发布；首次提交收录S1–S3的源码、测试、示例和可追溯文档，不包含旧工程、构建产物或本地缓存。提交身份使用GitHub隐私邮箱，不修改全局Git配置。
 已有S0–S3源码SHA256清单保留为首次提交前的历史验收证据；后续变更同时通过Git提交追溯。
-旧工程、旧服务、数据库和镜像没有被迁移或重启；不自动进入S4。
+旧工程、旧服务、数据库和镜像没有被迁移或重启；S4-01按用户2026-09-10的授权纳入本次Git发布，不自动进入S5。
 
 ## S3运行角色与升级
 
@@ -101,3 +101,9 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 202表示取消请求已接受。QUEUED取消直接KILLED且无清理；已准入执行的主任务被终止后仍会执行Finally，清理完成才是KILLED。主失败与清理失败分别查看error、cleanupError及各TaskRun，不用一个错误覆盖另一个。
 
 [S3控制/队列/定时协议](docs/contracts/s3-protocol.md) / [完整定义示例](examples/s3-control-flow.yaml) / [75项测试验收](docs/verification/VER-S3-001-control-scheduling.md)。示例包含乱序DAG、条件、嵌套顺序/并行与清理，Schedule默认禁用。
+
+## S4-01资源目录
+
+[资源API与JSON示例](docs/contracts/s4-resource-catalog.md)提供集群注册/启停、不可覆盖的数据集版本及位置登记、分页查询和候选检查。使用既有Basic与命名空间READ/WRITE权限；目录API不需要EXECUTE权限，因为不会创建任务。
+
+只检查已登记的位置/格式/启用标志，不连接Kubernetes或对象存储验证真实性，也不进行资源预约。后续镜像契约、真实Job与观测仍在S4待实施；不能把预览结果当成可用容量保证。

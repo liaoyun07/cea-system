@@ -13,10 +13,13 @@
     <name>platform-resource</name>
     <dependencies>
         <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.project.platform</groupId>
             <artifactId>platform-foundation</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
 </project>
-

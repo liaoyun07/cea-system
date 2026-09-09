@@ -20,6 +20,10 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("com.project.platform.server.api..").should()
                 .dependOnClassesThat().resideInAnyPackage("org.springframework.jdbc..",
                         "com.project.platform.runtime.persistence..").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.server.api..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.resource..").should()
+                .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime..","com.project.platform.dataflow..","com.project.platform.deployment..").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.runtime.worker..").should()
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.runtime.persistence.JdbcExecutionStore").check(classes);
     }

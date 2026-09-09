@@ -7,6 +7,9 @@ import com.project.platform.foundation.identity.AccessPolicy.*;
 import com.project.platform.runtime.definition.JsonCodec;
 import com.project.platform.runtime.executor.FlowExecutor;
 import com.project.platform.runtime.model.*;
+import com.project.platform.resource.catalog.ResourceCatalog.*;
+import com.project.platform.resource.catalog.ResourceException;
+import com.project.platform.resource.catalog.ResourceCatalogService;
 import java.net.URI;
 import java.net.ServerSocket;
 import java.net.http.*;
@@ -99,7 +102,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(5,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(6,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {
         String id=register();
@@ -934,6 +937,149 @@ private String custom(String body) {
         } finally { if(child!=null && child.isAlive()) { child.destroyForcibly();child.waitFor(10,TimeUnit.SECONDS); } }
         flows().save(actor,"lab",flowId,1,"schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\n"+body.replace("cron:","disabled: true, cron:"));
         drain();assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state<>'SUCCESS'",Integer.class,flowId));
+    }
+
+    private ResourceCatalogService resources() { return context.getBean(ResourceCatalogService.class); }
+    private String resourceCluster(Kind kind,boolean enabled) {
+        String id=id();resources().putCluster(actor,"lab",id,new Cluster(id,kind,enabled));return id;
+    }
+    private DatasetVersion resourceDataset(String id,String version,String format,String... clusterIds) {
+        return resources().registerDataset(actor,"lab",id,version,new DatasetVersion(id,version,format,
+                Arrays.stream(clusterIds).map(c->new Location(c,"s3://datasets/"+id+"/"+version+"/"+c+"/data.bin")).toList()));
+    }
+
+    @Test void resourceCatalogPersistsAcrossRestartAndClusterCanBeDisabled() {
+        String cluster=resourceCluster(Kind.EDGE,true),data=id();var saved=resourceDataset(data,"v1","f32",cluster);
+        context.close();context=open();assertEquals(saved,resources().dataset(actor,"lab",data,"v1"));
+        assertTrue(resources().cluster(actor,"lab",cluster).enabled());
+        resources().putCluster(actor,"lab",cluster,new Cluster(cluster,Kind.EDGE,false));
+        assertFalse(resources().cluster(actor,"lab",cluster).enabled());
+        assertEquals(saved,resources().dataset(actor,"lab",data,"v1"));
+    }
+
+    @Test void datasetVersionIsImmutableAndRepeatedRegistrationIgnoresLocationOrder() {
+        String a=resourceCluster(Kind.EDGE,true),b=resourceCluster(Kind.CLOUD,true),data=id();
+        var one=resourceDataset(data,"v1","pt",a,b);
+        var again=resourceDataset(data,"v1","pt",b,a);
+        assertEquals(one,again);
+        assertEquals(ResourceException.Kind.CONFLICT,assertThrows(ResourceException.class,()->resourceDataset(data,"v1","f32",a,b)).kind());
+        var changed=new DatasetVersion(data,"v1","pt",List.of(new Location(a,"s3://datasets/changed/data.pt"),new Location(b,"s3://datasets/changed/data.pt")));
+        assertThrows(ResourceException.class,()->resources().registerDataset(actor,"lab",data,"v1",changed));
+        resourceDataset(data,"v2","f32",a);assertEquals(one,resources().dataset(actor,"lab",data,"v1"));
+        assertEquals("f32",resources().dataset(actor,"lab",data,"v2").format());
+    }
+
+    @Test void concurrentDatasetRegistrationHasOneImmutableVersion() throws Exception {
+        String a=resourceCluster(Kind.EDGE,true),data=id();
+        try(var pool=Executors.newFixedThreadPool(6)) {
+            var calls=new ArrayList<Future<DatasetVersion>>();for(int i=0;i<8;i++) calls.add(pool.submit(()->resourceDataset(data,"1","pt",a)));
+            for(var call:calls) assertEquals("pt",call.get(10,TimeUnit.SECONDS).format());
+        }
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_version WHERE dataset_id=?",Integer.class,data));
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_location WHERE dataset_id=?",Integer.class,data));
+    }
+
+    @Test void concurrentConflictingDatasetRegistrationDoesNotMixLocationsOrFormat() throws Exception {
+        String a=resourceCluster(Kind.EDGE,true),b=resourceCluster(Kind.CLOUD,true),data=id();
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var one=pool.submit(()->resourceDataset(data,"v1","pt",a));
+            var two=pool.submit(()->resourceDataset(data,"v1","f32",b));
+            int conflicts=0;for(var call:List.of(one,two)) {
+                try { call.get(10,TimeUnit.SECONDS); }
+                catch(ExecutionException ex) { assertInstanceOf(ResourceException.class,ex.getCause());assertEquals(ResourceException.Kind.CONFLICT,((ResourceException)ex.getCause()).kind());conflicts++; }
+            }
+            assertEquals(1,conflicts);
+        }
+        var saved=resources().dataset(actor,"lab",data,"v1");assertEquals(1,saved.locations().size());
+        assertEquals(saved.format().equals("pt")?a:b,saved.locations().getFirst().clusterId());
+    }
+
+    @Test void datasetAndAllLocationsRollbackWhenOneLocationWriteFails() {
+        String a=resourceCluster(Kind.EDGE,true),b=resourceCluster(Kind.EDGE,true),data=id();
+        String last=a.compareTo(b)>0?a:b;
+        jdbc().execute("CREATE TRIGGER fail_s4_location BEFORE INSERT ON res_dataset_location FOR EACH ROW BEGIN IF NEW.cluster_id='"+last+"' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected location failure'; END IF; END");
+        try {
+            assertThrows(DataAccessException.class,()->resourceDataset(data,"v1","pt",a,b));
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_version WHERE dataset_id=?",Integer.class,data));
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_location WHERE dataset_id=?",Integer.class,data));
+        } finally { jdbc().execute("DROP TRIGGER fail_s4_location"); }
+        assertEquals(2,resourceDataset(data,"v1","pt",a,b).locations().size());
+    }
+
+    @Test void datasetRequiresClusterInSameNamespaceAndLeavesNoPartialRows() {
+        String foreign=id(),data=id();var other=new Actor("other",Set.of("other"),Set.of(Action.READ,Action.WRITE));
+        resources().putCluster(other,"other",foreign,new Cluster(foreign,Kind.CLOUD,true));
+        assertEquals(ResourceException.Kind.NOT_FOUND,assertThrows(ResourceException.class,()->resourceDataset(data,"v1","pt",foreign)).kind());
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_version WHERE dataset_id=?",Integer.class,data));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->resources().cluster(actor,"other",foreign));
+    }
+
+    @Test void placementRequiresAllDatasetVersionsLocalAndDoesNotCreateExecutionOrReservation() {
+        String a=resourceCluster(Kind.EDGE,true),b=resourceCluster(Kind.EDGE,true),c=resourceCluster(Kind.CLOUD,true),train=id(),model=id();
+        resourceDataset(train,"v1","pt",a,b);resourceDataset(model,"v1","pt",b,c);
+        int before=jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class);
+        var options=resources().placementOptions(actor,"lab",new PlacementRequest(List.of(a,b,c),List.of(new DatasetRequirement(train,"v1","pt"),new DatasetRequirement(model,"v1","pt"))));
+        assertFalse(options.get(0).eligible());assertTrue(options.get(1).eligible());assertFalse(options.get(2).eligible());
+        assertEquals(List.of("DATASET_NOT_LOCAL:"+model+"/v1"),options.get(0).reasons());
+        assertEquals(2,options.get(1).datasets().size());
+        assertTrue(options.get(1).datasets().stream().allMatch(d->d.uri().contains("/"+b+"/")));
+        assertEquals(before,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class));
+        assertEquals(List.of(c,a),resources().placementOptions(actor,"lab",new PlacementRequest(List.of(c,a),List.of())).stream().map(PlacementOption::clusterId).toList());
+    }
+
+    @Test void placementReportsDisabledFormatMismatchAndMissingLocalCopySeparately() {
+        String a=resourceCluster(Kind.CLOUD,false),b=resourceCluster(Kind.EDGE,true),data=id();resourceDataset(data,"v1","pt",b);
+        var options=resources().placementOptions(actor,"lab",new PlacementRequest(List.of(a,b),List.of(new DatasetRequirement(data,"v1","f32"))));
+        assertEquals(List.of("CLUSTER_DISABLED","FORMAT_MISMATCH:"+data+"/v1","DATASET_NOT_LOCAL:"+data+"/v1"),options.get(0).reasons());
+        assertEquals(List.of("FORMAT_MISMATCH:"+data+"/v1"),options.get(1).reasons());
+        assertThrows(ResourceException.class,()->resources().placementOptions(actor,"lab",new PlacementRequest(List.of(a),List.of(new DatasetRequirement(data,"missing",null)))));
+    }
+
+    @Test void resourceRequestsRejectAmbiguousIdsDuplicatesAndCredentialUris() {
+        String a=resourceCluster(Kind.EDGE,true),data=id();
+        for(String uri:List.of("http://example.com/data","s3://user:password@datasets/data","s3://datasets/data?token=x","s3://datasets/data#x","s3://datasets/../data","s3://datasets/%2e%2e/data","s3://datasets/","s3://datasets:9000/data")) {
+            assertEquals(ResourceException.Kind.INVALID,assertThrows(ResourceException.class,()->resources().registerDataset(actor,"lab",data,"v1",new DatasetVersion(data,"v1","pt",List.of(new Location(a,uri))))).kind());
+        }
+        assertThrows(ResourceException.class,()->resourceDataset(data,"v1","pt",a,a));
+        assertThrows(ResourceException.class,()->resourceDataset(data,"../v1","pt",a));
+        assertThrows(ResourceException.class,()->resources().putCluster(actor,"lab",a,new Cluster(a, null,true)));
+        assertThrows(ResourceException.class,()->resources().placementOptions(actor,"lab",new PlacementRequest(List.of(a,a),List.of())));
+        assertThrows(ResourceException.class,()->resources().placementOptions(actor,"lab",new PlacementRequest(List.of(),List.of())));
+        resourceDataset(data,"v1","pt",a);
+        var required=new DatasetRequirement(data,"v1",null);
+        assertThrows(ResourceException.class,()->resources().placementOptions(actor,"lab",new PlacementRequest(List.of(a),List.of(required,required))));
+    }
+
+    @Test void resourceHttpHonorsReadWritePermissionsAndReturnsDomainErrors() throws Exception {
+        String a=id(),data=id(),base="/api/namespaces/lab/resources";
+        var cluster=new Cluster(a,Kind.EDGE,true);
+        assertEquals(401,call(port(),"PUT",base+"/clusters/"+a,null,cluster,null).statusCode());
+        assertEquals(403,call(port(),"PUT",base+"/clusters/"+a,"viewer",cluster,null).statusCode());
+        assertEquals(200,call(port(),"PUT",base+"/clusters/"+a,"writer",cluster,null).statusCode());
+        assertEquals(200,call(port(),"GET",base+"/clusters/"+a,"viewer",null,null).statusCode());
+        assertEquals(403,call(port(),"GET",base.replace("/lab/","/other/")+"/clusters/"+a,"writer",null,null).statusCode());
+        assertEquals(422,call(port(),"PUT",base+"/clusters/"+a,"writer",new Cluster(id(),Kind.EDGE,true),null).statusCode());
+        assertEquals(400,call(port(),"PUT",base+"/clusters/"+a,"writer",Map.of("id",a,"kind","EDGE","unexpected",true),null).statusCode());
+        var version=new DatasetVersion(data,"v1","pt",List.of(new Location(a,"s3://datasets/data.pt")));
+        String path=base+"/datasets/"+data+"/versions/v1";
+        assertEquals(200,call(port(),"PUT",path,"writer",version,null).statusCode());
+        assertEquals(200,call(port(),"PUT",path,"writer",version,null).statusCode());
+        assertEquals(409,call(port(),"PUT",path,"writer",new DatasetVersion(data,"v1","f32",version.locations()),null).statusCode());
+        assertEquals(200,call(port(),"GET",path,"viewer",null,null).statusCode());
+        assertEquals(404,call(port(),"GET",path.replace("v1","missing"),"viewer",null,null).statusCode());
+        var response=call(port(),"POST",base+"/placement-options","viewer",new PlacementRequest(List.of(a),List.of(new DatasetRequirement(data,"v1","pt"))),null);
+        assertEquals(200,response.statusCode());assertTrue(response.body().contains("\"eligible\":true"));
+    }
+
+    @Test void resourceListsAreBoundedAndNamespaceScoped() {
+        var only=new Actor("scoped",Set.of("catalog"),Set.of(Action.READ,Action.WRITE));
+        for(String id:List.of("c","a","b")) resources().putCluster(only,"catalog",id,new Cluster(id,Kind.EDGE,true));
+        assertEquals(List.of("b","c"),resources().clusters(only,"catalog",2,1).stream().map(Cluster::id).toList());
+        resources().registerDataset(only,"catalog","data","1",new DatasetVersion("data","1","pt",List.of(new Location("a","s3://datasets/data.pt"))));
+        assertEquals(1,resources().datasets(only,"catalog",20,0).size());assertTrue(resources().datasets(only,"catalog",20,1).isEmpty());
+        assertThrows(ResourceException.class,()->resources().datasets(only,"catalog",101,0));
+        assertThrows(ResourceException.class,()->resources().clusters(only,"catalog",20,-1));
+        assertThrows(ResourceException.class,()->resources().cluster(only,"catalog","unknown"));
     }
 
     private void awaitChild(Process child,int port) throws Exception {

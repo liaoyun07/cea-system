@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共43份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共48份（含8份包声明），测试类另列。
 
 ## 模块依赖白名单
 
@@ -25,7 +25,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 
 ## 当前全部生产 Java 文件
 
-所有路径相对backend。生产文件逐一登记；测试别名：D=DefinitionTest，I=DurableWorkflowTest，C=ContractTest，A=ArchitectureTest，L=LifecycleTest，T=ControlFlowTest（路径见下文）。实现范围为S1–S3。
+所有路径相对backend。生产文件逐一登记；测试别名：D=DefinitionTest，I=DurableWorkflowTest，C=ContractTest，A=ArchitectureTest，L=LifecycleTest，T=ControlFlowTest（路径见下文）。实现范围为S1–S3与S4-01资源目录/候选检查，不含实际外部任务。
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
@@ -72,6 +72,11 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 | `workflow-runtime/src/main/java/com/project/platform/runtime/scheduler/ScheduleCalculator.java` | 六字段Cron/ZoneId校验和下一时间 | validate/next | 复用Spring CronExpression，无运行状态 | WF-011 | T/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/scheduler/SchedulerEngine.java` | 到期点通过统一ExecutionService提交 | configure/runOnce | Flow→Schedule锁；提交和游标原子推进 | WF-010、WF-011 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/SchedulerPump.java` | 可关闭的有限批次定时轮询 | poll | 每次触发独立事务；故障保留游标重试 | WF-011 | I |
+| `platform-resource/src/main/java/com/project/platform/resource/catalog/ResourceCatalog.java` | 集群、数据集版本/位置、候选请求与结果记录 | 嵌套record及Kind | 不可变请求/响应值；版本指注册描述，不保证对象内容未变 | RES-001、RES-002 | I/C |
+| `platform-resource/src/main/java/com/project/platform/resource/catalog/ResourceException.java` | 资源域非法请求、未找到与冲突异常 | invalid/missing/conflict | 无运行状态依赖；HTTP统一映射 | RES-001 | I |
+| `platform-resource/src/main/java/com/project/platform/resource/catalog/JdbcResourceRepository.java` | 仅res_*目录表持久化 | putCluster/cluster/clusters/dataset/datasets/register | 版本和位置同事务；唯一键冲突后读已提交版本判断相同注册或冲突 | RES-001 | I/A |
+| `platform-resource/src/main/java/com/project/platform/resource/catalog/ResourceCatalogService.java` | 资源目录公开门面与候选本地性检查 | putCluster/registerDataset/placementOptions及查询 | READ/WRITE授权；校验URI、同namespace位置与版本；预览不预约 | RES-001、RES-002、SEC-001 | I |
+| `platform-server/src/main/java/com/project/platform/server/api/ResourceController.java` | 7个资源HTTP操作 | 集群/数据集版本读写、列表、placementOptions | Principal映射身份；仅调用资源公开门面，不读取Repository | RES-001、RES-002 | I/C/A |
 
 ## 表与事务所有权
 
@@ -81,13 +86,15 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - runtime：[V3__worker_lifecycle.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V3__worker_lifecycle.sql)，增加wf_worker_job、消息唤醒时间、重试时间及阶段/主结果/清理错误。执行租约使用数据库时钟。
 - dataflow：[V4__remove_unused_revision_checksum.sql](../platform-dataflow/src/main/resources/db/migration/dataflow/V4__remove_unused_revision_checksum.sql)，删除无行为消费者的checksum；真实幂等request_hash不删除。
 - runtime：[V5__control_flow_and_scheduling.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V5__control_flow_and_scheduling.sql)，新增wf_flow_control、wf_schedule和FIFO sequence_no，删除next_task。
-- 共10张业务表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- resource：[V6__resource_catalog.sql](../platform-resource/src/main/resources/db/migration/resource/V6__resource_catalog.sql)，res_cluster、res_dataset_version、res_dataset_location。外键限制同命名空间的集群/版本引用；仅资源模块读写。
+- 共13张业务表。V6不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- 资源链独立于执行链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选检查是声明本地性/格式/禁用状态预览，没有创建Execution、预约或Job。资源字段消费者见[S4-01协议](contracts/s4-resource-catalog.md)。RuntimeConfiguration仅增加目录Bean装配，ApiExceptionHandler增加ResourceException映射；runtime主调用链不变。
 - S1/S2活动执行必须排空后停机升级，不提供混版本执行兼容。叶子语义见[S2协议](contracts/s2-protocol.md)，控制树/准入/触发/锁顺序见[S3协议](contracts/s3-protocol.md)。
 
 ## 测试入口
 
 - D：[DefinitionTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/DefinitionTest.java)，10项模型/类型/绑定/模板测试。
-- I：[DurableWorkflowTest](../platform-server/src/test/java/com/project/platform/server/DurableWorkflowTest.java)，52项真实MySQL/HTTP/并发/故障/重启测试，含Worker强杀与单JVM并行、DAG/条件、FIFO取消、双Scheduler、独立Scheduler进程与升级边界。
+- I：[DurableWorkflowTest](../platform-server/src/test/java/com/project/platform/server/DurableWorkflowTest.java)，63项真实MySQL/HTTP/并发/故障/重启测试；保留52项S1–S3测试，新增11项资源持久化、版本/位置原子性、并发冲突、本地性、权限与输入校验测试。
 - L：[LifecycleTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/LifecycleTest.java)，3项时长/重试校验、跨阶段定义约束、纯决策测试。
 - C：[ContractTest](../platform-server/src/test/java/com/project/platform/server/ContractTest.java)，3项路由/record字段与引用/示例防漂移检查，不等同完整OpenAPI规范验证器。
 - A：[ArchitectureTest](../platform-server/src/test/java/com/project/platform/server/ArchitectureTest.java)，1项包含多条依赖约束的架构测试。
@@ -102,7 +109,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 |---|---|---|
 | workflow-runtime | model、definition、port、spi、executor、scheduler、worker、persistence、runner | S1–S3 |
 | platform-dataflow | definition、execution、query、metrics | S1–S4 |
-| platform-resource | cluster、dataset、storage、placement、reservation | S4 |
+| platform-resource | catalog已实现；后续按真实消费者增加storage、placement、reservation | S4 |
 | platform-deployment | application、contract、registry、distribution、deployment | S4 |
 | platform-edge | gateway、terminal、policy、delivery | S5 |
 | platform-offloading | eligibility、decision、profile、feedback | S5 |

@@ -3,7 +3,7 @@
   "info": {
     "title": "Cloud Edge Backend S2 API",
     "version": "2.0.0",
-    "description": "S3 nested control tasks, flow concurrency QUEUE/FAIL and durable six-field cron. Worker runs Log/Sleep; no Kubernetes or remote Worker API."
+    "description": "S1-S3 workflow engine plus S4-01 declared resource/dataset catalog and advisory locality checks. No Kubernetes execution, reservations or resource health probing in S4-01."
   },
   "servers": [
     {
@@ -1197,6 +1197,432 @@
           }
         }
       }
+    },
+    "/api/namespaces/{namespace}/resources/clusters/{clusterId}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "clusterId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "putCluster",
+        "description": "WRITE: upsert a declared cluster; id must match route.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceCluster"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceCluster"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getCluster",
+        "description": "READ: get the registered cluster.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceCluster"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/resources/clusters": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listClusters",
+        "description": "READ: list declared clusters ordered by id.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceCluster"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/namespaces/{namespace}/resources/datasets/{datasetId}/versions/{version}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "datasetId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "registerDataset",
+        "description": "WRITE: immutable registration, same-content replay 200; version must match route.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetVersion"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getDatasetVersion",
+        "description": "READ: get declared dataset version and locations.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/resources/datasets": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listDatasetVersions",
+        "description": "READ: list registered dataset versions ordered by datasetId/version (lexical).",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DatasetVersion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/namespaces/{namespace}/resources/placement-options": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "placementOptions",
+        "description": "READ only: evaluate all required versions/formats against explicitly named clusters. Returns advisory eligibility and reasons, without execution, reservation, transfer or health probing.",
+        "responses": {
+          "200": {
+            "description": "Successful resource operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlacementOption"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Cluster or dataset version is not registered in this namespace"
+          },
+          "409": {
+            "description": "Immutable dataset version conflict"
+          },
+          "422": {
+            "description": "Invalid resource request"
+          },
+          "500": {
+            "description": "Infrastructure failure; no success is fabricated"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlacementRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2072,6 +2498,190 @@
             "additionalProperties": true
           }
         }
+      },
+      "ResourceCluster": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CLOUD",
+              "EDGE"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "description": "Administrator-declared cluster; enabled is permission to use, not observed health. Contains no endpoint or credentials."
+      },
+      "ResourceLocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clusterId": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "s3://bucket/key object locator, without endpoint credentials, query, fragment, port or parent traversal."
+          }
+        },
+        "required": [
+          "clusterId",
+          "uri"
+        ]
+      },
+      "DatasetVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourceLocation"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "datasetId",
+          "version",
+          "format",
+          "locations"
+        ],
+        "description": "Immutable registration including its location set. Repeating the same registration (location order ignored) returns 200; different content at the same version returns 409. Registration does not upload or verify object existence."
+      },
+      "DatasetRequirement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "requiredFormat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "datasetId",
+          "version"
+        ]
+      },
+      "PlacementRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidateClusterIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetRequirement"
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "candidateClusterIds"
+        ]
+      },
+      "DatasetLocation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "datasetId",
+          "version",
+          "format",
+          "uri"
+        ]
+      },
+      "PlacementOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "clusterId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CLOUD",
+              "EDGE"
+            ]
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "CLUSTER_DISABLED, FORMAT_MISMATCH:dataset/version, DATASET_NOT_LOCAL:dataset/version; all apply cumulatively."
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetLocation"
+            }
+          }
+        },
+        "required": [
+          "clusterId",
+          "kind",
+          "eligible",
+          "reasons",
+          "datasets"
+        ]
       }
     }
   }

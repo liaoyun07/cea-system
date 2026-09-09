@@ -1,20 +1,22 @@
 # 当前进度
 
-更新时间：2026-09-09。当前阶段：S3 通用控制流。阶段状态：DONE；S1–S3统一验收通过，S4尚未开始。
+更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S1–S3为已验收基线，S4-01资源目录与候选本地性检查已完成，未完成整个S4。
 
 ## 当前事实
 
-- 独立8模块保留，43份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。runtime直接使用Spring CronExpression解析Cron。
+- 独立8模块保留，48份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。resource增加spring-jdbc，复用父BOM和既有事务设施。
 - S1定义/类型绑定、版本/CAS/回滚、幂等提交和查询保留；S2Worker租约/epoch、同Attempt接管、固定重试/超时/取消与Errors/Finally已回归。
 - 新增嵌套Sequential/Parallel/Dag/If；DAG同组依赖与声明顺序无关；If选择持久化、未选分支跳过。控制节点只有TaskRun，只有叶子创建Attempt/WorkerJob。
 - 新增Flow并发limit、QUEUE/FAIL和持久FIFO；同namespace/flowId跨版本共用最新额度，清理结束才释放。排队取消无Attempt/Finally，活跃取消保留清理。
 - 新增单Flow六字段Cron、时区、disabled、静态inputs和持久游标；双Scheduler锁内去重，错过多次只补一个已持久到期点。默认每Worker进程4个并发叶子任务。
 - 真实调用链：手动HTTP/dataflow或Scheduler → ExecutionService准入 → FlowExecutor解释控制树/派发 → Worker事务外执行 → 持久结果 → Executor归并、清理、提升队列。
-- 10张业务表。dataflow只拥有定义头和修订，runtime拥有运行/传输/Flow门控/Schedule表；保存定义和同步运行配置同事务，不跨模块访问对方Repository。
+- 13张业务表。dataflow只拥有定义头和修订，runtime拥有运行/传输/Flow门控/Schedule表，resource拥有集群/数据集版本/位置3张表；不跨模块访问对方Repository。V6仅新增目录表，不改变执行表。
 - 删除SequentialExecutor和wf_execution.next_task，以统一FlowExecutor替代；没有旧执行器兼容开关，没有增加Broker/WorkerGroup/空SPI或第二套运行状态。字段消费者见[S3协议](contracts/s3-protocol.md)。
-- 统一verify于2026-09-09 16:26:40 +08:00通过：75项，0失败/错误/跳过。含19项单元、52项真实MySQL集成、3项协议和1项架构；见[S3验收](verification/VER-S3-001-control-scheduling.md)。
+- S3历史统一verify为75项通过，见[S3验收](verification/VER-S3-001-control-scheduling.md)。本批统一scripts/verify.ps1于18:01:48 +08:00通过86项（19单元+63真实MySQL集成+3协议+1架构），0失败/错误/跳过，结构检查通过；测试容器与JVM已退出，见[S4-01验证](verification/VER-S4-001-resource-catalog.md)。
 - S3验证只运行隔离测试MySQL和自己的测试JVM，均已清理；旧web-platform、旧数据库、旧镜像未修改或迁移。随后用户授权将新backend首次提交并发布到公开仓库，不扩大到旧工程。
-- 可运行的叶子仍仅Log/Sleep；容器/资源数据集/跨云选址/DQN/Repeat/算法计量/前端均未实现。没有宣称生产容量、跨云故障或任意外部副作用exactly-once。
+- 新增资源链：HTTP → ResourceCatalogService授权/校验 → JdbcResourceRepository。支持集群注册/启停、不可覆盖的数据集版本及位置、分页查询、候选本地性/格式/禁用原因检查。预览不创建Execution，不选择最终位置、不预约或派发。
+- 可运行的叶子仍仅Log/Sleep；资源观测、镜像管理、容器/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录登记不保证对象存在或集群健康。没有宣称生产容量、跨云故障或任意外部副作用exactly-once。
+- S4-01以已发布071ff4b为基线；2026-09-10用户授权更新GitHub，本批源码、测试、协议和文档纳入Git发布。测试证据保留验证当时的基线与工作区说明；旧系统没有修改。
 
 ## 阶段看板
 
@@ -24,25 +26,26 @@
 | S1 定义和最小闭环 | DONE | PASS；S1历史与本次回归 |
 | S2 恢复和失败语义 | DONE | PASS；S2历史与本次回归 |
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
-| S4 资源与运行环境 | NOT_STARTED | NOT_RUN |
+| S4 资源与运行环境 | IN_PROGRESS | 首批目录/预览，完整阶段验收尚未满足 |
 | S5 边缘卸载与研究能力 | NOT_STARTED | NOT_RUN |
 | S6 P2与编辑管理 | NOT_STARTED | NOT_RUN |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
 
 ## 本批工作包
 
-| 工作包 | 交付/证据 |
-|---|---|
-| S3-01 | 嵌套控制模型/校验与FlowExecutor；乱序DAG汇合、条件选择恢复、跳过、并行失败/取消；实际执行完整示例两个分支 |
-| S3-02 | Flow准入锁、最新额度跨版本、QUEUED/FAIL及FIFO；并发提交不超限、重启保序、取消/重试/清理失败释放 |
-| S3-03 | ScheduleCalculator/JdbcScheduleStore/SchedulerEngine/SchedulerPump；双触发器去重、游标与提交回滚、编辑/禁用/恢复；独立Scheduler JVM创建普通执行 |
-| S3-04 | V5排空检查及历史保留、S1/S2回归、真实Worker JVM并行；OpenAPI/示例、Java索引、文档与源码快照 |
+| 工作包 | 状态 | 交付/剩余验收 |
+|---|---|---|
+| S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
+| S4-02 | NOT_STARTED | 应用/镜像契约、参数派生、镜像准备/分发及常驻部署 |
+| S4-03 | NOT_STARTED | 真实资源观测、选址/原子预约、K8s Job/产物及同Attempt接管 |
+| S4-04 | NOT_STARTED | HTTP/SQL及隔离Shell/Python任务 |
+| S4-05 | NOT_STARTED | P04/P05/P06/P11最小部署与故障验收 |
 
-全部Java和测试入口见[代码索引](01-code-architecture.md)，职责来源及有意简化见[ADR-0005](decisions/ADR-0005-s3-control-flow.md)。
+全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-等待用户授权S4，再接入资源/数据集与运行环境。S3不扩大到Kubernetes、镜像契约或普通选址，也不提前实施生产保障扩展；S5开始时再讨论计量口径。
+下一批S4-02先核对镜像契约、数据集约束与镜像准备/常驻部署边界，再实施真实消费者。不提前创建无消费者的预约表或Runner空SPI；S4-03再接入真实Job、资源观测与容量预约。S5开始时再讨论计量口径。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -55,7 +58,7 @@
 | OPEN-003 | 已决定：新后端Java 21 | 项目编译/运行均以21为准，现有配置已符合；不改旧工程或全局JAVA_HOME |
 | OPEN-004 | 已决定：不做终端任务断线恢复 | 移出本期范围，不建设终端恢复专用查询/ACK、离线补发、断点续跑；正常终端接入/卸载和S2服务端Worker接管保留。结果不明不能盲目重投或伪造成功 |
 | OPEN-005 | 后置：数据处理速率口径 | 到S5开始实现时再讨论并验证，当前不新增指标逻辑 |
-| OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11按后续阶段最小实现；P02/P03/P08/P09/P10/P12/P13现在后置。见[范围清单](06-deployment-safeguards-review.md)，本次不启动实现、不删除已有保护 |
+| OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11随S4真实运行接入最小实现；其他已选后置项不变。见[范围清单](06-deployment-safeguards-review.md)，目录API不能冒充远程接口/凭据/部署保障验收 |
 
 ## 完成记录
 
@@ -72,3 +75,7 @@
 2026-09-09：用户授权开始S3，完成S3-01至S3-04；75项统一verify通过（16:26:40 +08:00），真实MySQL及独立Worker/Scheduler JVM验证完成。旧系统未改、S4未开始；详细证据见VER-S3-001。
 
 2026-09-09：用户指定公开仓库cea-system，创建liaoyun07/cea-system并配置origin；将S1–S3快照作为首次发布。此任务仅Git发布与版本管理说明更新，不修改业务代码；业务测试沿用上述75项结果，本次另检查上传文件、敏感配置、结构链接和源码快照一致性。
+
+2026-09-09：用户授权开始S4，计划更新至0.7，分S4-01至S4-05验证。首批资源目录与候选本地性完成，86项统一验证于18:01:48 +08:00通过；剩余Job/镜像/预约/通用任务/保障验收没有标为完成，证据见VER-S4-001。
+
+2026-09-10：用户授权更新GitHub，发布S4-01源码与文档到cea-system/main。本次仅Git发布与发布说明更新，不修改业务逻辑；业务测试沿用2026-09-09的86项结果，不声称本次重新运行，另执行结构/链接和待上传内容检查。
