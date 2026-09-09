@@ -1,0 +1,42 @@
+schemaVersion: 1
+namespace: lab
+id: control-demo
+description: 乱序DAG、条件与嵌套并行；叶子任务仍仅Log/Sleep
+inputs:
+  publish: {type: BOOLEAN, defaultValue: true}
+concurrency: {limit: 2, behavior: QUEUE}
+schedule:
+  cron: '0 */5 * * * *'
+  timezone: Asia/Shanghai
+  disabled: true
+  inputs: {publish: true}
+tasks:
+  - id: graph
+    type: core.Dag
+    tasks:
+      - id: join
+        type: core.Log
+        dependsOn: [left, right]
+        message: '{{ outputs.left.message }} + {{ outputs.right.message }}'
+      - {id: right, type: core.Log, dependsOn: [seed], message: right}
+      - {id: left, type: core.Log, dependsOn: [seed], message: left}
+      - {id: seed, type: core.Log, message: start}
+  - id: choose
+    type: core.If
+    condition: '{{ inputs.publish }}'
+    then:
+      - id: deliveries
+        type: core.Parallel
+        tasks:
+          - {id: local, type: core.Log, message: '{{ outputs.join.message }}'}
+          - id: serial
+            type: core.Sequential
+            tasks:
+              - {id: pause, type: core.Sleep, duration: PT0.1S}
+              - {id: remote, type: core.Log, message: done}
+    else: [{id: notPublished, type: core.Log, message: skipped publication}]
+outputs:
+  result: {source: TASK_OUTPUT, taskId: join, port: message}
+  published: {source: TASK_OUTPUT, taskId: choose, port: evaluationResult}
+errors: [{id: handler, type: core.Log, message: workflow failed}]
+finally: [{id: cleanup, type: core.Log, message: cleanup}]

@@ -1,0 +1,33 @@
+schemaVersion: 1
+namespace: lab
+id: hello
+description: S1 durable sequential Log example
+labels:
+  stage: s1
+inputs:
+  name:
+    type: STRING
+    required: true
+  count:
+    type: INTEGER
+    defaultValue: 2
+variables:
+  greeting:
+    source: LITERAL
+    value: Hello
+tasks:
+  - id: first
+    type: core.Log
+    message: "{{ vars.greeting }} {{ inputs.name }}"
+  - id: second
+    type: core.Log
+    message: "{{ outputs.first.message }}; count={{ inputs.count }}"
+outputs:
+  result:
+    source: TASK_OUTPUT
+    taskId: second
+    port: message
+  count:
+    source: INPUT
+    name: count
+

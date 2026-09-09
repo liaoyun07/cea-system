@@ -1,0 +1,949 @@
+package com.project.platform.server;
+
+import com.project.platform.dataflow.definition.FlowService;
+import com.project.platform.dataflow.execution.FlowExecutionService;
+import com.project.platform.dataflow.execution.FlowExecutionService.Request;
+import com.project.platform.foundation.identity.AccessPolicy.*;
+import com.project.platform.runtime.definition.JsonCodec;
+import com.project.platform.runtime.executor.FlowExecutor;
+import com.project.platform.runtime.model.*;
+import java.net.URI;
+import java.net.ServerSocket;
+import java.net.http.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.time.Duration;
+import java.util.*;
+import java.util.concurrent.*;
+import org.junit.jupiter.api.*;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Environment;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessException;
+import org.testcontainers.containers.MySQLContainer;
+import static org.junit.jupiter.api.Assertions.*;
+
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class DurableWorkflowTest {
+    private final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
+            .withCommand("--log-bin-trust-function-creators=1")
+            .withDatabaseName("backend_s1_test").withUsername("backend_test").withPassword("isolated-test-only")
+            .withUrlParam("connectionTimeZone","UTC");
+    private ConfigurableApplicationContext context;
+    private final JsonCodec json = new JsonCodec();
+    private final Actor actor = new Actor("writer",Set.of("lab"),Set.of(Action.READ,Action.WRITE,Action.EXECUTE));
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+
+    @BeforeAll void start() {
+        mysql.start();
+        try { context = open(); }
+        catch (RuntimeException ex) { mysql.stop(); throw ex; }
+    }
+    @AfterAll void stop() {
+        if (context != null) context.close();
+        mysql.stop();
+    }
+    private ConfigurableApplicationContext open() {
+        return new SpringApplicationBuilder(BackendApplication.class).run(
+                "--server.port=0","--platform.executor.enabled=false","--platform.worker.enabled=false","--platform.scheduler.enabled=false",
+                "--spring.datasource.url="+mysql.getJdbcUrl(),
+                "--spring.datasource.username="+mysql.getUsername(),
+                "--spring.datasource.password="+mysql.getPassword(),
+                "--platform.security.users[0].name=writer","--platform.security.users[0].password=test-password",
+                "--platform.security.users[0].namespaces=lab","--platform.security.users[0].actions=READ,WRITE,EXECUTE",
+                "--platform.security.users[1].name=viewer","--platform.security.users[1].password=test-password",
+                "--platform.security.users[1].namespaces=lab","--platform.security.users[1].actions=READ",
+                "--logging.level.root=WARN");
+    }
+    private FlowService flows() { return context.getBean(FlowService.class); }
+    private FlowExecutionService executions() { return context.getBean(FlowExecutionService.class); }
+    private JdbcTemplate jdbc() { return context.getBean(JdbcTemplate.class); }
+    private com.project.platform.runtime.worker.WorkerEngine worker() { return context.getBean(com.project.platform.runtime.worker.WorkerEngine.class); }
+    private com.project.platform.runtime.persistence.JdbcWorkerStore jobs() { return context.getBean(com.project.platform.runtime.persistence.JdbcWorkerStore.class); }
+    private void pause(long ms) { try { Thread.sleep(ms); } catch(InterruptedException ex) { Thread.currentThread().interrupt(); throw new IllegalStateException(ex); } }
+    private FlowExecutor executor() { return context.getBean(FlowExecutor.class); }
+    private String id() { return "f"+UUID.randomUUID().toString().replace("-",""); }
+    private String source(String id) {
+        return """
+                schemaVersion: 1
+                namespace: lab
+                id: %s
+                inputs:
+                  name: {type: STRING, required: true}
+                  count: {type: INTEGER, defaultValue: 2}
+                variables:
+                  greeting: {source: LITERAL, value: Hello}
+                tasks:
+                  - {id: first, type: core.Log, message: "{{ vars.greeting }} {{ inputs.name }}"}
+                  - {id: second, type: core.Log, message: "{{ outputs.first.message }}; count={{ inputs.count }}"}
+                outputs:
+                  result: {source: TASK_OUTPUT, taskId: second, port: message}
+                  count: {source: INPUT, name: count}
+                """.formatted(id);
+    }
+    private String register() {
+        String id=id(); flows().save(actor,"lab",id,0,source(id)); return id;
+    }
+    private Request request(String id) { return new Request(id,null,Map.of("name","Ada")); }
+    private void drain() {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+        while(System.nanoTime()<deadline) {
+            executor().processNext();
+            worker().runOnce();
+            if(jdbc().queryForObject("SELECT COUNT(*) FROM wf_message",Integer.class)==0) return;
+            pause(25);
+        }
+        fail("executor/worker did not drain");
+    }
+
+    @Test void realMysqlAndFlywayMigrations() {
+        assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
+        assertEquals(5,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+    }
+    @Test void immutableRevisionsAndRollback() {
+        String id=register();
+        String original=flows().get(actor,"lab",id,1).source();
+        flows().save(actor,"lab",id,1,source(id).replace("Hello","Welcome"));
+        assertEquals(original,flows().get(actor,"lab",id,1).source());
+        assertEquals(3,flows().rollback(actor,"lab",id,2,1).revision());
+        assertEquals(original,flows().get(actor,"lab",id,null).source());
+        assertThrows(WorkflowException.class,()->flows().save(actor,"lab",id,1,source(id)));
+        assertEquals(3,flows().history(actor,"lab",id,20,0).size());
+    }
+    @Test void concurrentRevisionCompareAndSetHasOneWinner() throws Exception {
+        String id=register();
+        try(var pool=Executors.newFixedThreadPool(6)) {
+            var jobs=new ArrayList<Callable<Boolean>>();
+            for(int i=0;i<6;i++) jobs.add(()->{
+                try { flows().save(actor,"lab",id,1,source(id)); return true; }
+                catch(WorkflowException ex) { assertEquals(WorkflowException.Kind.CONFLICT,ex.kind()); return false; }
+            });
+            int winners=0; for(var future:pool.invokeAll(jobs)) if(future.get()) winners++;
+            assertEquals(1,winners);
+        }
+        assertEquals(2,flows().get(actor,"lab",id,null).revision());
+    }
+    @Test void concurrentIdempotencyProducesOneExecution() throws Exception {
+        String id=register(), key=id();
+        Set<String> executionIds=new HashSet<>();
+        try(var pool=Executors.newFixedThreadPool(8)) {
+            var jobs=new ArrayList<Callable<String>>();
+            for(int i=0;i<12;i++) jobs.add(()->executions().submit(actor,"lab",key,request(id)));
+            for(var future:pool.invokeAll(jobs)) executionIds.add(future.get());
+        }
+        assertEquals(1,executionIds.size());
+        String executionId=executionIds.iterator().next();
+        assertEquals(2,executions().tasks(actor,"lab",executionId).size());
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab",key,new Request(id,null,Map.of("name","Different"))));
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+    }
+    @Test void acceptedRequestKeepsRevisionDefaultsAndTypedOutputsAfterEdit() {
+        String id=register(),key=id();
+        String executionId=executions().submit(actor,"lab",key,request(id));
+        flows().save(actor,"lab",id,1,source(id).replace("Hello","Changed").replace("defaultValue: 2","defaultValue: 9"));
+        assertEquals(executionId,executions().submit(actor,"lab",key,request(id)));
+        drain();
+        var execution=executions().get(actor,"lab",executionId);
+        assertEquals(1,execution.flowRevision());
+        assertEquals(2,execution.outputs().get("count"));
+        assertEquals("Hello Ada; count=2",execution.outputs().get("result"));
+        assertNotNull(execution.startedAt()); assertNotNull(execution.endedAt());
+        var tasks=executions().tasks(actor,"lab",executionId);
+        assertTrue(tasks.getFirst().endedAt().compareTo(tasks.getLast().startedAt())<=0);
+        assertEquals(2,executions().logs(actor,"lab",executionId,0,50).size());
+        assertEquals(1,executions().attempts(actor,"lab",executionId,tasks.getFirst().id()).size());
+    }
+    @Test void failureIsPersistedAndRemainingTasksAreSkipped() {
+        String id=id();
+        flows().save(actor,"lab",id,0,source(id).replace("{{ vars.greeting }}","{{ inputs.missing }}"));
+        String executionId=executions().submit(actor,"lab",id(),request(id));
+        drain();
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",executionId).state());
+        var tasks=executions().tasks(actor,"lab",executionId);
+        assertEquals(ExecutionState.FAILED,tasks.getFirst().state());
+        assertEquals(ExecutionState.SKIPPED,tasks.getLast().state());
+        assertEquals("ERROR",executions().logs(actor,"lab",executionId,0,50).getFirst().level());
+    }
+    @Test void submissionRollsBackIfQueueInsertFails() {
+        String id=register(),key=id();
+        jdbc().execute("CREATE TRIGGER fail_s1_message BEFORE INSERT ON wf_message FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected queue failure'");
+        try {
+            assertThrows(DataAccessException.class,()->executions().submit(actor,"lab",key,request(id)));
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE request_key=?",Integer.class,key));
+        } finally { jdbc().execute("DROP TRIGGER fail_s1_message"); }
+    }
+    @Test void logStateAndNextMessageRollBackTogether() {
+        drain();
+        String id=register(),executionId=executions().submit(actor,"lab",id(),request(id));
+        assertTrue(executor().processNext()); // execution RUNNING
+        assertTrue(executor().processNext()); // first task RUNNING and Worker job dispatched
+        assertTrue(worker().runOnce());
+        pause(150);
+        jdbc().execute("CREATE TRIGGER fail_s1_message BEFORE INSERT ON wf_message FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected queue failure'");
+        try {
+            assertThrows(DataAccessException.class,()->executor().processNext());
+            assertEquals(0,executions().logs(actor,"lab",executionId,0,50).size());
+            assertEquals(ExecutionState.RUNNING,executions().tasks(actor,"lab",executionId).getFirst().state());
+            assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_message WHERE execution_id=?",Integer.class,executionId));
+            assertNotNull(jobs().result(first(executionId).id(),1));
+        } finally { jdbc().execute("DROP TRIGGER fail_s1_message"); }
+        drain();
+        assertEquals(2,executions().logs(actor,"lab",executionId,0,50).size());
+    }
+    @Test void multipleConsumersDoNotDuplicateLogsOrAttempts() throws Exception {
+        String id=register(),executionId=executions().submit(actor,"lab",id(),request(id));
+        try(var pool=Executors.newFixedThreadPool(4)) {
+            var jobs=new ArrayList<Callable<Void>>();
+            for(int i=0;i<4;i++) jobs.add(()->{ drain(); return null; });
+            for(var future:pool.invokeAll(jobs)) future.get();
+        }
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        assertEquals(2,executions().logs(actor,"lab",executionId,0,50).size());
+        for(var task:executions().tasks(actor,"lab",executionId))
+            assertEquals(1,executions().attempts(actor,"lab",executionId,task.id()).size());
+    }
+    @Test void contextRestartResumesRunningTask() {
+        drain();
+        String id=register(),executionId=executions().submit(actor,"lab",id(),request(id));
+        executor().processNext(); executor().processNext();
+        String firstTask=executions().tasks(actor,"lab",executionId).getFirst().id();
+        context.close(); context=open();
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        assertEquals(firstTask,executions().tasks(actor,"lab",executionId).getFirst().id());
+        assertEquals(1,executions().attempts(actor,"lab",executionId,firstTask).size());
+    }
+
+    private int port() { return Integer.parseInt(context.getBean(Environment.class).getProperty("local.server.port")); }
+    private HttpResponse<String> call(int port,String method,String path,String user,Object body,String key) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).timeout(Duration.ofSeconds(5));
+        if(user!=null) builder.header("Authorization","Basic "+Base64.getEncoder().encodeToString((user+":test-password").getBytes(StandardCharsets.UTF_8)));
+        if(key!=null) builder.header("Idempotency-Key",key);
+        builder.header("X-User","writer");
+        if(body!=null) builder.header("Content-Type","application/json");
+        builder.method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.write(body)));
+        return http.send(builder.build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void httpContractAndNamespacePermissions() throws Exception {
+        String id=id(),base="/api/namespaces/lab";
+        assertEquals(401,call(port(),"GET",base+"/flows",null,null,null).statusCode());
+        assertEquals(403,call(port(),"GET","/api/namespaces/other/flows","writer",null,null).statusCode());
+        var body=Map.of("expectedRevision",0,"source",source(id));
+        assertEquals(403,call(port(),"POST",base+"/flows/"+id+"/revisions","viewer",body,null).statusCode());
+        assertEquals(201,call(port(),"POST",base+"/flows/"+id+"/revisions","writer",body,null).statusCode());
+        assertEquals(409,call(port(),"POST",base+"/flows/"+id+"/revisions","writer",body,null).statusCode());
+        assertEquals(422,call(port(),"POST",base+"/executions","writer",new Request(id,null,Map.of()),id()).statusCode());
+        assertEquals(400,call(port(),"POST",base+"/executions","writer",request(id),null).statusCode());
+        var accepted=call(port(),"POST",base+"/executions","writer",request(id),id());
+        assertEquals(202,accepted.statusCode(),accepted.body());
+        String executionId=(String)json.map(accepted.body()).get("executionId");
+        drain();
+        assertEquals(200,call(port(),"GET",base+"/executions/"+executionId,"viewer",null,null).statusCode());
+        assertEquals(403,call(port(),"GET","/api/namespaces/other/executions/"+executionId+"/logs","writer",null,null).statusCode());
+        assertEquals(200,call(port(),"GET",base+"/executions/"+executionId+"/logs","viewer",null,null).statusCode());
+        assertEquals(422,call(port(),"GET",base+"/executions?limit=1000","writer",null,null).statusCode());
+    }
+
+    @Test void forcedJvmRestartKeepsAnAcceptedExecution() throws Exception {
+        String flowId=register();
+        int childPort;
+        try(var socket=new ServerSocket(0)) { childPort=socket.getLocalPort(); }
+        Process child=null;
+        String executionId;
+        try {
+            child=startChild(childPort,false,"before");
+            awaitChild(child,childPort);
+            var accepted=call(childPort,"POST","/api/namespaces/lab/executions","writer",request(flowId),id());
+            assertEquals(202,accepted.statusCode(),accepted.body());
+            executionId=(String)json.map(accepted.body()).get("executionId");
+            assertEquals(ExecutionState.CREATED,executions().get(actor,"lab",executionId).state());
+            child.destroyForcibly();
+            assertTrue(child.waitFor(10,TimeUnit.SECONDS));
+            child=startChild(childPort,true,"after");
+            awaitChild(child,childPort);
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+            while(System.nanoTime()<deadline && !executions().get(actor,"lab",executionId).state().terminal()) Thread.sleep(100);
+            assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+            assertEquals(2,executions().logs(actor,"lab",executionId,0,50).size());
+        } finally {
+            if(child!=null && child.isAlive()) { child.destroyForcibly(); child.waitFor(10,TimeUnit.SECONDS); }
+        }
+    }
+    private Process startChild(int port,boolean executorEnabled,String suffix) throws Exception {
+        return startChild(port,executorEnabled,executorEnabled,suffix);
+    }
+    private Process startChild(int port,boolean executorEnabled,boolean workerEnabled,String suffix) throws Exception {
+        return startChild(port,executorEnabled,workerEnabled,false,suffix);
+    }
+    private Process startChild(int port,boolean executorEnabled,boolean workerEnabled,boolean schedulerEnabled,String suffix) throws Exception {
+        String java=Path.of(System.getProperty("java.home"),"bin",System.getProperty("os.name").startsWith("Windows")?"java.exe":"java").toString();
+        String classpath=System.getProperty("surefire.test.class.path",System.getProperty("java.class.path"));
+        var command=new ArrayList<>(List.of(java,"-cp",classpath,BackendApplication.class.getName(),
+                "--server.port="+port,"--platform.executor.enabled="+executorEnabled,"--platform.worker.enabled="+workerEnabled,"--platform.scheduler.enabled="+schedulerEnabled,"--platform.worker.lease-ms=600",
+                "--spring.datasource.url="+mysql.getJdbcUrl(),"--spring.datasource.username="+mysql.getUsername(),
+                "--spring.datasource.password="+mysql.getPassword(),
+                "--platform.security.users[0].name=writer","--platform.security.users[0].password=test-password",
+                "--platform.security.users[0].namespaces=lab","--platform.security.users[0].actions=READ,WRITE,EXECUTE",
+                "--logging.level.root=WARN"));
+        Files.createDirectories(Path.of("target","restart-evidence"));
+        return new ProcessBuilder(command).redirectErrorStream(true)
+                .redirectOutput(Path.of("target","restart-evidence",suffix+".log").toFile()).start();
+    }
+private String custom(String body) {
+        String flowId=id();
+        flows().save(actor,"lab",flowId,0,"schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\ninputs:\n  name: {type: STRING}\n"+body);
+        return executions().submit(actor,"lab",id(),request(flowId));
+    }
+    private String dispatchCustom(String body) {
+        drain();
+        String executionId=custom(body);
+        assertTrue(executor().processNext());
+        assertTrue(executor().processNext());
+        return executionId;
+    }
+    private void advanceUntil(java.util.function.BooleanSupplier condition) {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+        while(System.nanoTime()<deadline) {
+            if(condition.getAsBoolean()) return;
+            executor().processNext();
+            pause(15);
+        }
+        fail("executor condition timed out");
+    }
+    private ExecutionRecord.TaskRun first(String executionId) { return executions().tasks(actor,"lab",executionId).getFirst(); }
+
+    @Test void leaseTakeoverKeepsAttemptAndRejectsOldAndDuplicateResults() {
+        String executionId=dispatchCustom("tasks: [{id: one, type: core.Log, message: real}]\n");
+        var old=jobs().claim("old-worker",300);
+        assertNotNull(old);
+        assertTrue(jobs().heartbeat(old,300));
+        jdbc().update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",old.job().taskRunId());
+        assertFalse(jobs().heartbeat(old,300));
+        var replacement=jobs().claim("new-worker",3000);
+        assertEquals(old.job().attemptNo(),replacement.job().attemptNo());
+        assertEquals(old.epoch()+1,replacement.epoch());
+        assertFalse(jobs().finish(old,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","stale"))));
+        var result=com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","real"));
+        assertTrue(jobs().finish(replacement,result));
+        assertFalse(jobs().finish(replacement,result));
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        assertEquals("real",executions().logs(actor,"lab",executionId,0,50).getFirst().message());
+        assertEquals(1,executions().attempts(actor,"lab",executionId,first(executionId).id()).size());
+    }
+
+    @Test void savedWorkerResultSurvivesRestartBeforeMerge() {
+        String executionId=dispatchCustom("tasks: [{id: one, type: core.Log, message: durable}]\n");
+        assertTrue(worker().runOnce());
+        assertEquals(ExecutionState.RUNNING,first(executionId).state());
+        assertTrue(executions().logs(actor,"lab",executionId,0,50).isEmpty());
+        context.close(); context=open();
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        assertEquals(1,executions().logs(actor,"lab",executionId,0,50).size());
+    }
+
+    @Test void constantRetryWaitIsDurableAndMaxAttemptsIncludesFirst() {
+        String executionId=dispatchCustom("""
+                tasks:
+                  - id: one
+                    type: core.Log
+                    message: "{{ taskrun.attemptsCount == 1 ? missing : 'recovered' }}"
+                    retry: {type: constant, maxAttempts: 2, interval: PT1S}
+                """);
+        worker().runOnce();
+        advanceUntil(()->first(executionId).state()==ExecutionState.RETRYING);
+        var at=first(executionId).retryAt();
+        jdbc().update("UPDATE wf_message SET available_at=CURRENT_TIMESTAMP(6) WHERE execution_id=?",executionId);
+        executor().processNext();
+        assertEquals(1,executions().attempts(actor,"lab",executionId,first(executionId).id()).size());
+        context.close(); context=open();
+        assertEquals(at,first(executionId).retryAt());
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        var attempts=executions().attempts(actor,"lab",executionId,first(executionId).id());
+        assertEquals(2,attempts.size());
+        assertEquals(ExecutionState.FAILED,attempts.getFirst().state());
+        assertEquals(ExecutionState.SUCCESS,attempts.getLast().state());
+        assertFalse(attempts.getLast().startedAt().isBefore(at));
+        assertEquals("recovered",executions().logs(actor,"lab",executionId,0,50).getLast().message());
+    }
+
+    @Test void exhaustedRetriesRunErrorsAndFinallyAndKeepPrimaryFailure() {
+        String executionId=custom("""
+                tasks:
+                  - {id: bad, type: core.Log, message: "{{ missing }}", retry: {type: constant, maxAttempts: 2, interval: PT0.01S}}
+                  - {id: skipped, type: core.Log, message: never}
+                errors:
+                  - {id: handler, type: core.Log, message: handled}
+                finally:
+                  - {id: cleanup, type: core.Log, message: cleaned}
+                """);
+        drain();
+        var e=executions().get(actor,"lab",executionId);
+        assertEquals(ExecutionState.FAILED,e.state());
+        assertEquals(ExecutionState.FAILED,e.mainState());
+        assertNotNull(e.error());
+        assertNull(e.cleanupError());
+        assertEquals(2,executions().attempts(actor,"lab",executionId,first(executionId).id()).size());
+        assertEquals(List.of(ExecutionState.FAILED,ExecutionState.SKIPPED,ExecutionState.SUCCESS,ExecutionState.SUCCESS),
+                executions().tasks(actor,"lab",executionId).stream().map(ExecutionRecord.TaskRun::state).toList());
+    }
+
+    @Test void handlerAndCleanupFailuresNeverOverwriteMainFailure() {
+        String executionId=custom("""
+                tasks: [{id: main, type: core.Log, message: "{{ missing }}"}]
+                errors:
+                  - {id: handler, type: core.Log, message: "{{ missing }}"}
+                  - {id: skippedHandler, type: core.Log, message: never}
+                finally:
+                  - {id: badCleanup, type: core.Log, message: "{{ missing }}"}
+                  - {id: cleanup, type: core.Log, message: always}
+                """);
+        drain();
+        var e=executions().get(actor,"lab",executionId);
+        assertEquals(ExecutionState.FAILED,e.mainState());
+        assertNotNull(e.error()); assertNotNull(e.cleanupError());
+        var tasks=executions().tasks(actor,"lab",executionId);
+        assertEquals(ExecutionState.FAILED,tasks.get(1).state());
+        assertEquals(ExecutionState.SKIPPED,tasks.get(2).state());
+        assertEquals(ExecutionState.FAILED,tasks.get(3).state());
+        assertEquals(ExecutionState.SUCCESS,tasks.getLast().state());
+    }
+
+    @Test void successfulMainSkipsErrorsAndCleanupFailureIsSeparate() {
+        String executionId=custom("""
+                tasks: [{id: main, type: core.Log, message: success}]
+                errors: [{id: handler, type: core.Log, message: never}]
+                finally: [{id: cleanup, type: core.Log, message: "{{ missing }}"}]
+                outputs: {result: {source: TASK_OUTPUT, taskId: main, port: message}}
+                """);
+        drain();
+        var e=executions().get(actor,"lab",executionId);
+        assertEquals(ExecutionState.FAILED,e.state());
+        assertEquals(ExecutionState.SUCCESS,e.mainState());
+        assertNull(e.error()); assertNotNull(e.cleanupError());
+        assertEquals("success",e.outputs().get("result"));
+        assertEquals(ExecutionState.SKIPPED,executions().tasks(actor,"lab",executionId).get(1).state());
+    }
+
+    @Test void timeoutWithoutAvailableWorkerTerminatesAndRetriesOnlyConfiguredCount() {
+        String executionId=dispatchCustom("""
+                tasks: [{id: delayed, type: core.Sleep, duration: PT5S, timeout: PT0.15S, retry: {type: constant, maxAttempts: 2, interval: PT0.01S}}]
+                """);
+        advanceUntil(()->executions().get(actor,"lab",executionId).state().terminal());
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",executionId).state());
+        assertEquals("attempt timed out",executions().get(actor,"lab",executionId).error());
+        assertEquals(2,executions().attempts(actor,"lab",executionId,first(executionId).id()).size());
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class));
+    }
+
+    @Test void longSleepHeartbeatsWithoutOpeningAdditionalAttempt() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT0.9S}]\n");
+        try(var shortLeaseWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300);
+            var pool=Executors.newSingleThreadExecutor()) {
+            var running=pool.submit(shortLeaseWorker::runOnce);
+            pause(450);
+            assertNull(jobs().claim("competitor",300));
+            assertTrue(running.get(3,TimeUnit.SECONDS));
+        }
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        assertEquals(1,executions().attempts(actor,"lab",executionId,first(executionId).id()).size());
+    }
+
+    @Test void runningTaskCancellationStopsWorkerSkipsErrorsAndRunsFinally() throws Exception {
+        String executionId=dispatchCustom("""
+                tasks:
+                  - {id: sleep, type: core.Sleep, duration: PT5S, retry: {type: constant, maxAttempts: 3, interval: PT0.01S}}
+                  - {id: unused, type: core.Log, message: never}
+                errors: [{id: handler, type: core.Log, message: never}]
+                finally: [{id: cleanup, type: core.Log, message: cleaned}]
+                """);
+        try(var pool=Executors.newSingleThreadExecutor()) {
+            var running=pool.submit(worker()::runOnce);
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)>0);
+            executions().cancel(actor,"lab",executionId);
+            executions().cancel(actor,"lab",executionId);
+            advanceUntil(()->first(executionId).state()==ExecutionState.KILLED);
+            assertTrue(running.get(3,TimeUnit.SECONDS));
+        }
+        drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+        var tasks=executions().tasks(actor,"lab",executionId);
+        assertEquals(1,executions().attempts(actor,"lab",executionId,tasks.getFirst().id()).size());
+        assertEquals(ExecutionState.SKIPPED,tasks.get(2).state());
+        assertEquals(ExecutionState.SUCCESS,tasks.getLast().state());
+        executions().cancel(actor,"lab",executionId);
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_message WHERE execution_id=?",Integer.class,executionId));
+    }
+
+    @Test void cancelWhileWaitingForRetryDoesNotRewriteFailedAttempt() {
+        String executionId=dispatchCustom("""
+                tasks: [{id: bad, type: core.Log, message: "{{ missing }}", retry: {type: constant, maxAttempts: 3, interval: PT10S}}]
+                finally: [{id: cleanup, type: core.Log, message: done}]
+                """);
+        worker().runOnce();
+        advanceUntil(()->first(executionId).state()==ExecutionState.RETRYING);
+        executions().cancel(actor,"lab",executionId);
+        drain();
+        var attempts=executions().attempts(actor,"lab",executionId,first(executionId).id());
+        assertEquals(1,attempts.size());
+        assertEquals(ExecutionState.FAILED,attempts.getFirst().state());
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+    }
+
+    @Test void cancellationDuringFinallyPreservesItsRetryAndDoesNotRepeatCleanup() {
+        String executionId=dispatchCustom("""
+                tasks: [{id: main, type: core.Log, message: done}]
+                finally:
+                  - id: cleanup
+                    type: core.Log
+                    message: "{{ taskrun.attemptsCount == 1 ? missing : 'cleaned' }}"
+                    retry: {type: constant, maxAttempts: 2, interval: PT0.2S}
+                """);
+        worker().runOnce();
+        advanceUntil(()->executions().tasks(actor,"lab",executionId).getLast().state()==ExecutionState.RUNNING);
+        worker().runOnce();
+        advanceUntil(()->executions().tasks(actor,"lab",executionId).getLast().state()==ExecutionState.RETRYING);
+        executions().cancel(actor,"lab",executionId);
+        drain();
+        var tasks=executions().tasks(actor,"lab",executionId);
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+        assertEquals(ExecutionState.SUCCESS,tasks.getLast().state());
+        assertEquals(List.of(ExecutionState.FAILED,ExecutionState.SUCCESS),
+                executions().attempts(actor,"lab",executionId,tasks.getLast().id()).stream().map(ExecutionRecord.Attempt::state).toList());
+        assertEquals(1,executions().attempts(actor,"lab",executionId,tasks.getFirst().id()).size());
+        assertNull(executions().get(actor,"lab",executionId).cleanupError());
+    }
+
+    @Test void cancellationWinsOverUnmergedResultAndRejectsLateCallback() {
+        String executionId=dispatchCustom("tasks: [{id: main, type: core.Log, message: result}]\n");
+        var lease=jobs().claim("worker",3000);
+        assertTrue(jobs().finish(lease,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","result"))));
+        executions().cancel(actor,"lab",executionId);
+        drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+        assertTrue(executions().logs(actor,"lab",executionId,0,50).isEmpty());
+        assertFalse(jobs().finish(lease,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","late"))));
+    }
+
+    @Test void cancelEndpointEnforcesExecutePermission() throws Exception {
+        String executionId=custom("tasks: [{id: main, type: core.Log, message: test}]\n");
+        String path="/api/namespaces/lab/executions/"+executionId+"/cancel";
+        assertEquals(401,call(port(),"POST",path,null,null,null).statusCode());
+        assertEquals(403,call(port(),"POST",path,"viewer",null,null).statusCode());
+        assertEquals(202,call(port(),"POST",path,"writer",null,null).statusCode());
+        assertEquals(202,call(port(),"POST",path,"writer",null,null).statusCode());
+        drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+        assertTrue(executions().attempts(actor,"lab",executionId,first(executionId).id()).isEmpty());
+    }
+
+    @Test void forceKilledWorkerJvmIsReclaimedWithoutBusinessRetry() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT5S}]\n");
+        String taskRunId=first(executionId).id();
+        int childPort;
+        try(var socket=new ServerSocket(0)) { childPort=socket.getLocalPort(); }
+        Process child=null;
+        try {
+            child=startChild(childPort,false,true,"worker-before");
+            awaitChild(child,childPort);
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE task_run_id=? AND state='RUNNING'",Integer.class,taskRunId)==1);
+            long oldEpoch=jdbc().queryForObject("SELECT epoch FROM wf_worker_job WHERE task_run_id=?",Long.class,taskRunId);
+            child.destroyForcibly(); assertTrue(child.waitFor(10,TimeUnit.SECONDS));
+            child=startChild(childPort,false,true,"worker-after");
+            awaitChild(child,childPort);
+            advanceUntil(()->jdbc().queryForObject("SELECT epoch FROM wf_worker_job WHERE task_run_id=?",Long.class,taskRunId)>oldEpoch);
+            advanceUntil(()->executions().get(actor,"lab",executionId).state().terminal());
+            assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+            assertEquals(taskRunId,first(executionId).id());
+            assertEquals(1,executions().attempts(actor,"lab",executionId,taskRunId).size());
+        } finally {
+            if(child!=null && child.isAlive()) { child.destroyForcibly(); child.waitFor(10,TimeUnit.SECONDS); }
+        }
+    }
+    @Test void acceptedResultBeforeDeadlineIsNotTimedOutByLateMerge() {
+        String executionId=dispatchCustom("tasks: [{id: one, type: core.Log, message: done, timeout: PT0.5S}]\n");
+        assertTrue(worker().runOnce());
+        pause(600);
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+    }
+
+    @Test void activeSleepTimeoutStopsWorkerAndRunsCleanup() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT5S, timeout: PT0.25S}]\nfinally: [{id: cleanup, type: core.Log, message: timeout-cleanup}]\n");
+        try(var pool=Executors.newSingleThreadExecutor()) {
+            var running=pool.submit(worker()::runOnce);
+            advanceUntil(()->first(executionId).state()==ExecutionState.FAILED);
+            assertTrue(running.get(3,TimeUnit.SECONDS));
+        }
+        drain();
+        assertEquals("attempt timed out",executions().get(actor,"lab",executionId).error());
+        assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",executionId).getLast().state());
+    }
+
+    @Test void migrationRejectsActiveS1AndPreservesCompletedHistory() throws Exception {
+        // A second schema in this test's disposable container, never the application's configured database.
+        var created=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e",
+                "CREATE DATABASE s2_upgrade_test; GRANT ALL ON s2_upgrade_test.* TO 'backend_test'@'%';");
+        assertEquals(0,created.getExitCode(),created.getStderr());
+        String url=mysql.getJdbcUrl().replace("/backend_s1_test","/s2_upgrade_test");
+        var initial=org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").target("2").load();
+        initial.migrate();
+        var oldDb=new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(url,mysql.getUsername(),mysql.getPassword()));
+        oldDb.update("INSERT INTO wf_execution(id,namespace,flow_id,flow_revision,submitted_by,request_key,request_hash,state,definition_json,inputs_json,variables_json,outputs_json,created_at) VALUES('s1-history','lab','old',1,'writer','old-key',?,'RUNNING','{}','{}','{}','{}',CURRENT_TIMESTAMP(6))","a".repeat(64));
+        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").load();
+        assertThrows(org.flywaydb.core.api.FlywayException.class,upgrade::migrate);
+        oldDb.update("UPDATE wf_execution SET state='SUCCESS' WHERE id='s1-history'");
+        upgrade.repair(); // Only repairs this deliberately failed disposable test schema.
+        upgrade.migrate();
+        assertEquals("SUCCESS",oldDb.queryForObject("SELECT main_state FROM wf_execution WHERE id='s1-history'",String.class));
+        assertEquals(0,oldDb.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='s2_upgrade_test' AND table_name='wf_flow_revision' AND column_name='checksum'",Integer.class));
+        assertEquals("a".repeat(64),oldDb.queryForObject("SELECT request_hash FROM wf_execution WHERE id='s1-history'",String.class));
+    }
+
+    @Test void dispatchFailureRollsBackAttemptAndKeepsExecutorMessage() {
+        drain();
+        String executionId=custom("tasks: [{id: one, type: core.Log, message: dispatched}]\n");
+        executor().processNext();
+        jdbc().execute("CREATE TRIGGER fail_s2_dispatch BEFORE INSERT ON wf_worker_job FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected dispatch failure'");
+        try {
+            assertThrows(DataAccessException.class,()->executor().processNext());
+            assertEquals(ExecutionState.CREATED,first(executionId).state());
+            assertTrue(executions().attempts(actor,"lab",executionId,first(executionId).id()).isEmpty());
+            assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_message WHERE execution_id=?",Integer.class,executionId));
+        } finally { jdbc().execute("DROP TRIGGER fail_s2_dispatch"); }
+        drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+    }
+
+    @Test void workerShutdownIsNotReportedAsBusinessFailure() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT1S}]\n");
+        try(var localWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300);
+            var pool=Executors.newSingleThreadExecutor()) {
+            var running=pool.submit(localWorker::runOnce);
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)>0);
+            localWorker.close();
+            assertTrue(running.get(3,TimeUnit.SECONDS));
+        }
+        assertEquals(ExecutionState.RUNNING,first(executionId).state());
+        assertNull(jobs().result(first(executionId).id(),1));
+        jdbc().update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",first(executionId).id());
+        drain();
+        var attempts=executions().attempts(actor,"lab",executionId,first(executionId).id());
+        assertEquals(1,attempts.size());
+        assertEquals(ExecutionState.SUCCESS,attempts.getFirst().state());
+    }
+
+    private com.project.platform.runtime.scheduler.SchedulerEngine scheduler() { return context.getBean(com.project.platform.runtime.scheduler.SchedulerEngine.class); }
+    private ExecutionRecord.TaskRun task(String executionId,String taskId) { return executions().tasks(actor,"lab",executionId).stream().filter(t->t.taskId().equals(taskId)).findFirst().orElseThrow(); }
+    private String saveBody(String body) { String flowId=id();flows().save(actor,"lab",flowId,0,"schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\n"+body);return flowId; }
+    private String submitEmpty(String flowId) { return executions().submit(actor,"lab",id(),new Request(flowId,null,Map.of())); }
+    private void dueNow(String flowId) { jdbc().update("UPDATE wf_schedule SET next_fire=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE namespace='lab' AND flow_id=?",flowId); }
+
+    @Test void reversedDagDispatchesBothBranchesBeforeJoin() {
+        String executionId=dispatchCustom("""
+                tasks:
+                  - id: graph
+                    type: core.Dag
+                    tasks:
+                      - {id: join, type: core.Log, dependsOn: [left, right], message: "{{ outputs.left.message }}+{{ outputs.right.message }}"}
+                      - {id: right, type: core.Log, dependsOn: [seed], message: R}
+                      - {id: left, type: core.Log, dependsOn: [seed], message: L}
+                      - {id: seed, type: core.Log, message: start}
+                outputs: {result: {source: TASK_OUTPUT, taskId: join, port: message}}
+                """);
+        assertEquals(ExecutionState.RUNNING,task(executionId,"seed").state());
+        worker().runOnce();
+        advanceUntil(()->task(executionId,"left").state()==ExecutionState.RUNNING && task(executionId,"right").state()==ExecutionState.RUNNING);
+        assertEquals(ExecutionState.CREATED,task(executionId,"join").state());
+        drain();
+        assertEquals("L+R",executions().get(actor,"lab",executionId).outputs().get("result"));
+        assertTrue(executions().attempts(actor,"lab",executionId,task(executionId,"graph").id()).isEmpty());
+    }
+
+    @Test void parallelJobsReallyOverlapInWorkers() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: a, type: core.Sleep, duration: PT1S}, {id: b, type: core.Sleep, duration: PT1S}]}]\n");
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var a=pool.submit(worker()::runOnce);var b=pool.submit(worker()::runOnce);
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)==2);
+            assertTrue(a.get(4,TimeUnit.SECONDS));assertTrue(b.get(4,TimeUnit.SECONDS));
+        }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+    }
+
+    @Test void ifChoiceSurvivesRestartAndUnselectedBranchNeverRuns() {
+        String executionId=dispatchCustom("""
+                tasks:
+                  - id: choose
+                    type: core.If
+                    condition: 'false'
+                    then: [{id: forbidden, type: core.Log, message: '{{ missing }}'}]
+                    else: [{id: nested, type: core.Sequential, tasks: [{id: selected, type: core.Log, message: chosen}]}]
+                outputs: {branch: {source: TASK_OUTPUT, taskId: choose, port: evaluationResult}}
+                """);
+        var before=task(executionId,"choose");assertEquals(false,before.outputs().get("evaluationResult"));
+        context.close();context=open();drain();
+        assertEquals(before.startedAt(),task(executionId,"choose").startedAt());
+        assertEquals(false,executions().get(actor,"lab",executionId).outputs().get("branch"));
+        assertEquals(ExecutionState.SKIPPED,task(executionId,"forbidden").state());
+        assertTrue(executions().attempts(actor,"lab",executionId,task(executionId,"forbidden").id()).isEmpty());
+    }
+
+    @Test void badConditionAndUnselectedOutputFailWithoutStuckExecution() {
+        for(String body:List.of(
+                "tasks: [{id: c, type: core.If, condition: maybe, then: [{id: leaf, type: core.Log, message: hi}]}]\n",
+                "tasks: [{id: c, type: core.If, condition: 'false', then: [{id: leaf, type: core.Log, message: hi}]}]\noutputs: {x: {source: TASK_OUTPUT, taskId: leaf, port: message}}\n")) {
+            String executionId=custom(body+"errors: [{id: error, type: core.Log, message: handled}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+            drain();assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",executionId).state());
+            assertEquals(ExecutionState.SUCCESS,task(executionId,"cleanup").state());
+            assertEquals(ExecutionState.SUCCESS,task(executionId,"error").state());
+        }
+    }
+
+    @Test void parallelFailureWaitsForRunningSiblingBeforeCleanup() {
+        String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: bad, type: core.Log, message: bad}, {id: slow, type: core.Log, message: slow}]}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+        var one=jobs().claim("one",30000);var two=jobs().claim("two",30000);
+        var bad=one.job().task().id().equals("bad")?one:two;var slow=bad==one?two:one;
+        assertTrue(jobs().finish(bad,com.project.platform.runtime.worker.WorkerJob.Result.failed("original failure")));
+        advanceUntil(()->task(executionId,"bad").state()==ExecutionState.FAILED);
+        assertEquals(ExecutionState.CREATED,task(executionId,"cleanup").state());
+        assertEquals(ExecutionState.RUNNING,task(executionId,"p").state());
+        assertTrue(jobs().finish(slow,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","slow"))));
+        drain();assertEquals("original failure",executions().get(actor,"lab",executionId).error());
+        assertEquals(ExecutionState.SUCCESS,task(executionId,"cleanup").state());
+    }
+
+    @Test void cancellationFencesAllParallelJobsAndRunsOneCleanup() {
+        String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: a, type: core.Sleep, duration: PT10S}, {id: b, type: core.Sleep, duration: PT10S}]}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+        var one=jobs().claim("one",30000);var two=jobs().claim("two",30000);
+        executions().cancel(actor,"lab",executionId);drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",executionId).state());
+        assertFalse(jobs().finish(one,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of())));
+        assertFalse(jobs().finish(two,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of())));
+        assertEquals(1,executions().attempts(actor,"lab",executionId,task(executionId,"cleanup").id()).size());
+    }
+
+    @Test void concurrentSubmissionsRespectFlowLimitAndPersistentFifo() throws Exception {
+        drain();String flowId=saveBody("concurrency: {limit: 2, behavior: QUEUE}\ntasks: [{id: task, type: core.Log, message: hi}]\n");
+        try(var pool=Executors.newFixedThreadPool(6)) {
+            var jobs=new ArrayList<Future<String>>();for(int i=0;i<10;i++) jobs.add(pool.submit(()->submitEmpty(flowId)));
+            for(var job:jobs) job.get(10,TimeUnit.SECONDS);
+        }
+        assertEquals(2,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state='CREATED'",Integer.class,flowId));
+        assertEquals(8,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state='QUEUED'",Integer.class,flowId));
+        var expected=jdbc().queryForList("SELECT id FROM wf_execution WHERE flow_id=? ORDER BY sequence_no",String.class,flowId);
+        context.close();context=open();drain();
+        var actual=jdbc().queryForList("SELECT id FROM wf_execution WHERE flow_id=? ORDER BY started_at,sequence_no",String.class,flowId);
+        assertEquals(expected,actual);
+        assertEquals(10,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state='SUCCESS'",Integer.class,flowId));
+    }
+
+    @Test void failAdmissionAndQueuedCancellationCreateNoAttemptsOrCleanup() {
+        drain();String failFlow=saveBody("concurrency: {limit: 1, behavior: FAIL}\ntasks: [{id: task, type: core.Log, message: hi}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+        String first=submitEmpty(failFlow),rejected=submitEmpty(failFlow);
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",rejected).state());
+        assertTrue(executions().attempts(actor,"lab",rejected,task(rejected,"task").id()).isEmpty());
+        assertEquals(ExecutionState.SKIPPED,task(rejected,"cleanup").state());
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",first).state());
+        String queue=saveBody("concurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: hi}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+        submitEmpty(queue);String cancelled=submitEmpty(queue);executions().cancel(actor,"lab",cancelled);
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",cancelled).state());
+        assertEquals(ExecutionState.SKIPPED,task(cancelled,"cleanup").state());drain();
+    }
+
+    @Test void slotIsHeldUntilFinallyEndsAndReleasedOnCleanupFailure() {
+        drain();String flowId=saveBody("concurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: hi}]\nfinally: [{id: cleanup, type: core.Log, message: '{{ missing }}'}]\n");
+        String first=submitEmpty(flowId),second=submitEmpty(flowId);
+        executor().processNext();executor().processNext();worker().runOnce();
+        advanceUntil(()->task(first,"cleanup").state()==ExecutionState.RUNNING);
+        assertEquals(ExecutionState.QUEUED,executions().get(actor,"lab",second).state());
+        drain();assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",first).state());
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",second).state());
+        assertNotNull(executions().get(actor,"lab",second).startedAt());
+    }
+
+    @Test void latestConcurrencyPolicyAppliesAcrossVersionsWithoutKillingActiveRuns() {
+        drain();String body="concurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: hi}]\n";
+        String flowId=saveBody(body);String first=submitEmpty(flowId),second=submitEmpty(flowId);
+        String source="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\n"+body;
+        flows().save(actor,"lab",flowId,1,source.replace("limit: 1","limit: 2"));
+        assertEquals(ExecutionState.CREATED,executions().get(actor,"lab",second).state());
+        flows().save(actor,"lab",flowId,2,source);
+        String third=executions().submit(actor,"lab",id(),new Request(flowId,1,Map.of()));
+        assertEquals(ExecutionState.QUEUED,executions().get(actor,"lab",third).state());
+        assertEquals(ExecutionState.CREATED,executions().get(actor,"lab",first).state());drain();
+    }
+
+    @Test void twoSchedulersCreateOneDurableFiringAndAdvanceCursor() throws Exception {
+        drain();String flowId=saveBody("schedule: {cron: '0 0 0 * * *'}\ntasks: [{id: task, type: core.Log, message: scheduled}]\n");
+        dueNow(flowId);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var one=pool.submit(scheduler()::runOnce);var two=pool.submit(scheduler()::runOnce);
+            assertEquals(1,(one.get(10,TimeUnit.SECONDS)?1:0)+(two.get(10,TimeUnit.SECONDS)?1:0));
+        }
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=?",Integer.class,flowId));
+        assertFalse(scheduler().runOnce());drain();
+    }
+
+    @Test void schedulerCursorAndSubmissionRollbackTogether() {
+        drain();String flowId=saveBody("schedule: {cron: '0 0 0 * * *'}\ntasks: [{id: task, type: core.Log, message: scheduled}]\n");
+        dueNow(flowId);var before=jdbc().queryForObject("SELECT next_fire FROM wf_schedule WHERE flow_id=?",java.sql.Timestamp.class,flowId);
+        jdbc().execute("CREATE TRIGGER fail_s3_schedule BEFORE INSERT ON wf_message FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected schedule failure'");
+        try {
+            assertThrows(DataAccessException.class,()->scheduler().runOnce());
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=?",Integer.class,flowId));
+            assertEquals(before,jdbc().queryForObject("SELECT next_fire FROM wf_schedule WHERE flow_id=?",java.sql.Timestamp.class,flowId));
+        } finally { jdbc().execute("DROP TRIGGER fail_s3_schedule"); }
+        context.close();context=open();assertTrue(scheduler().runOnce());drain();
+    }
+
+    @Test void scheduleEditDisableAndReenableHaveExplicitCursorSemantics() {
+        drain();String body="schedule: {cron: '0 0 0 * * *'}\ntasks: [{id: task, type: core.Log, message: first}]\n";
+        String flowId=saveBody(body);dueNow(flowId);
+        var before=jdbc().queryForObject("SELECT next_fire FROM wf_schedule WHERE flow_id=?",java.sql.Timestamp.class,flowId);
+        String source="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\n"+body;
+        flows().save(actor,"lab",flowId,1,source.replace("message: first","message: second"));
+        assertEquals(before,jdbc().queryForObject("SELECT next_fire FROM wf_schedule WHERE flow_id=?",java.sql.Timestamp.class,flowId));
+        assertTrue(scheduler().runOnce());drain();
+        assertEquals(2,jdbc().queryForObject("SELECT flow_revision FROM wf_execution WHERE flow_id=?",Integer.class,flowId));
+        flows().save(actor,"lab",flowId,2,source.replace("cron:","disabled: true, cron:"));
+        assertNull(jdbc().queryForObject("SELECT next_fire FROM wf_schedule WHERE flow_id=?",java.sql.Timestamp.class,flowId));
+        assertFalse(scheduler().runOnce());
+        flows().save(actor,"lab",flowId,3,source);
+        assertTrue(jdbc().queryForObject("SELECT next_fire>CURRENT_TIMESTAMP(6) FROM wf_schedule WHERE flow_id=?",Boolean.class,flowId));
+        flows().save(actor,"lab",flowId,4,source.replace("schedule: {cron: '0 0 0 * * *'}\n",""));
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_schedule WHERE flow_id=?",Integer.class,flowId));
+    }
+
+    @Test void scheduleNeedsExecutePermissionAndRejectsReservedManualKeys() {
+        String flowId=id();String source="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\nschedule: {cron: '0 0 0 * * *'}\ntasks: [{id: task, type: core.Log, message: hi}]\n";
+        var writeOnly=new Actor("editor",Set.of("lab"),Set.of(Action.WRITE));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->flows().save(writeOnly,"lab",flowId,0,source));
+        flows().save(actor,"lab",flowId,0,source);
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab","schedule:forged",new Request(flowId,null,Map.of())));
+        drain();
+    }
+
+    @Test void missedScheduleCoalescesAndUsesTheNormalAdmissionQueue() {
+        drain();String flowId=saveBody("schedule: {cron: '0 0 0 * * *'}\nconcurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: hi}]\n");
+        submitEmpty(flowId);
+        jdbc().update("UPDATE wf_schedule SET next_fire=TIMESTAMPADD(DAY,-5,CURRENT_TIMESTAMP(6)) WHERE flow_id=?",flowId);
+        context.close();context=open();assertTrue(scheduler().runOnce());assertFalse(scheduler().runOnce());
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state='QUEUED'",Integer.class,flowId));
+        drain();assertEquals(2,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state='SUCCESS'",Integer.class,flowId));
+    }
+
+    @Test void workerPumpRunsParallelLeavesInOneRealJvm() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: a, type: core.Sleep, duration: PT2S}, {id: b, type: core.Sleep, duration: PT2S}]}]\n");
+        int port;try(var socket=new ServerSocket(0)) { port=socket.getLocalPort(); }
+        Process child=null;
+        try {
+            child=startChild(port,false,true,"s3-parallel-worker");awaitChild(child,port);
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job j JOIN wf_task_run t ON t.id=j.task_run_id WHERE t.execution_id=? AND j.state='RUNNING'",Integer.class,executionId)==2);
+            advanceUntil(()->executions().get(actor,"lab",executionId).state().terminal());
+            assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
+        } finally { if(child!=null && child.isAlive()) { child.destroyForcibly();child.waitFor(10,TimeUnit.SECONDS); } }
+    }
+
+    @Test void cancelDuringParallelRetryRacesWithAdmissionWithoutDeadlock() throws Exception {
+        drain();String flowId=saveBody("concurrency: {limit: 1}\ntasks: [{id: p, type: core.Parallel, tasks: [{id: bad, type: core.Log, message: '{{ missing }}', retry: {type: constant, maxAttempts: 2, interval: PT10S}}, {id: good, type: core.Log, message: done}]}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n");
+        String first=submitEmpty(flowId),second=submitEmpty(flowId);
+        executor().processNext();executor().processNext();worker().runOnce();worker().runOnce();
+        advanceUntil(()->task(first,"bad").state()==ExecutionState.RETRYING);
+        try(var pool=Executors.newFixedThreadPool(3)) {
+            var cancelActive=pool.submit(()->executions().cancel(actor,"lab",first));
+            var cancelQueued=pool.submit(()->executions().cancel(actor,"lab",second));
+            var newSubmit=pool.submit(()->submitEmpty(flowId));
+            cancelActive.get(10,TimeUnit.SECONDS);cancelQueued.get(10,TimeUnit.SECONDS);
+            String third=newSubmit.get(10,TimeUnit.SECONDS);executions().cancel(actor,"lab",third);
+        }
+        drain();assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",first).state());
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",second).state());
+        assertEquals(1,executions().attempts(actor,"lab",first,task(first,"bad").id()).size());
+        assertEquals(ExecutionState.SUCCESS,task(first,"cleanup").state());
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state IN ('CREATED','QUEUED','RUNNING','KILLING')",Integer.class,flowId));
+    }
+
+    @Test void scheduleSaveFailureRollsBackRevisionAndConcurrencyTogether() {
+        drain();String body="concurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: hi}]\n";
+        String flowId=saveBody(body);String first=submitEmpty(flowId),second=submitEmpty(flowId);
+        jdbc().execute("CREATE TRIGGER fail_schedule_config BEFORE INSERT ON wf_schedule FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='injected config failure'");
+        try {
+            String source="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\nschedule: {cron: '0 0 0 * * *'}\n"+body.replace("limit: 1","limit: 2");
+            assertThrows(DataAccessException.class,()->flows().save(actor,"lab",flowId,1,source));
+            assertEquals(1,flows().get(actor,"lab",flowId,null).revision());
+            assertEquals(1,jdbc().queryForObject("SELECT concurrency_limit FROM wf_flow_control WHERE flow_id=?",Integer.class,flowId));
+            assertEquals(ExecutionState.QUEUED,executions().get(actor,"lab",second).state());
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_message WHERE execution_id=?",Integer.class,second));
+        } finally { jdbc().execute("DROP TRIGGER fail_schedule_config"); }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",first).state());
+    }
+
+    @Test void s3MigrationRejectsActiveS2AndPreservesCompletedHistory() throws Exception {
+        var created=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e",
+                "CREATE DATABASE s3_upgrade_test; GRANT ALL ON s3_upgrade_test.* TO 'backend_test'@'%';");
+        assertEquals(0,created.getExitCode(),created.getStderr());
+        String url=mysql.getJdbcUrl().replace("/backend_s1_test","/s3_upgrade_test");
+        org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").target("4").load().migrate();
+        var oldDb=new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(url,mysql.getUsername(),mysql.getPassword()));
+        oldDb.update("INSERT INTO wf_execution(id,namespace,flow_id,flow_revision,submitted_by,request_key,request_hash,state,definition_json,inputs_json,variables_json,outputs_json,created_at) VALUES('s2-history','lab','old',1,'writer','old-key',?,'KILLING','{}','{}','{}','{}',CURRENT_TIMESTAMP(6))","b".repeat(64));
+        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").load();
+        assertThrows(org.flywaydb.core.api.FlywayException.class,upgrade::migrate);
+        oldDb.update("UPDATE wf_execution SET state='KILLED',main_state='KILLED' WHERE id='s2-history'");
+        upgrade.repair(); // Only this disposable schema's deliberately failed migration.
+        upgrade.migrate();
+        assertEquals("KILLED",oldDb.queryForObject("SELECT main_state FROM wf_execution WHERE id='s2-history'",String.class));
+        assertEquals(0,oldDb.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='s3_upgrade_test' AND table_name='wf_execution' AND column_name='next_task'",Integer.class));
+        assertTrue(oldDb.queryForObject("SELECT sequence_no FROM wf_execution WHERE id='s2-history'",Long.class)>0);
+        assertEquals("b".repeat(64),oldDb.queryForObject("SELECT request_hash FROM wf_execution WHERE id='s2-history'",String.class));
+    }
+
+    @Test void checkedInS3ExampleExecutesBothChoicesThroughAllControlTypes() throws Exception {
+        drain();String flowId=id();String source=Files.readString(Path.of("..","examples","s3-control-flow.yaml")).replace("id: control-demo","id: "+flowId);
+        flows().save(actor,"lab",flowId,0,source);
+        for(boolean publish:List.of(true,false)) {
+            String executionId=executions().submit(actor,"lab",id(),new Request(flowId,null,Map.of("publish",publish)));
+            drain();var execution=executions().get(actor,"lab",executionId);
+            assertEquals(ExecutionState.SUCCESS,execution.state());
+            assertEquals("left + right",execution.outputs().get("result"));
+            assertEquals(publish,execution.outputs().get("published"));
+            assertEquals(publish?ExecutionState.SUCCESS:ExecutionState.SKIPPED,task(executionId,"remote").state());
+            assertEquals(publish?ExecutionState.SKIPPED:ExecutionState.SUCCESS,task(executionId,"notPublished").state());
+        }
+    }
+
+    @Test void separateSchedulerJvmCreatesExecutionsWithoutWorkersOrExecutor() throws Exception {
+        drain();String body="schedule: {cron: '*/1 * * * * *'}\nconcurrency: {limit: 1}\ntasks: [{id: task, type: core.Log, message: scheduled}]\n";
+        String flowId=saveBody(body);int port;try(var socket=new ServerSocket(0)) { port=socket.getLocalPort(); }
+        Process child=null;
+        try {
+            child=startChild(port,false,false,true,"s3-scheduler");awaitChild(child,port);
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
+            while(jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=?",Integer.class,flowId)==0 && System.nanoTime()<deadline) pause(50);
+            assertTrue(jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=?",Integer.class,flowId)>0);
+            assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND started_at IS NOT NULL",Integer.class,flowId));
+        } finally { if(child!=null && child.isAlive()) { child.destroyForcibly();child.waitFor(10,TimeUnit.SECONDS); } }
+        flows().save(actor,"lab",flowId,1,"schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\n"+body.replace("cron:","disabled: true, cron:"));
+        drain();assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE flow_id=? AND state<>'SUCCESS'",Integer.class,flowId));
+    }
+
+    private void awaitChild(Process child,int port) throws Exception {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
+        while(System.nanoTime()<deadline) {
+            assertTrue(child.isAlive(),"child exited; see target/restart-evidence");
+            try { if(call(port,"GET","/api/namespaces/lab/flows","writer",null,null).statusCode()==200) return; }
+            catch(java.io.IOException ignored) { }
+            Thread.sleep(100);
+        }
+        fail("child did not become ready; see target/restart-evidence");
+    }
+}

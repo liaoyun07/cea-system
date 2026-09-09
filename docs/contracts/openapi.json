@@ -1,0 +1,2078 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Cloud Edge Backend S2 API",
+    "version": "2.0.0",
+    "description": "S3 nested control tasks, flow concurrency QUEUE/FAIL and durable six-field cron. Worker runs Log/Sleep; no Kubernetes or remote Worker API."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:18085"
+    }
+  ],
+  "security": [
+    {
+      "basicAuth": []
+    }
+  ],
+  "paths": {
+    "/api/namespaces/{namespace}/flows": {
+      "get": {
+        "operationId": "listFlows",
+        "description": "READ: latest flow revision summaries in flowId order",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READ: latest flow revision summaries in flowId order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/flows/{flowId}": {
+      "get": {
+        "operationId": "getFlow",
+        "description": "READ: source and compiled model, latest unless revision specified",
+        "parameters": [
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READ: source and compiled model, latest unless revision specified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowRevision"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "flowId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/flows/{flowId}/revisions": {
+      "get": {
+        "operationId": "listRevisions",
+        "description": "READ: immutable revisions newest first; absent flow returns empty list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READ: immutable revisions newest first; absent flow returns empty list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RevisionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveFlow",
+        "description": "WRITE: compare expectedRevision; first save uses 0",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "WRITE: compare expectedRevision; first save uses 0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowRevision"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "flowId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/flows/{flowId}/rollback": {
+      "post": {
+        "operationId": "rollbackFlow",
+        "description": "WRITE: copy target revision into a NEW revision, never overwrite history",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "WRITE: copy target revision into a NEW revision, never overwrite history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowRevision"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "flowId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions": {
+      "get": {
+        "operationId": "listExecutions",
+        "description": "READ: newest createdAt/id first",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READ: newest createdAt/id first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Execution"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "post": {
+        "operationId": "submitExecution",
+        "description": "EXECUTE: idempotent by namespace + authenticated actor + key. 202 returned only after commit; repeats return same receipt.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "Stable key for retries of the same request; prefix schedule: is reserved for Scheduler."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "EXECUTE: idempotent by namespace + authenticated actor + key. 202 returned only after commit; repeats return same receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions/{id}": {
+      "get": {
+        "operationId": "getExecution",
+        "description": "READ: persisted execution state and final typed outputs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "READ: persisted execution state and final typed outputs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions/{id}/tasks": {
+      "get": {
+        "operationId": "listTasks",
+        "description": "READ: all tasks in sequence order (max 100)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "READ: all tasks in sequence order (max 100)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskRun"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions/{id}/tasks/{taskRunId}/attempts": {
+      "get": {
+        "operationId": "listAttempts",
+        "description": "READ: attempt history; retries create attempts, lease takeovers do not",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "READ: task run must belong to this execution; ordered attempts include business retries, not lease takeovers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Attempt"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "taskRunId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions/{id}/logs": {
+      "get": {
+        "operationId": "listLogs",
+        "description": "READ: logs in ascending id, afterId exclusive",
+        "parameters": [
+          {
+            "name": "afterId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "READ: logs in ascending id, afterId exclusive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or missing header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required; authentication filter response"
+          },
+          "403": {
+            "description": "Namespace/action not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Definition, input or pagination invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Infrastructure failure; request not accepted. Retry submission with original Idempotency-Key."
+          }
+        }
+      },
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "/api/namespaces/{namespace}/executions/{id}/cancel": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "cancelExecution",
+        "description": "EXECUTE: idempotent cancellation. QUEUED goes directly to KILLED without cleanup. Admitted execution enters KILLING; Finally finishes before KILLED. Terminal execution is unchanged.",
+        "responses": {
+          "202": {
+            "description": "Cancellation accepted or already terminal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "Input": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "STRING",
+              "INTEGER",
+              "NUMBER",
+              "BOOLEAN",
+              "OBJECT",
+              "ARRAY"
+            ]
+          },
+          "required": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": false
+          },
+          "defaultValue": {}
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "Binding": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "const": "LITERAL",
+                "type": "string"
+              },
+              "value": {}
+            },
+            "required": [
+              "source",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "const": "INPUT",
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+              }
+            },
+            "required": [
+              "source",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "const": "VARIABLE",
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+              }
+            },
+            "required": [
+              "source",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "source": {
+                "const": "TASK_OUTPUT",
+                "type": "string"
+              },
+              "taskId": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+              },
+              "port": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "evaluationResult"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "taskId",
+              "port"
+            ],
+            "additionalProperties": false
+          }
+        ],
+        "discriminator": {
+          "propertyName": "source"
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "core.Log",
+              "core.Sleep",
+              "core.Sequential",
+              "core.Parallel",
+              "core.Dag",
+              "core.If"
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 65536
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Retry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "then": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "else": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Only direct Dag siblings"
+          },
+          "condition": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "If expression must render true or false; choice persisted"
+          }
+        },
+        "required": [
+          "id",
+          "type"
+        ],
+        "additionalProperties": false,
+        "description": "Log requires message and forbids duration; Sleep requires duration and forbids message. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout. dependsOn is allowed only on direct children of the same Dag. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
+      },
+      "FlowDefinition": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 1
+          },
+          "namespace": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Input"
+            }
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "outputs": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "finally": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "concurrency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Concurrency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Schedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "namespace",
+          "id",
+          "tasks"
+        ],
+        "additionalProperties": false
+      },
+      "SaveRequest": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 262144
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "source"
+        ],
+        "additionalProperties": false
+      },
+      "RollbackRequest": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "targetRevision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "targetRevision"
+        ],
+        "additionalProperties": false
+      },
+      "ExecutionRequest": {
+        "type": "object",
+        "properties": {
+          "flowId": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inputs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "flowId"
+        ],
+        "additionalProperties": false
+      },
+      "Accepted": {
+        "type": "object",
+        "properties": {
+          "executionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "executionId"
+        ],
+        "additionalProperties": false
+      },
+      "RevisionSummary": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string"
+          },
+          "flowId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "namespace",
+          "flowId",
+          "revision",
+          "createdBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "FlowRevision": {
+        "type": "object",
+        "properties": {
+          "namespace": {
+            "type": "string"
+          },
+          "flowId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/FlowDefinition"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "namespace",
+          "flowId",
+          "revision",
+          "source",
+          "definition",
+          "createdBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "State": {
+        "type": "string",
+        "enum": [
+          "CREATED",
+          "QUEUED",
+          "RUNNING",
+          "RETRYING",
+          "KILLING",
+          "SUCCESS",
+          "FAILED",
+          "KILLED",
+          "SKIPPED"
+        ]
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "flowId": {
+            "type": "string"
+          },
+          "flowRevision": {
+            "type": "integer"
+          },
+          "submittedBy": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "outputs": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mainState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/State"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cleanupError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "namespace",
+          "flowId",
+          "flowRevision",
+          "submittedBy",
+          "state",
+          "inputs",
+          "variables",
+          "outputs",
+          "createdAt",
+          "startedAt",
+          "endedAt",
+          "error",
+          "mainState",
+          "cleanupError"
+        ],
+        "additionalProperties": false,
+        "description": "QUEUED has not been admitted. CREATED/RUNNING/KILLING occupy a Flow concurrency slot until Finally completes. FAIL admission returns a terminal FAILED execution without attempts or cleanup."
+      },
+      "TaskRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "executionId": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "taskIndex": {
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "outputs": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "MAIN",
+              "ERRORS",
+              "FINALLY"
+            ]
+          },
+          "retryAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "executionId",
+          "taskId",
+          "taskIndex",
+          "state",
+          "outputs",
+          "startedAt",
+          "endedAt",
+          "error",
+          "phase",
+          "retryAt"
+        ],
+        "additionalProperties": false,
+        "description": "Control tasks have TaskRuns but no Attempts. If outputs evaluationResult once; unselected descendants are SKIPPED. QUEUED and KILLING apply only to Execution."
+      },
+      "Attempt": {
+        "type": "object",
+        "properties": {
+          "taskRunId": {
+            "type": "string"
+          },
+          "attemptNo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "taskRunId",
+          "attemptNo",
+          "state",
+          "startedAt",
+          "endedAt",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "LogEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "executionId": {
+            "type": "string"
+          },
+          "taskRunId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attemptNo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "INFO",
+              "ERROR"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "executionId",
+          "taskRunId",
+          "attemptNo",
+          "level",
+          "message",
+          "at"
+        ],
+        "additionalProperties": false
+      },
+      "Retry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "maxAttempts",
+          "interval"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "constant"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "interval": {
+            "type": "string",
+            "description": "ISO duration PT0.001S..PT24H"
+          }
+        }
+      },
+      "Concurrency": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "limit"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "behavior": {
+            "type": "string",
+            "enum": [
+              "QUEUE",
+              "FAIL"
+            ],
+            "default": "QUEUE"
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cron"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string",
+            "description": "Spring six-field cron including seconds"
+          },
+          "timezone": {
+            "type": "string",
+            "default": "UTC"
+          },
+          "disabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,60 @@
+# S1构建输入SHA256清单
+
+生成日期：2026-09-08。关联[VER-S1-001](VER-S1-001-durable-log.md)。路径相对backend；没有Git提交号。包含POM、生产/测试源码、资源、示例、构建脚本与OpenAPI；不包含target生成物、凭据、本文或描述性文档。共54份文件。
+
+| 文件 | SHA256 |
+|---|---|
+| `docs/contracts/openapi.json` | `F6E6E0034E49A5D1B6E980928663005B9DC1954AFACD51F2DA6660D23EFEE790` |
+| `examples/s1-log-flow.yaml` | `179BE38B69D2DB6ED8662570A96784C10617085C653C55A47D2468ED55AB9365` |
+| `platform-dataflow/pom.xml` | `4930AA53635A319FCAA57E1F60F68944A708DCBF66E61BA3D52F803F12D10C39` |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowRevision.java` | `B41CE4BC22FBA120C0082F9C920A9F8FADDC95B2B1D4713D992B6B0F4F45603E` |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | `4CF1910859E821ECA58C3A35D975A34255EBC25750B28CAAA72D30D25733D023` |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | `51D6707A7F005CCE0A8A68EDD5A2F5D4FA0CC58805C7D3DF849B09E816428A2D` |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | `10707CD75365B23C24E518CC34202EF16AFEBA4F09743084C073B0DBFBAA0F03` |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/package-info.java` | `45D367373D7B31EC06FBFF34632FDF756AFBAA267C0AAA7ADF88AD079194D5F3` |
+| `platform-dataflow/src/main/resources/db/migration/dataflow/V2__flow_revisions.sql` | `D70BEF8B5BD2B8F3A6D5FEA311BAD8582C18EA737E0263A6D56B4BC2C7A37FA8` |
+| `platform-deployment/pom.xml` | `153BE309623A17BBF984B65FEADA740B99471D7E2AE251BD95B47B9A272049A6` |
+| `platform-deployment/src/main/java/com/project/platform/deployment/package-info.java` | `012850938431B7389CB291D234467C7352BE00962AFAC764145F34B7DBE17E3C` |
+| `platform-edge/pom.xml` | `5AE783A4AC4B33CC1EF999DB77B1D1D20C064E7DC6812CB31ED639A3B2DF2F90` |
+| `platform-edge/src/main/java/com/project/platform/edge/package-info.java` | `A951C0AEC46F10A487FA355C5B18BB38FF82C6E7B113041EBE30936ED702DBF1` |
+| `platform-foundation/pom.xml` | `36365F169E2D2B2FF4E347A71F1A7C461DAEF52BD8435F0362885E1B13D6F7DE` |
+| `platform-foundation/src/main/java/com/project/platform/foundation/identity/AccessPolicy.java` | `37A2C6353A0A89611D5B47AC77F36B949DB48068B7F600E04F6C368345F99C17` |
+| `platform-foundation/src/main/java/com/project/platform/foundation/package-info.java` | `CB8B4DE34F47D2750964E636DCEDD52F2C04B70752CE2B869CE3C8A3361F8B17` |
+| `platform-offloading/pom.xml` | `4A3C4AA004D37CE03354A1E60A45C171FADC892AE2F9FBB58F44CE1C0A63F1CE` |
+| `platform-offloading/src/main/java/com/project/platform/offloading/package-info.java` | `4CAA9A9E1D5B02008A1E81532F944046D4D2EE831961C0CA3FAFBF759B7E7A28` |
+| `platform-resource/pom.xml` | `A106179A8F56317198B7E4D18E93E3E0B91DC81FF7E20FF6145C1E012811101D` |
+| `platform-resource/src/main/java/com/project/platform/resource/package-info.java` | `6055C09616E3D5C1BC650E3D38E1383AE179C83F0878CA62F202EB034C890125` |
+| `platform-server/pom.xml` | `873BCB48A1E2C2C8BD73FA90D15B5281355B22E61D05AEE345912DCF79D96E2E` |
+| `platform-server/src/main/java/com/project/platform/server/api/ApiExceptionHandler.java` | `CA4B341248A908D71443C5A5F258041955584A84A71AF2C1F87F722F8143CD1C` |
+| `platform-server/src/main/java/com/project/platform/server/api/ExecutionController.java` | `E13726AF4E7559272C82791659F938E29F9491607CBB98CF3118DFACCE8059D5` |
+| `platform-server/src/main/java/com/project/platform/server/api/FlowController.java` | `EA969E76E9BEC07128FCFCBCAB76C25461F8CF1E8AE6E23BD68CBE42ED37E7BF` |
+| `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | `47DDBB3681C659C362971EDDC2E96FDE32E01AF651A52E0386D7B87916FEC38C` |
+| `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | `BBBF9E011C9548EF3F6D219C2699EBDBEABF3C95BE57C6CD9CE021B2FD756F88` |
+| `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | `F7C7982F3103E6BA18C124F22A174F5A0A9B3BA3338B7686268CAB60AF4B27E1` |
+| `platform-server/src/main/java/com/project/platform/server/package-info.java` | `C0DC4770384372FCC083A58EA7E0F02713B3FC9D38AB838299E43329B59A699E` |
+| `platform-server/src/main/java/com/project/platform/server/security/IdentityDirectory.java` | `6683C8CA835111696739311BF4F7979E1738D25D8AE4F12388811E12C95715F1` |
+| `platform-server/src/main/java/com/project/platform/server/security/SecurityConfiguration.java` | `91F90B52D9734DA909DFC447EF12472F05792AE8C79FFBC6A57E69A78EE0518C` |
+| `platform-server/src/main/java/com/project/platform/server/security/SecurityProperties.java` | `78E4F6EB9FD1486AAC9E24072A25E8E77F182A42982B50EEDC0019FC2ACF306C` |
+| `platform-server/src/main/resources/application.properties` | `3830BDF3909E09C18CE209E685B4F0A0197511D2B2EA02AB3E1BF2FD144C5B11` |
+| `platform-server/src/test/java/com/project/platform/server/ArchitectureTest.java` | `F35F6F4C19F673949FB5ED3F1B68BCA2087BC5CA7D01D71C5B13275435E89B88` |
+| `platform-server/src/test/java/com/project/platform/server/ContractTest.java` | `95E6D3973DC98F40B0DFF09F97DB3F3879ADA6F9BF325502DB7B83152B963F2F` |
+| `platform-server/src/test/java/com/project/platform/server/DurableWorkflowTest.java` | `A6321BAEF83BCF5A1B9B7501C1BBB421AD95FDC16ED541C787516BFB81ACC3DC` |
+| `pom.xml` | `8787BB9FE38D61BFE7ABD2666E88254DC90E26F5F5ECD0BD002385D5C0244E5C` |
+| `scripts/check-scaffold.ps1` | `D2BFBFA11E53135C7C9635CB4DD02084FEFD1B5E47727B4064095667DAFB4962` |
+| `scripts/verify.ps1` | `9BB0644C08FDA25EBC8DD4A6C21733F0424EEE0C792D8711C004DDC6F31B95F5` |
+| `workflow-runtime/pom.xml` | `F10CF84492F0F4DDF62006615ADC3D5EFAA49FAB04B96A7B48FAD61320477B8B` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/BindingResolver.java` | `488B468ED9F66D0F805E0DA0CEE6B0B1476D8ACBF8957A7FA145745D6891D09C` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowParser.java` | `641F1F2C74499E24CC6F28AAFAD79ABFBD724FE6027A53210A3770727F27F936` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowValidator.java` | `0557E80C5479B273113C664485A39BD4049926CEFCD22E9A4078C5342958689C` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/JsonCodec.java` | `728040A5A1CFC434DF859EBB694067E9AFC3AEFCA0E88B21A5A96AFF134C224B` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/TemplateRenderer.java` | `3F860A62D3C4EAB78377D34D80FDBFEF28F4C59FE8363A7CC1D5F6977357DD7E` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/execution/ExecutionService.java` | `80134AA99766710F7229D268F8134D46257A5DAD35D5F5BD8FAE1F58232537F4` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/executor/SequentialExecutor.java` | `6113FA7DD7F7EEA867FB55A4F406BB9A7EE688210290AA04CB16BF3DFFBFDDF1` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | `6183529E65F645E0092044B21DE361CCDDED09DF894F49662EF27CB1D2F8812E` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionState.java` | `ABDA5131DE9462D22329AD31CCADABA7CD732CB98A46F728958744967E2C045C` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | `FE40C79F748703EA032FFDC970EC0FC3E7FBEA3162356E5E1CCF463481C15D45` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/WorkflowException.java` | `0E2A8D7FD0C2605907A20456EE2E1A3CA9FC9114E2E4D7FE00C749AA0D13DA5D` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/package-info.java` | `D9385292AB0A094C5B694ACED46F1184A8FB14452700C60F03E3F3109FCC69E0` |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcExecutionStore.java` | `BDD2DDF4EC9621597FF21CE35A9D203FCEC7253A3673601C681AD5AEEAC7B7A7` |
+| `workflow-runtime/src/main/resources/db/migration/runtime/V1__runtime.sql` | `F9A490672C70DD92D93F415E788B72B5937DFBC156D16AB7427D2BEBD43D9F5F` |
+| `workflow-runtime/src/test/java/com/project/platform/runtime/definition/DefinitionTest.java` | `86D9A4BBC11E7B7489431241D204D88EF70FED540CD1BFF383BEDC5BF83EADC4` |
