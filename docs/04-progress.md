@@ -1,22 +1,25 @@
 # 当前进度
 
-更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S1–S3为已验收基线，S4-01资源目录与候选本地性检查已完成，未完成整个S4。
+更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S4-01及S4-02a应用契约/参数绑定已完成，不代表整个S4-02已完成。
 
 ## 当前事实
 
-- 独立8模块保留，48份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。resource增加spring-jdbc，复用父BOM和既有事务设施。
+- 独立8模块保留，57份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。deployment增加spring-jdbc/Jackson，复用父BOM，未升级技术版本。
 - S1定义/类型绑定、版本/CAS/回滚、幂等提交和查询保留；S2Worker租约/epoch、同Attempt接管、固定重试/超时/取消与Errors/Finally已回归。
 - 新增嵌套Sequential/Parallel/Dag/If；DAG同组依赖与声明顺序无关；If选择持久化、未选分支跳过。控制节点只有TaskRun，只有叶子创建Attempt/WorkerJob。
 - 新增Flow并发limit、QUEUE/FAIL和持久FIFO；同namespace/flowId跨版本共用最新额度，清理结束才释放。排队取消无Attempt/Finally，活跃取消保留清理。
 - 新增单Flow六字段Cron、时区、disabled、静态inputs和持久游标；双Scheduler锁内去重，错过多次只补一个已持久到期点。默认每Worker进程4个并发叶子任务。
 - 真实调用链：手动HTTP/dataflow或Scheduler → ExecutionService准入 → FlowExecutor解释控制树/派发 → Worker事务外执行 → 持久结果 → Executor归并、清理、提升队列。
-- 13张业务表。dataflow只拥有定义头和修订，runtime拥有运行/传输/Flow门控/Schedule表，resource拥有集群/数据集版本/位置3张表；不跨模块访问对方Repository。V6仅新增目录表，不改变执行表。
+- 14张业务表。dataflow只拥有定义头和修订，runtime拥有运行/传输/Flow门控/Schedule表，resource拥有3张资源目录表，deployment拥有应用契约版本表；不跨模块访问对方Repository。V7不改变执行表。
 - 删除SequentialExecutor和wf_execution.next_task，以统一FlowExecutor替代；没有旧执行器兼容开关，没有增加Broker/WorkerGroup/空SPI或第二套运行状态。字段消费者见[S3协议](contracts/s3-protocol.md)。
 - S3历史统一verify为75项通过，见[S3验收](verification/VER-S3-001-control-scheduling.md)。本批统一scripts/verify.ps1于18:01:48 +08:00通过86项（19单元+63真实MySQL集成+3协议+1架构），0失败/错误/跳过，结构检查通过；测试容器与JVM已退出，见[S4-01验证](verification/VER-S4-001-resource-catalog.md)。
 - S3验证只运行隔离测试MySQL和自己的测试JVM，均已清理；旧web-platform、旧数据库、旧镜像未修改或迁移。随后用户授权将新backend首次提交并发布到公开仓库，不扩大到旧工程。
 - 新增资源链：HTTP → ResourceCatalogService授权/校验 → JdbcResourceRepository。支持集群注册/启停、不可覆盖的数据集版本及位置、分页查询、候选本地性/格式/禁用原因检查。预览不创建Execution，不选择最终位置、不预约或派发。
-- 可运行的叶子仍仅Log/Sleep；资源观测、镜像管理、容器/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录登记不保证对象存在或集群健康。没有宣称生产容量、跨云故障或任意外部副作用exactly-once。
+- S4-02a新增应用契约版本登记/查询，类型/默认值/允许数据集校验；dataflow从显式别名派生既有Input/Literal/InputRef并解析参数。只有别名参数对外暴露，多目标同名必须类型相符、choices有交集，默认值冲突需显式输入。
+- 应用链：HTTP → ApplicationCatalogService → JdbcApplicationRepository（数据集规则走资源公开接口）；绑定链：HTTP → ApplicationBindingService → 应用公开目录+既有BindingResolver。原Flow prepare复用抽取后的prepareInputs，Execution主链不变。
+- 可运行的叶子仍仅Log/Sleep；镜像准备/分发、常驻部署、命名产物/路径注入、资源观测、容器/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录/绑定API不会运行镜像，不保证数据存在或集群健康。
 - S4-01以已发布071ff4b为基线；2026-09-10用户授权更新GitHub，本批源码、测试、协议和文档纳入Git发布。测试证据保留验证当时的基线与工作区说明；旧系统没有修改。
+- S4-02以已发布78203a7为基线；2026-09-10用户授权将已完成的S4-02a代码、测试和文档纳入本次GitHub发布，S4-02整体仍为进行中。最终统一verify于2026-09-10 00:57:29 +08:00通过101项（19单元+78真实MySQL集成+3协议+1架构），0失败/错误/跳过；结构与文档检查通过，测试容器/JVM已退出，见[本批证据](verification/VER-S4-002-application-binding.md)。
 
 ## 阶段看板
 
@@ -36,7 +39,7 @@
 | 工作包 | 状态 | 交付/剩余验收 |
 |---|---|---|
 | S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
-| S4-02 | NOT_STARTED | 应用/镜像契约、参数派生、镜像准备/分发及常驻部署 |
+| S4-02 | IN_PROGRESS | a契约/绑定DONE、101项验证PASS；b镜像准备/分发及c常驻部署NOT_STARTED，未满足完整退出条件 |
 | S4-03 | NOT_STARTED | 真实资源观测、选址/原子预约、K8s Job/产物及同Attempt接管 |
 | S4-04 | NOT_STARTED | HTTP/SQL及隔离Shell/Python任务 |
 | S4-05 | NOT_STARTED | P04/P05/P06/P11最小部署与故障验收 |
@@ -45,7 +48,7 @@
 
 ## 下一步
 
-下一批S4-02先核对镜像契约、数据集约束与镜像准备/常驻部署边界，再实施真实消费者。不提前创建无消费者的预约表或Runner空SPI；S4-03再接入真实Job、资源观测与容量预约。S5开始时再讨论计量口径。
+下一步继续S4-02b镜像准备/分发与S4-02c常驻部署，使用独立测试环境验证真实结果；不是进入S4-03。不提前创建无消费者的预约表或Runner空SPI；S4-03再接入真实Job、资源观测、容量预约与完整运行/产物契约。S5开始时再讨论计量口径。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -79,3 +82,7 @@
 2026-09-09：用户授权开始S4，计划更新至0.7，分S4-01至S4-05验证。首批资源目录与候选本地性完成，86项统一验证于18:01:48 +08:00通过；剩余Job/镜像/预约/通用任务/保障验收没有标为完成，证据见VER-S4-001。
 
 2026-09-10：用户授权更新GitHub，发布S4-01源码与文档到cea-system/main。本次仅Git发布与发布说明更新，不修改业务逻辑；业务测试沿用2026-09-09的86项结果，不声称本次重新运行，另执行结构/链接和待上传内容检查。
+
+2026-09-10：用户授权开始S4-02，按ADR-0007完成应用契约版本与参数绑定子批次a，101项统一验证于00:57:29 +08:00通过；计划0.8保留镜像准备/分发及常驻部署的真实验收，未动旧系统，未再次Git发布。完整验证记录见VER-S4-002。
+
+2026-09-10：用户要求以后较大的新增/修改完成后更新GitHub，持续授权写入AGENTS.md，并同步计划中的发布约束。本次仅更新工作约定，不修改业务逻辑、不推进阶段；已有未提交S4-02a改动保持不变，未重跑业务测试。

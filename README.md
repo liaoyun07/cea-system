@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3：定义与版本、幂等提交、Worker恢复/失败语义、DAG/条件/嵌套并行、Flow并发排队与Cron触发；S4首批新增集群目录、数据集版本/位置和候选本地性检查。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
+独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约及参数绑定。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
 
 ## 文档入口
 
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V6，创建13张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V7，创建14张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证按后续阶段落实；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：
@@ -106,4 +106,12 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 [资源API与JSON示例](docs/contracts/s4-resource-catalog.md)提供集群注册/启停、不可覆盖的数据集版本及位置登记、分页查询和候选检查。使用既有Basic与命名空间READ/WRITE权限；目录API不需要EXECUTE权限，因为不会创建任务。
 
-只检查已登记的位置/格式/启用标志，不连接Kubernetes或对象存储验证真实性，也不进行资源预约。后续镜像契约、真实Job与观测仍在S4待实施；不能把预览结果当成可用容量保证。
+只检查已登记的位置/格式/启用标志，不连接Kubernetes或对象存储验证真实性，也不进行资源预约。完整运行契约、真实Job与观测仍在S4待实施；不能把预览结果当成可用容量保证。
+
+## S4-02a应用契约与参数绑定
+
+[应用与参数绑定API](docs/contracts/s4-application-binding.md)支持版本登记、数据集允许范围、运行别名/固定值派生及按契约解析参数。只有显式设置别名的参数会成为运行输入，类型由契约派生；同一别名可供多个镜像参数使用，冲突会提示而不是按定义顺序取值。
+
+[契约示例](examples/s4-application-contract.json)引用mnist/v1，登记前需通过资源API注册对应pt数据版本；[绑定示例](examples/s4-application-bindings.json)仅暴露dataset和epochs，CHUNK使用固定值或镜像默认值。它们验证的是编排数据，不会拉取或执行示例镜像。
+
+此批没有实现镜像准备/分发、常驻部署、容器Flow或完整命名产物契约。S4-02尚未全部完成，后续见[工作包](docs/features/S4-resource-runtime.md)。

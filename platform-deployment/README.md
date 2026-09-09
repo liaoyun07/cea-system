@@ -2,11 +2,12 @@
 
 职责：应用镜像与部署生命周期。
 
-当前仅有 Maven 模块和包声明，没有可执行业务类、接口占位实现或单元测试。
+S4-02a已实现应用版本契约的数据库登记/查询、标量参数及数据集规则校验。公开入口ApplicationCatalogService，仅本模块访问dep_application_version；通过ResourceCatalogService校验同namespace的数据集版本和格式。参数别名派生由dataflow完成。
+
+当前不访问镜像仓库、不分发镜像、不创建常驻Deployment，也没有完整命名产物/路径注入契约。协议见[应用绑定](../docs/contracts/s4-application-binding.md)。
 
 - [模块边界与 Java 文件索引](../docs/01-code-architecture.md)
 - [功能索引](../docs/02-feature-index.md)
 - [当前进度](../docs/04-progress.md)
 
-依赖：`platform-resource`、`platform-foundation`。这些是预留的编译依赖，不表示已有运行调用。
-
+项目依赖：`platform-resource`、`platform-foundation`，分别用于数据集规则校验与命名空间权限。spring-jdbc/Jackson沿用父BOM；无runtime依赖，不拥有Execution状态。

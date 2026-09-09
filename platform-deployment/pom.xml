@@ -13,6 +13,12 @@
     <name>platform-deployment</name>
     <dependencies>
         <dependency>
+            <groupId>org.springframework</groupId><artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>tools.jackson.core</groupId><artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.project.platform</groupId>
             <artifactId>platform-resource</artifactId>
             <version>${project.version}</version>
@@ -24,4 +30,3 @@
         </dependency>
     </dependencies>
 </project>
-

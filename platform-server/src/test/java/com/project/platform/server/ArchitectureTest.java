@@ -24,6 +24,12 @@ class ArchitectureTest {
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.resource..").should()
                 .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime..","com.project.platform.dataflow..","com.project.platform.deployment..").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.deployment..").should()
+                .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime..","com.project.platform.dataflow..").check(classes);
+        noClasses().that().resideInAnyPackage("com.project.platform.server.api..","com.project.platform.dataflow..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.deployment.application.JdbcApplicationRepository").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.deployment..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.runtime.worker..").should()
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.runtime.persistence.JdbcExecutionStore").check(classes);
     }

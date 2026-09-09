@@ -12,20 +12,25 @@ public final class BindingResolver {
     public record Prepared(Map<String, Object> inputs, Map<String, Object> variables) {}
 
     public Prepared prepare(FlowDefinition flow, Map<String, Object> supplied) {
+        Map<String,Object> inputs=prepareInputs(flow.inputs(),supplied);
+        Map<String, Object> variables = new LinkedHashMap<>();
+        for (String name : flow.variables().keySet()) variable(name, flow, inputs, variables, new HashSet<>());
+        return new Prepared(inputs, FlowDefinition.immutable(variables));
+    }
+
+    public Map<String,Object> prepareInputs(Map<String,Input> definitions,Map<String,Object> supplied) {
         Map<String, Object> values = supplied == null ? Map.of() : supplied;
         for (String key : values.keySet()) {
-            if (!flow.inputs().containsKey(key)) throw WorkflowException.invalid("inputs." + key, "unknown input");
+            if (!definitions.containsKey(key)) throw WorkflowException.invalid("inputs." + key, "unknown input");
         }
         Map<String, Object> inputs = new LinkedHashMap<>();
-        flow.inputs().forEach((name, spec) -> {
+        definitions.forEach((name, spec) -> {
             Object value = values.containsKey(name) ? values.get(name) : spec.defaultValue();
             if (value == null && spec.required()) throw WorkflowException.invalid("inputs." + name, "required");
             validateType(name, spec.type(), value);
             inputs.put(name, value);
         });
-        Map<String, Object> variables = new LinkedHashMap<>();
-        for (String name : flow.variables().keySet()) variable(name, flow, inputs, variables, new HashSet<>());
-        return new Prepared(FlowDefinition.immutable(inputs), FlowDefinition.immutable(variables));
+        return FlowDefinition.immutable(inputs);
     }
 
     private Object variable(String name, FlowDefinition flow, Map<String, Object> inputs,
@@ -82,4 +87,3 @@ public final class BindingResolver {
         if (!valid) throw WorkflowException.invalid("inputs." + name, "expected " + type);
     }
 }
-

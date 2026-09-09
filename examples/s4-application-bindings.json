@@ -1,0 +1,6 @@
+{
+  "tasks": [
+    {"taskId":"client-a", "applicationId":"client-train", "version":"v1", "aliases":{"DATASET":"dataset", "EPOCHS":"epochs"}, "fixedValues":{"CHUNK":2048}},
+    {"taskId":"client-b", "applicationId":"client-train", "version":"v1", "aliases":{"DATASET":"dataset", "EPOCHS":"epochs"}}
+  ]
+}

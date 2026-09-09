@@ -1,0 +1,15 @@
+{
+  "applicationId": "client-train",
+  "version": "v1",
+  "image": "registry.example/lab/client-train:v1",
+  "parameters": {
+    "DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist/v1",
+      "dataset": {"format": "pt", "allowed": [{"datasetId": "mnist", "version": "v1"}]}
+    },
+    "EPOCHS": {"type": "INTEGER", "required": true, "defaultValue": 2},
+    "CHUNK": {"type": "INTEGER", "required": true, "defaultValue": 1024}
+  }
+}

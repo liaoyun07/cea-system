@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Cloud Edge Backend S2 API",
+    "title": "Cloud Edge Backend API",
     "version": "2.0.0",
-    "description": "S1-S3 workflow engine plus S4-01 declared resource/dataset catalog and advisory locality checks. No Kubernetes execution, reservations or resource health probing in S4-01."
+    "description": "S1-S3 workflow engine, S4-01 resource catalog and S4-02a immutable application contracts/parameter binding. No real image preparation, deployment, Kubernetes tasks or capacity reservations yet."
   },
   "servers": [
     {
@@ -1623,6 +1623,313 @@
           }
         }
       }
+    },
+    "/api/namespaces/{namespace}/applications/{applicationId}/versions/{version}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "applicationId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "registerApplicationVersion",
+        "description": "WRITE. Dataset constraints also require READ. Id/version must match route. Immutable descriptor; same normalized content is replay-safe.",
+        "responses": {
+          "200": {
+            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Application or dataset version not found"
+          },
+          "409": {
+            "description": "Immutable application version conflict"
+          },
+          "422": {
+            "description": "Invalid contract, parameter or binding"
+          },
+          "500": {
+            "description": "Infrastructure failure"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationVersion"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getApplicationVersion",
+        "description": "READ exact version, no latest fallback.",
+        "responses": {
+          "200": {
+            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationVersion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Application or dataset version not found"
+          },
+          "409": {
+            "description": "Immutable application version conflict"
+          },
+          "422": {
+            "description": "Invalid contract, parameter or binding"
+          },
+          "500": {
+            "description": "Infrastructure failure"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/applications": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listApplicationVersions",
+        "description": "READ paged in applicationId/version lexical order.",
+        "responses": {
+          "200": {
+            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationVersion"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Application or dataset version not found"
+          },
+          "409": {
+            "description": "Immutable application version conflict"
+          },
+          "422": {
+            "description": "Invalid contract, parameter or binding"
+          },
+          "500": {
+            "description": "Infrastructure failure"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ]
+      }
+    },
+    "/api/namespaces/{namespace}/application-bindings/plan": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "planApplicationBindings",
+        "description": "READ. Explicit aliases only. Shared targets need equal types and intersecting choices. Default conflicts require explicit input.",
+        "responses": {
+          "200": {
+            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationBindingPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Application or dataset version not found"
+          },
+          "409": {
+            "description": "Immutable application version conflict"
+          },
+          "422": {
+            "description": "Invalid contract, parameter or binding"
+          },
+          "500": {
+            "description": "Infrastructure failure"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationBindingRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/application-bindings/resolve": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "resolveApplicationBindings",
+        "description": "READ. Resolve typed inputs/fixed/default values against immutable contracts. Omit unset optional parameters. Does not persist Flow or execute images.",
+        "responses": {
+          "200": {
+            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResolvedApplicationTask"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request or unknown field"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace/action forbidden"
+          },
+          "404": {
+            "description": "Application or dataset version not found"
+          },
+          "409": {
+            "description": "Immutable application version conflict"
+          },
+          "422": {
+            "description": "Invalid contract, parameter or binding"
+          },
+          "500": {
+            "description": "Infrastructure failure"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationResolveRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2681,6 +2988,314 @@
           "eligible",
           "reasons",
           "datasets"
+        ]
+      },
+      "ApplicationVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Explicit repository:tag or repository@sha256:digest. Reference syntax only; not pulled or verified."
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ApplicationParameter"
+            }
+          }
+        },
+        "required": [
+          "applicationId",
+          "version",
+          "image"
+        ]
+      },
+      "ApplicationParameter": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "STRING",
+              "INTEGER",
+              "NUMBER",
+              "BOOLEAN"
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "default": false
+          },
+          "defaultValue": {
+            "type": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "integer",
+                "number",
+                "boolean"
+              ]
+            },
+            "maxItems": 100
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "DatasetRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "datasetId",
+          "version"
+        ]
+      },
+      "DatasetRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetRef"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "format",
+          "allowed"
+        ]
+      },
+      "ApplicationTaskSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "fixedValues": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "required": [
+          "taskId",
+          "applicationId",
+          "version"
+        ]
+      },
+      "ApplicationBindingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplicationTaskSelection"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "tasks"
+        ]
+      },
+      "ApplicationTaskBindings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          }
+        },
+        "required": [
+          "taskId",
+          "applicationId",
+          "version",
+          "image",
+          "parameters"
+        ]
+      },
+      "ApplicationBindingPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Input"
+            }
+          },
+          "choices": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "integer",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplicationTaskBindings"
+            }
+          }
+        },
+        "required": [
+          "inputs",
+          "choices",
+          "tasks"
+        ]
+      },
+      "ApplicationResolveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApplicationTaskSelection"
+            },
+            "minItems": 1,
+            "maxItems": 100
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tasks"
+        ]
+      },
+      "ResolvedApplicationTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "required": [
+          "taskId",
+          "applicationId",
+          "version",
+          "image",
+          "parameters"
         ]
       }
     }

@@ -12,6 +12,11 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public final class ApiExceptionHandler {
+    @ExceptionHandler(com.project.platform.deployment.application.ApplicationException.class)
+    public ResponseEntity<Map<String,String>> application(com.project.platform.deployment.application.ApplicationException exception) {
+        int status=switch(exception.kind()) { case INVALID -> 422; case CONFLICT -> 409; case NOT_FOUND -> 404; };
+        return ResponseEntity.status(status).body(Map.of("code",exception.kind().name(),"message",exception.getMessage()));
+    }
     @ExceptionHandler(com.project.platform.resource.catalog.ResourceException.class)
     public ResponseEntity<Map<String,String>> resource(com.project.platform.resource.catalog.ResourceException exception) {
         int status=switch(exception.kind()) { case INVALID -> 422; case CONFLICT -> 409; case NOT_FOUND -> 404; };
