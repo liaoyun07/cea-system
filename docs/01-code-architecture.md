@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共54份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共62份（含8份包声明），测试类另列。
 
 ## 模块依赖白名单
 
@@ -78,13 +78,25 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 | `platform-resource/src/main/java/com/project/platform/resource/catalog/ResourceCatalogService.java` | 资源目录公开门面与候选本地性检查 | putCluster/registerDataset/placementOptions及查询 | READ/WRITE授权；校验URI、同namespace位置与版本；预览不预约 | RES-001、RES-002、SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/api/ResourceController.java` | 7个资源HTTP操作 | 集群/数据集版本读写、列表、placementOptions | Principal映射身份；仅调用资源公开门面，不读取Repository | RES-001、RES-002 | I/C/A |
 | `platform-deployment/src/main/java/com/project/platform/deployment/application/ApplicationVersion.java` | 应用版本及Parameter/DatasetRule/DatasetRef契约记录 | 嵌套record、DatasetRef.key | 不可覆盖描述；数据集值为明确id/version | DEP-001 | I/C |
-| `platform-deployment/src/main/java/com/project/platform/deployment/application/ApplicationContractValidator.java` | 标量规范化、默认值/choices/数据集声明和镜像引用校验 | normalize/identifier/token | 只供目录注册/查询校验；标量和允许值辅助方法已收为private，不探测镜像 | DEP-001 | I |
+| `platform-deployment/src/main/java/com/project/platform/deployment/application/ApplicationContractValidator.java` | 标量规范化、默认值/choices/数据集声明和镜像引用校验 | normalize/parameters/identifier/token | 目录注册与常驻部署参数消费者；不派生Flow，不探测镜像 | DEP-001 | I |
 | `platform-deployment/src/main/java/com/project/platform/deployment/application/ApplicationException.java` | 应用域校验/冲突/未找到错误 | invalid/missing/conflict | 领域错误映射422/409/404，不依赖runtime | DEP-001 | I |
 | `platform-deployment/src/main/java/com/project/platform/deployment/application/JdbcApplicationRepository.java` | 仅dep_application_version持久化 | register/get/list | 单行原子插入；冲突后读原版本判断相同或409 | DEP-001 | I/A |
 | `platform-deployment/src/main/java/com/project/platform/deployment/application/ApplicationCatalogService.java` | 应用目录公开门面 | register/get/list | READ/WRITE授权；通过资源公开接口检查数据集版本/格式 | DEP-001、SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/api/ApplicationController.java` | 应用版本注册/查询/分页3个HTTP操作 | register/get/list | 只访问ApplicationCatalogService | DEP-001 | I/C/A |
 
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/SkopeoImageClient.java` | 委托Skopeo解析/复制并验证镜像digest | digest/copy | 有界外部进程；认证使用外置authfile；不访问执行表 | DEP-002 | ImageDistributionTest |
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/ImageDistributionService.java` | 显式按目标集群准备应用镜像 | prepare | READ/WRITE及源/目标白名单；实际返回固定digest镜像；不创建Execution | DEP-002 | ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/configuration/DistributionConfiguration.java` | Skopeo/Registry/目标配置与装配 | Settings/RegistrySettings/Bean | 仅管理员外部配置地址、TLS、authfile及目标映射 | DEP-002 | ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/api/ImageDistributionController.java` | 镜像准备HTTP入口 | prepare | Principal→deployment公开门面，失败不返回准备成功 | DEP-002 | ImageDistributionTest/C |
+
 ## 表与事务所有权
+
+| 实际生产文件（S4-02c新增） | 职责与消费者 | 状态所有权 | 测试 |
+|---|---|---|---|
+| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesConnections.java` | 按平台namespace/cluster显式打开配置的Kubernetes连接 | 外部kubeconfig，不读取默认开发者context | ImageDistributionTest |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentService.java` | 契约参数校验、真实创建/查询/版本更新/删除常驻Deployment | Kubernetes为唯一期望/实际状态源，无部署表 | ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/configuration/KubernetesConfiguration.java` | 外部连接配置与部署装配 | 不增加业务状态 | ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/api/DeploymentController.java` | 4个常驻部署HTTP操作 | 身份→deployment门面；不写运行表 | ImageDistributionTest/C |
 
 - dataflow：[V2__flow_revisions.sql](../platform-dataflow/src/main/resources/db/migration/dataflow/V2__flow_revisions.sql)，wf_flow_head、wf_flow_revision。
 - runtime：[V1__runtime.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V1__runtime.sql)，wf_execution、wf_task_run、wf_task_attempt、wf_message、wf_log。
@@ -108,6 +120,8 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - A：[ArchitectureTest](../platform-server/src/test/java/com/project/platform/server/ArchitectureTest.java)，1项包含多条依赖约束的架构测试。
 
 - T：[ControlFlowTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/ControlFlowTest.java)，6项控制定义/拓扑/分支/额度/Cron/时区DST测试。
+
+- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：独立真实Registry/Skopeo/MySQL/K3s，验证复制层内容、digest重放、认证、白名单、HTTP授权、部署生命周期和失败状态；本批新增，结果见S4进度。
 
 ## 后续实现位置规划
 

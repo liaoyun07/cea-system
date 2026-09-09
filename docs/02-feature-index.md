@@ -24,7 +24,7 @@
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
 | RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
 | DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IN_PROGRESS | PARTIAL |
-| DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | NOT_STARTED | NOT_RUN |
+| DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | IMPLEMENTED | PASS |
 | RUN-001 | Kubernetes 一次性 Job 与产物发布 | S4 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
@@ -43,7 +43,7 @@ WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-
 
 S4已授权，工作包见[S4规格](features/S4-resource-runtime.md)。RES-001当前只有集群目录、不可变数据集版本/位置，没有真实资源观测；RES-002当前只有候选本地性检查，没有最终选址、容量预约和释放。本批11项新增测试及75项回归见[S4-01验证](verification/VER-S4-001-resource-catalog.md)，不能据此将RES-001/002整体标为完成。SEC-001复用既有READ/WRITE边界，尚未实现远程通信鉴权。S5–S7未进入。
 
-S4-02a保留应用版本目录、标量参数/数据集约束，撤销别名派生与plan/resolve，详见[协议](contracts/s4-application-catalog.md)及[方向修正验证](verification/VER-S4-003-explicit-flow-boundary.md)。DEP-001保持IN_PROGRESS：命名产物端口、路径注入和与真实容器Flow的集成尚未实现。Flow作者显式声明输入及参数来源；WF-016的YAML/No-code单事实源是目标，No-code尚未实现。DEP-002仍NOT_STARTED，不把契约登记当成部署完成。
+S4-02a保留应用版本目录、标量参数/数据集约束，撤销别名派生与plan/resolve，详见[协议](contracts/s4-application-catalog.md)及[方向修正验证](verification/VER-S4-003-explicit-flow-boundary.md)。DEP-001保持IN_PROGRESS：命名产物端口、路径注入和与真实容器Flow的集成尚未实现。Flow作者显式声明输入及参数来源；WF-016的YAML/No-code单事实源是目标，No-code尚未实现。DEP-002已实现配置目标分发、digest复制及常驻Deployment管理，真实隔离集群测试见本批验证。没有通用分发调度器或Service/Ingress，且不代表容器Flow已实现。
 
 ## 明确的范围限制
 

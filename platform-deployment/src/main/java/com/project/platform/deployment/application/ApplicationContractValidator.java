@@ -44,6 +44,17 @@ public final class ApplicationContractValidator {
     private static List<Object> choices(Parameter parameter) {
         return parameter.dataset()==null?parameter.choices():parameter.dataset().allowed().stream().map(ref->(Object)ref.key()).toList();
     }
+    /** Validates explicit literal values for a real deployment; never creates Flow inputs or bindings. */
+    public static Map<String,Object> parameters(ApplicationVersion application,Map<String,Object> supplied) {
+        var values=supplied==null?Map.<String,Object>of():supplied;
+        for(String name:values.keySet())if(!application.parameters().containsKey(name))throw ApplicationException.invalid("unknown application parameter: "+name);
+        var result=new TreeMap<String,Object>();
+        application.parameters().forEach((name,parameter)->{
+            Object normalized=value(name,parameter,values.containsKey(name)?values.get(name):parameter.defaultValue());
+            if(normalized!=null)result.put(name,normalized);
+        });
+        return Map.copyOf(result);
+    }
     private static Object value(String name,Parameter parameter,Object value) {
         Object normalized=scalar(parameter.type(),value);
         if(normalized==null && parameter.required()) throw ApplicationException.invalid("required parameter: "+name);

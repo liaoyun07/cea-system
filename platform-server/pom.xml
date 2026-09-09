@@ -13,6 +13,9 @@
     <name>platform-server</name>
     <dependencies>
         <dependency>
+            <groupId>org.testcontainers</groupId><artifactId>k3s</artifactId><version>${testcontainers.version}</version><scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>

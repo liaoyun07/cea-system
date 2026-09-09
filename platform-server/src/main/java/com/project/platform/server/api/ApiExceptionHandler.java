@@ -12,6 +12,15 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public final class ApiExceptionHandler {
+    @ExceptionHandler(io.fabric8.kubernetes.client.KubernetesClientException.class)
+    public ResponseEntity<Map<String,String>> kubernetes(io.fabric8.kubernetes.client.KubernetesClientException exception) {
+        int status=exception.getCode()==409?409:502;
+        return ResponseEntity.status(status).body(Map.of("code","KUBERNETES_REQUEST_FAILED","message","Kubernetes request failed (status "+exception.getCode()+"); check configured cluster credentials and resource state"));
+    }
+    @ExceptionHandler(com.project.platform.deployment.distribution.SkopeoImageClient.Failure.class)
+    public ResponseEntity<Map<String,String>> imagePreparation(com.project.platform.deployment.distribution.SkopeoImageClient.Failure exception) {
+        return ResponseEntity.status(502).body(Map.of("code","IMAGE_PREPARATION_FAILED","message",exception.getMessage()));
+    }
     @ExceptionHandler(com.project.platform.deployment.application.ApplicationException.class)
     public ResponseEntity<Map<String,String>> application(com.project.platform.deployment.application.ApplicationException exception) {
         int status=switch(exception.kind()) { case INVALID -> 422; case CONFLICT -> 409; case NOT_FOUND -> 404; };

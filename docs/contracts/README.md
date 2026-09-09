@@ -2,7 +2,7 @@
 
 当前为S3执行协议、S4-01资源目录及S4-02a应用契约目录；S1文档保留历史语义，S2叶子与失败语义仍适用，但顺序游标/单Worker串行已由S3替代。
 
-- [OpenAPI 3.1](openapi.json)：22个HTTP操作，S4-02a保留3个应用目录操作，撤销2个派生/解析操作；字段以此为准。
+- [OpenAPI 3.1](openapi.json)：27个HTTP操作，含3个应用目录、1个镜像准备、4个常驻部署操作；没有自动派生/解析接口，字段以此为准。
 - [S4-02a应用契约目录](s4-application-catalog.md)：版本、类型/默认值/choices、数据集允许范围；不派生Flow Inputs，尚未部署执行。
 - [S4-01资源目录](s4-resource-catalog.md)：集群/数据集版本/位置、权限、候选拒绝原因与当前边界。
 - [S3控制流与调度](s3-protocol.md)：嵌套控制、DAG/If、准入FIFO、Schedule、字段消费者和锁顺序。
@@ -13,3 +13,5 @@
 - [S2规格](../features/WF-007-008-s2.md) / [决策](../decisions/ADR-0004-s2-worker-lifecycle.md)。
 
 没有公开Worker HTTP API，当前Worker共享数据库及应用版本。不能把本地Basic当作S4内部通信鉴权。数据库以V1–V7迁移为准；ContractTest检查路由、27个record字段映射、引用和示例，不是完整OpenAPI规范验证器。
+
+S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](s4-image-deployment.md)。S4-03/04/05仍需各自验收，不把镜像准备成功当作Flow运行成功。

@@ -1809,6 +1809,268 @@
           }
         ]
       }
+    },
+    "/api/namespaces/{namespace}/applications/{applicationId}/versions/{version}/preparations/{clusterId}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "applicationId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "clusterId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "summary": "Prepare an application image in the configured cluster registry",
+        "responses": {
+          "200": {
+            "description": "Verified digest-pinned image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedImage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "READ/WRITE permission required"
+          },
+          "404": {
+            "description": "Application or cluster not found"
+          },
+          "422": {
+            "description": "Unconfigured registry/target or disabled cluster"
+          },
+          "502": {
+            "description": "Image preparation failed or not confirmed"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{clusterId}/deployments": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "clusterId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "List platform-owned Deployments",
+        "responses": {
+          "200": {
+            "description": "Actual Kubernetes resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeploymentView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace READ/WRITE permission required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Stale resourceVersion or foreign owner"
+          },
+          "422": {
+            "description": "Invalid contract/parameter/connection"
+          },
+          "502": {
+            "description": "Registry or Kubernetes operation not confirmed"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{clusterId}/deployments/{name}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "clusterId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read actual desired and observed state",
+        "responses": {
+          "200": {
+            "description": "Actual Kubernetes resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace READ/WRITE permission required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Stale resourceVersion or foreign owner"
+          },
+          "422": {
+            "description": "Invalid contract/parameter/connection"
+          },
+          "502": {
+            "description": "Registry or Kubernetes operation not confirmed"
+          }
+        }
+      },
+      "put": {
+        "summary": "Create/update desired Deployment using explicit contract values",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeploymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actual Kubernetes resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace READ/WRITE permission required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Stale resourceVersion or foreign owner"
+          },
+          "422": {
+            "description": "Invalid contract/parameter/connection"
+          },
+          "502": {
+            "description": "Registry or Kubernetes operation not confirmed"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Request deletion with resourceVersion precondition",
+        "parameters": [
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Deletion accepted; absence must be observed separately"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Namespace READ/WRITE permission required"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Stale resourceVersion or foreign owner"
+          },
+          "422": {
+            "description": "Invalid contract/parameter/connection"
+          },
+          "502": {
+            "description": "Registry or Kubernetes operation not confirmed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2986,6 +3248,106 @@
           "format",
           "allowed"
         ]
+      },
+      "PreparedImage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "applicationId",
+          "version",
+          "clusterId",
+          "image"
+        ],
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "clusterId": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          }
+        }
+      },
+      "DeploymentRequest": {
+        "type": "object",
+        "required": [
+          "applicationId",
+          "version",
+          "replicas"
+        ],
+        "properties": {
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "replicas": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resourceVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit for creation; exact current Kubernetes value for update."
+          }
+        }
+      },
+      "DeploymentView": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "clusterId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "replicas": {
+            "type": "integer"
+          },
+          "readyReplicas": {
+            "type": "integer"
+          },
+          "observed": {
+            "type": "boolean"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   }

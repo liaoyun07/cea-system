@@ -1,0 +1,24 @@
+# Administrator-only example: replace addresses/file paths. Contains no real credentials.
+platform:
+  distribution:
+    command: [skopeo]
+    timeout: PT5M
+    registries:
+      center:
+        address: registry.example.org
+        tls-verify: true
+        auth-file: /run/secrets/registry-auth.json
+      edge:
+        address: edge-registry.example.org
+        tls-verify: true
+        auth-file: /run/secrets/registry-auth.json
+    targets:
+      lab:
+        edge-a: edge
+  kubernetes:
+    connections:
+      lab:
+        edge-a:
+          kubeconfig: /run/secrets/edge-kubeconfig.yaml
+          context: edge-a
+          namespace: cea-lab

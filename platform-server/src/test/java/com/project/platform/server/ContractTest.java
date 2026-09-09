@@ -23,12 +23,14 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
                 var post = method.getAnnotation(PostMapping.class);
                 var put = method.getAnnotation(PutMapping.class);
+                var delete = method.getAnnotation(DeleteMapping.class);
+                if (delete != null) actual.add("delete " + base + (delete.value().length == 0 ? "" : delete.value()[0]));
                 if (get != null) actual.add("get " + base + (get.value().length == 0 ? "" : get.value()[0]));
                 if (post != null) actual.add("post " + base + (post.value().length == 0 ? "" : post.value()[0]));
                 if (put != null) actual.add("put " + base + (put.value().length == 0 ? "" : put.value()[0]));
@@ -71,7 +73,10 @@ class ContractTest {
                 Map.entry("ApplicationVersion",ApplicationVersion.class),
                 Map.entry("ApplicationParameter",ApplicationVersion.Parameter.class),
                 Map.entry("DatasetRef",ApplicationVersion.DatasetRef.class),
-                Map.entry("DatasetRule",ApplicationVersion.DatasetRule.class));
+                Map.entry("DatasetRule",ApplicationVersion.DatasetRule.class),
+                Map.entry("PreparedImage",com.project.platform.deployment.distribution.ImageDistributionService.PreparedImage.class),
+                Map.entry("DeploymentRequest",com.project.platform.deployment.service.DeploymentService.Request.class),
+                Map.entry("DeploymentView",com.project.platform.deployment.service.DeploymentService.View.class));
         records.forEach((name,type) -> {
             Set<String> fields = new TreeSet<>();
             for (var component : type.getRecordComponents()) {

@@ -27,6 +27,6 @@
 
 Application契约及DatasetRule属于云边端镜像/数据集目录的业务需求；当前仅登记校验，不属于Kestra通用Flow输入定义。本项目现有有限Binding语法属于当前阶段的有意简化，不追求完整Kestra表达式能力。
 
-应用目录能登记/查询版本及验证约束，但不能执行镜像或验证Registry/对象存在性。命名产物、路径注入、真实镜像准备/分发、常驻Deployment、Job/预约均未实现。本次不进入后续批次，S4-02仍IN_PROGRESS。
+该方向修正批次的应用目录仅登记/查询版本及验证约束，当时未实现真实镜像/部署/Job。后续用户另授权完成剩余S4，镜像准备与常驻Deployment按[ADR-0008](ADR-0008-s4-external-runtime.md)接入；此处保留历史批次边界，当前实现以进度文档为准。
 
 测试必须保留应用目录及S1–S4-01回归，验证撤销接口不存在、目录操作不改写Flow定义/输入或创建Execution，更新OpenAPI/Java索引并执行clean后的verify。见[验证记录](../verification/VER-S4-003-explicit-flow-boundary.md)。

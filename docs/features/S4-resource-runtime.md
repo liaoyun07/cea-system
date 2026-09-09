@@ -26,7 +26,7 @@ S4-01具体语义、错误及字段消费者见[资源协议](../contracts/s4-re
 | S4-02b | 镜像准备/复制与分发策略 | 真实Registry传输及准备结果；认证/凭据外置；与Job职责分离 |
 | S4-02c | 常驻Deployment生命周期 | 独立测试集群真实创建/查询/更新/停止及失败呈现，不能用目录状态替代实际部署 |
 
-本次实现S4-02a，不创建无法执行的容器Task类型；原S4-02其余部分继续待实施。[ADR-0007](../decisions/ADR-0007-application-contract-binding.md)记录职责来源与简化，[协议](../contracts/s4-application-catalog.md)定义真实能力及尚未实现的部分。状态只在进度/功能索引维护，阶段不因契约登记成功而DONE。
+历史首批实现S4-02a。最新授权完成剩余S4；b/c新增真实Registry复制与Deployment生命周期，见[镜像/部署协议](../contracts/s4-image-deployment.md)。[ADR-0007](../decisions/ADR-0007-application-contract-binding.md)记录职责来源与简化，[协议](../contracts/s4-application-catalog.md)定义真实能力及尚未实现的部分。状态只在进度/功能索引维护，阶段不因契约登记成功而DONE。
 
 
-2026-09-10方向修正：撤销S4-02a原来的别名派生、独立计划/解析API与示例；原101项验证仅作历史。当前修正验收见[VER-S4-003](../verification/VER-S4-003-explicit-flow-boundary.md)。显式参数映射等真实Application/Container Task可执行时再实现；本次不进入b/c、S4-03，不增加映射模型/表或Runner/SPI。YAML与No-code目标是同一Flow事实源，No-code当前未实现。
+2026-09-10方向修正：撤销S4-02a原来的别名派生、独立计划/解析API与示例；原101项验证仅作历史。当前修正验收见[VER-S4-003](../verification/VER-S4-003-explicit-flow-boundary.md)。显式参数映射等真实Application/Container Task可执行时再实现；该历史方向修正批次未进入b/c、S4-03。现按最新授权实施剩余S4，仍不增加无消费者映射模型/表或Runner/SPI。YAML与No-code目标是同一Flow事实源，No-code当前未实现。

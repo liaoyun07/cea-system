@@ -57,3 +57,5 @@ S4-02a的ApplicationVersion/image contract由deployment拥有；Cluster/DatasetV
 - 课题能力清单和申报书的摘要映射见[迁移说明](migration/README.md)。
 - 早期方案在同级 web-platform/docs/kestra-refactor 中，仅作历史参考；其中“卸载负责全部选址”、旧模块数量、181 文件清单不是当前实施依据。
 - 当前基线以本目录、最新已接受 ADR 和用户后续要求为准；发现矛盾先记录并修正文档，不能同时实施两套模型。
+
+S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](contracts/s4-image-deployment.md)。S4-03/04/05仍需各自验收，不把镜像准备成功当作Flow运行成功。

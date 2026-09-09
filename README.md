@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约目录。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
+独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约目录及S4-02b/c镜像准备/常驻部署。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
 
 ## 文档入口
 
@@ -114,4 +114,4 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code和Application/Container Task尚未实现。
 
-此批没有实现镜像准备/分发、常驻部署、容器Flow或完整命名产物契约。S4-02尚未全部完成，本次不进入后续子批次，见[工作包](docs/features/S4-resource-runtime.md)。
+后续S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。容器Flow、命名产物/选址预约仍待S4-03；不能把常驻Deployment当成一次性Job。当前剩余S4已获授权，不进入S5。
