@@ -1,10 +1,10 @@
 # 当前进度
 
-更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S4-01及S4-02a应用契约/参数绑定已完成，不代表整个S4-02已完成。
+更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S4-01及修正后的S4-02a应用契约目录已完成并回归通过，不代表整个S4-02已完成。
 
 ## 当前事实
 
-- 独立8模块保留，57份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。deployment增加spring-jdbc/Jackson，复用父BOM，未升级技术版本。
+- 独立8模块保留，54份生产Java（含8份包声明）、6个测试类；没有新增项目模块依赖。deployment增加spring-jdbc/Jackson，复用父BOM，未升级技术版本。
 - S1定义/类型绑定、版本/CAS/回滚、幂等提交和查询保留；S2Worker租约/epoch、同Attempt接管、固定重试/超时/取消与Errors/Finally已回归。
 - 新增嵌套Sequential/Parallel/Dag/If；DAG同组依赖与声明顺序无关；If选择持久化、未选分支跳过。控制节点只有TaskRun，只有叶子创建Attempt/WorkerJob。
 - 新增Flow并发limit、QUEUE/FAIL和持久FIFO；同namespace/flowId跨版本共用最新额度，清理结束才释放。排队取消无Attempt/Finally，活跃取消保留清理。
@@ -15,11 +15,11 @@
 - S3历史统一verify为75项通过，见[S3验收](verification/VER-S3-001-control-scheduling.md)。本批统一scripts/verify.ps1于18:01:48 +08:00通过86项（19单元+63真实MySQL集成+3协议+1架构），0失败/错误/跳过，结构检查通过；测试容器与JVM已退出，见[S4-01验证](verification/VER-S4-001-resource-catalog.md)。
 - S3验证只运行隔离测试MySQL和自己的测试JVM，均已清理；旧web-platform、旧数据库、旧镜像未修改或迁移。随后用户授权将新backend首次提交并发布到公开仓库，不扩大到旧工程。
 - 新增资源链：HTTP → ResourceCatalogService授权/校验 → JdbcResourceRepository。支持集群注册/启停、不可覆盖的数据集版本及位置、分页查询、候选本地性/格式/禁用原因检查。预览不创建Execution，不选择最终位置、不预约或派发。
-- S4-02a新增应用契约版本登记/查询，类型/默认值/允许数据集校验；dataflow从显式别名派生既有Input/Literal/InputRef并解析参数。只有别名参数对外暴露，多目标同名必须类型相符、choices有交集，默认值冲突需显式输入。
-- 应用链：HTTP → ApplicationCatalogService → JdbcApplicationRepository（数据集规则走资源公开接口）；绑定链：HTTP → ApplicationBindingService → 应用公开目录+既有BindingResolver。原Flow prepare复用抽取后的prepareInputs，Execution主链不变。
-- 可运行的叶子仍仅Log/Sleep；镜像准备/分发、常驻部署、命名产物/路径注入、资源观测、容器/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录/绑定API不会运行镜像，不保证数据存在或集群健康。
+- S4-02a保留应用契约版本登记/查询及类型/默认值/choices/数据集约束。撤销自动Flow Input派生、共享别名与choices求交集，不生成InputRef/Literal；作者显式定义Flow输入及Task来源。没有第二套alias/binding。
+- 应用链：HTTP → ApplicationCatalogService → JdbcApplicationRepository（数据集规则走资源公开接口）。删除独立参数绑定链及两个HTTP接口；prepareInputs没有独立消费者，BindingResolver.prepare恢复78203a7实现。Execution主链不变。
+- 可运行的叶子仍仅Log/Sleep；镜像准备/分发、常驻部署、命名产物/路径注入、资源观测、容器/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录API不会运行镜像，不保证数据存在或集群健康。
 - S4-01以已发布071ff4b为基线；2026-09-10用户授权更新GitHub，本批源码、测试、协议和文档纳入Git发布。测试证据保留验证当时的基线与工作区说明；旧系统没有修改。
-- S4-02以已发布78203a7为基线；2026-09-10用户授权将已完成的S4-02a代码、测试和文档纳入本次GitHub发布，S4-02整体仍为进行中。最终统一verify于2026-09-10 00:57:29 +08:00通过101项（19单元+78真实MySQL集成+3协议+1架构），0失败/错误/跳过；结构与文档检查通过，测试容器/JVM已退出，见[本批证据](verification/VER-S4-002-application-binding.md)。
+- S4-02a原派生方案已发布为2d3c44f，101项结果仅为历史证据。本次基于该提交修正方向，删除3个生产Java文件及6个record、2个API、1个绑定示例；表和迁移不变。当前验证见[方向修正记录](verification/VER-S4-003-explicit-flow-boundary.md)，不沿用历史101项冒充本次通过。
 
 ## 阶段看板
 
@@ -39,7 +39,7 @@
 | 工作包 | 状态 | 交付/剩余验收 |
 |---|---|---|
 | S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
-| S4-02 | IN_PROGRESS | a契约/绑定DONE、101项验证PASS；b镜像准备/分发及c常驻部署NOT_STARTED，未满足完整退出条件 |
+| S4-02 | IN_PROGRESS | a纯契约目录DONE、95项验证PASS；b镜像准备/分发及c常驻部署NOT_STARTED，未满足完整退出条件 |
 | S4-03 | NOT_STARTED | 真实资源观测、选址/原子预约、K8s Job/产物及同Attempt接管 |
 | S4-04 | NOT_STARTED | HTTP/SQL及隔离Shell/Python任务 |
 | S4-05 | NOT_STARTED | P04/P05/P06/P11最小部署与故障验收 |
@@ -48,7 +48,7 @@
 
 ## 下一步
 
-下一步继续S4-02b镜像准备/分发与S4-02c常驻部署，使用独立测试环境验证真实结果；不是进入S4-03。不提前创建无消费者的预约表或Runner空SPI；S4-03再接入真实Job、资源观测、容量预约与完整运行/产物契约。S5开始时再讨论计量口径。
+本次只完成S4-02a方向修正和回归，不进入S4-02b/c或S4-03。后续经用户确认再推进镜像准备/分发及常驻部署；真实Application/Container Task可执行时实现显式参数映射和完整运行/产物契约，不提前建ParameterBinding、新表达式系统、映射表或Runner空SPI。S5开始时再讨论计量口径。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -86,3 +86,6 @@
 2026-09-10：用户授权开始S4-02，按ADR-0007完成应用契约版本与参数绑定子批次a，101项统一验证于00:57:29 +08:00通过；计划0.8保留镜像准备/分发及常驻部署的真实验收，未动旧系统，未再次Git发布。完整验证记录见VER-S4-002。
 
 2026-09-10：用户要求以后较大的新增/修改完成后更新GitHub，持续授权写入AGENTS.md，并同步计划中的发布约束。本次仅更新工作约定，不修改业务逻辑、不推进阶段；已有未提交S4-02a改动保持不变，未重跑业务测试。
+
+
+2026-09-10：S4-02a原版本发布为2d3c44f。用户随后要求撤销自动派生，按修订ADR-0007保留应用目录，恢复Flow显式声明边界；没有新增业务能力或数据库迁移，S4-02仍IN_PROGRESS，b/c与S4-03未开始。clean后统一verify于01:53:56 +08:00通过95项（19单元+72真实MySQL集成+3协议+1架构），0失败/错误/跳过，见VER-S4-003。按持续授权纳入本次GitHub发布。

@@ -12,8 +12,6 @@ import com.project.platform.resource.catalog.ResourceException;
 import com.project.platform.resource.catalog.ResourceCatalogService;
 import com.project.platform.deployment.application.*;
 import com.project.platform.deployment.application.ApplicationVersion.*;
-import com.project.platform.dataflow.application.ApplicationBindingService;
-import com.project.platform.dataflow.application.ApplicationBindings;
 import java.net.URI;
 import java.net.ServerSocket;
 import java.net.http.*;
@@ -945,13 +943,9 @@ private String custom(String body) {
 
     private ResourceCatalogService resources() { return context.getBean(ResourceCatalogService.class); }
     private ApplicationCatalogService applications() { return context.getBean(ApplicationCatalogService.class); }
-    private ApplicationBindingService applicationBindings() { return context.getBean(ApplicationBindingService.class); }
     private Parameter parameter(ValueType type,boolean required,Object value) { return new Parameter(type,required,value,List.of(),null); }
     private ApplicationVersion application(Map<String,Parameter> parameters) {
         String id=id();return applications().register(actor,"lab",id,"v1",new ApplicationVersion(id,"v1","registry.example/lab/train:v1",parameters));
-    }
-    private ApplicationBindings.TaskSelection selection(String id,ApplicationVersion version,Map<String,String> aliases,Map<String,Object> fixed) {
-        return new ApplicationBindings.TaskSelection(id,version.applicationId(),version.version(),aliases,fixed);
     }
 
     @Test void applicationVersionPersistsAcrossRestartAndCannotBeOverwritten() {
@@ -1007,83 +1001,6 @@ private String custom(String body) {
         assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM dep_application_version WHERE application_id=?",Integer.class,app));
     }
 
-    @Test void onlyExplicitAliasesBecomeInputsAndFixedValuesOverrideImageDefaults() {
-        var app=application(Map.of("EPOCHS",parameter(ValueType.INTEGER,true,2),"CHUNK",parameter(ValueType.INTEGER,true,1024),"MODEL_PATH",parameter(ValueType.STRING,true,"s3://models/default")));
-        var task=selection("train",app,Map.of("EPOCHS","epochs"),Map.of("CHUNK",2048));
-        var plan=applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(task)));
-        assertEquals(Set.of("epochs"),plan.inputs().keySet());assertEquals(FlowDefinition.InputType.INTEGER,plan.inputs().get("epochs").type());
-        assertInstanceOf(FlowDefinition.InputRef.class,plan.tasks().getFirst().parameters().get("EPOCHS"));
-        var resolved=applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(List.of(task),Map.of("epochs",3)));
-        assertEquals(Map.of("EPOCHS",3L,"CHUNK",2048L,"MODEL_PATH","s3://models/default"),resolved.getFirst().parameters());
-    }
-
-    @Test void sharedAliasFeedsMultipleTargetsAndUsesCommonDefault() {
-        var app=application(Map.of("N",parameter(ValueType.INTEGER,true,2)));
-        var tasks=List.of(selection("a",app,Map.of("N","epochs"),Map.of()),selection("b",app,Map.of("N","epochs"),Map.of()));
-        var plan=applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(tasks));
-        assertEquals(1,plan.inputs().size());assertEquals(2L,plan.inputs().get("epochs").defaultValue());
-        assertTrue(applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of())).stream().allMatch(t->t.parameters().get("N").equals(2L)));
-        assertTrue(applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of("epochs",5))).stream().allMatch(t->t.parameters().get("N").equals(5L)));
-    }
-
-    @Test void conflictingDefaultsRequireExplicitValueRegardlessOfTaskOrder() {
-        var a=application(Map.of("N",parameter(ValueType.INTEGER,false,1)));var b=application(Map.of("N",parameter(ValueType.INTEGER,false,2)));
-        var tasks=List.of(selection("a",a,Map.of("N","n"),Map.of()),selection("b",b,Map.of("N","n"),Map.of()));
-        for(var order:List.of(tasks,tasks.reversed())) {
-            var input=applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(order)).inputs().get("n");
-            assertTrue(input.required());assertNull(input.defaultValue());
-            assertThrows(WorkflowException.class,()->applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(order,Map.of())));
-            assertTrue(applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(order,Map.of("n",7))).stream().allMatch(t->t.parameters().get("N").equals(7L)));
-        }
-    }
-
-    @Test void sharedAliasUsesDatasetIntersectionAndRejectsUnlistedDataset() {
-        String cluster=resourceCluster(Kind.EDGE,true),a=id(),b=id(),c=id();for(String data:List.of(a,b,c)) resourceDataset(data,"v1","pt",cluster);
-        var left=application(Map.of("D",new Parameter(ValueType.STRING,true,null,List.of(),new DatasetRule("pt",List.of(new DatasetRef(a,"v1"),new DatasetRef(b,"v1"))))));
-        var right=application(Map.of("D",new Parameter(ValueType.STRING,true,null,List.of(),new DatasetRule("pt",List.of(new DatasetRef(b,"v1"),new DatasetRef(c,"v1"))))));
-        var tasks=List.of(selection("a",left,Map.of("D","dataset"),Map.of()),selection("b",right,Map.of("D","dataset"),Map.of()));
-        assertEquals(List.of(b+"/v1"),applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(tasks)).choices().get("dataset"));
-        assertThrows(ApplicationException.class,()->applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of("dataset",a+"/v1"))));
-        assertEquals(2,applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of("dataset",b+"/v1"))).size());
-        var ordinary=application(Map.of("D",parameter(ValueType.STRING,true,null)));
-        assertThrows(WorkflowException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(tasks.getFirst(),selection("c",ordinary,Map.of("D","dataset"),Map.of())))));
-    }
-
-    @Test void sharedAliasRejectsTypeMismatchOrEmptyChoicesIntersection() {
-        var a=application(Map.of("N",parameter(ValueType.INTEGER,true,1)));var b=application(Map.of("N",parameter(ValueType.STRING,true,"x")));
-        assertThrows(WorkflowException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(selection("a",a,Map.of("N","n"),Map.of()),selection("b",b,Map.of("N","n"),Map.of())))));
-        var c=application(Map.of("N",new Parameter(ValueType.INTEGER,true,1,List.of(1,2),null)));var d=application(Map.of("N",new Parameter(ValueType.INTEGER,true,3,List.of(3,4),null)));
-        assertThrows(WorkflowException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(selection("c",c,Map.of("N","n"),Map.of()),selection("d",d,Map.of("N","n"),Map.of())))));
-    }
-
-    @Test void bindingsRejectUnknownTargetsMultipleSourcesAndInvalidInputs() {
-        var app=application(Map.of("N",parameter(ValueType.INTEGER,true,null)));
-        for(var task:List.of(selection("a",app,Map.of("UNKNOWN","n"),Map.of()),selection("a",app,Map.of(),Map.of("UNKNOWN",2)),selection("a",app,Map.of("N","n"),Map.of("N",2)),selection("a",app,Map.of("N",""),Map.of())))
-            assertThrows(WorkflowException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(task))),"invalid target or source");
-        var task=selection("a",app,Map.of("N","n"),Map.of());
-        assertThrows(ApplicationException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(selection("a",app,Map.of(),Map.of())))));
-        assertThrows(WorkflowException.class,()->applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(List.of(task,task))));
-        assertThrows(WorkflowException.class,()->applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(List.of(task),Map.of("unexpected",2))));
-        assertThrows(WorkflowException.class,()->applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(List.of(task),Map.of("n","2"))));
-    }
-
-    @Test void optionalUnsetParametersAreOmittedAndResolveDoesNotCreateExecution() {
-        var app=application(Map.of("OPTIONAL",parameter(ValueType.STRING,false,null)));
-        int before=jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class);
-        var tasks=List.of(selection("a",app,Map.of(),Map.of()));
-        assertTrue(applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(tasks)).inputs().isEmpty());
-        assertTrue(applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of())).getFirst().parameters().isEmpty());
-        assertEquals(before,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class));
-    }
-
-    @Test void oneAliasCanFeedTwoParametersOfSameTaskAndChoicesAreEnforced() {
-        var app=application(Map.of("X",new Parameter(ValueType.INTEGER,true,2,List.of(1,2,3),null),"Y",new Parameter(ValueType.INTEGER,true,2,List.of(2,3),null)));
-        var tasks=List.of(selection("a",app,Map.of("X","n","Y","n"),Map.of()));
-        assertEquals(List.of(2L,3L),applicationBindings().plan(actor,"lab",new ApplicationBindings.Request(tasks)).choices().get("n"));
-        assertEquals(Map.of("X",3L,"Y",3L),applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of("n",3))).getFirst().parameters());
-        assertThrows(ApplicationException.class,()->applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(tasks,Map.of("n",1))));
-    }
-
     @Test void applicationListsAreScopedPagedAndScalarReplayIsNormalized() {
         var scoped=new Actor("scope",Set.of("apps"),Set.of(Action.READ,Action.WRITE));
         for(String id:List.of("c","a","b")) applications().register(scoped,"apps",id,"v1",new ApplicationVersion(id,"v1","train:v1",Map.of("RATE",parameter(ValueType.NUMBER,true,1.0))));
@@ -1097,20 +1014,16 @@ private String custom(String body) {
         assertThrows(ApplicationException.class,()->applications().list(scoped,"apps",20,-1));
     }
 
-    @Test void checkedInApplicationExamplesRegisterPlanAndResolve() throws Exception {
+    @Test void checkedInApplicationContractRegistersAndReadsBack() throws Exception {
         String cluster=resourceCluster(Kind.EDGE,true);resourceDataset("mnist","v1","pt",cluster);
         var app=json.read(Files.readString(Path.of("..","examples","s4-application-contract.json")),ApplicationVersion.class);
-        applications().register(actor,"lab",app.applicationId(),app.version(),app);
-        var request=json.read(Files.readString(Path.of("..","examples","s4-application-bindings.json")),ApplicationBindings.Request.class);
-        var plan=applicationBindings().plan(actor,"lab",request);
-        assertEquals(Set.of("dataset","epochs"),plan.inputs().keySet());
-        assertEquals(List.of("mnist/v1"),plan.choices().get("dataset"));
-        var result=applicationBindings().resolve(actor,"lab",new ApplicationBindings.ResolveRequest(request.tasks(),Map.of("epochs",4)));
-        assertEquals(2048L,result.getFirst().parameters().get("CHUNK"));assertEquals(1024L,result.getLast().parameters().get("CHUNK"));
-        assertTrue(result.stream().allMatch(t->t.parameters().get("EPOCHS").equals(4L)));
+        var saved=applications().register(actor,"lab",app.applicationId(),app.version(),app);
+        assertEquals(saved,applications().get(actor,"lab",app.applicationId(),app.version()));
+        assertEquals(1024L,saved.parameters().get("CHUNK").defaultValue());
+        assertEquals(List.of(new DatasetRef("mnist","v1")),saved.parameters().get("DATASET").dataset().allowed());
     }
 
-    @Test void applicationHttpAndBindingApiEnforceNamespaceAndReadWrite() throws Exception {
+    @Test void applicationHttpApiEnforcesNamespaceAndReadWrite() throws Exception {
         String id=id(),base="/api/namespaces/lab/applications",path=base+"/"+id+"/versions/v1";
         var app=new ApplicationVersion(id,"v1","train:v1",Map.of("N",parameter(ValueType.INTEGER,true,2)));
         assertEquals(401,call(port(),"PUT",path,null,app,null).statusCode());
@@ -1121,14 +1034,31 @@ private String custom(String body) {
         assertEquals(403,call(port(),"GET",path.replace("/lab/","/other/"),"viewer",null,null).statusCode());
         assertEquals(422,call(port(),"GET",base+"?limit=101","viewer",null,null).statusCode());
         assertEquals(400,call(port(),"PUT",path,"writer",Map.of("applicationId",id,"version","v1","image","train:v1","unknown",true),null).statusCode());
-        var tasks=List.of(selection("a",app,Map.of("N","n"),Map.of()));
-        String bindings="/api/namespaces/lab/application-bindings";
-        var plan=call(port(),"POST",bindings+"/plan","viewer",new ApplicationBindings.Request(tasks),null);
-        assertEquals(200,plan.statusCode());assertTrue(plan.body().contains("\"source\":\"INPUT\""));
-        var resolved=call(port(),"POST",bindings+"/resolve","viewer",new ApplicationBindings.ResolveRequest(tasks,Map.of("n",3)),null);
-        assertEquals(200,resolved.statusCode());assertTrue(resolved.body().contains("\"N\":3"));
-        assertEquals(403,call(port(),"POST",bindings.replace("/lab/","/other/")+"/plan","viewer",new ApplicationBindings.Request(tasks),null).statusCode());
+
     }
+    @Test void removedApplicationBindingRoutesAreNotAvailable() throws Exception {
+        for(String operation:List.of("plan","resolve"))
+            assertEquals(404,call(port(),"POST","/api/namespaces/lab/application-bindings/"+operation,
+                    "writer",Map.of("tasks",List.of()),null).statusCode());
+    }
+
+    @Test void applicationRegistrationDoesNotDeriveInputsOrChangeFlowExecution() {
+        String flowId=register();
+        var before=flows().get(actor,"lab",flowId,1);
+        int flowCount=jdbc().queryForObject("SELECT COUNT(*) FROM wf_flow_revision",Integer.class);
+        int executionCount=jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class);
+        application(Map.of("name",parameter(ValueType.INTEGER,true,99),"REQUIRED",parameter(ValueType.STRING,true,null)));
+        assertEquals(before,flows().get(actor,"lab",flowId,1));
+        assertEquals(Set.of("name","count"),before.definition().inputs().keySet());
+        assertEquals(flowCount,jdbc().queryForObject("SELECT COUNT(*) FROM wf_flow_revision",Integer.class));
+        assertEquals(executionCount,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class));
+        String executionId=executions().submit(actor,"lab",id(),request(flowId));
+        drain();
+        var result=executions().get(actor,"lab",executionId);
+        assertEquals(ExecutionState.SUCCESS,result.state());
+        assertEquals("Hello Ada; count=2",result.outputs().get("result"));
+    }
+
     private String resourceCluster(Kind kind,boolean enabled) {
         String id=id();resources().putCluster(actor,"lab",id,new Cluster(id,kind,enabled));return id;
     }

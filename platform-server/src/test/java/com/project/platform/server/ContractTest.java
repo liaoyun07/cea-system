@@ -7,7 +7,6 @@ import com.project.platform.runtime.model.ExecutionRecord;
 import com.project.platform.runtime.model.FlowDefinition;
 import com.project.platform.resource.catalog.ResourceCatalog;
 import com.project.platform.deployment.application.ApplicationVersion;
-import com.project.platform.dataflow.application.ApplicationBindings;
 import com.project.platform.server.api.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ApplicationBindingController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -72,13 +71,7 @@ class ContractTest {
                 Map.entry("ApplicationVersion",ApplicationVersion.class),
                 Map.entry("ApplicationParameter",ApplicationVersion.Parameter.class),
                 Map.entry("DatasetRef",ApplicationVersion.DatasetRef.class),
-                Map.entry("DatasetRule",ApplicationVersion.DatasetRule.class),
-                Map.entry("ApplicationTaskSelection",ApplicationBindings.TaskSelection.class),
-                Map.entry("ApplicationBindingRequest",ApplicationBindings.Request.class),
-                Map.entry("ApplicationTaskBindings",ApplicationBindings.TaskBindings.class),
-                Map.entry("ApplicationBindingPlan",ApplicationBindings.Plan.class),
-                Map.entry("ApplicationResolveRequest",ApplicationBindings.ResolveRequest.class),
-                Map.entry("ResolvedApplicationTask",ApplicationBindings.ResolvedTask.class));
+                Map.entry("DatasetRule",ApplicationVersion.DatasetRule.class));
         records.forEach((name,type) -> {
             Set<String> fields = new TreeSet<>();
             for (var component : type.getRecordComponents()) {

@@ -1,27 +1,32 @@
-# ADR-0007 应用契约和运行参数派生
+# ADR-0007 应用契约目录与显式Flow边界
 
-2026-09-10，ACCEPTED。用户授权开始S4-02；本次先完成S4-02a应用契约与参数绑定闭环，S4-02b镜像准备/分发和S4-02c常驻部署仍保留原验收要求。制定本决策时未授权新Git提交；后续用户已授权发布S4-02a。S5仍未授权。
+2026-09-10，ACCEPTED（方向修订）。本决策取代2d3c44f中关于自动派生输入、别名绑定和独立plan/resolve的决定；原版本由Git历史保留。只修正S4-02a，不进入S4-02b/c、S4-03或S5。
 
 ## 已核对来源
 
-本地Kestra提交0354ddf8cbd0d9bd32f5021a59fd982bc36ffdf4：
+本地Kestra提交0354ddf8cbd0d9bd32f5021a59fd982bc36ffdf4（本地快照，不声称是最新官方版本）：
 
-- core/src/main/java/io/kestra/core/models/flows/Input.java：Flow输入拥有类型、required和默认值，不由Worker拥有。
-- core/src/main/java/io/kestra/core/models/tasks/RunnableTask.java：叶子任务在Worker中执行。
-- core/src/main/java/io/kestra/core/models/tasks/runners/TaskRunner.java：运行环境负责命令/环境和文件传输，不拥有第二套Execution状态。
+- core/src/main/java/io/kestra/core/models/flows/AbstractFlow.java：Flow显式持有inputs与outputs。
+- core/src/main/java/io/kestra/core/models/flows/Flow.java：Flow持有variables及tasks。
+- core/src/main/java/io/kestra/plugin/core/log/Log.java：作者指定message字面量或表达式，run时通过RunContext.render求值。
+- core/src/main/java/io/kestra/core/runners/RunVariables.java：inputs、vars、outputs进入执行上下文。
 
-旧fedprox-client-train及tep-anomaly-inference/image-contract.json只作为业务需求证据：镜像声明业务参数、默认值、允许的数据集及本地数据格式。新后端不兼容旧schema，也不迁入旧库/镜像。
+据此沿用“Flow拥有输入声明、Task显式指定来源、runtime负责解析和执行”的职责，不根据镜像参数自动建立另一份Flow输入模型。没有据这些文件声称Kestra采用本项目的ApplicationVersion目录或JSON Binding语法。
 
 ## 决定
 
-1. deployment拥有不可覆盖的ApplicationVersion：applicationId/version/image/parameters，一张dep_application_version表保存完整契约JSON。按路径指定版本；同规范内容重放成功，不同内容409。版本真实用于编辑、绑定定位及防止覆盖，不新增辅助hash/revision。
-2. 契约当前只覆盖标量业务参数及其数据集约束。参数类型STRING/INTEGER/NUMBER/BOOLEAN，声明required/defaultValue/choices及可选dataset规则。dataset仅用于STRING，值用datasetId/version；规则列出明确版本并校验资源目录和format。未声明dataset不按参数名猜测数据集。
-3. dataflow负责别名到Flow Input/Literal/InputRef的派生，复用runtime既有类型和BindingResolver；deployment不依赖runtime。不会为镜像再建一套执行状态或输入绑定语言。
-4. 输入来自任务的aliases；不命名即固定值或契约默认值。fixedValues与aliases不可同时给同一参数；拼错或未知参数拒绝。每个目标参数只有一个来源，一个别名可以供多个目标使用。
-5. 共用别名必须类型相同、同为普通参数或同为数据集参数。choices取交集，无交集拒绝；公共默认值仅在所有目标默认值相同且符合交集时使用，否则要求用户显式输入，绝不按节点顺序选第一个默认值。
-6. 两个只读API分别返回派生输入/绑定和按给定输入解析后的任务参数。它们是当前编排检查消费者，不保存Flow、不创建Execution、不启动镜像。真实容器Task接入前不往FlowValidator加入可保存却不能执行的任务类型。
-7. 权限复用READ/WRITE。注册含数据集规则时需READ以访问同namespace资源目录；编排解析需READ，不假装执行所以不要求EXECUTE。不含外部凭据、Runner空接口或无消费者的准备状态。
+1. deployment保留ApplicationVersion、ApplicationContractValidator、ApplicationCatalogService、JdbcApplicationRepository及dep_application_version/V7。契约保存applicationId/version/image/parameters；同规范内容重放成功，不同内容409。image、标量类型、required/defaultValue/choices、DatasetRule不变。
+2. resource拥有Cluster/DatasetVersion/Location。应用登记经资源公开接口验证同namespace数据集版本和format，不跨模块读表。
+3. dataflow管理Flow保存、编辑和提交；Flow作者显式定义Input及Task参数来源。runtime拥有Flow/Execution/Binding/Worker及未来Runner。现有InputRef、VariableRef、TaskOutputRef、Literal和模板表达式保留，不新增ParameterBinding或表达式系统。
+4. 删除ApplicationBindingService、ApplicationBindings（6个嵌套record）、ApplicationBindingController及plan/resolve两个API。撤销自动Input/InputRef/Literal生成、choices求交集、独立alias/fixedValues及其专用测试/示例。
+5. prepareInputs在删除派生服务后没有独立消费者，合回BindingResolver.prepare，恢复78203a7的最简单实现。ExecutionService、FlowExecutor、Worker和持久消息链不变。
+6. YAML与未来No-code编辑同一份Flow定义，不维护第二套alias/binding。当前只有既有JSON/YAML解析与保存，不宣称No-code已实现。
+7. 等真实Application/Container Task可以执行时，再实现显式参数映射和执行闭环。本次不创建不可执行Task、Runner/SPI、新表/字段或新映射系统。原14张业务表保留，无数据库迁移。
 
-## 明确剩余部分
+## 差异与验收
 
-应用名称不是可执行成功证明，image目前仅校验引用结构，不访问Registry。命名产物端口、运行路径注入和绑定持久化随真实Runner消费者接入；不冒充本批已支持。镜像准备/分发、常驻Deployment及独立环境验收继续在S4-02，Job/预约在S4-03。全阶段退出条件不变。
+Application契约及DatasetRule属于云边端镜像/数据集目录的业务需求；当前仅登记校验，不属于Kestra通用Flow输入定义。本项目现有有限Binding语法属于当前阶段的有意简化，不追求完整Kestra表达式能力。
+
+应用目录能登记/查询版本及验证约束，但不能执行镜像或验证Registry/对象存在性。命名产物、路径注入、真实镜像准备/分发、常驻Deployment、Job/预约均未实现。本次不进入后续批次，S4-02仍IN_PROGRESS。
+
+测试必须保留应用目录及S1–S4-01回归，验证撤销接口不存在、目录操作不改写Flow定义/输入或创建Execution，更新OpenAPI/Java索引并执行clean后的verify。见[验证记录](../verification/VER-S4-003-explicit-flow-boundary.md)。

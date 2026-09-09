@@ -28,10 +28,6 @@ public class RuntimeConfiguration {
             com.project.platform.resource.catalog.ResourceCatalogService resources,AccessPolicy access) {
         return new com.project.platform.deployment.application.ApplicationCatalogService(repository,resources,access);
     }
-    @Bean com.project.platform.dataflow.application.ApplicationBindingService applicationBindingService(
-            com.project.platform.deployment.application.ApplicationCatalogService applications,BindingResolver resolver,AccessPolicy access) {
-        return new com.project.platform.dataflow.application.ApplicationBindingService(applications,resolver,access);
-    }
     @Bean Clock clock() { return Clock.systemUTC(); }
     @Bean JsonCodec jsonCodec() { return new JsonCodec(); }
     @Bean TemplateRenderer templateRenderer() { return new TemplateRenderer(); }

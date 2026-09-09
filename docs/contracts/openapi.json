@@ -3,7 +3,7 @@
   "info": {
     "title": "Cloud Edge Backend API",
     "version": "2.0.0",
-    "description": "S1-S3 workflow engine, S4-01 resource catalog and S4-02a immutable application contracts/parameter binding. No real image preparation, deployment, Kubernetes tasks or capacity reservations yet."
+    "description": "S1-S3 workflow engine, S4-01 resource catalog and S4-02a immutable application contracts. Flow inputs and bindings are authored explicitly in the Flow definition. No application binding derivation, real image preparation, deployment, Kubernetes tasks or capacity reservations yet."
   },
   "servers": [
     {
@@ -1681,7 +1681,7 @@
             "description": "Immutable application version conflict"
           },
           "422": {
-            "description": "Invalid contract, parameter or binding"
+            "description": "Invalid application contract or request"
           },
           "500": {
             "description": "Infrastructure failure"
@@ -1728,7 +1728,7 @@
             "description": "Immutable application version conflict"
           },
           "422": {
-            "description": "Invalid contract, parameter or binding"
+            "description": "Invalid application contract or request"
           },
           "500": {
             "description": "Infrastructure failure"
@@ -1780,7 +1780,7 @@
             "description": "Immutable application version conflict"
           },
           "422": {
-            "description": "Invalid contract, parameter or binding"
+            "description": "Invalid application contract or request"
           },
           "500": {
             "description": "Infrastructure failure"
@@ -1808,127 +1808,6 @@
             }
           }
         ]
-      }
-    },
-    "/api/namespaces/{namespace}/application-bindings/plan": {
-      "parameters": [
-        {
-          "name": "namespace",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "operationId": "planApplicationBindings",
-        "description": "READ. Explicit aliases only. Shared targets need equal types and intersecting choices. Default conflicts require explicit input.",
-        "responses": {
-          "200": {
-            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApplicationBindingPlan"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request or unknown field"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Namespace/action forbidden"
-          },
-          "404": {
-            "description": "Application or dataset version not found"
-          },
-          "409": {
-            "description": "Immutable application version conflict"
-          },
-          "422": {
-            "description": "Invalid contract, parameter or binding"
-          },
-          "500": {
-            "description": "Infrastructure failure"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApplicationBindingRequest"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/namespaces/{namespace}/application-bindings/resolve": {
-      "parameters": [
-        {
-          "name": "namespace",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string"
-          }
-        }
-      ],
-      "post": {
-        "operationId": "resolveApplicationBindings",
-        "description": "READ. Resolve typed inputs/fixed/default values against immutable contracts. Omit unset optional parameters. Does not persist Flow or execute images.",
-        "responses": {
-          "200": {
-            "description": "Success. Planning/resolution is read-only and does not execute or deploy.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ResolvedApplicationTask"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request or unknown field"
-          },
-          "401": {
-            "description": "Authentication required"
-          },
-          "403": {
-            "description": "Namespace/action forbidden"
-          },
-          "404": {
-            "description": "Application or dataset version not found"
-          },
-          "409": {
-            "description": "Immutable application version conflict"
-          },
-          "422": {
-            "description": "Invalid contract, parameter or binding"
-          },
-          "500": {
-            "description": "Infrastructure failure"
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApplicationResolveRequest"
-              }
-            }
-          }
-        }
       }
     }
   },
@@ -3106,196 +2985,6 @@
         "required": [
           "format",
           "allowed"
-        ]
-      },
-      "ApplicationTaskSelection": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "taskId": {
-            "type": "string"
-          },
-          "applicationId": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          },
-          "aliases": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "fixedValues": {
-            "type": "object",
-            "additionalProperties": {
-              "type": [
-                "string",
-                "integer",
-                "number",
-                "boolean",
-                "null"
-              ]
-            }
-          }
-        },
-        "required": [
-          "taskId",
-          "applicationId",
-          "version"
-        ]
-      },
-      "ApplicationBindingRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApplicationTaskSelection"
-            },
-            "minItems": 1,
-            "maxItems": 100
-          }
-        },
-        "required": [
-          "tasks"
-        ]
-      },
-      "ApplicationTaskBindings": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "taskId": {
-            "type": "string"
-          },
-          "applicationId": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          },
-          "image": {
-            "type": "string"
-          },
-          "parameters": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Binding"
-            }
-          }
-        },
-        "required": [
-          "taskId",
-          "applicationId",
-          "version",
-          "image",
-          "parameters"
-        ]
-      },
-      "ApplicationBindingPlan": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "inputs": {
-            "type": "object",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/Input"
-            }
-          },
-          "choices": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "array",
-              "items": {
-                "type": [
-                  "string",
-                  "integer",
-                  "number",
-                  "boolean",
-                  "null"
-                ]
-              }
-            }
-          },
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApplicationTaskBindings"
-            }
-          }
-        },
-        "required": [
-          "inputs",
-          "choices",
-          "tasks"
-        ]
-      },
-      "ApplicationResolveRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ApplicationTaskSelection"
-            },
-            "minItems": 1,
-            "maxItems": 100
-          },
-          "inputs": {
-            "type": "object",
-            "additionalProperties": {
-              "type": [
-                "string",
-                "integer",
-                "number",
-                "boolean",
-                "null"
-              ]
-            }
-          }
-        },
-        "required": [
-          "tasks"
-        ]
-      },
-      "ResolvedApplicationTask": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "taskId": {
-            "type": "string"
-          },
-          "applicationId": {
-            "type": "string"
-          },
-          "version": {
-            "type": "string"
-          },
-          "image": {
-            "type": "string"
-          },
-          "parameters": {
-            "type": "object",
-            "additionalProperties": {
-              "type": [
-                "string",
-                "integer",
-                "number",
-                "boolean",
-                "null"
-              ]
-            }
-          }
-        },
-        "required": [
-          "taskId",
-          "applicationId",
-          "version",
-          "image",
-          "parameters"
         ]
       }
     }

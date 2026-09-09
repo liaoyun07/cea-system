@@ -4,7 +4,7 @@ import com.project.platform.deployment.application.ApplicationVersion.*;
 import java.math.BigDecimal;
 import java.util.*;
 
-/** Scalar contract validation shared by registration and actual binding resolution. */
+/** Scalar contract validation for application registration. */
 public final class ApplicationContractValidator {
     private ApplicationContractValidator() {}
     public static ApplicationVersion normalize(ApplicationVersion source) {
@@ -41,17 +41,17 @@ public final class ApplicationContractValidator {
         });
         return new ApplicationVersion(source.applicationId(),source.version(),image,parameters);
     }
-    public static List<Object> choices(Parameter parameter) {
+    private static List<Object> choices(Parameter parameter) {
         return parameter.dataset()==null?parameter.choices():parameter.dataset().allowed().stream().map(ref->(Object)ref.key()).toList();
     }
-    public static Object value(String name,Parameter parameter,Object value) {
+    private static Object value(String name,Parameter parameter,Object value) {
         Object normalized=scalar(parameter.type(),value);
         if(normalized==null && parameter.required()) throw ApplicationException.invalid("required parameter: "+name);
         var allowed=choices(parameter);
         if(normalized!=null && !allowed.isEmpty() && !allowed.contains(normalized)) throw ApplicationException.invalid("value not allowed: "+name);
         return normalized;
     }
-    public static Object scalar(ValueType type,Object value) {
+    private static Object scalar(ValueType type,Object value) {
         if(value==null) return null;
         return switch(type) {
             case STRING -> { if(!(value instanceof String text) || text.length()>8192) throw ApplicationException.invalid("expected STRING of at most 8192 characters");yield value; }

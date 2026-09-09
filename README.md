@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约及参数绑定。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
+独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约目录。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
 
 ## 文档入口
 
@@ -108,10 +108,10 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 只检查已登记的位置/格式/启用标志，不连接Kubernetes或对象存储验证真实性，也不进行资源预约。完整运行契约、真实Job与观测仍在S4待实施；不能把预览结果当成可用容量保证。
 
-## S4-02a应用契约与参数绑定
+## S4-02a应用契约目录
 
-[应用与参数绑定API](docs/contracts/s4-application-binding.md)支持版本登记、数据集允许范围、运行别名/固定值派生及按契约解析参数。只有显式设置别名的参数会成为运行输入，类型由契约派生；同一别名可供多个镜像参数使用，冲突会提示而不是按定义顺序取值。
+[应用目录API](docs/contracts/s4-application-catalog.md)支持版本登记、查询及参数类型、默认值、choices、数据集允许范围校验。[契约示例](examples/s4-application-contract.json)引用mnist/v1，登记前需通过资源API注册对应pt数据版本；不会拉取或执行示例镜像。
 
-[契约示例](examples/s4-application-contract.json)引用mnist/v1，登记前需通过资源API注册对应pt数据版本；[绑定示例](examples/s4-application-bindings.json)仅暴露dataset和epochs，CHUNK使用固定值或镜像默认值。它们验证的是编排数据，不会拉取或执行示例镜像。
+Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code和Application/Container Task尚未实现。
 
-此批没有实现镜像准备/分发、常驻部署、容器Flow或完整命名产物契约。S4-02尚未全部完成，后续见[工作包](docs/features/S4-resource-runtime.md)。
+此批没有实现镜像准备/分发、常驻部署、容器Flow或完整命名产物契约。S4-02尚未全部完成，本次不进入后续子批次，见[工作包](docs/features/S4-resource-runtime.md)。

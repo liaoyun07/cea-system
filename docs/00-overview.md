@@ -1,6 +1,6 @@
 # 系统总览
 
-基线日期：2026-09-10。状态：S1–S3已实现；S4已接入资源目录/候选本地性和应用契约/参数绑定，真实外部运行接入尚未完成。当前范围见[进度](04-progress.md)。
+基线日期：2026-09-10。状态：S1–S3已实现；S4已接入资源目录/候选本地性和应用契约目录，真实外部运行接入尚未完成。当前范围见[进度](04-progress.md)。
 
 实施边界已确认：backend独立Git仓库，新后端Java21；终端任务断线恢复不在本期范围，服务端Worker恢复保留；速率口径在S5开始时确定。生产部署保障按[已确认范围](06-deployment-safeguards-review.md)落实最小认证、凭据配置、部署和单机恢复验证，其他扩展按选择保留或后置，不追求全套高可用架构。
 
@@ -14,8 +14,8 @@
 
 | 模块 | 负责 | 不负责 |
 |---|---|---|
-| platform-dataflow | 模板/版本/契约绑定的业务操作、提交/查询、运行展示与流程指标 | 不另写执行状态机或 DQN |
-| workflow-runtime | 通用定义与校验、Execution/TaskRun/Attempt、控制任务、持久执行、Worker | 不包含 FedAvg、站点名等业务常量 |
+| platform-dataflow | Flow保存/编辑/版本、提交/查询、运行展示与流程指标 | 不另写执行状态机或 DQN |
+| workflow-runtime | Flow/Binding、Execution/TaskRun/Attempt、控制任务、持久执行、Worker及后续Runner | 不包含 FedAvg、站点名等业务常量 |
 | platform-deployment | 应用与契约版本、镜像仓库、分发策略及复制、常驻服务生命周期 | 不管理一次性 Flow Job 的业务状态 |
 | platform-resource | 集群能力、资源观测、数据集版本/位置、普通选址与资源预约 | 不定义终端卸载奖励和决策模型 |
 | platform-edge | 网关/终端接入、数据事件、边缘处理策略、结果交付 | 不持有第二套 Execution 状态 |
@@ -50,7 +50,7 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 S4-01新增独立资源调用链：HTTP身份认证 → ResourceCatalogService权限/登记校验 → JdbcResourceRepository。可以保存集群启用标志、数据集版本及对象URI位置，并检查候选集群是否同时满足各个数据集的本地性/格式要求。注册不是连通性或健康观测，候选结果不是最终选址与预约，也没有接入执行派发。
 
-S4-02a的应用版本由deployment拥有，数据集规则经resource公开接口检查；dataflow按显式别名派生runtime已有Input/Binding，默认值冲突需显式输入，数据集允许范围取交集。绑定API只校验/解析，不保存Flow或执行镜像。deployment还没有实际镜像分发/常驻部署；边缘和卸载模块仍仅有工程框架。S1本地权限不是生产IAM，跨站点鉴权在S4后续批次验收。
+S4-02a的ApplicationVersion/image contract由deployment拥有；Cluster/DatasetVersion/Location由resource拥有，契约的数据集规则经resource公开接口检查。dataflow仅管理Flow保存、编辑、提交，不从应用参数派生Flow Inputs。Flow作者显式定义inputs和参数来源，既有runtime Binding支持InputRef、VariableRef、TaskOutputRef和Literal；未来Application/Container Task沿用这一事实源，YAML与No-code不维护第二份alias/binding。当前没有No-code或容器Task，也未增加新映射模型/表达式系统。deployment还没有实际镜像分发/常驻部署；边缘和卸载模块仍仅有工程框架。S1本地权限不是生产IAM，跨站点鉴权在S4后续批次验收。
 
 ## 设计来源与效力
 

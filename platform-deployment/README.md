@@ -2,9 +2,9 @@
 
 职责：应用镜像与部署生命周期。
 
-S4-02a已实现应用版本契约的数据库登记/查询、标量参数及数据集规则校验。公开入口ApplicationCatalogService，仅本模块访问dep_application_version；通过ResourceCatalogService校验同namespace的数据集版本和格式。参数别名派生由dataflow完成。
+S4-02a已实现应用版本契约的数据库登记/查询、标量参数及数据集规则校验。公开入口ApplicationCatalogService，仅本模块访问dep_application_version；通过ResourceCatalogService校验同namespace的数据集版本和格式。不派生Flow Inputs或任务绑定；参数来源属于Flow作者的显式定义。
 
-当前不访问镜像仓库、不分发镜像、不创建常驻Deployment，也没有完整命名产物/路径注入契约。协议见[应用绑定](../docs/contracts/s4-application-binding.md)。
+当前不访问镜像仓库、不分发镜像、不创建常驻Deployment，也没有完整命名产物/路径注入契约。协议见[应用契约](../docs/contracts/s4-application-catalog.md)。
 
 - [模块边界与 Java 文件索引](../docs/01-code-architecture.md)
 - [功能索引](../docs/02-feature-index.md)
