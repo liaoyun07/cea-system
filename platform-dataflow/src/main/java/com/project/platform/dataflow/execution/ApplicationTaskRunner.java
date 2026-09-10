@@ -78,13 +78,15 @@ public final class ApplicationTaskRunner implements TaskRunner {
         }
     }
     private void complete(TaskContext context,String ns,String key,WorkerJob.Result result) throws Exception {
-        context.check();var sample=offloading.get(ns,key);
-        if(sample!=null && "TERMINAL".equals(sample.target().kind())) {
-            String prepared=context.prepared();
-            if(prepared!=null){var plan=json.read(prepared,Prepared.class);placement.releaseTerminal(ns,key,plan.clusterId(),plan.terminalId());}
-            else {var origin=terminals.apply(context.job());placement.releaseTerminal(ns,key,origin.clusterId(),sample.target().id());}
-        } else if(sample!=null || context.job().task().container().execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.CLUSTER)placement.release(ns,key);
-        context.check();offloading.finish(ns,key,"cancelled".equals(context.cancellation())?"CANCELLED":result!=null && result.success()?"SUCCESS":"FAILED");
+        context.check();var container=context.job().task().container();
+        String saved=context.prepared();
+        Prepared plan=saved==null?null:json.read(saved,Prepared.class);
+        if(plan!=null && plan.dockerContext()!=null)placement.releaseTerminal(ns,key,plan.clusterId(),plan.terminalId());
+        else if(!placement.releaseTerminal(ns,key)
+                && (container.offload()!=null || container.execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.CLUSTER))placement.release(ns,key);
+        if(container.offload()!=null) {
+            context.check();offloading.finish(ns,key,"cancelled".equals(context.cancellation())?"CANCELLED":result!=null && result.success()?"SUCCESS":"FAILED");
+        }
     }
     @SuppressWarnings("unchecked")
     private Prepared prepare(TaskContext context,String namespace,String key) throws Exception {
@@ -115,16 +117,16 @@ public final class ApplicationTaskRunner implements TaskRunner {
             } else throw WorkflowException.invalid("inputFiles","S3 URI or array of at most 1000 S3 URIs required");
         }
         inputUris.values().forEach(uri->storage.validateInput(namespace,uri));
-        long bytes=0;for(String uri:inputUris.values())bytes=Math.addExact(bytes,storage.size(namespace,uri));
-        // Before offloading, a registered location supplies a size estimate; admission records the actual selected files below.
-        if(c.offload()!=null)for(var requirement:requirements)bytes=Math.addExact(bytes,storage.size(namespace,resources.dataset(actor,namespace,requirement.datasetId(),requirement.version()).locations().getFirst().uri()));
-        var work=new Workload(c.applicationId(),c.version(),c.command(),values,bytes);
-        Sample sample=offloading.get(namespace,key);
         String cluster;boolean local=false;
         if(origin!=null) {
-            if(sample==null) {
-                if(c.offload()==null)sample=offloading.observe(actor,namespace,key,context.job().executionId(),work,new Target("TERMINAL",origin.terminalId()));
-                else {
+            if(c.offload()==null) {local=true;cluster=origin.clusterId();}
+            else {
+                Sample sample=offloading.get(namespace,key);
+                if(sample==null) {
+                    long bytes=0;for(String uri:inputUris.values())bytes=Math.addExact(bytes,storage.size(namespace,uri));
+                    // Offloading cost estimate only; not algorithm throughput measurement.
+                    for(var requirement:requirements)bytes=Math.addExact(bytes,storage.size(namespace,resources.dataset(actor,namespace,requirement.datasetId(),requirement.version()).locations().getFirst().uri()));
+                    var work=new Workload(c.applicationId(),c.version(),c.command(),values,bytes);
                     var candidates=new ArrayList<Candidate>();
                     if(resources.placementOptions(actor,namespace,new PlacementRequest(List.of(origin.clusterId()),requirements)).getFirst().eligible() && docker.available(context,origin.dockerContext())) {
                         var load=placement.terminalLoad(actor,namespace,origin.clusterId(),origin.terminalId(),origin.slots());
@@ -134,8 +136,8 @@ public final class ApplicationTaskRunner implements TaskRunner {
                     for(var load:placement.loads(actor,namespace,request))candidates.add(new Candidate(new Target(load.kind().name(),load.clusterId()),load.capacity(),load.active(),load.waiting()));
                     context.check();sample=offloading.decide(actor,namespace,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion());
                 }
+                local="TERMINAL".equals(sample.target().kind());cluster=local?origin.clusterId():sample.target().id();
             }
-            local="TERMINAL".equals(sample.target().kind());cluster=local?origin.clusterId():sample.target().id();
             if(local) {
                 while(!placement.reserveTerminal(actor,namespace,key,cluster,origin.terminalId(),origin.slots())) {
                     if(context.cancellation()!=null)return null;Thread.sleep(200);
@@ -145,7 +147,6 @@ public final class ApplicationTaskRunner implements TaskRunner {
             var request=new PlacementRequest(FlowValidator.candidateClusters(bindings.resolve(c.candidateClusters(),context.job().context())),requirements);
             if(!reserve(context,actor,namespace,key,request))return null;
             cluster=placement.get(namespace,key).clusterId();
-            sample=offloading.observe(actor,namespace,key,context.job().executionId(),work,new Target(resources.cluster(actor,namespace,cluster).kind().name(),cluster));
         }
         context.check();if(context.cancellation()!=null)return null;
         for(var entry:app.parameters().entrySet())if(entry.getValue().dataset()!=null && values.get(entry.getKey())!=null) {
@@ -157,8 +158,10 @@ public final class ApplicationTaskRunner implements TaskRunner {
             inputUris.put(filename,uri);env.put(entry.getKey()+"_PATH","/cea-work/in/"+filename);
         }
         inputUris.values().forEach(uri->storage.validateInput(namespace,uri));
-        long actualBytes=0;for(String uri:inputUris.values())actualBytes=Math.addExact(actualBytes,storage.size(namespace,uri));
-        context.check();offloading.started(actor,namespace,key,actualBytes);
+        if(c.offload()!=null) {
+            long actualBytes=0;for(String uri:inputUris.values())actualBytes=Math.addExact(actualBytes,storage.size(namespace,uri));
+            context.check();offloading.started(actor,namespace,key,actualBytes);
+        }
         var image=images.prepareForExecution(actor,namespace,c.applicationId(),c.version(),cluster);
         context.check();if(context.cancellation()!=null)return null;
         var files=new ArrayList<>(inputUris.keySet());files.addAll(inlineFiles.keySet());

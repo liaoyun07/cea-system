@@ -80,7 +80,7 @@ class OffloadingTest {
     }
     @Test void profilesUseVersionCommandParametersSizeAndLocationAndFeedbackIsIdempotent() {
         String key=key();var w=new Workload(key,"v1",work().command(),work().parameters(),1024);var target=new Target("EDGE","edge");
-        service().observe(actor,"lab",key,key,new Workload(w.applicationId(),w.version(),w.command(),w.parameters(),777),target);
+        service().decide(actor,"lab",key,key,new Workload(w.applicationId(),w.version(),w.command(),w.parameters(),777),List.of(new Candidate(target,1,0,0)),"RULE",null);
         service().started(actor,"lab",key,w.inputBytes());
         var started=service().get("lab",key);service().started(actor,"lab",key,9999);
         assertEquals(w.inputBytes(),service().get("lab",key).inputBytes());assertEquals(started.startedAt(),service().get("lab",key).startedAt());
@@ -96,7 +96,7 @@ class OffloadingTest {
     @Test void cancelledAndUnstartedSamplesDoNotTrainOrContaminateProfiles() {
         for(String outcome:List.of("CANCELLED","FAILED")) {
             String key=key();var w=new Workload(key,"v1",work().command(),Map.of(),1);var target=new Target("EDGE","edge");
-            service().observe(actor,"lab",key,key,w,target);if(outcome.equals("CANCELLED"))service().started(actor,"lab",key,w.inputBytes());
+            service().decide(actor,"lab",key,key,w,List.of(new Candidate(target,1,0,0)),"RULE",null);if(outcome.equals("CANCELLED"))service().started(actor,"lab",key,w.inputBytes());
             service().finish("lab",key,outcome);assertNull(service().get("lab",key).reward());assertNull(service().estimate(actor,"lab",w,target));
         }
     }
@@ -106,7 +106,8 @@ class OffloadingTest {
         assertFalse(slots().reserveTerminal(actor,"lab",b,"edge",terminal,1));assertFalse(slots().reserveTerminal(actor,"lab",c,"edge",terminal,1));
         slots().releaseTerminal("lab",a,"edge",terminal);assertFalse(slots().reserveTerminal(actor,"lab",c,"edge",terminal,1));
         assertTrue(slots().reserveTerminal(actor,"lab",b,"edge",terminal,1));
-        slots().releaseTerminal("lab",c,"edge",terminal);slots().releaseTerminal("lab",b,"edge",terminal);
+        assertTrue(slots().releaseTerminal("lab",c));assertTrue(slots().releaseTerminal("lab",b));
+        assertFalse(slots().releaseTerminal("other",b));assertFalse(slots().releaseTerminal("lab",key()));
         assertFalse(slots().reserveTerminal(actor,"lab",c,"edge",terminal,1));
         assertEquals(0,slots().terminalLoad(actor,"lab","edge",terminal,1).active());
         assertEquals(0,slots().terminalLoad(actor,"lab","edge",terminal,1).waiting());

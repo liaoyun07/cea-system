@@ -528,7 +528,11 @@ class ImageDistributionTest {
                       outputFiles: [final.txt]
                 outputs: {result: {source: TASK_OUTPUT, taskId: cluster, port: final.txt}}
                 """);
-        drive(id);var execution=executions().get(actor,"lab",id);
+        // Only this class's disposable MySQL: both execution paths must work without the offloading table.
+        var db=context.getBean(JdbcTemplate.class);
+        db.execute("RENAME TABLE off_task_observation TO off_task_observation_unavailable");
+        try {drive(id);} finally {db.execute("RENAME TABLE off_task_observation_unavailable TO off_task_observation");}
+        var execution=executions().get(actor,"lab",id);
         assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
         assertEquals("actual dataset bytes\nhello\nedge\n",artifact(execution.outputs().get("result").toString()));
         var local=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("local")).findFirst().orElseThrow();
@@ -565,7 +569,7 @@ class ImageDistributionTest {
             var run=executions().tasks(actor,"lab",id).getFirst();
             for(int attempt=1;attempt<=(missing?1:2);attempt++) {
                 var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-"+attempt);
-                assertEquals("FAILED",sample.outcome());assertEquals(-10.0,sample.reward());
+                assertNull(sample,"fixed terminal execution must not write offloading observations");
             }
         }
     }
@@ -587,7 +591,7 @@ class ImageDistributionTest {
             assertEquals("x",artifact(executions().tasks(actor,"lab",id).getFirst().outputs().get("once.txt").toString()));
             assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
             var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
-            assertEquals("SUCCESS",sample.outcome());assertNull(sample.strategy());
+            assertNull(sample,"terminal takeover must not require an offloading observation");
             assertEquals(0,context.getBean(com.project.platform.resource.placement.JobPlacementService.class).terminalLoad(actor,"lab","edge","pc",1).active());
         } finally {local.close();}
     }
@@ -666,7 +670,7 @@ class ImageDistributionTest {
                 assertEquals("absent",terminalState(remoteName(id)));executions().cancel(actor,"lab",id);context.getBean(FlowExecutor.class).processNext();running.get(10,TimeUnit.SECONDS);
                 drive(id);assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",id).state());assertEquals(0,slots.terminalLoad(actor,"lab","edge","pc",1).waiting());
                 var sample=context.getBean(OffloadingService.class).get("lab",executions().tasks(actor,"lab",id).getFirst().id()+"-1");
-                assertEquals("CANCELLED",sample.outcome());assertNull(sample.startedAt());assertNull(sample.reward());
+                assertNull(sample,"terminal FIFO cancellation is owned by resource, not offloading");
             }
         } finally {slots.releaseTerminal("lab",blocker,"edge","pc");}
     }

@@ -100,6 +100,14 @@ public final class JobPlacementService {
             jdbc.update("INSERT INTO res_terminal_reservation(namespace,allocation_id,cluster_id,terminal_id,released) VALUES(?,?,?,?,TRUE) ON DUPLICATE KEY UPDATE released=TRUE",ns,key,cluster,terminal);
         });
     }
+    /** Release the actual queued/admitted terminal reservation; observation data is not allocation authority. */
+    public boolean releaseTerminal(String ns,String key) {
+        var rows=jdbc.query("SELECT cluster_id,terminal_id FROM res_terminal_reservation WHERE namespace=? AND allocation_id=?",
+                (rs,row)->List.of(rs.getString(1),rs.getString(2)),ns,key);
+        if(rows.isEmpty())return false;
+        releaseTerminal(ns,key,rows.getFirst().get(0),rows.getFirst().get(1));
+        return true;
+    }
     private static void checkCapacity(int capacity) {if(capacity<1 || capacity>100)throw ResourceException.invalid("terminal slots must be 1..100");}
     public void release(String namespace,String key) {
         jdbc.update("INSERT INTO res_job_reservation(namespace,allocation_id,released) VALUES(?,?,TRUE) ON DUPLICATE KEY UPDATE released=TRUE",namespace,key);

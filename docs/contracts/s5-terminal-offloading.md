@@ -1,5 +1,7 @@
 # S5-04b 显式终端卸载、容量队列与反馈
 
+S5-04c修正：普通CLUSTER及固定TERMINAL不再写入或依赖本协议观测。历史数据不删除；既有RULE/单步Q协议保留，研究扩展后置，完整选层/Placement职责调整未在本批实施。见[ADR-0017](../decisions/ADR-0017-offloading-decoupling.md)。
+
 仅作用于原本在终端执行且作者显式允许卸载的Application。不是所有终端请求、所有子任务或普通CLUSTER都使用DQN。设计与Kestra边界对照见[ADR-0016](../decisions/ADR-0016-terminal-offloading.md)，[Flow示例](../../examples/s5-offloading-flow.yaml)，[训练步骤](../../algorithms/offloading/README.md)。
 
 ## DSL与执行链
@@ -16,7 +18,7 @@ container:
 
 这是片段，完整命令/参数/产物见示例。候选集群也可以使用现有INPUT/VARIABLE/TASK_OUTPUT/LITERAL/ITEM Binding；不新增表达式或参数映射。DQN另要求`modelVersion`，RULE禁止携带无消费者的模型版本。无offload的TERMINAL必须本地执行；CLUSTER禁止offload。终端来源来自已接受的网关提交回执，不能通过普通执行API或DSL伪造。
 
-主链仍是提交→Executor→Worker→ApplicationTaskRunner→DockerTaskRunner/KubernetesJobRunner→持久结果→Executor归并。只有Application适配器在准备时增加公开服务调用：获取合法候选→冻结决策→容量准入→准备镜像/文件→执行→释放容量和记录观测。所有Application可贡献画像，普通选址没有strategy/state/action，不作为策略训练样本。
+主链仍是提交→Executor→Worker→ApplicationTaskRunner→DockerTaskRunner/KubernetesJobRunner→持久结果→Executor归并。仅显式offload任务调用：获取合法候选→冻结决策→容量准入→准备镜像/文件→执行→释放容量和记录观测。普通任务通过原Placement或终端FIFO执行，不访问卸载观测。资源释放使用Prepared/实际预约，不使用观测中的target。
 
 同一个TaskRun/Attempt的首次决策持久保存，Worker接管不重选、不新建业务Attempt。真实失败由原retry策略产生下一Attempt并可重新决策。取消等待者直接退出FIFO；运行者确认远端停止后释放槽。失联不能假定停止，也不盲目重投，没有终端离线恢复ACK。
 
@@ -58,11 +60,11 @@ slots默认1、范围1..100。替换04a的字符串配置，所有Worker统一�
 
 画像按namespace、Application ID/version、实际command/参数、目标kind/id分组，再取输入量在本次0.5..2倍范围内的最近100次成功观测均值。Flow名字不作为画像基准，不把不同应用版本或命令混用。应用参数含数据集版本，自然隔离不同数据集配置。
 
-createdAt是决策/观测入库时间；startedAt在容量准入且实际文件选择/尺寸读取后、镜像准备前写入；finishedAt在实际结果确认后写入，均用同一数据库时钟。服务耗时包含镜像准备、传输、容器启动/运行/输出发布，不是算法内纯计算时间。普通CLUSTER的观测在选址准入后创建，不能从它推断排队耗时。
+createdAt是决策/观测入库时间；startedAt在容量准入且实际文件选择/尺寸读取后、镜像准备前写入；finishedAt在实际结果确认后写入，均用同一数据库时钟。服务耗时包含镜像准备、传输、容器启动/运行/输出发布，不是算法内纯计算时间。历史普通CLUSTER观测在选址准入后创建，不能从它推断排队耗时；S5-04c不再产生这类记录。
 
 卸载reward使用createdAt→finishedAt：成功`-min(9,log1p(seconds))`，已启动失败-10，取消/未启动无reward。finish仅首次生效，接管/重复反馈不重复累积。失败/取消不进入成功时延画像。
 
-注册模型为13→1..128隐藏节点ReLU→3输出的有限权重网络；Python训练器使用16隐藏节点。三动作Q值经不可用mask选择。注册版本不可覆盖，缺版本/坏模型失败而非RULE回退。普通任务虽有实际画像，但没有决策state/action，不训练策略。
+注册模型为13→1..128隐藏节点ReLU→3输出的有限权重网络；Python训练器使用16隐藏节点。三动作Q值经不可用mask选择。注册版本不可覆盖，缺版本/坏模型失败而非RULE回退。历史普通任务画像没有决策state/action，不训练策略；当前仅显式offload记录新观测。
 
 当前每次选择是一个结束的episode，训练拟合实际reward；属于单步Q-learning/contextual bandit简化，不是多步DQN长期拥塞预测，没有伪造next_state/反事实回报。没有在线探索、自动训练发布、跨工作负载泛化保证或优于规则的实验结论。三个动作各有真实样本才允许训练；这些限制不因端到端功能通过而消失。
 

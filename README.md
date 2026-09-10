@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+当前增量为S5-04c最小解耦：普通CLUSTER和固定TERMINAL不再访问卸载观测，资源回收依据实际预约；既有显式RULE/单步Q保留但研究扩展后置。S5-05先确认计量口径，当前尚无SDK。见[ADR-0017](docs/decisions/ADR-0017-offloading-decoupling.md)，验证进展见[进度](docs/04-progress.md)。
+
 独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已有Repeat、Loop、FedAvg/FedProx、网关/终端后端接入、策略管理和Docker执行。本批S5-04b新增显式终端卸载、规则/单步Q网络、画像反馈和终端FIFO，真实三位置执行及训练闭环、188项Maven和12项Python完整回归均通过，见[最新验收](docs/verification/VER-S5-006-terminal-offloading.md)。S5整体仍进行中；计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收；单步Q网络不是长期DQN性能结论。
 
 ## 文档入口

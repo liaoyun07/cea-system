@@ -1,10 +1,12 @@
 # 当前进度
 
+最新授权：先做S5-04c最小解耦，再推进S5-05；随后用户明确“先讨论计量口径”。04c已完成，22:27:16完整verify通过188项Maven和12项Python，见[本次验收](verification/VER-S5-007-offloading-decoupling.md)。普通CLUSTER/固定TERMINAL不再访问卸载观测，资源回收依据Prepared/实际预约。没有数据库迁移或新API。S5-05暂停在口径讨论，未实现SDK；多步DQN及完整选层拆分后置。以下04b记录为历史基线。
+
 更新时间：2026-09-10。S5-04b最小闭环完成：显式终端卸载、规则/单步Q、画像/反馈及终端FIFO；20:16:31完整verify通过188项Maven及12项Python，见[验收记录](verification/VER-S5-006-terminal-offloading.md)。S5整体仍IN_PROGRESS；05计量未实现，长期DQN优化/物理多云性能未验证。
 
 ## 当前事实
 
-- S5-04：用户确认终端Docker；显式TERMINAL+offload才进行规则或已注册单步Q模型决策。普通CLUSTER保持资源选址但记录实际画像。终端FIFO以同Attempt预约并在确认停止后释放，不重复派发；详情见[协议](contracts/s5-terminal-offloading.md)。
+- S5-04：用户确认终端Docker；显式TERMINAL+offload才进行规则或已注册单步Q模型决策及观测。04c中普通CLUSTER和固定TERMINAL不再读写卸载画像；终端FIFO以同Attempt预约并在确认停止后按实际资源预约释放，不重复派发；详情见[协议](contracts/s5-terminal-offloading.md)。
 
 - S5-03：外部CONNECT网关账号、集群/终端归属及心跳；USER/EDGE_POLICY管理隔离；终端多节点请求和事件策略均提交原Execution，结果校验终端归属后查询原状态/outputs。未复制Executor/Binding/执行状态，未部署代理。详见ADR-0014及接入协议。
 
@@ -53,13 +55,14 @@
 | S5-03 | DONE | 后端接入/策略及统一结果查询，完整回归和收尾复测PASS，见VER-S5-004；未部署网关代理 |
 | S5-04a | DONE | 终端Docker、真实来源/接入权限、文件/结果、retry/timeout/cancel/接管及全量回归PASS；不等于自动卸载 |
 | S5-04b | DONE | 显式卸载、规则/单步Q、画像/反馈和终端FIFO及全量回归PASS；不宣称长期DQN或策略性能最优 |
-| S5-05 | NOT_STARTED | 计量口径待确认，本轮不实现 |
+| S5-04c | DONE | 普通执行/资源释放最小解耦，观测表不可用真实产物链及完整188项Maven/12项Python回归PASS，见VER-S5-007 |
+| S5-05 | IN_PROGRESS（设计） | 已检查SDK报告复用产物链及TaskRun汇总方案；计量口径待确认，MET-001业务代码未实现，见[S5-05方案](features/S5-05-measurement.md) |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-S5-04最小卸载闭环已验收，不自动进入S5-05。下一功能批为计量，须先确认口径；本批没有新增SDK或数据速率计算。长期多步DQN、策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
+04c已经完成；按用户最新回复先讨论S5-05计量口径，确认后再实现SDK、FedAvg/FedProx全部算法阶段报告及后端汇总。目前没有新增SDK或数据速率计算。长期多步DQN及完整选层拆分后置；策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -71,10 +74,12 @@ S5-04最小卸载闭环已验收，不自动进入S5-05。下一功能批为计�
 | OPEN-002 | 已决定：技术版本以适用为准 | 当前保留已验证的Boot4.1.1/Jackson3/Flyway/MySQL8，不为了更新而升级 |
 | OPEN-003 | 已决定：新后端Java 21 | 项目编译/运行均以21为准，现有配置已符合；不改旧工程或全局JAVA_HOME |
 | OPEN-004 | 已决定：不做终端任务断线恢复 | 移出本期范围，不建设终端恢复专用查询/ACK、离线补发、断点续跑；正常终端接入/卸载和S2服务端Worker接管保留。结果不明不能盲目重投或伪造成功 |
-| OPEN-005 | 后置：数据处理速率口径 | 到S5开始实现时再讨论并验证，当前不新增指标逻辑 |
+| OPEN-005 | 待确认：S5-05数据处理速率口径 | 已提出完整算法输入+输出字节除活动区间并集，详见S5-05方案；用户确认前不新增指标逻辑 |
 | OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11随S4真实运行接入最小实现；其他已选后置项不变。见[范围清单](06-deployment-safeguards-review.md)，目录API不能冒充远程接口/凭据/部署保障验收 |
 
 ## 完成记录
+
+2026-09-10：S5-04c最小解耦完成，修改3个生产Java类，删除OffloadingService.observe，增加Resource按实际预约释放的公开重载；无新增类/字段/表/迁移/HTTP API/SPI，主执行链未变。188项Maven和12项Python完整verify于22:27:16通过，见VER-S5-007。S5-05已记录设计，但用户选择先讨论计量口径，未实施SDK/计量代码。按持续授权发布本次解耦与文档。
 
 2026-09-10：完成S5-04b最小闭环，新增4份生产Java、3张表及3个HTTP操作，增加显式Offload和终端slots配置；dataflow只经offloading/resource公开服务调用，不改变Executor/Worker状态所有权，无新Binding/Runner/SPI。真实三位置执行、实际反馈训练模型及Java执行闭环通过，188项Maven与12项Python最终verify于20:16:31通过，见[VER-S5-006](verification/VER-S5-006-terminal-offloading.md)。按持续授权发布GitHub；单步Q是有意简化，未做长期DQN、物理多云性能或S5-05。
 

@@ -7,7 +7,7 @@ import com.project.platform.runtime.model.WorkflowException;
 import java.time.Instant;
 import java.util.*;
 
-/** Chooses only explicitly offloadable terminal tasks. Ordinary samples contribute profiles, not decisions. */
+/** Chooses and observes explicitly offloadable terminal tasks only. */
 public final class OffloadingService {
     public record Target(String kind,String id) {}
     public record Workload(String applicationId,String version,List<String> command,Map<String,Object> parameters,long inputBytes) {}
@@ -19,9 +19,6 @@ public final class OffloadingService {
     private final JdbcOffloadingRepository repository;private final AccessPolicy access;
     public OffloadingService(JdbcOffloadingRepository repository,AccessPolicy access){this.repository=repository;this.access=access;}
     public Sample get(String ns,String key){return repository.get(ns,key);}
-    public Sample observe(Actor actor,String ns,String key,String execution,Workload work,Target target) {
-        access.require(actor,ns,Action.EXECUTE);return repository.begin(ns,key,execution,work,target,null,null,null,null);
-    }
     public Sample decide(Actor actor,String ns,String key,String execution,Workload work,List<Candidate> candidates,String strategy,String modelVersion) {
         access.require(actor,ns,Action.EXECUTE);var existing=repository.get(ns,key);if(existing!=null)return existing;
         if(!Set.of("RULE","DQN").contains(strategy))throw WorkflowException.invalid("offload","RULE or DQN required");

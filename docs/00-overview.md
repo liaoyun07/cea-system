@@ -25,6 +25,8 @@
 
 ## 当前终端卸载增量
 
+S5-04c最小解耦：普通CLUSTER与固定TERMINAL不再读写卸载观测；资源回收依照Prepared/实际预约，脱离offloading表。既有显式RULE/单步Q保留但研究扩展后置；S5-05按独立计量推进，口径须先确认。见[ADR-0017](decisions/ADR-0017-offloading-decoupling.md)。
+
 S5-04b只在`TERMINAL + offload`显式授权时调用卸载服务；普通CLUSTER保持原资源选址。ApplicationTaskRunner→OffloadingService冻结同Attempt决策→JobPlacementService准入→原Docker/Kubernetes Runner→记录真实反馈，Executor仍独占运行状态。terminal FIFO归resource，画像/单步Q权重归offloading，dataflow只调用两者公开服务。规则/模型均使用实际容量与观测，没有预装随机模型或静默回退。详见[协议](contracts/s5-terminal-offloading.md)及[验收](verification/VER-S5-006-terminal-offloading.md)。
 
 ## 目标执行关系（未全部实现）

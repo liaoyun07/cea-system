@@ -1,5 +1,7 @@
 # S5 边缘卸载与研究能力
 
+当前授权更新：先S5-04c最小解耦，后S5-05计量；卸载研究扩展后置。计量目前进入设计与口径确认，见[S5-05计划](S5-05-measurement.md)，SDK和速率查询仍未实现。以下04b验收为历史事实。
+
 S5-04于2026-09-10获准继续，用户确认终端Docker。04a完成可信来源和真实Docker；04b完成显式卸载、规则/单步Q、实际画像/反馈及终端FIFO最小范围，188项Maven与12项Python完整验证通过。见[ADR-0016](../decisions/ADR-0016-terminal-offloading.md)及[验收](../verification/VER-S5-006-terminal-offloading.md)。不把单步模型说成长期拥塞DQN，不缩减计量或物理验证边界。
 
 2026-09-10用户授权开始S5，基线8efaa59。分批实现，S5整体IN_PROGRESS；S6/S7未进入。
