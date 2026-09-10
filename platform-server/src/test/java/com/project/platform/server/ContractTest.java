@@ -59,6 +59,9 @@ class ContractTest {
                 Map.entry("LogEntry",ExecutionRecord.LogEntry.class),
                 Map.entry("FlowDefinition",FlowDefinition.class),
                 Map.entry("Task",FlowDefinition.Task.class),
+                Map.entry("Container",FlowDefinition.Container.class),
+                Map.entry("HttpTask",FlowDefinition.Http.class),
+                Map.entry("SqlTask",FlowDefinition.Sql.class),
                 Map.entry("Input",FlowDefinition.Input.class),
                 Map.entry("Retry",FlowDefinition.Retry.class),
                 Map.entry("Concurrency",FlowDefinition.Concurrency.class),
@@ -111,5 +114,8 @@ class ContractTest {
         assertEquals(2,control.concurrency().limit());
         assertTrue(control.schedule().disabled());
         assertEquals("Asia/Shanghai",control.schedule().timezone());
+        var application=parser.parse(Files.readString(Path.of("..","examples","s4-application-flow.yaml")));
+        assertEquals("platform.Application",application.tasks().getFirst().type());
+        assertEquals(Set.of("greeting"),application.inputs().keySet());
     }
 }

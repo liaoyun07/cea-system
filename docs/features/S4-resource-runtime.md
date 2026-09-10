@@ -1,6 +1,6 @@
 # S4资源与运行环境工作包
 
-状态IN_PROGRESS。S3基线为Git 071ff4b8fc61dbae5093e5369adcaa8634c3e474，用户授权开始S4；2026-09-10另授权将S4-01提交并更新GitHub，未授权S5。
+状态DONE，按下述最小实现范围验收，见[VER-S4-005](../verification/VER-S4-005-external-task-runtime.md)。S3基线为Git 071ff4b8fc61dbae5093e5369adcaa8634c3e474，用户授权开始S4；2026-09-10另授权将S4-01提交并更新GitHub，未授权S5。
 
 | 工作包 | 当前范围 | 验收条件 |
 |---|---|---|
@@ -11,6 +11,14 @@
 | S4-05 | P04/P05/P06/P11最小保障与全量验收 | 实际远程接口认证/凭据外置、独立部署启动、进程和DB短时故障恢复、全部协议/文档/测试一致 |
 
 这些是S4内部实现顺序，不减少阶段退出条件。每个批次验证后明确剩余部分，不能用资源列表或mock Kubernetes替代真实环境验收。
+
+## S4-03/04/05本批实现与验收入口
+
+- S4-03：[ADR-0009](../decisions/ADR-0009-s4-job-execution.md)、[Job协议](../contracts/s4-job-execution.md)。原子预约是平台Job槽；健康观测采用Ready节点，本地性强制校验。固定Attempt Job及真实产物由ImageDistributionTest验证。
+- S4-04：[ADR-0010](../decisions/ADR-0010-s4-common-tasks.md)、[通用任务协议](../contracts/s4-common-tasks.md)。GET/POST、只读MySQL SELECT，POST结果未知不自动重发；Shell/Python在同一Application Pod链执行。不支持的写SQL/HTTP方法/镜像类型明确列出，不暗示Kestra全部插件已迁移。
+- S4-05：[最小部署](../operations/s4-minimal-deployment.md)。独立JVM强杀、真实DB短时故障恢复，以及package后的实际JAR空库启动；不修改旧系统，不宣称跨地域容灾。
+
+S4-01至S4-05已验收；工作包状态统一见进度。最终123项verify通过，不代表SQL写入/全插件集或生产高可用已实现。
 
 本批S4-01设计见[ADR-0006](../decisions/ADR-0006-s4-resource-boundary.md)。资源注册是声明式目录，不等于观测已上线；候选检查不等于最终选址。没有真实任务消费者前不创建预约表或Runner空接口。
 

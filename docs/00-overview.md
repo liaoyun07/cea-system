@@ -1,6 +1,6 @@
 # 系统总览
 
-基线日期：2026-09-10。状态：S1–S3已实现；S4已接入资源目录/候选本地性和应用契约目录，真实外部运行接入尚未完成。当前范围见[进度](04-progress.md)。
+基线日期：2026-09-10。S1–S3执行基础、S4资源/应用目录、镜像分发/常驻部署、一次性Job/产物与通用任务均已实现；当前验收状态与边界见[进度](04-progress.md)。
 
 实施边界已确认：backend独立Git仓库，新后端Java21；终端任务断线恢复不在本期范围，服务端Worker恢复保留；速率口径在S5开始时确定。生产部署保障按[已确认范围](06-deployment-safeguards-review.md)落实最小认证、凭据配置、部署和单机恢复验证，其他扩展按选择保留或后置，不追求全套高可用架构。
 
@@ -46,11 +46,13 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 当前调用链：HTTP身份认证 → dataflow权限/版本/提交 → Executor派发持久WorkerJob → Worker事务外执行 → 持久结果 → Executor归并状态/日志/续消息 → dataflow查询。server负责装配，不直接写业务表。定义版本表由dataflow所有；运行表和消息由runtime所有。
 
-当前有14张业务表：S1–S3的10张、resource的3张目录表及deployment的应用契约版本表。模板是数据库数据，不是后端硬编码。执行保存完整版本、输入和变量快照。Log/Sleep由Worker执行；有效Log结果才由Executor同事务写日志。租约epoch隔离旧Worker，接管不增加Attempt；业务失败按策略重试才增加Attempt。Errors/Finally、控制树和取消由同一FlowExecutor推进。DAG支持乱序依赖；If选择持久化；Flow额度跨版本共用，超限FIFO或FAIL；Scheduler通过相同ExecutionService提交，游标与执行同事务。外部容器/HTTP任务尚未实现，不能声称其副作用已做到exactly-once。
+当前有15张业务表，定义版本属于dataflow，执行/传输/调度属于runtime，集群/数据集/预约属于resource，应用契约属于deployment。模板是数据库数据，不是后端硬编码。S1–S3控制、队列、重试、Errors/Finally保持单一执行语义。
 
-S4-01新增独立资源调用链：HTTP身份认证 → ResourceCatalogService权限/登记校验 → JdbcResourceRepository。可以保存集群启用标志、数据集版本及对象URI位置，并检查候选集群是否同时满足各个数据集的本地性/格式要求。注册不是连通性或健康观测，候选结果不是最终选址与预约，也没有接入执行派发。
+S4已接入应用目录、真实Registry复制、常驻Deployment和一次性Application Job。一次性Job与常驻部署分开；同Attempt固定镜像digest、位置、参数和Job，Worker重连接管原Job。后端暂存输入、收集输出并发布S3产物；取消须等Pod停止。普通选址检查节点健康和数据本地性、预约平台作业槽，不走终端卸载DQN。
 
-S4-02a的ApplicationVersion/image contract由deployment拥有；Cluster/DatasetVersion/Location由resource拥有，契约的数据集规则经resource公开接口检查。dataflow仅管理Flow保存、编辑、提交，不从应用参数派生Flow Inputs。Flow作者显式定义inputs和参数来源，既有runtime Binding支持InputRef、VariableRef、TaskOutputRef和Literal；未来Application/Container Task沿用这一事实源，YAML与No-code不维护第二份alias/binding。当前没有No-code或容器Task，也未增加新映射模型/表达式系统。deployment还没有实际镜像分发/常驻部署；边缘和卸载模块仍仅有工程框架。S1本地权限不是生产IAM，跨站点鉴权在S4后续批次验收。
+Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与未来No-code共用Flow，当前No-code未实现。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
+
+凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4本批验证状态见进度；S5–S7未进入。
 
 ## 设计来源与效力
 
@@ -58,4 +60,4 @@ S4-02a的ApplicationVersion/image contract由deployment拥有；Cluster/DatasetV
 - 早期方案在同级 web-platform/docs/kestra-refactor 中，仅作历史参考；其中“卸载负责全部选址”、旧模块数量、181 文件清单不是当前实施依据。
 - 当前基线以本目录、最新已接受 ADR 和用户后续要求为准；发现矛盾先记录并修正文档，不能同时实施两套模型。
 
-S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](contracts/s4-image-deployment.md)。S4-03/04/05仍需各自验收，不把镜像准备成功当作Flow运行成功。
+S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](contracts/s4-image-deployment.md)。S4-03/04/05本批实现与验收见进度；镜像准备成功不等于Flow运行成功。

@@ -52,6 +52,10 @@ P03后置意味着尚无传输加密保证，P04身份认证不能代替TLS；�
 
 [实施计划](03-implementation-plan.md)记录阶段与变更历史，[功能索引](02-feature-index.md)继续按真实实现/验证状态维护SEC-001和OPS-001；范围确认不把NOT_STARTED改成IMPLEMENTED，不把未测改成PASS。后置项只有再次明确选择后才进入实现。
 
-## 本次变更的实际影响
+## 范围确认时的历史影响
 
 只更新范围、计划和进度。Java文件、字段、表、HTTP接口和主调用链均未改变；没有新的业务能力。未重跑S1/S2业务测试，原48项通过属于此前验收。
+
+## S4最小实现跟踪
+
+P04由Registry认证、限定namespace的Kubernetes Role和S3/HTTP外置凭据的真实调用验证；P05/P06配置/启动/凭据更换步骤见[最小部署](operations/s4-minimal-deployment.md)。P11覆盖Worker JVM强杀和MySQL短时不可用后的同Job/Attempt接管。实际JAR空库启动由DeploymentSmokeIT验证，本批完整验收已通过，见[VER-S4-005](verification/VER-S4-005-external-task-runtime.md)。P03/P08/P09/P10/P12等后置范围未扩大，S7仍需针对最终上线环境复验。

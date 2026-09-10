@@ -47,11 +47,40 @@ public final class FlowValidator {
             } else if ("core.Sleep".equals(task.type())) {
                 duration(task.duration(), "duration");
                 if (task.message()!=null) throw WorkflowException.invalid("message", "only Log supports message");
+            } else if("core.Http".equals(task.type()) || "core.Sql".equals(task.type())) {
+                if(task.timeout()==null || task.message()!=null || task.duration()!=null)throw WorkflowException.invalid("tasks","Http/Sql require timeout and forbid message/duration");
+                if("core.Http".equals(task.type())) {
+                    var h=task.http();if(h==null || h.method()==null || !Set.of("GET","POST").contains(h.method()))throw WorkflowException.invalid("http","GET or POST required");
+                    identifier(h.connection(),"http.connection");
+                    if("GET".equals(h.method()) && h.body()!=null)throw WorkflowException.invalid("http.body","GET has no body");
+                    if("POST".equals(h.method()) && task.retry()!=null)throw WorkflowException.invalid("retry","POST cannot automatically retry an unknown external result");
+                } else {
+                    var s=task.sql();if(s==null || s.query()==null || !s.query().stripLeading().toUpperCase(java.util.Locale.ROOT).startsWith("SELECT ") || s.query().contains(";") || s.query().length()>65536 || s.parameters().size()>100)
+                        throw WorkflowException.invalid("sql","single parameterized SELECT required");
+                    identifier(s.connection(),"sql.connection");
+                }
+            } else if("platform.Application".equals(task.type())) {
+                var c=task.container();
+                if(c==null || task.timeout()==null || task.message()!=null || task.duration()!=null)
+                    throw WorkflowException.invalid("container","Application requires container/timeout and forbids message/duration");
+                identifier(c.applicationId(),"applicationId");
+                if(c.version()==null || !c.version().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("version","version token required");
+                if(c.candidateClusters().isEmpty() || c.candidateClusters().size()>100 || c.command().isEmpty() || c.command().size()>100
+                        || c.parameters().size()>100 || c.inputFiles().size()>30 || c.outputFiles().size()>30)
+                    throw WorkflowException.invalid("container","invalid command, candidates or file/parameter count");
+                c.candidateClusters().forEach(id->identifier(id,"candidateClusters"));
+                if(new HashSet<>(c.candidateClusters()).size()!=c.candidateClusters().size() || new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
+                    throw WorkflowException.invalid("container","duplicate candidate/output");
+                for(String arg:c.command())if(arg==null || arg.length()>8192)throw WorkflowException.invalid("command","argument too large or null");
+                c.inputFiles().keySet().forEach(this::fileName);c.outputFiles().forEach(this::fileName);
             } else if(task.control()) {
                 if(task.message()!=null || task.duration()!=null || task.retry()!=null || task.timeout()!=null)
                     throw WorkflowException.invalid("tasks."+task.id(),"control tasks cannot have message/duration/retry/timeout");
                 if("core.If".equals(task.type())) renderer.validate(task.condition());
             } else throw WorkflowException.invalid("tasks." + task.id(), "unsupported task type");
+            if(!"platform.Application".equals(task.type()) && task.container()!=null)throw WorkflowException.invalid("container","only Application supports container");
+            if(!"core.Http".equals(task.type()) && task.http()!=null)throw WorkflowException.invalid("http","only Http supports http");
+            if(!"core.Sql".equals(task.type()) && task.sql()!=null)throw WorkflowException.invalid("sql","only Sql supports sql");
             if (task.timeout()!=null) duration(task.timeout(), "timeout");
             if (task.retry()!=null) {
                 var retry=task.retry();
@@ -66,12 +95,52 @@ public final class FlowValidator {
         });
         // Structural DFS catches cycles even when required inputs have no values at save time.
         for (String variable : flow.variables().keySet()) visitVariable(variable, flow, new HashSet<>(), new HashSet<>());
+        validateTaskBindings(flow,flow.tasks(),"core.Sequential",Set.of());
+        var mainBindings=new HashSet<String>();flow.tasks().forEach(t->completed(t,mainBindings));
+        validateTaskBindings(flow,flow.errors(),"core.Sequential",mainBindings);
+        var cleanupBindings=new HashSet<>(mainBindings);flow.errors().forEach(t->completed(t,cleanupBindings));
+        validateTaskBindings(flow,flow.finallyTasks(),"core.Sequential",cleanupBindings);
         flow.outputs().forEach((name, binding) -> {
             identifier(name, "outputs");
             var main=new ArrayList<Task>(); FlowDefinition.flatten(flow.tasks(),main);
-            validateBinding(binding, flow, main.stream().filter(t -> "core.Log".equals(t.type()) || "core.If".equals(t.type())).map(Task::id).collect(java.util.stream.Collectors.toSet()), "outputs." + name);
+            validateBinding(binding, flow, main.stream().map(Task::id).collect(java.util.stream.Collectors.toSet()), "outputs." + name);
         });
         if(flow.schedule()!=null) new BindingResolver().prepare(flow,flow.schedule().inputs());
+    }
+    private void fileName(String value) {
+        if(value==null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("files","simple named files required; no directories or traversal");
+    }
+    private void validateTaskBindings(FlowDefinition flow,List<Task> group,String mode,Set<String> inherited) {
+        var prior=new HashSet<>(inherited);
+        for(Task task:group) {
+            var available=new HashSet<>(prior);
+            if("core.Dag".equals(mode))ancestors(task,group,available);
+            available.remove(task.id());
+            if(task.container()!=null) {
+                task.container().parameters().forEach((name,b)->{identifier(name,"parameters");validateBinding(b,flow,available,"parameters."+name);});
+                task.container().inputFiles().forEach((name,b)->validateBinding(b,flow,available,"inputFiles."+name));
+            }
+            if(task.http()!=null) {
+                validateBinding(task.http().path(),flow,available,"http.path");
+                if(task.http().body()!=null)validateBinding(task.http().body(),flow,available,"http.body");
+            }
+            if(task.sql()!=null)task.sql().parameters().forEach(b->validateBinding(b,flow,available,"sql.parameters"));
+            validateTaskBindings(flow,task.tasks(),task.type(),available);
+            validateTaskBindings(flow,task.thenTasks(),"core.Sequential",available);
+            validateTaskBindings(flow,task.elseTasks(),"core.Sequential",available);
+            if("core.Sequential".equals(mode))completed(task,prior);
+        }
+    }
+    private void ancestors(Task task,List<Task> group,Set<String> available) {
+        for(String id:task.dependsOn()) {
+            if(available.contains(id))continue;
+            var parent=group.stream().filter(t->id.equals(t.id())).findFirst().orElseThrow();
+            ancestors(parent,group,available);completed(parent,available);
+        }
+    }
+    private void completed(Task task,Set<String> available) {
+        available.add(task.id());task.tasks().forEach(t->completed(t,available));
+        // An If guarantees its decision, not either branch's artifacts.
     }
     private void validateGroup(List<Task> tasks,boolean dag,int depth) {
         if(depth>16) throw WorkflowException.invalid("tasks","nesting exceeds 16");
@@ -126,7 +195,8 @@ public final class FlowValidator {
             case TaskOutputRef ref -> {
                 var task=flow.allTasks().stream().filter(t->t.id().equals(ref.taskId())).findFirst().orElse(null);
                 String port=task!=null && "core.If".equals(task.type())?"evaluationResult":"message";
-                if (!taskIds.contains(ref.taskId()) || !port.equals(ref.port())) {
+                boolean valid=task!=null && (task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
+                if (!taskIds.contains(ref.taskId()) || !valid) {
                     throw WorkflowException.invalid(path, "unknown task output");
                 }
             }

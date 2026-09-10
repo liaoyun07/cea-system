@@ -32,6 +32,14 @@ public final class ImageDistributionService {
     }
     public PreparedImage prepare(Actor actor,String namespace,String applicationId,String version,String clusterId) {
         access.require(actor,namespace,Action.WRITE);
+        return copy(actor,namespace,applicationId,version,clusterId);
+    }
+    /** Internal execution consumer: executing a registered application does not grant catalog write permission. */
+    public PreparedImage prepareForExecution(Actor actor,String namespace,String applicationId,String version,String clusterId) {
+        access.require(actor,namespace,Action.EXECUTE);
+        return copy(actor,namespace,applicationId,version,clusterId);
+    }
+    private PreparedImage copy(Actor actor,String namespace,String applicationId,String version,String clusterId) {
         var app=applications.get(actor,namespace,applicationId,version);
         if(!resources.cluster(actor,namespace,clusterId).enabled()) throw ApplicationException.invalid("target cluster is disabled");
         String targetName=targets.getOrDefault(namespace,Map.of()).get(clusterId);

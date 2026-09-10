@@ -104,7 +104,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(7,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(9,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {
         String id=register();
@@ -448,7 +448,7 @@ private String custom(String body) {
 
     @Test void longSleepHeartbeatsWithoutOpeningAdditionalAttempt() throws Exception {
         String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT0.9S}]\n");
-        try(var shortLeaseWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300);
+        try(var shortLeaseWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300,context.getBean(com.project.platform.runtime.worker.TaskRunner.class));
             var pool=Executors.newSingleThreadExecutor()) {
             var running=pool.submit(shortLeaseWorker::runOnce);
             pause(450);
@@ -630,7 +630,7 @@ private String custom(String body) {
 
     @Test void workerShutdownIsNotReportedAsBusinessFailure() throws Exception {
         String executionId=dispatchCustom("tasks: [{id: sleep, type: core.Sleep, duration: PT1S}]\n");
-        try(var localWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300);
+        try(var localWorker=new com.project.platform.runtime.worker.WorkerEngine(jobs(),context.getBean(com.project.platform.runtime.definition.TemplateRenderer.class),300,context.getBean(com.project.platform.runtime.worker.TaskRunner.class));
             var pool=Executors.newSingleThreadExecutor()) {
             var running=pool.submit(localWorker::runOnce);
             advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)>0);

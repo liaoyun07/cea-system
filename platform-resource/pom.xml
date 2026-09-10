@@ -12,6 +12,7 @@
     <artifactId>platform-resource</artifactId>
     <name>platform-resource</name>
     <dependencies>
+        <dependency><groupId>io.minio</groupId><artifactId>minio</artifactId><version>8.5.17</version></dependency>
         <dependency>
             <groupId>io.fabric8</groupId><artifactId>kubernetes-client</artifactId><version>7.7.0</version>
         </dependency>

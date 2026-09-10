@@ -29,12 +29,29 @@ public final class JdbcWorkerStore {
     public void remove(String taskRunId,int attempt) {
         jdbc.update("DELETE FROM wf_worker_job WHERE task_run_id=? AND attempt_no=?",taskRunId,attempt);
     }
+    public void cancel(String taskRunId,int attempt,String reason) {
+        jdbc.update("UPDATE wf_worker_job SET cancel_reason=COALESCE(cancel_reason,?) WHERE task_run_id=? AND attempt_no=?",reason,taskRunId,attempt);
+    }
+    public boolean owned(Lease lease) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM wf_worker_job WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING' AND lease_until>CURRENT_TIMESTAMP(6))",Boolean.class,
+                lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner()));
+    }
+    public String cancellation(Lease lease) {return jdbc.queryForObject("SELECT cancel_reason FROM wf_worker_job WHERE task_run_id=? AND attempt_no=?",String.class,lease.job().taskRunId(),lease.job().attemptNo());}
+    public String prepared(Lease lease) {return jdbc.queryForObject("SELECT prepared_json FROM wf_worker_job WHERE task_run_id=? AND attempt_no=?",String.class,lease.job().taskRunId(),lease.job().attemptNo());}
+    public boolean prepare(Lease lease,String value) {
+        return jdbc.update("UPDATE wf_worker_job SET prepared_json=? WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING' AND lease_until>CURRENT_TIMESTAMP(6) AND prepared_json IS NULL",
+                value,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
+    }
+    public boolean stop(Lease lease,String reason) {
+        return jdbc.update("UPDATE wf_worker_job SET cancel_reason=COALESCE(cancel_reason,?) WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING' AND lease_until>CURRENT_TIMESTAMP(6)",
+                reason,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
+    }
     public Lease claim(String owner,long leaseMs) {
         return transactions.execute(status->{
             var rows=jdbc.query("""
                     SELECT payload_json,epoch FROM wf_worker_job
                     WHERE (state='READY' OR (state='RUNNING' AND lease_until<=CURRENT_TIMESTAMP(6)))
-                      AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6))
+                      AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6) OR cancel_reason IS NOT NULL)
                     ORDER BY task_run_id,attempt_no LIMIT 1 FOR UPDATE SKIP LOCKED
                     """,(rs,row)->new Lease(json.read(rs.getString(1),WorkerJob.class),rs.getLong(2)+1,owner));
             if(rows.isEmpty()) return null;
@@ -51,14 +68,14 @@ public final class JdbcWorkerStore {
         return jdbc.update("""
                 UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(MICROSECOND,?,CURRENT_TIMESTAMP(6))
                 WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING'
-                AND lease_until>CURRENT_TIMESTAMP(6) AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6))
+                AND lease_until>CURRENT_TIMESTAMP(6) AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6) OR cancel_reason IS NOT NULL)
                 """,leaseMs*1000,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
     }
     public boolean finish(Lease lease,Result result) {
         return jdbc.update("""
                 UPDATE wf_worker_job SET state='RESULT',result_json=?
                 WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING'
-                AND lease_until>CURRENT_TIMESTAMP(6) AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6))
+                AND lease_until>CURRENT_TIMESTAMP(6) AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6) OR cancel_reason IS NOT NULL)
                 """,json.write(result),lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
     }
 }

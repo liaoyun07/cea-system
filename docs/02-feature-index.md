@@ -16,39 +16,35 @@
 | WF-009 | DAG/Topology、If/Else、Parallel | S3 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-010 | 并发槽、FIFO、QUEUE/FAIL | S3 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-011 | Schedule/Cron、Disabled、触发幂等 | S3 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-012 | HTTP/SQL 与隔离 Shell/Python Task | S4 | workflow-runtime | NOT_STARTED | NOT_RUN |
+| WF-012 | HTTP/SQL 与隔离 Shell/Python Task | S4 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-013 | Repeat 状态反馈、轮次隔离和屏障 | S5 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
-| RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
-| RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IN_PROGRESS | PARTIAL |
-| DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IN_PROGRESS | PARTIAL |
+| RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
+| RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IMPLEMENTED | PASS |
+| DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IMPLEMENTED | PASS |
 | DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | IMPLEMENTED | PASS |
-| RUN-001 | Kubernetes 一次性 Job 与产物发布 | S4 | workflow-runtime | NOT_STARTED | NOT_RUN |
+| RUN-001 | Kubernetes 一次性 Job 与产物发布 | S4 | workflow-runtime | IMPLEMENTED | PASS |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
 | OFF-001 | 终端卸载资格、DQN/规则决策 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
 | OFF-002 | 终端任务画像、模型版本与反馈 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
-| SEC-001 | 身份、命名空间权限与内部通信认证 | S1/S4 | platform-foundation | IN_PROGRESS | PARTIAL |
+| SEC-001 | 身份、命名空间权限与内部通信认证 | S1/S4 | platform-foundation | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |
-| OPS-001 | 最小部署与单机恢复验收 | S4/S7 | platform-server | NOT_STARTED | NOT_RUN |
+| OPS-001 | 最小部署与单机恢复验收 | S4/S7 | platform-server | IN_PROGRESS | PARTIAL |
 
 状态定义见[文档规范](05-documentation-guide.md)。FND-001 的具体范围见[框架规格](features/FND-001-scaffold.md)。WF-001至WF-006及SEC-001本地部分见[S1规格](features/WF-001-006-s1.md)与[验收记录](verification/VER-S1-001-durable-log.md)。WF-007/008见[S2规格](features/WF-007-008-s2.md)与[S2验收记录](verification/VER-S2-001-worker-lifecycle.md)。本次同时回归S1。未开始功能用[模板](features/TEMPLATE.md)补齐行为和验收条件，不为未开始功能批量制造空规格。
 
 SEC-001 分层落地：S1 保证本地接口边界与身份契约；接入站点/远程Worker API前完成真实鉴权；S2共享专用MySQL的本地Worker进程不提供远程Worker HTTP接口，不能把“后面做权限”当成可上线状态。WF-016 的完整前端实现需明确授权与前端工程范围，新后端当前只规划协议与编辑 Schema。
 
-WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-protocol.md)与[验收记录](verification/VER-S3-001-control-scheduling.md)。S3历史75项测试通过；控制任务由Executor解释，叶子仍仅Log/Sleep。
+WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-protocol.md)与[验收记录](verification/VER-S3-001-control-scheduling.md)。S3历史75项测试通过；控制任务由Executor解释；该历史阶段叶子仅Log/Sleep。
 
-S4已授权，工作包见[S4规格](features/S4-resource-runtime.md)。RES-001当前只有集群目录、不可变数据集版本/位置，没有真实资源观测；RES-002当前只有候选本地性检查，没有最终选址、容量预约和释放。本批11项新增测试及75项回归见[S4-01验证](verification/VER-S4-001-resource-catalog.md)，不能据此将RES-001/002整体标为完成。SEC-001复用既有READ/WRITE边界，尚未实现远程通信鉴权。S5–S7未进入。
+S4工作包见[S4规格](features/S4-resource-runtime.md)。S4-01/02历史验收保留；本批增加真实节点健康/本地性/平台Job槽预约、Application Job及命名文件、GET/POST与只读SQL、隔离Shell/Python。123项统一验证与实际JAR部署验收通过，见[VER-S4-005](verification/VER-S4-005-external-task-runtime.md)。
 
-S4-02a保留应用版本目录、标量参数/数据集约束，撤销别名派生与plan/resolve，详见[协议](contracts/s4-application-catalog.md)及[方向修正验证](verification/VER-S4-003-explicit-flow-boundary.md)。DEP-001保持IN_PROGRESS：命名产物端口、路径注入和与真实容器Flow的集成尚未实现。Flow作者显式声明输入及参数来源；WF-016的YAML/No-code单事实源是目标，No-code尚未实现。DEP-002已实现配置目标分发、digest复制及常驻Deployment管理，真实隔离集群测试见本批验证。没有通用分发调度器或Service/Ingress，且不代表容器Flow已实现。
+RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预约平台槽，不冒充CPU物理独占。DEP-001仍为纯契约目录，显式Flow绑定在真实执行消费者解析。命名文件由Flow声明，不新增自动alias/映射表。DEP-002常驻Deployment不等于Job。
 
-## 明确的范围限制
+详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、No-code仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S5–S7未进入。
 
-本期不默认加入完整插件市场、WorkerGroup、多租户、复杂 RBAC、完整 Secret Manager、AI Copilot、完整 SLA/Retry 矩阵。ARM 适配、任务优先级、多核专用算法、边缘离线自治分别待需求确认。
-
-普通任务可以做固定/规则选址，但不因此进入 OFF-001。终端发起一个流程，也不表示其中每个任务都是卸载任务。卸载资格必须显式表示并校验。
-
-2026-09-09范围决定：EDGE-001/EDGE-002不含终端断线自动恢复、离线补发、断点续跑及恢复专用ACK；正常接入/卸载/结果交付保留，WF-007已实现的服务端Worker接管不变。MET-001的计量口径到S5开始再确定。SEC-001/OPS-001按[已确认范围](06-deployment-safeguards-review.md)推进：P01/P07保留现状；P04/P05/P06/P11后续最小实现；P02/P03/P08/P09/P10/P12/P13现在后置。已有保护不删除，P10后置不取消WF-010核心并发/FIFO；选择范围不改变当前实现/验证状态。
+SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。

@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共62份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共70份（含8份包声明），测试类另列。
 
 ## 模块依赖白名单
 
@@ -25,10 +25,17 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 
 ## 当前全部生产 Java 文件
 
-所有路径相对backend。生产文件逐一登记；测试别名：D=DefinitionTest，I=DurableWorkflowTest，C=ContractTest，A=ArchitectureTest，L=LifecycleTest，T=ControlFlowTest（路径见下文）。实现范围为S1–S3、S4-01资源目录和S4-02a应用契约目录，不含实际外部任务。
+所有路径相对backend。生产文件逐一登记；测试别名：D=DefinitionTest，I=DurableWorkflowTest，C=ContractTest，A=ArchitectureTest，L=LifecycleTest，T=ControlFlowTest，J=ImageDistributionTest（路径见下文）。S4-03当前增加真实一次性Job；验证状态见进度。
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskRunner.java` | 被Worker真实消费的外部任务执行边界 | run | 不定义第二套状态 | RUN-001 | J/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskContext.java` | 租约作用域的冻结计划及停止请求 | job/check/prepared/prepare/cancellation/stop | 只访问Worker传输表；旧owner禁止写计划 | RUN-001 | J |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、文件暂存/收集、远程停止 | run；Spec/Filesystem | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
+| `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
+| `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace S3文件下载/发布/存在校验 | download/publish/published | 管理员凭据文件；产物前缀隔离 | RES-001、RUN-001 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到runtime Job的适配 | run | prepared_json冻结cluster/digest/env/文件；不改Execution状态 | RUN-001、DEP-001 | J/A |
+| `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3连接及真实TaskRunner装配 | Settings/Beans | 外部配置，无业务状态 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionState.java` | 执行/任务状态 | terminal | Execution无RETRYING/SKIPPED；TaskRun可RETRYING/SKIPPED；QUEUED仅Execution | WF-004 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError和TaskRun的phase/retryAt | WF-004、WF-006 | I/C |
@@ -44,7 +51,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/ExecutionReducer.java` | 同组节点就绪与固定重试时间的纯决策 | ready/retryAt | 无I/O；供Executor使用 | WF-008 | L/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表与结果持久化 | dispatch/result/remove/claim/heartbeat/finish | 领取短事务；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007 | I/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerJob.java` | 派发载荷及Lease/Result记录 | record访问器、Result.success/failed | 冻结Task/上下文；TaskRun+Attempt定位，epoch隔离持有者 | WF-007 | I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerEngine.java` | 事务外执行Log/Sleep，心跳和协作中断 | runOnce/close | 不拥有Execution状态；关闭/失租不报告业务失败 | WF-007、WF-008 | I/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerEngine.java` | 事务外执行Log/Sleep或委派真实TaskRunner，心跳和协作中断 | runOnce/close | 不拥有Execution状态；关闭/失租不报告业务失败 | WF-007、WF-008 | I/A |
 | `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程最多4个叶子任务；许可限制并行派发，不阻塞调度线程 | WF-007 | I |
 | `platform-foundation/src/main/java/com/project/platform/foundation/identity/AccessPolicy.java` | Actor与命名空间/action授权 | require | 无存储；拒绝越权 | SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowRevision.java` | 版本内容和列表摘要 | record访问器 | 不可变版本与来源；删除无业务消费者checksum | WF-003 | I/C |
@@ -106,14 +113,20 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - runtime：[V5__control_flow_and_scheduling.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V5__control_flow_and_scheduling.sql)，新增wf_flow_control、wf_schedule和FIFO sequence_no，删除next_task。
 - resource：[V6__resource_catalog.sql](../platform-resource/src/main/resources/db/migration/resource/V6__resource_catalog.sql)，res_cluster、res_dataset_version、res_dataset_location。外键限制同命名空间的集群/版本引用；仅资源模块读写。
 - deployment：[V7__application_contract.sql](../platform-deployment/src/main/resources/db/migration/deployment/V7__application_contract.sql)，dep_application_version。数据集引用仅经资源API验证，不跨模块读表或建跨域外键；当前资源版本不可删除。
-- 共14张业务表。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
-- S4-02a只装配应用目录；应用JSON使用父BOM的Jackson，deployment不依赖runtime JsonCodec。自动派生服务及两个API已撤销，BindingResolver.prepare恢复原实现。没有增加表/字段/SPI，Execution调用链未变。具体字段消费者见[应用契约协议](contracts/s4-application-catalog.md)。
-- 资源链独立于执行链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选检查是声明本地性/格式/禁用状态预览，没有创建Execution、预约或Job。资源字段消费者见[S4-01协议](contracts/s4-resource-catalog.md)。RuntimeConfiguration仅增加目录Bean装配，ApiExceptionHandler增加ResourceException映射；runtime主调用链不变。
+- 共15张业务表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- S4-02a历史批次只装配应用目录；应用JSON使用父BOM的Jackson，deployment不依赖runtime JsonCodec。自动派生服务及两个API已撤销，BindingResolver.prepare恢复原实现。S4-03在真实Task消费者接入显式Binding及Job，不恢复派生链；字段消费者见[Job协议](contracts/s4-job-execution.md)。
+- 资源目录链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选预览不创建Execution、预约或Job；真实执行消费者另外调用JobPlacementService和ObjectStorage。JobConfiguration装配适配器与运行时执行边界；Executor仍独占运行状态。
 - S1/S2活动执行必须排空后停机升级，不提供混版本执行兼容。叶子语义见[S2协议](contracts/s2-protocol.md)，控制树/准入/触发/锁顺序见[S3协议](contracts/s3-protocol.md)。
+
+## S4通用任务实现
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/CommonTaskRunner.java` | HTTP GET/POST和只读SQL、限时/限量/连接边界 | run；HttpConnection/SqlConnection | Worker结果，POST开始标记用既有prepared_json；不新建表 | WF-012 | CommonTaskTest/C |
 
 ## 测试入口
 
-- D：[DefinitionTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/DefinitionTest.java)，10项模型/类型/绑定/模板测试。
+- D：[DefinitionTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/DefinitionTest.java)，14项模型/类型/绑定/模板测试。
 - I：[DurableWorkflowTest](../platform-server/src/test/java/com/project/platform/server/DurableWorkflowTest.java)，72项真实MySQL/HTTP/并发/故障/重启测试：原63项、7项应用目录测试、2项方向修正回归（已撤销接口404、应用登记不改Flow输入/定义/执行结果）。移除8项自动派生测试，保留并改写目录示例和HTTP测试。
 - L：[LifecycleTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/LifecycleTest.java)，3项时长/重试校验、跨阶段定义约束、纯决策测试。
 - C：[ContractTest](../platform-server/src/test/java/com/project/platform/server/ContractTest.java)，3项路由/record字段与引用/示例防漂移检查，不等同完整OpenAPI规范验证器。
@@ -121,7 +134,10 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 
 - T：[ControlFlowTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/ControlFlowTest.java)，6项控制定义/拓扑/分支/额度/Cron/时区DST测试。
 
-- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：独立真实Registry/Skopeo/MySQL/K3s，验证复制层内容、digest重放、认证、白名单、HTTP授权、部署生命周期和失败状态；本批新增，结果见S4进度。
+- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：17项独立真实Registry/Skopeo/MySQL/K3s/MinIO验证，覆盖镜像分发与常驻部署、Application Job、数据集/命名产物、平台槽并发、取消/超时、同Job接管、Python执行及Worker JVM强杀/DB短时故障。
+
+- [CommonTaskTest](../platform-server/src/test/java/com/project/platform/server/CommonTaskTest.java)：6项真实HTTP/MySQL通用任务测试。
+- [DeploymentSmokeIT](../platform-server/src/test/java/com/project/platform/server/DeploymentSmokeIT.java)：Failsafe在package后启动实际JAR，空库迁移/认证/提交执行；不是测试类路径启动。
 
 ## 后续实现位置规划
 
@@ -129,9 +145,9 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 
 | 模块 | 计划内部包 | 主要实现阶段 |
 |---|---|---|
-| workflow-runtime | model、definition、port、spi、executor、scheduler、worker、persistence、runner | S1–S3 |
+| workflow-runtime | model、definition、executor、scheduler、worker、persistence已实现；不预建port/spi/runner空包 | S1–S4 |
 | platform-dataflow | definition、execution、query、metrics | S1–S4 |
-| platform-resource | catalog已实现；后续按真实消费者增加storage、placement、reservation | S4 |
+| platform-resource | catalog、kubernetes、storage、placement已实现；预约归placement，不重复创建reservation层 | S4 |
 | platform-deployment | application、contract、registry、distribution、deployment | S4 |
 | platform-edge | gateway、terminal、policy、delivery | S5 |
 | platform-offloading | eligibility、decision、profile、feedback | S5 |

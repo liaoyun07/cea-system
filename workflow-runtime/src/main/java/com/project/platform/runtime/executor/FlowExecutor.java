@@ -40,7 +40,10 @@ public final class FlowExecutor {
         void refresh() { for(var run:store.tasks(execution.id())) runs.put(run.taskId(),run); }
         void run() {
             if(execution.state()==KILLING && execution.mainState()!=KILLED) {
-                flow.tasks().forEach(this::stopTree); flow.errors().forEach(this::stopTree);
+                boolean stopped=true;
+                for(var task:flow.tasks())stopped&=stopTree(task);
+                for(var task:flow.errors())stopped&=stopTree(task);
+                if(!stopped){wake();return;}
                 store.mainOutcome(execution.id(),KILLED,execution.error()==null?"cancelled":execution.error());
                 execution=store.lock(execution.id());
             }
@@ -128,7 +131,10 @@ public final class FlowExecutor {
             }
             var attempt=attempts.getLast();
             var result=workers.result(run.id(),attempt.attemptNo());
-            if(result==null && spec.timeout()!=null && !now.isBefore(attempt.startedAt().plus(Duration.parse(spec.timeout())))) result=WorkerJob.Result.failed("attempt timed out");
+            if(result==null && spec.timeout()!=null && !now.isBefore(attempt.startedAt().plus(Duration.parse(spec.timeout())))) {
+                if(spec.container()!=null)workers.cancel(run.id(),attempt.attemptNo(),"attempt timed out");
+                else result=WorkerJob.Result.failed("attempt timed out");
+            }
             if(result==null) return;
             workers.remove(run.id(),attempt.attemptNo());
             store.finishAttempt(run,attempt.attemptNo(),result.success()?SUCCESS:FAILED,result.outputs(),result.error(),now);
@@ -139,21 +145,30 @@ public final class FlowExecutor {
         }
         private Map<String,Object> context(TaskRun run,int attempt) {
             return Map.of("inputs",execution.inputs(),"vars",execution.variables(),"outputs",store.successfulOutputs(execution.id()),
-                    "execution",Map.of("id",execution.id()),"taskrun",Map.of("id",run.id(),"attemptsCount",attempt));
+                    "execution",Map.of("id",execution.id(),"namespace",execution.namespace(),"submittedBy",execution.submittedBy()),"taskrun",Map.of("id",run.id(),"attemptsCount",attempt));
         }
         private void skipTree(Task spec) {
             var run=runs.get(spec.id());
             if(run.state()==CREATED) store.skip(execution.id(),run.taskIndex(),run.taskIndex()+1,now);
             spec.tasks().forEach(this::skipTree);spec.thenTasks().forEach(this::skipTree);spec.elseTasks().forEach(this::skipTree);refresh();
         }
-        private void stopTree(Task spec) {
+        private boolean stopTree(Task spec) {
             var run=runs.get(spec.id());
             if(run.state()==RUNNING||run.state()==RETRYING) {
                 var attempts=store.attempts(run.id());
+                if(spec.container()!=null && run.state()==RUNNING && !attempts.isEmpty()) {
+                    int attempt=attempts.getLast().attemptNo();
+                    workers.cancel(run.id(),attempt,"cancelled");
+                    if(workers.result(run.id(),attempt)==null)return false;
+                }
                 if(!attempts.isEmpty()) workers.remove(run.id(),attempts.getLast().attemptNo());
                 store.killTask(run,now);
             } else if(run.state()==CREATED) skipTree(spec);
-            spec.tasks().forEach(this::stopTree);spec.thenTasks().forEach(this::stopTree);spec.elseTasks().forEach(this::stopTree);refresh();
+            boolean stopped=true;
+            for(var child:spec.tasks())stopped&=stopTree(child);
+            for(var child:spec.thenTasks())stopped&=stopTree(child);
+            for(var child:spec.elseTasks())stopped&=stopTree(child);
+            refresh();return stopped;
         }
     }
 }

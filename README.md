@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前实现S1–S3执行能力、S4-01集群/数据集目录与本地性检查、S4-02a应用契约目录及S4-02b/c镜像准备/常驻部署。真实叶子任务仍只有Log/Sleep；没有迁入旧数据，也未实现容器任务、DQN或前端。S4未整体验收，当前状态见进度文档。
+独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。123项统一验证通过，见[S4验收](docs/verification/VER-S4-005-external-task-runtime.md)。没有迁入旧数据，DQN和前端未实现；S5未进入。
 
 ## 文档入口
 
@@ -28,8 +28,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V7，创建14张业务表及迁移历史表。
-测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证按后续阶段落实；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V9，创建15张业务表及迁移历史表。
+测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：
 
@@ -106,12 +106,12 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 [资源API与JSON示例](docs/contracts/s4-resource-catalog.md)提供集群注册/启停、不可覆盖的数据集版本及位置登记、分页查询和候选检查。使用既有Basic与命名空间READ/WRITE权限；目录API不需要EXECUTE权限，因为不会创建任务。
 
-只检查已登记的位置/格式/启用标志，不连接Kubernetes或对象存储验证真实性，也不进行资源预约。完整运行契约、真实Job与观测仍在S4待实施；不能把预览结果当成可用容量保证。
+目录预览只检查已登记的位置/格式/启用标志，不保证真实可用容量。S4-03执行时另外检查Ready节点、数据本地性并预约平台Job名额，随后创建真实Job；详见[执行协议](docs/contracts/s4-job-execution.md)。
 
 ## S4-02a应用契约目录
 
 [应用目录API](docs/contracts/s4-application-catalog.md)支持版本登记、查询及参数类型、默认值、choices、数据集允许范围校验。[契约示例](examples/s4-application-contract.json)引用mnist/v1，登记前需通过资源API注册对应pt数据版本；不会拉取或执行示例镜像。
 
-Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code和Application/Container Task尚未实现。
+Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code尚未实现。Application Task使用同一份Flow及既有Binding。
 
-后续S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。容器Flow、命名产物/选址预约仍待S4-03；不能把常驻Deployment当成一次性Job。当前剩余S4已获授权，不进入S5。
+S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。当前剩余S4已获授权，不进入S5。

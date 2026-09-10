@@ -76,7 +76,7 @@ public class RuntimeConfiguration {
         return new FlowExecutor(store, workers, bindings, renderer, reducer);
     }
     @Bean(destroyMethod="close") WorkerEngine workerEngine(JdbcWorkerStore workers,TemplateRenderer renderer,
-                                                        @Value("${platform.worker.lease-ms:3000}") long leaseMs) {
-        return new WorkerEngine(workers,renderer,leaseMs);
+                                                        @Value("${platform.worker.lease-ms:3000}") long leaseMs,com.project.platform.runtime.worker.TaskRunner runner) {
+        return new WorkerEngine(workers,renderer,leaseMs,runner);
     }
 }

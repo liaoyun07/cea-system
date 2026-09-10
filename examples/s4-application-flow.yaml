@@ -1,0 +1,30 @@
+schemaVersion: 1
+namespace: lab
+id: application-artifacts
+inputs:
+  greeting: {type: STRING, defaultValue: hello}
+tasks:
+  - id: create
+    type: platform.Application
+    timeout: PT2M
+    container:
+      applicationId: shell-tools
+      version: v1
+      candidateClusters: [edge]
+      command: [sh, -c, 'printf "%s\n" "$GREETING" > /cea-work/out/message.txt']
+      parameters:
+        GREETING: {source: INPUT, name: greeting}
+      outputFiles: [message.txt]
+  - id: consume
+    type: platform.Application
+    timeout: PT2M
+    container:
+      applicationId: shell-tools
+      version: v1
+      candidateClusters: [edge]
+      command: [sh, -c, 'cat /cea-work/in/source > /cea-work/out/result.txt']
+      inputFiles:
+        source: {source: TASK_OUTPUT, taskId: create, port: message.txt}
+      outputFiles: [result.txt]
+outputs:
+  result: {source: TASK_OUTPUT, taskId: consume, port: result.txt}

@@ -13,16 +13,17 @@ public final class WorkerEngine implements AutoCloseable {
     private final JdbcWorkerStore store;
     private final TemplateRenderer renderer;
     private final long leaseMs;
+    private final TaskRunner runner;
     private final String owner=UUID.randomUUID().toString();
     private final ExecutorService tasks=Executors.newVirtualThreadPerTaskExecutor();
-    public WorkerEngine(JdbcWorkerStore store,TemplateRenderer renderer,long leaseMs) {
+    public WorkerEngine(JdbcWorkerStore store,TemplateRenderer renderer,long leaseMs,TaskRunner runner) {
         if(leaseMs<300 || leaseMs>60000) throw new IllegalArgumentException("worker lease-ms must be 300..60000");
-        this.store=store;this.renderer=renderer;this.leaseMs=leaseMs;
+        this.store=store;this.renderer=renderer;this.leaseMs=leaseMs;this.runner=runner;
     }
     public boolean runOnce() {
         var lease=store.claim(owner,leaseMs);
         if(lease==null) return false;
-        Future<Result> future=tasks.submit(()->execute(lease.job()));
+        Future<Result> future=tasks.submit(()->java.util.Set.of("core.Log","core.Sleep").contains(lease.job().task().type())?execute(lease.job()):runner.run(new TaskContext(store,lease)));
         try {
             while(true) {
                 try {
@@ -33,6 +34,10 @@ public final class WorkerEngine implements AutoCloseable {
                     if(!store.heartbeat(lease,leaseMs)) return true;
                 } catch(ExecutionException failed) {
                     if(failed.getCause() instanceof InterruptedException) return true;
+                    var cause=failed.getCause();
+                    System.getLogger(WorkerEngine.class.getName()).log(System.Logger.Level.ERROR,
+                            "Worker failure {0}; taskRun={1}; frames={2}",cause.getClass().getName(),lease.job().taskRunId(),java.util.Arrays.toString(cause.getStackTrace()));
+                    if(lease.job().task().container()!=null)return true; // An uncertain remote Job is reconciled, never blindly retried.
                     store.finish(lease,Result.failed("task execution failed"));
                     return true;
                 }

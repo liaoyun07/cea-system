@@ -1,28 +1,21 @@
 # 当前进度
 
-更新时间：2026-09-10。当前阶段：S4资源与运行环境。阶段状态：IN_PROGRESS；S4-01和S4-02a已验收；本次S4-02b/c真实镜像复制与常驻部署已验收，最终全量103项通过。剩余S4-03/04/05仍需独立完成。
+更新时间：2026-09-10。S4已按明确的最小范围完成：S4-01/02为已验收基线，本批S4-03/04/05统一verify于13:07:08 +08:00通过123项，0失败/错误/跳过；S5未进入。见[验收记录](verification/VER-S4-005-external-task-runtime.md)。
 
 ## 当前事实
 
-- 独立8模块保留，62份生产Java（含8份包声明）、7个测试类；项目模块依赖不变。新增Fabric8 Kubernetes Client 7.7.0与测试K3s，Boot/JDK/数据库基线不变。
-- S1定义/类型绑定、版本/CAS/回滚、幂等提交和查询保留；S2Worker租约/epoch、同Attempt接管、固定重试/超时/取消与Errors/Finally已回归。
-- 新增嵌套Sequential/Parallel/Dag/If；DAG同组依赖与声明顺序无关；If选择持久化、未选分支跳过。控制节点只有TaskRun，只有叶子创建Attempt/WorkerJob。
-- 新增Flow并发limit、QUEUE/FAIL和持久FIFO；同namespace/flowId跨版本共用最新额度，清理结束才释放。排队取消无Attempt/Finally，活跃取消保留清理。
-- 新增单Flow六字段Cron、时区、disabled、静态inputs和持久游标；双Scheduler锁内去重，错过多次只补一个已持久到期点。默认每Worker进程4个并发叶子任务。
-- 真实调用链：手动HTTP/dataflow或Scheduler → ExecutionService准入 → FlowExecutor解释控制树/派发 → Worker事务外执行 → 持久结果 → Executor归并、清理、提升队列。
-- 14张业务表。dataflow只拥有定义头和修订，runtime拥有运行/传输/Flow门控/Schedule表，resource拥有3张资源目录表，deployment拥有应用契约版本表；不跨模块访问对方Repository。V7不改变执行表。
-- 删除SequentialExecutor和wf_execution.next_task，以统一FlowExecutor替代；没有旧执行器兼容开关，没有增加Broker/WorkerGroup/空SPI或第二套运行状态。字段消费者见[S3协议](contracts/s3-protocol.md)。
-- S3历史统一verify为75项通过，见[S3验收](verification/VER-S3-001-control-scheduling.md)。本批统一scripts/verify.ps1于18:01:48 +08:00通过86项（19单元+63真实MySQL集成+3协议+1架构），0失败/错误/跳过，结构检查通过；测试容器与JVM已退出，见[S4-01验证](verification/VER-S4-001-resource-catalog.md)。
-- S3验证只运行隔离测试MySQL和自己的测试JVM，均已清理；旧web-platform、旧数据库、旧镜像未修改或迁移。随后用户授权将新backend首次提交并发布到公开仓库，不扩大到旧工程。
-- 新增资源链：HTTP → ResourceCatalogService授权/校验 → JdbcResourceRepository。支持集群注册/启停、不可覆盖的数据集版本及位置、分页查询、候选本地性/格式/禁用原因检查。预览不创建Execution，不选择最终位置、不预约或派发。
-- S4-02a保留应用契约版本登记/查询及类型/默认值/choices/数据集约束。撤销自动Flow Input派生、共享别名与choices求交集，不生成InputRef/Literal；作者显式定义Flow输入及Task来源。没有第二套alias/binding。
-- 应用链：HTTP → ApplicationCatalogService → JdbcApplicationRepository（数据集规则走资源公开接口）。删除独立参数绑定链及两个HTTP接口；prepareInputs没有独立消费者，BindingResolver.prepare恢复78203a7实现。Execution主链不变。
-- 可运行的叶子仍仅Log/Sleep；命名产物/路径注入、资源观测、容器Flow/HTTP/SQL/隔离脚本、真实跨云选址/DQN/Repeat/算法计量/前端均未实现。目录API不会运行镜像，不保证数据存在或集群健康。
-- S4-01以已发布071ff4b为基线；2026-09-10用户授权更新GitHub，本批源码、测试、协议和文档纳入Git发布。测试证据保留验证当时的基线与工作区说明；旧系统没有修改。
-- S4-02a原派生方案已发布为2d3c44f，101项结果仅为历史证据。本次基于该提交修正方向，删除3个生产Java文件及6个record、2个API、1个绑定示例；表和迁移不变。当前验证见[方向修正记录](verification/VER-S4-003-explicit-flow-boundary.md)，不沿用历史101项冒充本次通过。
-
-- 本次新增镜像链：HTTP → ImageDistributionService → Skopeo真实复制并验证digest；部署链：HTTP → DeploymentService → Kubernetes。Kubernetes拥有常驻Deployment期望/实际状态，不写Execution表，不新增业务表/SPI，不恢复别名派生。详情见[部署协议](contracts/s4-image-deployment.md)。
-- 新增准备1个、常驻部署4个HTTP操作，当前共27操作、30个协议record映射。registry认证和Kubernetes namespace Role均有真实测试，P04/P05得到部分验证；不等于S4-05全量保障已完成。
+- 独立8模块，70份生产Java（含8份包声明），9个测试类（含1个Failsafe部署测试）；模块依赖不变。runtime不依赖业务模块。
+- 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
+- 主链：提交 → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally。新增Application适配资源/应用公开接口与KubernetesJobRunner；没有第二套Executor。
+- 叶子支持Log/Sleep、真实Application Job、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application Pod内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
+- 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
+- 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
+- V1–V9共15张业务表：原14张和resource预约表；Worker传输增加cancel_reason/prepared_json。没有新映射表/领域状态/hash；字段消费者见协议。
+- 当前27个HTTP操作，33个公开record映射。新增能力沿用既有Flow/Execution API，不新增Worker HTTP端点。
+- 本批统一验收123项：runtime 23、持久化/恢复72、真实镜像/Job 17、HTTP/SQL 6、协议3、架构1、实际JAR启动1。完整明细及历史失败/修正见本批验收记录。
+- 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
+- 仍未实现：前端/No-code、Repeat、FedAvg/FedProx新后端迁移、终端接入/卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。S5未进入。
+- 详细语义：[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)、[最小部署](operations/s4-minimal-deployment.md)。设计取舍见ADR-0009/0010；完整源码索引见架构文档。
 
 ## 阶段看板
 
@@ -32,7 +25,7 @@
 | S1 定义和最小闭环 | DONE | PASS；S1历史与本次回归 |
 | S2 恢复和失败语义 | DONE | PASS；S2历史与本次回归 |
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
-| S4 资源与运行环境 | IN_PROGRESS | S4-01、S4-02完成；S4-03/04/05未完成，阶段验收未满足 |
+| S4 资源与运行环境 | DONE | PASS；123项统一verify，见VER-S4-005；最小范围与限制见下文 |
 | S5 边缘卸载与研究能力 | NOT_STARTED | NOT_RUN |
 | S6 P2与编辑管理 | NOT_STARTED | NOT_RUN |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
@@ -43,15 +36,15 @@
 |---|---|---|
 | S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
 | S4-02 | DONE | a纯契约目录保留，b真实镜像分发/c常驻部署完成；103项统一verify PASS，见VER-S4-004 |
-| S4-03 | NOT_STARTED | 真实资源观测、选址/原子预约、K8s Job/产物及同Attempt接管 |
-| S4-04 | NOT_STARTED | HTTP/SQL及隔离Shell/Python任务 |
-| S4-05 | NOT_STARTED | P04/P05/P06/P11最小部署与故障验收 |
+| S4-03 | DONE | 真实Job/产物/同Attempt接管/取消/平台槽及全量回归PASS |
+| S4-04 | DONE | GET/POST、只读SQL、隔离Shell/Python及全量回归PASS |
+| S4-05 | DONE | 真实JVM强杀、DB短时故障、可执行JAR空库启动与统一验收PASS |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-剩余S4已获用户授权，不需要再次确认同一范围。后续按S4-03真实Job/本地数据/预约/接管与取消闭环、S4-04通用任务、S4-05最小部署故障验收推进；不把尚未实现的能力标为完成，不进入S5。
+本次S4授权范围已完成，不自动进入S5。下一阶段按计划处理边缘接入/终端卸载、Repeat与研究能力；数据处理速率口径须在S5开始时讨论确定。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -94,3 +87,5 @@
 2026-09-10：S4-02a原版本发布为2d3c44f。用户随后要求撤销自动派生，按修订ADR-0007保留应用目录，恢复Flow显式声明边界；没有新增业务能力或数据库迁移，S4-02仍IN_PROGRESS，b/c与S4-03未开始。clean后统一verify于01:53:56 +08:00通过95项（19单元+72真实MySQL集成+3协议+1架构），0失败/错误/跳过，见VER-S4-003。按持续授权纳入本次GitHub发布。
 
 2026-09-10：用户授权完成剩余S4，本批完成S4-02b/c。统一verify于02:33:49 +08:00通过103项；新增8个生产Java、5个API，无新表/迁移/SPI，Execution主链未变。镜像复制/常驻部署使用真实Registry/K3s及限定namespace凭据测试，见[验证记录](verification/VER-S4-004-image-deployment.md)。S4-03/04/05未标完成，按持续授权提交发布此可验收子批次。
+
+2026-09-10：继续完成S4-03/04/05，123项统一verify于13:07:08 +08:00通过，S4按已记录的最小范围DONE。新增8份生产Java、1张预约表、2个Worker传输字段，无新HTTP操作或自动Flow Input/alias；真实Job/文件/通用任务、强杀/DB短时故障和实际JAR验收见[VER-S4-005](verification/VER-S4-005-external-task-runtime.md)。按持续授权提交GitHub，S5未进入。

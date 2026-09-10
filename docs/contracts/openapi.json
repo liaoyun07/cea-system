@@ -2221,6 +2221,9 @@
             "enum": [
               "core.Log",
               "core.Sleep",
+              "platform.Application",
+              "core.Http",
+              "core.Sql",
               "core.Sequential",
               "core.Parallel",
               "core.Dag",
@@ -2299,6 +2302,15 @@
               "null"
             ],
             "description": "If expression must render true or false; choice persisted"
+          },
+          "container": {
+            "anyOf": [{"$ref": "#/components/schemas/Container"}, {"type": "null"}]
+          },
+          "http": {
+            "anyOf": [{"$ref": "#/components/schemas/HttpTask"}, {"type": "null"}]
+          },
+          "sql": {
+            "anyOf": [{"$ref": "#/components/schemas/SqlTask"}, {"type": "null"}]
           }
         },
         "required": [
@@ -2306,7 +2318,37 @@
           "type"
         ],
         "additionalProperties": false,
-        "description": "Log requires message and forbids duration; Sleep requires duration and forbids message. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout. dependsOn is allowed only on direct children of the same Dag. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
+        "description": "Log requires message; Sleep requires duration. Application/Http/Sql require timeout and their matching container/http/sql section, forbidding message/duration. Http supports GET/POST; POST forbids retry. Sql supports one parameterized read-only SELECT. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout. dependsOn is allowed only on direct children of the same Dag; referenced task outputs must be upstream. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
+      },
+      "Container": {
+        "type": "object",
+        "properties": {
+          "applicationId": {"type": "string"},
+          "version": {"type": "string"},
+          "candidateClusters": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string"}},
+          "command": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string", "maxLength": 8192}},
+          "parameters": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
+          "inputFiles": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
+          "outputFiles": {"type": "array", "maxItems": 30, "items": {"type": "string"}}
+        },
+        "required": ["applicationId", "version", "candidateClusters", "command"],
+        "additionalProperties": false,
+        "description": "Explicit application task. Requires timeout. Inputs staged at /cea-work/in/name; outputs collected from /cea-work/out/name. Dataset parameter P also injects P_PATH. No automatic Flow inputs. See s4-job-execution.md."
+      },
+      "HttpTask": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "connection": {"type": "string"}, "method": {"enum": ["GET", "POST"]},
+          "path": {"$ref": "#/components/schemas/Binding"},
+          "body": {"anyOf": [{"$ref": "#/components/schemas/Binding"}, {"type": "null"}]}
+        }, "required": ["connection", "method", "path"]
+      },
+      "SqlTask": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "connection": {"type": "string"}, "query": {"type": "string", "maxLength": 65536},
+          "parameters": {"type": "array", "maxItems": 100, "items": {"$ref": "#/components/schemas/Binding"}}
+        }, "required": ["connection", "query"]
       },
       "FlowDefinition": {
         "type": "object",

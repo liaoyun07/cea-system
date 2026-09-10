@@ -9,6 +9,47 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DefinitionTest {
+    @Test void postCannotRetryAndSqlCannotWriteOrUseMultipleStatements() {
+        String base="schemaVersion: 1\nnamespace: lab\nid: common\ntasks:\n";
+        assertThrows(WorkflowException.class,()->parser.parse(base+"  - {id: post, type: core.Http, timeout: PT1S, retry: {type: constant, maxAttempts: 2, interval: PT1S}, http: {connection: c, method: POST, path: {source: LITERAL, value: /}}}\n"));
+        for(String query:List.of("DELETE FROM t","SELECT 1; SELECT 2"))assertThrows(WorkflowException.class,()->parser.parse(base+"  - {id: sql, type: core.Sql, timeout: PT1S, sql: {connection: c, query: '"+query+"'}}\n"));
+    }
+    private String application(String extra) {return """
+            schemaVersion: 1
+            namespace: lab
+            id: app
+            tasks:
+              - id: run
+                type: platform.Application
+                timeout: PT1M
+                container:
+                  applicationId: app
+                  version: '1'
+                  candidateClusters: [edge]
+                  command: [sh, -c, 'true']
+            """+extra;}
+    @Test void applicationDoesNotDeriveInputsAndRoundTripsExplicitBindings() {
+        var flow=parser.parse(application("""
+                      parameters:
+                        COUNT: {source: LITERAL, value: 2}
+                      outputFiles: [model.bin]
+                outputs:
+                  model: {source: TASK_OUTPUT, taskId: run, port: model.bin}
+                """));
+        assertTrue(flow.inputs().isEmpty());assertEquals(flow,parser.parse(json.write(flow)));
+    }
+    @Test void applicationRejectsTraversalAndMissingTimeout() {
+        assertThrows(WorkflowException.class,()->parser.parse(application("      outputFiles: ['../other']\n")));
+        assertThrows(WorkflowException.class,()->parser.parse(application("").replace("    timeout: PT1M\n","")));
+        assertThrows(WorkflowException.class,()->parser.parse(application("      aliases: {a: b}\n")));
+    }
+    @Test void applicationCannotReadFutureOrParallelSiblingWithoutDependency() {
+        String flow=application("      parameters: {VALUE: {source: TASK_OUTPUT, taskId: later, port: message}}\n  - {id: later, type: core.Log, message: hi}\n");
+        assertThrows(WorkflowException.class,()->parser.parse(flow));
+        String parallel="schemaVersion: 1\nnamespace: lab\nid: app\ntasks:\n  - id: group\n    type: core.Parallel\n    tasks:\n"
+                +flow.substring(flow.indexOf("  - id: run")).indent(4);
+        assertThrows(WorkflowException.class,()->parser.parse(parallel));
+    }
     private final TemplateRenderer renderer = new TemplateRenderer();
     private final FlowValidator validator = new FlowValidator(renderer);
     private final FlowParser parser = new FlowParser(validator);
@@ -17,7 +58,7 @@ class DefinitionTest {
 
     private FlowDefinition flow(Map<String,Input> inputs, Map<String,Binding> variables, Map<String,Binding> outputs) {
         return new FlowDefinition(1,"lab","test","test",Map.of(),inputs,variables,
-                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null)),outputs,null,null,null,null);
+                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null);
     }
 
     @Test void jsonAndYamlHaveTheSameModel() {
@@ -45,10 +86,10 @@ class DefinitionTest {
 
     @Test void duplicateTaskAndUnsupportedTaskAreRejected() {
         FlowDefinition duplicate = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(duplicate));
         FlowDefinition unsupported = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(unsupported));
     }
 
