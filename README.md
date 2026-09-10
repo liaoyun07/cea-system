@@ -1,10 +1,10 @@
 # 云边端协同平台新后端
 
-S6已开始：首批为[编辑与流程管理](docs/contracts/s6-flow-editing.md)，支持同一Flow的结构Schema、无副作用校验/输入预览、原子导入、源导出和搜索；测试进展见[当前进度](docs/04-progress.md)。Namespace Files和触发/后处理等后续批次、完整前端仍未实现；DQN研究与S5计量按用户决定后置。
+S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing.md)，本轮补充[Namespace Files、Webhook/Checks、SLA和afterExecution](docs/contracts/s6-files-lifecycle.md)，212项Maven及12项Python完整回归通过，见[当前进度](docs/04-progress.md)。沿用唯一Flow和执行链；完整前端未实现，DQN研究与S5计量按用户决定后置。
 
-当前增量为S5-04c最小解耦：普通CLUSTER和固定TERMINAL不再访问卸载观测，资源回收依据实际预约；既有显式RULE/单步Q保留但研究扩展后置。S5-05先确认计量口径，当前尚无SDK。见[ADR-0017](docs/decisions/ADR-0017-offloading-decoupling.md)，验证进展见[进度](docs/04-progress.md)。
+既有S5-04c最小解耦保持：普通CLUSTER和固定TERMINAL不再访问卸载观测，资源回收依据实际预约；既有显式RULE/单步Q保留但研究扩展后置。S5-05先确认计量口径，当前尚无SDK。见[ADR-0017](docs/decisions/ADR-0017-offloading-decoupling.md)，验证进展见[进度](docs/04-progress.md)。
 
-独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已有Repeat、Loop、FedAvg/FedProx、网关/终端后端接入、策略管理和Docker执行。本批S5-04b新增显式终端卸载、规则/单步Q网络、画像反馈和终端FIFO，真实三位置执行及训练闭环、188项Maven和12项Python完整回归均通过，见[最新验收](docs/verification/VER-S5-006-terminal-offloading.md)。S5整体仍进行中；计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收；单步Q网络不是长期DQN性能结论。
+独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已有Repeat、Loop、FedAvg/FedProx、网关/终端后端接入、策略管理和Docker执行。S5-04b此前新增显式终端卸载、规则/单步Q网络、画像反馈和终端FIFO，真实三位置执行及训练闭环、188项Maven和12项Python完整回归均通过，见[最新验收](docs/verification/VER-S5-006-terminal-offloading.md)。S5整体仍进行中；计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收；单步Q网络不是长期DQN性能结论。
 
 ## 文档入口
 
@@ -37,7 +37,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V15，创建22张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V17，创建23张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：

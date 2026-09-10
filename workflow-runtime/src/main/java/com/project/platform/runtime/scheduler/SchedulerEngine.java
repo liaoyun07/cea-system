@@ -26,7 +26,14 @@ public final class SchedulerEngine {
             var due=schedules.lockDue(candidate); if(due==null) return false;
             var payload=due.payload(); var flow=payload.flow();
             String key="schedule:"+flow.id()+":"+due.at().toEpochMilli();
-            submissions.submit(flow,payload.revision(),payload.actor(),key,json.hash(payload),bindings.prepare(flow,flow.schedule().inputs()));
+            var prepared=bindings.prepare(flow,flow.schedule().inputs());
+            // A rejected gate consumes this occurrence, not the next ones; no rejected Execution is created.
+            try {bindings.checks(flow,prepared);}
+            catch(com.project.platform.runtime.model.WorkflowException ex) {
+                System.getLogger(SchedulerEngine.class.getName()).log(System.Logger.Level.WARNING,"Scheduled execution blocked: {0}/{1}: {2}",flow.namespace(),flow.id(),ex.getMessage());
+                schedules.advance(due,ScheduleCalculator.next(flow.schedule(),executions.now()));return true;
+            }
+            submissions.submit(flow,payload.revision(),payload.actor(),key,json.hash(payload),prepared);
             schedules.advance(due,ScheduleCalculator.next(flow.schedule(),executions.now()));
             return true;
         });

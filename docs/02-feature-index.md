@@ -1,6 +1,6 @@
 # 功能与验证索引
 
-当前增量：S6-01编辑协议和流程管理已完成，199项Maven及12项Python完整回归、14项中文/契约收尾复测PASS，见[验收](verification/VER-S6-001-flow-editing.md)。WF-015的Namespace Files及WF-014仍未实现，WF-016完成的是后端编辑协议，不是完整前端。用户同意S5计量和DQN研究后置，MET-001仍未实现。
+当前增量：S6-02至04的Namespace Files、Webhook/Checks/SLA/afterExecution已实现，212项Maven/12项Python完整verify通过，见[验收](verification/VER-S6-002-files-lifecycle.md)。WF-016完成的是后端编辑协议，不是完整前端。用户同意S5计量和DQN研究后置，MET-001仍未实现。
 
 本表是功能编号和状态的唯一汇总。NOT_STARTED 表示没有业务实现，NOT_RUN 表示没有该功能的测试结果。SCAFFOLD 仅指目录、POM 和包声明，不能称为业务完成。
 
@@ -21,8 +21,8 @@
 | WF-012 | HTTP/SQL 与隔离 Shell/Python Task | S4 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-013 | Repeat 状态反馈、轮次隔离和屏障 | S5 | workflow-runtime | IMPLEMENTED | PASS |
 | FL-001 | FedAvg/FedProx应用与显式Flow迁移 | S5 | platform-dataflow | IMPLEMENTED | PASS |
-| WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | NOT_STARTED | NOT_RUN |
-| WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | IN_PROGRESS | PARTIAL |
+| WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | IMPLEMENTED | PASS |
+| WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-017 | 通用动态Loop、item作用域、有序集合输出 | S5 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | IMPLEMENTED（后端协议） | PASS |
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
@@ -41,7 +41,7 @@
 
 状态定义见[文档规范](05-documentation-guide.md)。FND-001 的具体范围见[框架规格](features/FND-001-scaffold.md)。WF-001至WF-006及SEC-001本地部分见[S1规格](features/WF-001-006-s1.md)与[验收记录](verification/VER-S1-001-durable-log.md)。WF-007/008见[S2规格](features/WF-007-008-s2.md)与[S2验收记录](verification/VER-S2-001-worker-lifecycle.md)。本次同时回归S1。未开始功能用[模板](features/TEMPLATE.md)补齐行为和验收条件，不为未开始功能批量制造空规格。
 
-SEC-001 分层落地：S1 保证本地接口边界与身份契约；接入站点/远程Worker API前完成真实鉴权；S2共享专用MySQL的本地Worker进程不提供远程Worker HTTP接口，不能把“后面做权限”当成可上线状态。WF-016 的完整前端实现需明确授权与前端工程范围，新后端当前只规划协议与编辑 Schema。
+SEC-001 分层落地：S1 保证本地接口边界与身份契约；接入站点/远程Worker API前完成真实鉴权；S2共享专用MySQL的本地Worker进程不提供远程Worker HTTP接口，不能把“后面做权限”当成可上线状态。WF-016 的完整前端实现需明确授权与前端工程范围，新后端已实现后端编辑协议与 Schema。
 
 WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-protocol.md)与[验收记录](verification/VER-S3-001-control-scheduling.md)。S3历史75项测试通过；控制任务由Executor解释；该历史阶段叶子仅Log/Sleep。
 
@@ -49,9 +49,11 @@ S4工作包见[S4规格](features/S4-resource-runtime.md)。S4-01/02历史验收
 
 RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预约平台槽，不冒充CPU物理独占。DEP-001仍为纯契约目录，显式Flow绑定在真实执行消费者解析。命名文件由Flow声明，不新增自动alias/映射表。DEP-002常驻Deployment不等于Job。
 
-详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、完整No-code前端仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。当前进入S6-01后端编辑/管理，S7未进入。
+详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、完整No-code前端仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S6后端范围已完成并通过完整回归；S7未进入。
 
 SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
 S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，MET未实现；S5整体仍IN_PROGRESS。EDGE-001/002已按后端接入/策略协议范围完成，166项全量回归及107项收尾复测通过，见[接入验收](verification/VER-S5-004-edge-access.md)；不表示已部署物理网关代理。
 
 S5-04a完成RUN-001终端Docker与可信来源基础；S5-04b增加OFF-001/002的显式卸载、规则/单步Q、画像/反馈及终端FIFO。新增3表、3个HTTP操作，原执行链不变。188项Maven与12项Python全量验证通过，见[本批验收](verification/VER-S5-006-terminal-offloading.md)。状态仅代表当前最小范围，单步模型不等于多步长期DQN优化，未做策略性能对比。
+
+S6-02至04及完整verify已完成；字段消费者、最小范围及验证见[协议](contracts/s6-files-lifecycle.md)与[VER-S6-002](verification/VER-S6-002-files-lifecycle.md)。不做完整前端、计量或长期DQN。

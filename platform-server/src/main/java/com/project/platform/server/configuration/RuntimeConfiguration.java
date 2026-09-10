@@ -20,6 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 public class RuntimeConfiguration {
+    @Bean NamespaceFileService namespaceFileService(JdbcTemplate jdbc,TransactionTemplate transactions,AccessPolicy access) {
+        return new NamespaceFileService(jdbc,transactions,access);
+    }
     @Bean com.project.platform.deployment.application.JdbcApplicationRepository applicationRepository(JdbcTemplate jdbc) {
         return new com.project.platform.deployment.application.JdbcApplicationRepository(jdbc);
     }

@@ -68,7 +68,7 @@ class DefinitionTest {
 
     private FlowDefinition flow(Map<String,Input> inputs, Map<String,Binding> variables, Map<String,Binding> outputs) {
         return new FlowDefinition(1,"lab","test","test",Map.of(),inputs,variables,
-                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null);
+                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null,null,null,null,null);
     }
 
     @Test void jsonAndYamlHaveTheSameModel() {
@@ -93,13 +93,24 @@ class DefinitionTest {
         assertThrows(WorkflowException.class, () -> parser.parse(valid + "compatibilityMode: true\n"));
         assertThrows(WorkflowException.class, () -> parser.parse(valid + "id: duplicate\n"));
     }
+    @Test void s6LifecycleAndPinnedFileDefinitionsRejectInvalidFields() {
+        String simple="schemaVersion: 1\nnamespace: lab\nid: example\ntasks: [{id: main, type: core.Log, message: hi}]\n";
+        for(String suffix:List.of("sla: {maxDuration: PT0S}","sla: {maxDuration: PT25H}",
+                "checks: [{when: 'true'}]","afterExecution: [{id: main, type: core.Log, message: duplicate}]"))
+            assertThrows(WorkflowException.class,()->parser.parse(simple+suffix));
+        String container="schemaVersion: 1\nnamespace: lab\nid: example\ntasks:\n  - id: app\n    type: platform.Application\n    timeout: PT1S\n    container:\n      applicationId: tool\n      version: v1\n      candidateClusters: [edge]\n      command: [sh]\n      namespaceFiles: {script: {path: scripts/run.sh, revision: 1}}\n";
+        assertNotNull(parser.parse(container));
+        for(String invalid:List.of(container.replace("revision: 1","revision: 0"),container.replace("scripts/run.sh","../run.sh"),
+                container+"      inputFiles: {script: {source: LITERAL, value: s3://bucket/file}}\n"))
+            assertThrows(WorkflowException.class,()->parser.parse(invalid));
+    }
 
     @Test void duplicateTaskAndUnsupportedTaskAreRejected() {
         FlowDefinition duplicate = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(duplicate));
         FlowDefinition unsupported = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(unsupported));
     }
 

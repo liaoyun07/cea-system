@@ -32,13 +32,16 @@ public final class ApplicationTaskRunner implements TaskRunner {
     private final OffloadingService offloading;
     private final JsonCodec json;
     private final BindingResolver bindings;
+    private final com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles;
     private final KubernetesJobRunner runner=new KubernetesJobRunner();
     private final DockerTaskRunner docker=new DockerTaskRunner();
     public ApplicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,Function<WorkerJob,Actor> identities,
-            Function<WorkerJob,TerminalTarget> terminals,OffloadingService offloading,JsonCodec json,BindingResolver bindings) {
+            Function<WorkerJob,TerminalTarget> terminals,OffloadingService offloading,JsonCodec json,BindingResolver bindings,
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles) {
         this.applications=applications;this.resources=resources;this.images=images;this.placement=placement;this.connections=connections;
         this.storage=storage;this.identities=identities;this.terminals=terminals;this.offloading=offloading;this.json=json;this.bindings=bindings;
+        this.namespaceFiles=namespaceFiles;
     }
     @Override public WorkerJob.Result run(TaskContext context) throws Exception {
         var job=context.job();var execution=(Map<?,?>)job.context().get("execution");
@@ -103,6 +106,14 @@ public final class ApplicationTaskRunner implements TaskRunner {
         var env=new LinkedHashMap<String,String>();values.forEach((name,value)->{if(value!=null)env.put(name,value.toString());});
         var inputUris=new LinkedHashMap<String,String>();
         var inlineFiles=new LinkedHashMap<String,String>();var names=new HashSet<String>();
+        int textBytes=0;
+        for(var entry:c.namespaceFiles().entrySet()) {
+            reserveName(names,entry.getKey());var ref=entry.getValue();
+            String content=namespaceFiles.forExecution(actor,namespace,ref.path(),ref.revision()).content();
+            textBytes+=content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if(textBytes>262144)throw WorkflowException.invalid("namespaceFiles","at most 256KiB per task");
+            inlineFiles.put(entry.getKey(),content);
+        }
         for(var entry:c.inputFiles().entrySet()) {
             Object value=bindings.resolve(entry.getValue(),context.job().context());
             if(value instanceof String uri) {

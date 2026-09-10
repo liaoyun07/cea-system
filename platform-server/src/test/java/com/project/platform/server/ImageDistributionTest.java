@@ -713,6 +713,35 @@ class ImageDistributionTest {
             assertEquals(1,executions().attempts(actor,"lab",id,executions().tasks(actor,"lab",id).getFirst().id()).size());
         } finally {local.close();}
     }
+    @Test void namespaceFileRevisionExecutesAndSurvivesWorkerTakeover() throws Exception {
+        var files=context.getBean(com.project.platform.dataflow.definition.NamespaceFileService.class);
+        String path="scripts/"+UUID.randomUUID()+".sh";
+        files.save(actor,"lab",path,0,"sleep 4\nprintf original > /cea-work/out/result.txt\n");
+        String yaml=sleeper("PT60S","sh /cea-work/in/work.sh")
+                .replace("      command:","      namespaceFiles: {work.sh: {path: '"+path+"', revision: 1}}\n      outputFiles: [result.txt]\n      command:");
+        String id=dispatch(yaml),name=remoteName(id);var run=executions().tasks(actor,"lab",id).getFirst();
+        // Revision changes after submission cannot change the execution's explicitly pinned reference.
+        files.save(actor,"lab",path,1,"printf wrong > /cea-work/out/result.txt\n");
+        var local=new WorkerEngine(context.getBean(JdbcWorkerStore.class),new com.project.platform.runtime.definition.TemplateRenderer(),1000,context.getBean(TaskRunner.class));
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var running=pool.submit(local::runOnce);
+            await().atMost(Duration.ofSeconds(30)).until(()->activePod(name));
+            String uid=admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get().getMetadata().getUid();
+            local.close();running.get(5,TimeUnit.SECONDS);
+            context.getBean(JdbcTemplate.class).update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",run.id());
+            drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state());
+            assertEquals(uid,admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get().getMetadata().getUid());
+            assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+            String uri=executions().tasks(actor,"lab",id).getFirst().outputs().get("result.txt").toString();
+            try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
+                assertEquals("original",new String(input.readAllBytes(),StandardCharsets.UTF_8));
+            }
+        } finally {local.close();}
+        String missing=submit(yaml.replace("revision: 1","revision: 999"));drive(missing);
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",missing).state());
+        assertTrue(executions().get(actor,"lab",missing).error().contains("namespace file revision not found"));
+        assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(remoteName(missing)).get());
+    }
     @Test void collectionManifestSurvivesWorkerTakeoverWithSameJobAndAttempt() throws Exception {
         String yaml=sleeper("PT60S","sleep 5; cat /cea-work/in/models.json > /cea-work/out/manifest.json; cat /cea-work/in/models.item-0 /cea-work/in/models.item-1 > /cea-work/out/data.txt")
                 .replace("      command:","      inputFiles:\n        models: {source: LITERAL, value: ['s3://datasets/sample/v1/data.txt', 's3://datasets/sample/v1/data.txt']}\n      outputFiles: [manifest.json, data.txt]\n      command:");

@@ -1,10 +1,12 @@
 # 当前进度
 
-最新授权：开始S6，S5的DQN研究和数据处理速率先后置。S6-01编辑/流程管理已完成，23:18:03完整verify通过199项Maven和12项Python，23:19:00中文/契约14项复测通过，见[本次验收](verification/VER-S6-001-flow-editing.md)。其余S6工作包尚未实现，详见[S6计划](features/S6-editor-management.md)。
+最新授权：继续完成S6剩余02–04；已完成。2026-09-11 00:02:08 +08:00完整verify通过212项Maven与12项Python测试，见[本次验收](verification/VER-S6-002-files-lifecycle.md)。S6按已授权的最小后端范围DONE；S5的DQN研究和数据处理速率仍后置，不进入S7或完整前端。
 
-更新时间：2026-09-10。S6-01可独立验收，S6整体仍IN_PROGRESS；S5已实现的核心链继续通过回归，长期DQN、计量和物理多云性能尚未完成，不因后置而标为达标。
+更新时间：2026-09-11。S6-01至04全部验收通过；S5已实现的核心链继续通过回归，长期DQN、计量和物理多云性能尚未完成，不因后置而标为达标。
 
 ## 当前事实
+
+- S6-02至04：固定版本Namespace小型文本文件进入原Application Prepared/容器文件链；认证Webhook和统一Checks；SLA首次超限持久查询；AFTER_EXECUTION阶段通过原Executor/Worker运行，主终态/输出/结束时间不被后处理错误改写。完整回归通过，见[S6协议](contracts/s6-files-lifecycle.md)。
 
 - S6-01：从同一FlowDefinition生成编辑Schema；校验/输入预览不创建执行；批量导入复用修订CAS和事务，搜索/导出维持USER管理范围。JSON和YAML共享解析/校验/保存，不存在独立No-code绑定；完整前端未实现。
 
@@ -14,15 +16,15 @@
 
 - S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
-- 独立8模块，83份生产Java（含8份包声明），12个测试类（含1个Failsafe部署测试）；S6-01新增FlowSchema和FlowManagementTest。模块依赖未增加，runtime仍不依赖业务模块。
+- 独立8模块，86份生产Java（含8份包声明），12个测试类（含1个Failsafe部署测试）；本轮新增NamespaceFileService和两个Controller，未新增测试类。模块依赖未增加，runtime仍不依赖业务模块。
 - 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
-- 主链：提交 → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
+- 主链：统一提交Checks → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally → 主终态 → 同链afterExecution。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
 - 叶子支持Log/Sleep、真实Application Job或终端Docker、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application容器内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
-- V1–V15共22张业务表；04b增加resource终端预约表、offloading观测/模型两表，不复制Execution。字段真实消费者见卸载协议；既有接入hash、Worker prepared_json、TaskRun轮次/所属作用域语义保持。
-- 当前47个HTTP操作，52个公开record映射。S6-01增加Schema/校验/预览/导出/导入5个操作，原列表增加搜索参数；不新增Worker端点或数据库迁移。
-- 本批完整verify通过199项：runtime32、持久化86、接入17、编辑11、容器/联邦32、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。全部零失败/错误/跳过，未累加14项收尾复测。历史批次失败及修正继续保留在各验收记录。
+- V1–V17共23张业务表；V16新增df_namespace_file，V17新增sla_violated_at并扩大phase列；04b增加resource终端预约表、offloading观测/模型两表，不复制Execution。字段真实消费者见卸载协议；既有接入hash、Worker prepared_json、TaskRun轮次/所属作用域语义保持。
+- 当前51个HTTP操作、58个公开record映射。本轮增加3个文件操作和Webhook，Check/Sla/NamespaceFile引用及文件API record；无新Worker端点、Binding、Runner或SPI。
+- 本批完整verify通过212项：runtime33、持久化86、接入18、编辑/文件/生命周期21、容器/联邦33、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。全部零失败/错误/跳过，不重复累加定向复测；失败与修正保留在VER-S6-002。
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
 - FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
@@ -39,7 +41,7 @@
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
 | S4 资源与运行环境 | DONE | PASS；123项统一verify，见VER-S4-005；最小范围与限制见下文 |
 | S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02/02b/03/04最小范围PASS；188项Maven及12项Python通过，05未实现 |
-| S6 P2与编辑管理 | IN_PROGRESS | 01完整回归及收尾复测PASS；02–04未实现 |
+| S6 P2与编辑管理 | DONE（后端最小范围） | 01–04及212项Maven/12项Python完整回归PASS；不含完整前端 |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
 
 ## 本批工作包
@@ -60,15 +62,15 @@
 | S5-04c | DONE | 普通执行/资源释放最小解耦，观测表不可用真实产物链及完整188项Maven/12项Python回归PASS，见VER-S5-007 |
 | S5-05 | 后置（仅设计） | 用户同意先跳过；MET-001业务代码未实现，口径未确认，见[S5-05方案](features/S5-05-measurement.md) |
 | S6-01 | DONE | 统一编辑协议、原子导入/导出/搜索；199项Maven/12项Python完整回归及14项收尾复测PASS，见VER-S6-001 |
-| S6-02 | NOT_STARTED | Namespace Files及真实Task消费尚未实现 |
-| S6-03 | NOT_STARTED | Webhook/Checks尚未实现 |
-| S6-04 | NOT_STARTED | SLA/afterExecution尚未实现 |
+| S6-02 | DONE | 业务闭环、故障/权限与完整verify PASS；见VER-S6-002 |
+| S6-03 | DONE | 业务闭环、故障/权限与完整verify PASS；见VER-S6-002 |
+| S6-04 | DONE | 业务闭环、故障/权限与完整verify PASS；见VER-S6-002 |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-S6-01已完成，下一批为S6-02 Namespace Files及其真实Task消费。S5-05计量和长期多步DQN后置，不作为S6前置；策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
+S6后端范围已完成并按持续授权发布GitHub；下一阶段或完整前端需用户另行确认，不自动进入S7。S5-05计量和长期多步DQN后置，不作为S6前置；策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -84,6 +86,8 @@ S6-01已完成，下一批为S6-02 Namespace Files及其真实Task消费。S5-05
 | OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11随S4真实运行接入最小实现；其他已选后置项不变。见[范围清单](06-deployment-safeguards-review.md)，目录API不能冒充远程接口/凭据/部署保障验收 |
 
 ## 完成记录
+
+2026-09-11：完成S6-02至04。固定修订Namespace文本文件进入真实Application/Prepared；认证Webhook及所有提交入口Checks；SLA告警与原Executor的终态后处理。新增3份生产Java、4个HTTP操作、6个record、1张文件表、SLA时间列与phase扩容，无新Binding/Runner/SPI/执行链。212项Maven和12项Python完整verify于00:02:08通过，见VER-S6-002。S6后端阶段DONE，前端、S7、计量和长期DQN仍未实现。
 
 2026-09-10：完成S6-01。新增FlowSchema一份生产Java、5个API及5个请求/响应record，修改既有Flow服务/解析器/Repository；无新数据库表/列/迁移、DSL字段、状态机或SPI。统一Flow编辑与真实执行往返、原子导入/并发/权限及完整199项Maven和12项Python验证PASS；14项中文/契约收尾复测PASS，见VER-S6-001。按持续授权发布GitHub，S6-02至04与完整前端未完成，S5研究/计量后置。
 

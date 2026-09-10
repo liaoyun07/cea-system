@@ -1,6 +1,6 @@
 # S6-01：Flow编辑与管理协议
 
-范围：仅新backend的后端编辑/流程管理，不实现前端、Namespace Files、Webhook/Checks/SLA/afterExecution。YAML/JSON仍为同一个FlowDefinition，schemaVersion仍为1；无新Binding或alias。
+本篇范围：新backend的后端编辑/流程管理；后续Namespace Files、Webhook/Checks/SLA/afterExecution见[增量协议](s6-files-lifecycle.md)，完整前端未实现。YAML/JSON仍为同一个FlowDefinition，schemaVersion仍为1；无新Binding或alias。
 
 ## HTTP
 

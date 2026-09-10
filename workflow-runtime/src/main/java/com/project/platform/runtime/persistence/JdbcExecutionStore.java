@@ -47,8 +47,9 @@ public final class JdbcExecutionStore {
         if(execution.state()==ExecutionState.CREATED) enqueue(execution.id());
         else if(execution.state()==ExecutionState.FAILED) {
             mainOutcome(execution.id(),ExecutionState.FAILED,"flow concurrency limit exceeded");
-            skip(execution.id(),0,execution.definition().allTasks().size(),now());
+            skipBeforeAfter(execution,now());
             complete(execution.id(),ExecutionState.FAILED,Map.of(),now());
+            if(!execution.definition().afterExecution().isEmpty())enqueue(execution.id());
         }
     }
     public record Message(long id,String executionId) {}
@@ -147,6 +148,14 @@ public final class JdbcExecutionStore {
     public void complete(String id,ExecutionState state,Map<String,Object> outputs,Instant now) {
         jdbc.update("UPDATE wf_execution SET state=?,outputs_json=?,ended_at=? WHERE id=?",state.name(),json.write(outputs),Timestamp.from(now),id);
     }
+    public void slaViolated(String id,Instant at) {
+        jdbc.update("UPDATE wf_execution SET sla_violated_at=COALESCE(sla_violated_at,?) WHERE id=?",Timestamp.from(at),id);
+    }
+    private void skipBeforeAfter(ExecutionRecord execution,Instant now) {
+        int count=0;
+        while(count<execution.definition().allTasks().size() && execution.definition().phaseAt(count)!=FlowDefinition.Phase.AFTER_EXECUTION)count++;
+        skip(execution.id(),0,count,now);
+    }
     public void log(String id,String taskRunId,int attempt,String level,String text,Instant now) {
         jdbc.update("INSERT INTO wf_log(execution_id,task_run_id,attempt_no,entry_no,level,message,created_at) VALUES(?,?,?,1,?,?,?)",
                 id,taskRunId,attempt,level,text,Timestamp.from(now));
@@ -188,8 +197,9 @@ public final class JdbcExecutionStore {
             var current=lock(id);
             if(current.state()==ExecutionState.QUEUED) {
                 mainOutcome(id,ExecutionState.KILLED,"cancelled before admission");
-                skip(id,0,current.definition().allTasks().size(),now());
+                skipBeforeAfter(current,now());
                 complete(id,ExecutionState.KILLED,Map.of(),now());
+                if(!current.definition().afterExecution().isEmpty())enqueue(id);
                 promote(namespace,current.flowId());
                 return null;
             }
@@ -205,7 +215,7 @@ public final class JdbcExecutionStore {
                 rs.getString("submitted_by"),ExecutionState.valueOf(rs.getString("state")),
                 json.flow(rs.getString("definition_json")),json.map(rs.getString("inputs_json")),json.map(rs.getString("variables_json")),
                 json.map(rs.getString("outputs_json")),instant(rs,"created_at"),instant(rs,"started_at"),instant(rs,"ended_at"),
-                rs.getString("error_text"),main==null?null:ExecutionState.valueOf(main),rs.getString("cleanup_error"));
+                rs.getString("error_text"),main==null?null:ExecutionState.valueOf(main),rs.getString("cleanup_error"),instant(rs,"sla_violated_at"));
     }
     private TaskRun task(ResultSet rs,int row)throws SQLException {
         return new TaskRun(rs.getString("id"),rs.getString("execution_id"),rs.getString("task_id"),rs.getInt("task_index"),

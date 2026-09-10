@@ -24,7 +24,7 @@ public final class FlowExecutor {
         return store.transaction(()->{
             var message=store.nextMessage(); if(message==null) return false;
             var execution=store.lock(message.executionId()); store.acknowledge(message.id());
-            if(execution.state().terminal()) return true;
+            if(execution.state().terminal()) {new Cycle(execution).after();return true;}
             if(execution.state()==CREATED) {
                 store.startExecution(execution.id(),store.now()); store.enqueue(execution.id()); return true;
             }
@@ -64,6 +64,10 @@ public final class FlowExecutor {
             finally{scopeParent=previousParent;scopeIteration=previousIteration;inheritedOutputs=previousOutputs;item=previousItem;refresh();}
         }
         void run() {
+            if(flow.sla()!=null && execution.startedAt()!=null && execution.slaViolatedAt()==null
+                    && !now.isBefore(execution.startedAt().plus(Duration.parse(flow.sla().maxDuration())))) {
+                store.slaViolated(execution.id(),now);execution=store.lock(execution.id());
+            }
             if(execution.state()==KILLING && execution.mainState()!=KILLED) {
                 boolean stopped=true;
                 for(var task:flow.tasks())stopped&=stopTree(task);
@@ -96,6 +100,10 @@ public final class FlowExecutor {
             var result=execution.mainState()==SUCCESS && execution.cleanupError()!=null?FAILED:execution.mainState();
             store.complete(execution.id(),result,outputs,now);
             store.promote(execution.namespace(),execution.flowId());
+            if(!flow.afterExecution().isEmpty())store.enqueue(execution.id());
+        }
+        void after() {
+            if(!group(flow.afterExecution(),"core.Sequential",true).state().terminal())wake();
         }
         private void wake() { store.enqueueAt(execution.id(),now.plusMillis(100)); }
         private record Outcome(ExecutionState state,String error) {}
@@ -244,8 +252,12 @@ public final class FlowExecutor {
             refresh();
         }
         private Map<String,Object> context(TaskRun run,int attempt) {
+            var details=new LinkedHashMap<String,Object>();
+            details.put("id",execution.id());details.put("namespace",execution.namespace());details.put("submittedBy",execution.submittedBy());
+            details.put("state",execution.state().name());details.put("outputs",execution.outputs());details.put("error",execution.error());
+            details.put("slaViolated",execution.slaViolatedAt()!=null);
             var context=new LinkedHashMap<String,Object>(Map.of("inputs",execution.inputs(),"vars",execution.variables(),"outputs",outputs(),
-                    "execution",Map.of("id",execution.id(),"namespace",execution.namespace(),"submittedBy",execution.submittedBy()),"taskrun",Map.of("id",run.id(),"attemptsCount",attempt,"iteration",run.iteration())));
+                    "execution",details,"taskrun",Map.of("id",run.id(),"attemptsCount",attempt,"iteration",run.iteration())));
             if(!item.isEmpty())context.put("item",item);
             return context;
         }

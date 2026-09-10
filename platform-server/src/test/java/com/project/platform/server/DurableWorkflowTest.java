@@ -104,7 +104,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(15,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(17,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {

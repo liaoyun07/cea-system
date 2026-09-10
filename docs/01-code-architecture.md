@@ -4,11 +4,23 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共83份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共86份（含8份包声明），测试类另列。
+
+## S6-02至04实际增量
+
+文件与生命周期已实现，212项Maven和12项Python完整验收通过。主链仍为FlowExecutionService/终端策略/Scheduler → ExecutionService（首次提交Checks）→ FlowExecutor → WorkerEngine。主终态先落库，随后原Executor继续AFTER_EXECUTION阶段；失败不改主结果。SLA由同一个Executor使用DB时间记录。ApplicationTaskRunner读取固定Namespace文件修订到原Prepared.inlineFiles。字段、事务和有意简化见[协议](contracts/s6-files-lifecycle.md)。
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/NamespaceFileService.java` | 命名空间小型文本不可变修订、版本CAS和执行读取 | save/get/list/forExecution | 只读写本模块df_namespace_file；唯一主键仲裁并发CAS | WF-015 | FlowManagementTest/ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/api/NamespaceFileController.java` | 文件保存/精确版本读取/目录 | save/get/list | READ/WRITE，委托服务 | WF-015 | FlowManagementTest/ContractTest |
+| `platform-server/src/main/java/com/project/platform/server/api/WebhookController.java` | 认证Webhook到统一提交 | trigger | EXECUTE、幂等键及Flow opt-in；无第二触发队列 | WF-014 | FlowManagementTest/ContractTest |
+
+修改既有FlowDefinition/Validator/BindingResolver/FlowService/FlowExecutionService/ExecutionService/SchedulerEngine，加入显式声明、校验、统一门禁和预览；ExecutionRecord/ExecutionController公开slaViolatedAt；FlowExecutor/JdbcExecutionStore支持告警与终态后处理；RuntimeConfiguration/JobConfiguration装配文件服务。新增Check、Sla、NamespaceFile及三个文件API record。V16新增1张文件修订表，V17新增1个SLA时间列并扩大既有phase列。无新SPI/Runner/Binding/Executor或模块依赖。当前51个HTTP操作、58个显式公开record映射，23张业务表。
 
 ## S6-01实际增量
 
-新增FlowSchema从现有FlowDefinition record、Jackson字段别名/Binding多态和Validator支持类型生成结构Schema；FlowService.schema为实际消费者。校验/输入预览复用FlowParser/FlowValidator/BindingResolver；导入复用原save事务，按flowId排序取得head锁；搜索只读dataflow自己的最新USER修订。5个新HTTP操作、5个请求/响应record，无新DSL/表/字段/迁移/状态/SPI，Execution主链不变。完整语义见[协议](contracts/s6-flow-editing.md)和[ADR-0018](decisions/ADR-0018-flow-editing.md)。其余S6批次未实现。
+S6-01新增FlowSchema从现有FlowDefinition record、Jackson字段别名/Binding多态和Validator支持类型生成结构Schema；FlowService.schema为实际消费者。校验/输入预览复用FlowParser/FlowValidator/BindingResolver；导入复用原save事务，按flowId排序取得head锁；搜索只读dataflow自己的最新USER修订。该批5个新HTTP操作、5个请求/响应record，无新DSL/表/字段/迁移/状态/SPI。完整语义见[协议](contracts/s6-flow-editing.md)和[ADR-0018](decisions/ADR-0018-flow-editing.md)。本轮增量见上节。
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|

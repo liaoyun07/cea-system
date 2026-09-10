@@ -8,7 +8,7 @@ public record ExecutionRecord(
         ExecutionState state, FlowDefinition definition,
         Map<String,Object> inputs, Map<String,Object> variables, Map<String,Object> outputs,
         Instant createdAt, Instant startedAt, Instant endedAt, String error,
-        ExecutionState mainState, String cleanupError) {
+        ExecutionState mainState, String cleanupError, Instant slaViolatedAt) {
     public record TaskRun(String id, String executionId, String taskId, int taskIndex,
                           ExecutionState state, Map<String,Object> outputs,
                           Instant startedAt, Instant endedAt, String error,

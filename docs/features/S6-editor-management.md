@@ -1,8 +1,8 @@
 # S6：编辑、管理与P2能力
 
-用户授权：2026-09-10“先开始完成S6”。DQN研究及S5-05计量后置，不是本阶段依赖；不改旧前端、旧库或部署既有服务。
+用户授权：2026-09-10“先开始完成S6”，随后“继续完成S6剩下部分”。DQN研究及S5-05计量后置，不是本阶段依赖；不改旧前端、旧库或部署既有服务。
 
-S6-01已完成，199项Maven及12项Python完整verify、14项中文/契约收尾复测通过，见[验收记录](../verification/VER-S6-001-flow-editing.md)。02–04仍待实现；S6整体IN_PROGRESS。
+S6-01已完成，历史验收见[VER-S6-001](../verification/VER-S6-001-flow-editing.md)。02–04于2026-09-11通过212项Maven及12项Python完整回归，见[VER-S6-002](../verification/VER-S6-002-files-lifecycle.md)。S6按本篇最小后端范围DONE；不代表完整前端、S7、计量或长期DQN完成。
 
 ## 可验收批次
 
@@ -13,7 +13,16 @@ S6-01已完成，199项Maven及12项Python完整verify、14项中文/契约收�
 | S6-03 | WF-014 Webhook/Checks | 复用提交入口；重投不重复创建Execution；检查失败阻止提交；鉴权及所有入口一致 |
 | S6-04 | WF-014 SLA/afterExecution | 时限检查和持久后处理有真实消费者；后处理失败不改写主结果；重启/失败/取消回归 |
 
-S6-01先实现，其余保持待实现，不通过删除原退出条件将整个S6标为完成。完整No-code前端须另行确定工程范围；这里交付其后端编辑协议。
+02–04原退出条件已验证，不通过删除验收项标完成。完整No-code前端须另行确定工程范围；这里交付其后端编辑协议。
+
+## S6-02至04实现与验收映射
+
+具体字段、调用、限制和升级见[协议](../contracts/s6-files-lifecycle.md)，设计参考及消费者见[ADR-0019](../decisions/ADR-0019-s6-files-lifecycle.md)。
+
+- 02：NamespaceFileService的不可变小型文本修订由ApplicationTaskRunner实际消费；仅显式固定本命名空间版本，原Prepared和容器文件传输负责重试/接管。FlowManagementTest覆盖HTTP权限/路径/CAS，ImageDistributionTest覆盖真实脚本产物、修改最新文件后旧执行不漂移、Job同UID/Attempt接管及缺文件失败。
+- 03：Flow.checks使用原表达式在统一ExecutionService检查，preview同样检查；Webhook是明确opt-in、Basic/EXECUTE认证、原幂等键隔离的提交入口。FlowManagementTest覆盖拒绝和重投/版本变化/Cron推进；EdgeAccessTest验证终端请求和事件策略失败无执行/回执。
+- 04：SLA只做maxDuration持久告警，不改变结果；原Executor终态后继续推进AFTER_EXECUTION TaskRun，复用所有原控制/Worker/Retry。FlowManagementTest覆盖超限/未超限、重建Executor、旧Worker租约拒绝、后处理失败/重试/主失败/取消/准入拒绝、Finally顺序及结果输出结束时间不变。
+- 不新增第二套Flow、Binding、Executor、Worker、Runner或SPI；不做glob/跨namespace文件、匿名Webhook、多种SLA动作、完整前端或计量。
 
 ## S6-01最小设计
 

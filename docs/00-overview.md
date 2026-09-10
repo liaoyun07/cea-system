@@ -1,8 +1,8 @@
 # 系统总览
 
-S6当前首批为编辑与流程管理：同一Flow的结构Schema、源校验和输入预览、原子导入/导出/搜索；不改变Execution主链，无新增运行模型或数据库迁移。详细边界见[S6协议](contracts/s6-flow-editing.md)。S5计量和DQN研究已后置，不阻塞S6，其余P2与完整前端尚未实现。
+S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出/搜索；本轮补充固定版本Namespace文件及真实Task消费、认证Webhook/统一Checks、SLA告警和终态后处理。执行状态仍由同一个Executor/Worker推进，详细边界见[编辑协议](contracts/s6-flow-editing.md)与[文件/生命周期](contracts/s6-files-lifecycle.md)。S6后端最小范围及完整回归已通过；S5计量、长期DQN和完整前端仍未实现。
 
-基线日期：2026-09-10。S1–S3执行基础、S4资源/应用目录、镜像分发/常驻部署、一次性Job/产物与通用任务均已实现；当前验收状态与边界见[进度](04-progress.md)。
+基线日期：2026-09-11。S1–S3执行基础、S4资源/应用目录、镜像分发/常驻部署、一次性Job/产物与通用任务均已实现；当前验收状态与边界见[进度](04-progress.md)。
 
 实施边界已确认：backend独立Git仓库，新后端Java21；终端任务断线恢复不在本期范围，服务端Worker恢复保留；速率口径在S5开始时确定。生产部署保障按[已确认范围](06-deployment-safeguards-review.md)落实最小认证、凭据配置、部署和单机恢复验证，其他扩展按选择保留或后置，不追求全套高可用架构。
 
@@ -66,7 +66,7 @@ S4已接入应用目录、真实Registry复制、常驻Deployment和一次性App
 
 Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与未来No-code共用Flow，当前No-code未实现。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
 
-凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4及S5-01 Repeat已验收；S5-02将FedAvg/FedProx实现为普通Application与显式Flow数据，初始化后按轮并行训练、加权聚合和全局评估，无执行器算法特例。S5-02b增加通用Loop，客户端集合动态展开为独立TaskRun；仍沿用单一Binding/Executor/Worker链，没有专用联邦状态表。150项Maven验证及7项Python测试通过，见[验收记录](verification/VER-S5-003-loop.md)。S5-03已完成后端网关/终端接入和策略入口；完整166项回归通过，收尾权限变更另复测107项通过，详见[接入验收](verification/VER-S5-004-edge-access.md)。S5整体仍进行中，其他流任务、网关代理部署、卸载和计量未实现；S6/S7未进入。
+凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4及S5-01 Repeat已验收；S5-02将FedAvg/FedProx实现为普通Application与显式Flow数据，初始化后按轮并行训练、加权聚合和全局评估，无执行器算法特例。S5-02b增加通用Loop，客户端集合动态展开为独立TaskRun；仍沿用单一Binding/Executor/Worker链，没有专用联邦状态表。150项Maven验证及7项Python测试通过，见[验收记录](verification/VER-S5-003-loop.md)。S5-03已完成后端网关/终端接入和策略入口；完整166项回归通过，收尾权限变更另复测107项通过，详见[接入验收](verification/VER-S5-004-edge-access.md)。上述为S5-03历史验收；当前S5核心执行已完成、长期DQN及计量后置，S6后端已完成，S7未进入。
 
 ## 设计来源与效力
 

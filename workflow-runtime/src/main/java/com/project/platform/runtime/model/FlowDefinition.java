@@ -8,17 +8,19 @@ public record FlowDefinition(
         Map<String, String> labels, Map<String, Input> inputs,
         Map<String, Binding> variables, List<Task> tasks, Map<String, Binding> outputs,
         List<Task> errors, @JsonProperty("finally") List<Task> finallyTasks,
-        Concurrency concurrency, Schedule schedule) {
+        Concurrency concurrency, Schedule schedule, List<Check> checks, Boolean webhook,
+        Sla sla, List<Task> afterExecution) {
     public FlowDefinition {
         labels = immutable(labels); inputs = immutable(inputs); variables = immutable(variables);
         tasks = list(tasks); outputs = immutable(outputs); errors = list(errors); finallyTasks = list(finallyTasks);
+        checks=list(checks);afterExecution=list(afterExecution);
     }
     private static <T> List<T> list(List<T> values) { return values == null ? List.of() : List.copyOf(values); }
     public static <T> Map<String,T> immutable(Map<String,T> source) {
         return Collections.unmodifiableMap(new LinkedHashMap<>(source == null ? Map.of() : source));
     }
     public List<Task> allTasks() {
-        var all = new ArrayList<Task>(); flatten(tasks,all); flatten(errors,all); flatten(finallyTasks,all); return List.copyOf(all);
+        var all = new ArrayList<Task>(); flatten(tasks,all); flatten(errors,all); flatten(finallyTasks,all); flatten(afterExecution,all); return List.copyOf(all);
     }
     public static void flatten(List<Task> tasks,List<Task> target) {
         for(var task:tasks) { target.add(task); flatten(task.tasks(),target); flatten(task.thenTasks(),target); flatten(task.elseTasks(),target); }
@@ -26,9 +28,14 @@ public record FlowDefinition(
     public Phase phaseAt(int index) {
         var main=new ArrayList<Task>(); flatten(tasks,main);
         var handlers=new ArrayList<Task>(); flatten(errors,handlers);
-        return index<main.size()?Phase.MAIN:index<main.size()+handlers.size()?Phase.ERRORS:Phase.FINALLY;
+        var cleanup=new ArrayList<Task>();flatten(finallyTasks,cleanup);
+        return index<main.size()?Phase.MAIN:index<main.size()+handlers.size()?Phase.ERRORS:
+                index<main.size()+handlers.size()+cleanup.size()?Phase.FINALLY:Phase.AFTER_EXECUTION;
     }
-    public enum Phase { MAIN, ERRORS, FINALLY }
+    public enum Phase { MAIN, ERRORS, FINALLY, AFTER_EXECUTION }
+    public record Check(String when,String message) {}
+    public record Sla(String maxDuration) {}
+    public record NamespaceFile(String path,int revision) {}
     public enum InputType { STRING, INTEGER, NUMBER, BOOLEAN, OBJECT, ARRAY }
     public record Input(InputType type, Boolean required, Object defaultValue) {
         public Input { required = Boolean.TRUE.equals(required); }
@@ -59,8 +66,9 @@ public record FlowDefinition(
     public record Sql(String connection,String query,List<Binding> parameters) {public Sql {parameters=list(parameters);}}
     public record Container(String applicationId,String version,
                             @tools.jackson.databind.annotation.JsonDeserialize(using=CandidateClustersDeserializer.class) Binding candidateClusters,List<String> command,
-                            Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles,ContainerExecution execution,Offload offload) {
-        public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;}
+                            Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles,ContainerExecution execution,Offload offload,
+                            Map<String,NamespaceFile> namespaceFiles) {
+        public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;namespaceFiles=immutable(namespaceFiles);}
     }
     public enum ContainerExecution { CLUSTER, TERMINAL }
     public record Offload(OffloadStrategy strategy,

@@ -27,6 +27,14 @@ public final class FlowValidator {
         identifier(flow.id(), "id");
         identifier(flow.namespace(), "namespace");
         validateGroup(flow.tasks(),false,0); validateGroup(flow.errors(),false,0); validateGroup(flow.finallyTasks(),false,0);
+        validateGroup(flow.afterExecution(),false,0);
+        if(flow.checks().size()>30)throw WorkflowException.invalid("checks","at most 30 checks");
+        for(var check:flow.checks()) {
+            renderer.validate(check.when());
+            if(check.message()==null || check.message().isBlank() || check.message().length()>1000)
+                throw WorkflowException.invalid("checks.message","1..1000 characters required");
+        }
+        if(flow.sla()!=null)duration(flow.sla().maxDuration(),"sla.maxDuration");
         if (flow.tasks().isEmpty() || flow.allTasks().size() > 100) {
             throw WorkflowException.invalid("tasks", "requires 1..100 tasks");
         }
@@ -88,6 +96,13 @@ public final class FlowValidator {
                     throw WorkflowException.invalid("container","duplicate candidate/output");
                 for(String arg:c.command())if(arg==null || arg.length()>8192)throw WorkflowException.invalid("command","argument too large or null");
                 c.inputFiles().keySet().forEach(this::fileName);c.outputFiles().forEach(this::fileName);
+                if(c.namespaceFiles().size()+c.inputFiles().size()>30)throw WorkflowException.invalid("namespaceFiles","at most 30 input files");
+                c.namespaceFiles().forEach((name,file)->{
+                    fileName(name);
+                    if(c.inputFiles().containsKey(name))throw WorkflowException.invalid("namespaceFiles","duplicate input name");
+                    if(file==null || file.revision()<1)throw WorkflowException.invalid("namespaceFiles.revision","positive pinned revision required");
+                    namespacePath(file.path());
+                });
             } else if(task.control()) {
                 if(task.message()!=null || task.duration()!=null || task.retry()!=null || task.timeout()!=null)
                     throw WorkflowException.invalid("tasks."+task.id(),"control tasks cannot have message/duration/retry/timeout");
@@ -134,6 +149,8 @@ public final class FlowValidator {
         validateTaskBindings(flow,flow.errors(),"core.Sequential",mainBindings);
         var cleanupBindings=new HashSet<>(mainBindings);flow.errors().forEach(t->completed(t,cleanupBindings));
         validateTaskBindings(flow,flow.finallyTasks(),"core.Sequential",cleanupBindings);
+        flow.finallyTasks().forEach(t->completed(t,cleanupBindings));
+        validateTaskBindings(flow,flow.afterExecution(),"core.Sequential",cleanupBindings);
         flow.outputs().forEach((name, binding) -> {
             identifier(name, "outputs");
             var main=new ArrayList<Task>(); FlowDefinition.flatten(flow.tasks(),main);
@@ -145,6 +162,11 @@ public final class FlowValidator {
     }
     private void fileName(String value) {
         if(value==null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("files","simple named files required; no directories or traversal");
+    }
+    public static void namespacePath(String path) {
+        if(path==null || path.length()>200 || !path.matches("[A-Za-z0-9_][A-Za-z0-9_./-]*")
+                || java.util.Arrays.stream(path.split("/",-1)).anyMatch(p->p.isEmpty() || p.equals(".") || p.equals("..")))
+            throw WorkflowException.invalid("path","relative file path without traversal required (at most 200 characters)");
     }
     private void validateTaskBindings(FlowDefinition flow,List<Task> group,String mode,Set<String> inherited) {
         validateTaskBindings(flow,group,mode,inherited,false);

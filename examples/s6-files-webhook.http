@@ -1,0 +1,24 @@
+@base = http://127.0.0.1:18085
+# Supply your own Basic Authorization value; no credentials are checked in.
+@authorization = REPLACE_WITH_LOCAL_BASIC_AUTH
+
+### Save an immutable script revision
+POST {{base}}/api/namespaces/lab/files
+Authorization: {{authorization}}
+Content-Type: application/json
+
+{"path":"scripts/run.sh","expectedRevision":0,"content":"printf 'processed\n' > /cea-work/out/result.txt\n"}
+
+### Read pinned content
+GET {{base}}/api/namespaces/lab/files/revision?path=scripts/run.sh&revision=1
+Authorization: {{authorization}}
+
+### Save examples/s6-lifecycle.yaml through the normal Flow revisions API first
+POST {{base}}/api/namespaces/lab/webhooks/checked-webhook
+Authorization: {{authorization}}
+Idempotency-Key: s6-example-001
+Content-Type: application/json
+
+{"count":2}
+
+### Replay the exact request/key returns the same execution; use a new key for a new execution.

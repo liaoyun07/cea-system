@@ -18,10 +18,10 @@ public final class ExecutionController {
     public record View(String id, String namespace, String flowId, int flowRevision, String submittedBy,
                        ExecutionState state, Map<String,Object> inputs, Map<String,Object> variables,
                        Map<String,Object> outputs, Instant createdAt, Instant startedAt, Instant endedAt, String error,
-                       ExecutionState mainState, String cleanupError) {
+                       ExecutionState mainState, String cleanupError, Instant slaViolatedAt) {
         static View of(ExecutionRecord e) {
             return new View(e.id(),e.namespace(),e.flowId(),e.flowRevision(),e.submittedBy(),e.state(),
-                    e.inputs(),e.variables(),e.outputs(),e.createdAt(),e.startedAt(),e.endedAt(),e.error(),e.mainState(),e.cleanupError());
+                    e.inputs(),e.variables(),e.outputs(),e.createdAt(),e.startedAt(),e.endedAt(),e.error(),e.mainState(),e.cleanupError(),e.slaViolatedAt());
         }
     }
     private final FlowExecutionService executions;

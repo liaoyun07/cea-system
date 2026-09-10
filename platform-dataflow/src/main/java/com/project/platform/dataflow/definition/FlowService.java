@@ -93,6 +93,7 @@ public final class FlowService {
     public Preview preview(Actor actor,String namespace,String flowId,String source,Map<String,Object> inputs) {
         var flow=validate(actor,namespace,flowId,source);
         var prepared=new BindingResolver().prepare(flow,inputs);
+        new BindingResolver().checks(flow,prepared);
         return new Preview(flow,prepared.inputs(),prepared.variables());
     }
     public String export(Actor actor,String namespace,String flowId,Integer revision,String format) {

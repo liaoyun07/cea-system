@@ -46,7 +46,8 @@ public class JobConfiguration {
     @Bean JdbcOffloadingRepository offloadingRepository(JdbcTemplate jdbc,JsonCodec json){return new JdbcOffloadingRepository(jdbc,json);}
     @Bean OffloadingService offloadingService(JdbcOffloadingRepository repository,AccessPolicy access){return new OffloadingService(repository,access);}
     @Bean TaskRunner applicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
-            JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,IdentityDirectory identities,EdgeAccessService edge,JsonCodec json,BindingResolver bindings,Settings settings,OffloadingService offloading) {
+            JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,IdentityDirectory identities,EdgeAccessService edge,JsonCodec json,BindingResolver bindings,Settings settings,OffloadingService offloading,
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles) {
         var applicationsRunner=new ApplicationTaskRunner(applications,resources,images,placement,connections,storage,job->{
             var execution=(Map<?,?>)job.context().get("execution");
             var actor=identities.actor((String)execution.get("submittedBy"));
@@ -57,7 +58,7 @@ public class JobConfiguration {
             var connection=settings.terminals().getOrDefault(namespace,Map.of()).get(origin.terminalId());
             if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no Docker context configured for request origin");
             return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots());
-        },offloading,json,bindings);
+        },offloading,json,bindings,namespaceFiles);
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
         return context->context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
     }

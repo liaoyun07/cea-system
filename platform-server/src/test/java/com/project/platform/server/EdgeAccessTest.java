@@ -170,6 +170,19 @@ class EdgeAccessTest {
         assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM edge_submission WHERE terminal_id=?",Integer.class,terminal));
         edge().event(gateway,"lab",terminal,"input",new Event(policy,Map.of("value","correct")));drain();
     }
+    @Test void checksRejectTerminalAndPolicyIngressWithoutLeavingReceipts() throws Exception {
+        String terminal=terminal(),flow=id(),policy=id();
+        String gate="checks: [{when: '{{ inputs.value == \"allowed\" }}', message: blocked}]\n";
+        flows().save(manager,"lab",flow,0,source(flow)+gate);
+        edge().putPolicy(manager,"lab",policy,new PolicyRequest("edge-a",policy,true,0,source(policy)+gate));
+        int before=jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class);
+        assertEquals(422,call("gateway-a","POST","/edge-access/terminals/"+terminal+"/executions","gate",request(flow)).statusCode());
+        assertEquals(422,call("gateway-a","POST","/edge-access/terminals/"+terminal+"/events","gate",new Event(policy,Map.of("value","blocked"))).statusCode());
+        assertEquals(before,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution",Integer.class));
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM edge_submission WHERE terminal_id=?",Integer.class,terminal));
+        String accepted=edge().submit(gateway,"lab",terminal,"gate",new FlowExecutionService.Request(flow,null,Map.of("value","allowed")));
+        drain();assertEquals(Map.of("result","processed allowed"),edge().result(gateway,"lab",terminal,accepted).outputs());
+    }
     @Test void resultCannotBeReadByOtherTerminalOrGateway() throws Exception {
         String terminal=terminal(),other=terminal(),flow=id();flows().save(manager,"lab",flow,0,source(flow));
         String execution=edge().submit(gateway,"lab",terminal,"result",request(flow));

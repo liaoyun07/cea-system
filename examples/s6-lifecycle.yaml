@@ -1,0 +1,20 @@
+schemaVersion: 1
+namespace: lab
+id: checked-webhook
+inputs:
+  count: {type: INTEGER, defaultValue: 2}
+checks:
+  - when: '{{ inputs.count > 0 }}'
+    message: count must be positive
+webhook: true
+sla: {maxDuration: PT10S}
+tasks:
+  - id: work
+    type: core.Log
+    message: 'count={{ inputs.count }}'
+outputs:
+  result: {source: TASK_OUTPUT, taskId: work, port: message}
+afterExecution:
+  - id: notify
+    type: core.Log
+    message: 'state={{ execution.state }}, outputs={{ execution.outputs }}, sla={{ execution.slaViolated }}'

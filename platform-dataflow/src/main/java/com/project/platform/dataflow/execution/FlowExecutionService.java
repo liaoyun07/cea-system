@@ -26,14 +26,19 @@ public final class FlowExecutionService {
     }
 
     public String submit(Actor actor, String namespace, String requestKey, Request request) {
-        return submitScoped(actor,namespace,requestKey,request,"USER");
+        return submitScoped(actor,namespace,requestKey,request,"USER",false);
     }
     public String submitPolicy(Actor actor,String namespace,String requestKey,Request request) {
-        return submitScoped(actor,namespace,requestKey,request,"EDGE_POLICY");
+        return submitScoped(actor,namespace,requestKey,request,"EDGE_POLICY",false);
     }
-    private String submitScoped(Actor actor,String namespace,String requestKey,Request request,String scope) {
+    public String webhook(Actor actor,String namespace,String flowId,String key,Map<String,Object> inputs) {
+        if(key==null || key.isBlank() || key.length()>120)throw WorkflowException.invalid("Idempotency-Key","1..120 characters required");
+        return submitScoped(actor,namespace,"webhook:"+key,new Request(flowId,null,inputs),"USER",true);
+    }
+    private String submitScoped(Actor actor,String namespace,String requestKey,Request request,String scope,boolean webhook) {
         access.require(actor, namespace, Action.EXECUTE);
         if(requestKey!=null && requestKey.startsWith("schedule:")) throw WorkflowException.invalid("requestKey","schedule: prefix is reserved");
+        if(!webhook && requestKey!=null && requestKey.startsWith("webhook:"))throw WorkflowException.invalid("requestKey","webhook: prefix is reserved");
         if (request == null || request.flowId() == null) throw WorkflowException.invalid("flowId", "required");
         if (request.revision() != null && request.revision() < 1) throw WorkflowException.invalid("revision", "must be positive");
         // Hash the original request, not the current latest revision or derived defaults.
@@ -42,6 +47,7 @@ public final class FlowExecutionService {
         if (existing != null) return existing;
         flows.requireScope(namespace,request.flowId(),scope);
         var flow = flows.get(namespace, request.flowId(), request.revision());
+        if(webhook && !Boolean.TRUE.equals(flow.definition().webhook()))throw WorkflowException.invalid("webhook","not enabled for this flow");
         var prepared = bindings.prepare(flow.definition(), request.inputs());
         return executions.submit(flow.definition(), flow.revision(), actor.name(), requestKey, hash, prepared);
     }

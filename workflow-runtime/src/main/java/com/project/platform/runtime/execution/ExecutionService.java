@@ -25,12 +25,13 @@ public final class ExecutionService {
     public String submit(FlowDefinition flow, int revision, String actor, String key, String hash, BindingResolver.Prepared prepared) {
         String existing = findSubmission(flow.namespace(), actor, key, hash);
         if (existing != null) return existing;
+        new BindingResolver().checks(flow,prepared);
         String id = UUID.randomUUID().toString();
         try {
             store.transaction(() -> {
                 store.lockFlow(flow.namespace(),flow.id());
                 var execution = new ExecutionRecord(id, flow.namespace(), flow.id(), revision, actor, store.admission(flow.namespace(),flow.id()),
-                        flow, prepared.inputs(), prepared.variables(), Map.of(), store.now(), null, null, null, null, null);
+                        flow, prepared.inputs(), prepared.variables(), Map.of(), store.now(), null, null, null, null, null, null);
                 store.create(execution, key, hash); return id;
             });
             return id;

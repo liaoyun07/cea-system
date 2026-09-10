@@ -67,14 +67,190 @@ class FlowManagementTest {
                 """.formatted(id);
     }
     private HttpResponse<String> call(String method,String path,String user,Object body) throws Exception {
+        return call(method,path,user,body,null);
+    }
+    private HttpResponse<String> call(String method,String path,String user,Object body,String key) throws Exception {
         int port=context.getBean(Environment.class).getProperty("local.server.port",Integer.class);
         var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path)).timeout(Duration.ofSeconds(15));
         if(user!=null)request.header("Authorization","Basic "+Base64.getEncoder().encodeToString((user+":test-password").getBytes(StandardCharsets.UTF_8)));
+        if(key!=null)request.header("Idempotency-Key",key);
         request.header("Content-Type","application/json").method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.write(body)));
         return http.send(request.build(),HttpResponse.BodyHandlers.ofString());
     }
     private Map<String,Object> entry(int revision,String source){return Map.of("expectedRevision",revision,"source",source);}
     private int count(String table){return jdbc().queryForObject("SELECT COUNT(*) FROM "+table,Integer.class);}
+
+    @Test void namespaceFilesHavePinnedVersionsCasAndPermissions() throws Exception {
+        String path="scripts/"+id()+".sh",api="/api/namespaces/lab/files";
+        var request=Map.of("path",path,"expectedRevision",0,"content","echo 第一版");
+        assertEquals(401,call("POST",api,null,request).statusCode());
+        assertEquals(403,call("POST",api,"viewer",request).statusCode());
+        assertEquals(201,call("POST",api,"writer",request).statusCode());
+        assertEquals(409,call("POST",api,"writer",request).statusCode());
+        assertEquals(201,call("POST",api,"writer",Map.of("path",path,"expectedRevision",1,"content","echo second")).statusCode());
+        var first=call("GET",api+"/revision?path="+path+"&revision=1","viewer",null);
+        assertEquals(200,first.statusCode());assertEquals("echo 第一版",json.map(first.body()).get("content"));
+        assertEquals(404,call("GET",api+"/revision?path="+path+"&revision=3","viewer",null).statusCode());
+        assertEquals(403,call("GET",api.replace("/lab/","/other/")+"/revision?path="+path+"&revision=1","writer",null).statusCode());
+        assertTrue(call("GET",api,"viewer",null).body().contains(path));
+        for(String invalid:List.of("../secret","a/../secret","/absolute","a//b","a/","a\\b","a/./b"))
+            assertEquals(422,call("POST",api,"writer",Map.of("path",invalid,"expectedRevision",0,"content","")).statusCode());
+        assertEquals(422,call("POST",api,"writer",Map.of("path",path,"expectedRevision",2,"content","中".repeat(22000))).statusCode());
+    }
+    @Test void concurrentNamespaceFileUpdatesHaveOneWinner() throws Exception {
+        var files=context.getBean(NamespaceFileService.class);String path=id();files.save(actor,"lab",path,0,"initial");
+        var gate=new CountDownLatch(1);
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures=new ArrayList<Future<Boolean>>();
+            for(int n=0;n<2;n++)futures.add(pool.submit(()->{gate.await();try {files.save(actor,"lab",path,1,"next");return true;}
+                catch(WorkflowException ex){assertEquals(WorkflowException.Kind.CONFLICT,ex.kind());return false;}}));
+            gate.countDown();int winners=0;for(var f:futures)if(f.get(5,TimeUnit.SECONDS))winners++;assertEquals(1,winners);
+        }
+        assertEquals("initial",files.get(actor,"lab",path,1).content());
+    }
+    private FlowExecutionService executions(){return context.getBean(FlowExecutionService.class);}
+    private String submitBody(String body) {
+        String name=id();flows().save(actor,"lab",name,0,"schemaVersion: 1\nnamespace: lab\nid: "+name+"\n"+body);
+        return executions().submit(actor,"lab",id(),new FlowExecutionService.Request(name,null,Map.of()));
+    }
+    private void drain(String execution) throws Exception {
+        long end=System.nanoTime()+Duration.ofSeconds(12).toNanos();
+        while(System.nanoTime()<end) {
+            context.getBean(FlowExecutor.class).processNext();context.getBean(WorkerEngine.class).runOnce();
+            if(executions().get(actor,"lab",execution).state().terminal()
+                    && executions().tasks(actor,"lab",execution).stream().allMatch(t->t.state().terminal()))return;
+            Thread.sleep(15);
+        }
+        fail("execution or afterExecution did not drain: "+execution);
+    }
+    @Test void checksBlockPreviewEverySubmissionFacadeAndUndefinedExpressions() throws Exception {
+        String name=id(),source=source(name)+"checks: [{when: '{{ inputs.count > 3 }}', message: 'count must exceed three'}]\n";
+        flows().save(actor,"lab",name,0,source);int before=count("wf_execution");
+        assertEquals(422,call("POST",base+"/"+name+"/preview","writer",Map.of("source",source,"inputs",Map.of("name","Ada"))).statusCode());
+        var request=new FlowExecutionService.Request(name,null,Map.of("name","Ada"));
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab",id(),request));
+        var revision=flows().get(actor,"lab",name,null);
+        assertThrows(WorkflowException.class,()->context.getBean(com.project.platform.runtime.execution.ExecutionService.class)
+                .submit(revision.definition(),1,"writer",id(),"hash",new BindingResolver().prepare(revision.definition(),request.inputs())));
+        String policy=id();flows().savePolicy(actor,"lab",policy,0,source.replace("id: "+name,"id: "+policy));
+        assertThrows(WorkflowException.class,()->executions().submitPolicy(actor,"lab",id(),new FlowExecutionService.Request(policy,null,request.inputs())));
+        assertEquals(before,count("wf_execution"));
+        for(String condition:List.of("yes","{{ inputs.absent }}")) {
+            var invalid=parser.parse(source.replace("{{ inputs.count > 3 }}",condition));
+            assertThrows(WorkflowException.class,()->new BindingResolver().checks(invalid,new BindingResolver().prepare(invalid,request.inputs())));
+        }
+        String run=executions().submit(actor,"lab",id(),new FlowExecutionService.Request(name,null,Map.of("name","Ada","count",4)));
+        drain(run);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",run).state());
+    }
+    @Test void rejectedScheduleCheckAdvancesWithoutCreatingExecution() {
+        String name=id();flows().save(actor,"lab",name,0,"schemaVersion: 1\nnamespace: lab\nid: "+name+"\n"+
+                "tasks: [{id: log, type: core.Log, message: hello}]\nchecks: [{when: 'false', message: no}]\nschedule: {cron: '0 0 0 * * *'}\n");
+        jdbc().update("UPDATE wf_schedule SET next_fire=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE flow_id=?",name);
+        int before=count("wf_execution");assertTrue(context.getBean(com.project.platform.runtime.scheduler.SchedulerEngine.class).runOnce());
+        assertEquals(before,count("wf_execution"));
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_schedule WHERE flow_id=? AND next_fire>CURRENT_TIMESTAMP(6)",Integer.class,name));
+    }
+    @Test void webhookIsOptInAuthenticatedGatedAndIdempotentAcrossEdits() throws Exception {
+        String name=id(),route="/api/namespaces/lab/webhooks/"+name,key=id();flows().save(actor,"lab",name,0,source(name));
+        Map<String,Object> inputs=Map.of("name","Ada");
+        assertEquals(401,call("POST",route,null,inputs,key).statusCode());assertEquals(403,call("POST",route,"viewer",inputs,key).statusCode());
+        assertEquals(422,call("POST",route,"writer",inputs,key).statusCode());
+        flows().save(actor,"lab",name,1,source(name)+"webhook: true\nchecks: [{when: '{{ inputs.count > 0 }}', message: positive}]\n");
+        assertEquals(400,call("POST",route,"writer",inputs).statusCode());
+        assertEquals(422,call("POST",route,"writer",Map.of("name","Ada","count",0),id()).statusCode());
+        var first=call("POST",route,"writer",inputs,key);assertEquals(202,first.statusCode(),first.body());
+        String execution=(String)json.map(first.body()).get("executionId");
+        assertEquals(first.body(),call("POST",route,"writer",inputs,key).body());
+        assertEquals(409,call("POST",route,"writer",Map.of("name","different"),key).statusCode());
+        flows().save(actor,"lab",name,2,source(name)+"webhook: false\n");
+        assertEquals(first.body(),call("POST",route,"writer",inputs,key).body());
+        assertEquals(422,call("POST",route,"writer",inputs,id()).statusCode());
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab","webhook:"+id(),new FlowExecutionService.Request(name,null,inputs)));
+        drain(execution);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+    }
+    @Test void slaAndAfterExecutionPreserveMainResultOutputsAndEndTime() throws Exception {
+        String execution=submitBody("""
+                tasks: [{id: main, type: core.Log, message: original}]
+                outputs: {value: {source: TASK_OUTPUT, taskId: main, port: message}}
+                sla: {maxDuration: PT0.001S}
+                afterExecution:
+                  - {id: broken, type: core.Log, message: '{{ inputs.missing }}', retry: {type: constant, maxAttempts: 2, interval: PT0.001S}}
+                  - {id: notify, type: core.Log, message: '{{ execution.state }} {{ execution.outputs.value }} {{ execution.slaViolated }}'}
+                """);
+        while(!executions().get(actor,"lab",execution).state().terminal()) {
+            context.getBean(FlowExecutor.class).processNext();context.getBean(WorkerEngine.class).runOnce();Thread.sleep(10);
+        }
+        var completed=executions().get(actor,"lab",execution);assertEquals(ExecutionState.SUCCESS,completed.state());assertNotNull(completed.slaViolatedAt());
+        executions().cancel(actor,"lab",execution);drain(execution);
+        assertEquals(completed,executions().get(actor,"lab",execution));
+        var tasks=executions().tasks(actor,"lab",execution);
+        assertEquals(ExecutionState.FAILED,tasks.get(1).state());assertEquals(2,executions().attempts(actor,"lab",execution,tasks.get(1).id()).size());
+        assertEquals("SUCCESS original true",tasks.get(2).outputs().get("message"));
+        assertEquals(FlowDefinition.Phase.AFTER_EXECUTION,tasks.get(2).phase());
+        assertFalse(tasks.get(2).startedAt().isBefore(completed.endedAt()));
+    }
+    @Test void failedAndCancelledExecutionsStillRunAfterFinally() throws Exception {
+        for(boolean cancel:List.of(false,true)) {
+            String execution=submitBody("tasks: [{id: main, type: core.Log, message: '{{ inputs.missing }}'}]\n"+
+                    "finally: [{id: cleanup, type: core.Log, message: cleaned}]\n"+
+                    "afterExecution: [{id: notify, type: core.Log, message: '{{ execution.state }} {{ outputs.cleanup.message }}'}]\n");
+            if(cancel)executions().cancel(actor,"lab",execution);
+            drain(execution);var tasks=executions().tasks(actor,"lab",execution);
+            assertEquals(cancel?ExecutionState.KILLED:ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+            assertEquals((cancel?"KILLED":"FAILED")+" cleaned",tasks.get(2).outputs().get("message"));
+        }
+    }
+    @Test void terminalAfterTaskLeaseIsRecoveredWithoutChangingMainOutcome() throws Exception {
+        String execution=submitBody("tasks: [{id: main, type: core.Log, message: main}]\n"+
+                "afterExecution: [{id: notify, type: core.Log, message: '{{ execution.state }}'}]\n");
+        long deadline=System.nanoTime()+Duration.ofSeconds(8).toNanos();
+        while(!executions().get(actor,"lab",execution).state().terminal() && System.nanoTime()<deadline) {
+            context.getBean(FlowExecutor.class).processNext();context.getBean(WorkerEngine.class).runOnce();Thread.sleep(10);
+        }
+        var completed=executions().get(actor,"lab",execution);assertTrue(completed.state().terminal());
+        var transport=context.getBean(com.project.platform.runtime.persistence.JdbcWorkerStore.class);
+        var store=context.getBean(com.project.platform.runtime.persistence.JdbcExecutionStore.class);
+        var restarted=new FlowExecutor(store,transport,new BindingResolver(),new TemplateRenderer(),new com.project.platform.runtime.executor.ExecutionReducer());
+        while(executions().tasks(actor,"lab",execution).get(1).state()==ExecutionState.CREATED && System.nanoTime()<deadline) {restarted.processNext();Thread.sleep(10);}
+        var lease=transport.claim("dead-worker",1000);assertNotNull(lease);assertEquals("notify",lease.job().task().id());
+        jdbc().update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",lease.job().taskRunId());
+        try(var worker=new WorkerEngine(transport,new TemplateRenderer(),1000,context.getBean(com.project.platform.runtime.worker.TaskRunner.class))) {
+            assertTrue(worker.runOnce());
+            assertFalse(transport.finish(lease,com.project.platform.runtime.worker.WorkerJob.Result.failed("stale")));
+        }
+        drain(execution);assertEquals(completed,executions().get(actor,"lab",execution));
+        assertEquals(1,executions().attempts(actor,"lab",execution,lease.job().taskRunId()).size());
+        assertEquals("SUCCESS",executions().tasks(actor,"lab",execution).get(1).outputs().get("message"));
+    }
+    @Test void slaIsDurableAcrossExecutorRecreationAndDoesNotCountQueueOrAfterTime() throws Exception {
+        String execution=submitBody("tasks: [{id: main, type: core.Log, message: main}]\nsla: {maxDuration: PT1S}\n"+
+                "afterExecution: [{id: notify, type: core.Log, message: '{{ execution.slaViolated }}'}]\n");
+        while(executions().get(actor,"lab",execution).startedAt()==null)context.getBean(FlowExecutor.class).processNext();
+        jdbc().update("UPDATE wf_execution SET started_at=TIMESTAMPADD(SECOND,-2,CURRENT_TIMESTAMP(6)) WHERE id=?",execution);
+        var restarted=new FlowExecutor(context.getBean(com.project.platform.runtime.persistence.JdbcExecutionStore.class),
+                context.getBean(com.project.platform.runtime.persistence.JdbcWorkerStore.class),new BindingResolver(),new TemplateRenderer(),new com.project.platform.runtime.executor.ExecutionReducer());
+        restarted.processNext();drain(execution);
+        var violated=executions().get(actor,"lab",execution);assertNotNull(violated.slaViolatedAt());assertEquals(ExecutionState.SUCCESS,violated.state());
+        assertEquals("true",executions().tasks(actor,"lab",execution).get(1).outputs().get("message"));
+        String fast=submitBody("tasks: [{id: main, type: core.Log, message: main}]\nsla: {maxDuration: PT1S}\n"+
+                "afterExecution: [{id: slow, type: core.Sleep, duration: PT1.1S, timeout: PT3S}]\n");
+        jdbc().update("UPDATE wf_execution SET created_at=TIMESTAMPADD(SECOND,-5,CURRENT_TIMESTAMP(6)) WHERE id=?",fast);
+        drain(fast);assertNull(executions().get(actor,"lab",fast).slaViolatedAt());
+    }
+    @Test void queuedCancellationAndAdmissionRejectionRunOnlyAfterTasks() throws Exception {
+        for(String behavior:List.of("QUEUE","FAIL")) {
+            String name=id(),source="schemaVersion: 1\nnamespace: lab\nid: "+name+"\nconcurrency: {limit: 1, behavior: "+behavior+"}\n"+
+                    "tasks: [{id: main, type: core.Log, message: original}]\nfinally: [{id: cleanup, type: core.Log, message: cleaned}]\n"+
+                    "afterExecution: [{id: notify, type: core.Log, message: '{{ execution.state }}'}]\n";
+            flows().save(actor,"lab",name,0,source);
+            var request=new FlowExecutionService.Request(name,null,Map.of());String active=executions().submit(actor,"lab",id(),request);
+            String queued=executions().submit(actor,"lab",id(),request);
+            if(behavior.equals("QUEUE"))executions().cancel(actor,"lab",queued);
+            drain(queued);drain(active);
+            var tasks=executions().tasks(actor,"lab",queued);assertEquals(ExecutionState.SKIPPED,tasks.get(0).state());assertEquals(ExecutionState.SKIPPED,tasks.get(1).state());
+            assertEquals(ExecutionState.SUCCESS,tasks.get(2).state());
+        }
+    }
 
     @Test void schemaReflectsRuntimeFieldsAliasesAndBindingVariants() throws Exception {
         var response=call("GET",base+"/editor/schema","viewer",null);assertEquals(200,response.statusCode(),response.body());

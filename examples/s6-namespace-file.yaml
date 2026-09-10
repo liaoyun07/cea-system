@@ -1,0 +1,18 @@
+# Register shell-tools/v1 and a real edge cluster first. Save scripts/run.sh revision 1 through the file API.
+schemaVersion: 1
+namespace: lab
+id: pinned-script
+tasks:
+  - id: script
+    type: platform.Application
+    timeout: PT30S
+    container:
+      applicationId: shell-tools
+      version: v1
+      candidateClusters: [edge]
+      namespaceFiles:
+        work.sh: {path: scripts/run.sh, revision: 1}
+      command: [sh, /cea-work/in/work.sh]
+      outputFiles: [result.txt]
+outputs:
+  result: {source: TASK_OUTPUT, taskId: script, port: result.txt}

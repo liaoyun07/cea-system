@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Cloud Edge Backend API",
-    "version": "2.1.0",
-    "description": "S1-S6-01 workflows, resources, application runtime, gateway/terminal ingress, explicit terminal offloading, and shared Flow editing schema, validation/preview, atomic import/export and search. No algorithm throughput metrics or complete No-code frontend yet."
+    "version": "2.2.0",
+    "description": "S1-S6 backend including Namespace Files, authenticated idempotent Webhook, shared Checks, max-duration SLA and durable afterExecution. No complete frontend, throughput SDK or long-horizon DQN."
   },
   "servers": [
     {
@@ -333,25 +333,147 @@
     },
     "/api/namespaces/{namespace}/offloading/models/{version}": {
       "parameters": [
-        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
-        {"name":"version","in":"path","required":true,"schema":{"type":"string"}}
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
       ],
       "put": {
-        "operationId":"registerOffloadingModel","description":"WRITE. Register immutable validated weights. Identical repeat allowed; changed same version returns 409.",
-        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},
-        "responses":{"200":{"description":"Registered","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},"409":{"description":"Version conflict"},"422":{"description":"Invalid shape/schema/numbers"},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"}}
+        "operationId": "registerOffloadingModel",
+        "description": "WRITE. Register immutable validated weights. Identical repeat allowed; changed same version returns 409.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DqnModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DqnModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Version conflict"
+          },
+          "422": {
+            "description": "Invalid shape/schema/numbers"
+          }
+        }
       },
       "get": {
-        "operationId":"getOffloadingModel","description":"READ. Retrieve an explicit model version; no implicit latest or random fallback.",
-        "responses":{"200":{"description":"Model","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},"404":{"description":"Missing version"},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"}}
+        "operationId": "getOffloadingModel",
+        "description": "READ. Retrieve an explicit model version; no implicit latest or random fallback.",
+        "responses": {
+          "200": {
+            "description": "Model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DqnModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Missing version"
+          }
+        }
       }
     },
     "/api/namespaces/{namespace}/offloading/samples": {
-      "parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}}],
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
       "get": {
-        "operationId":"listOffloadingSamples","description":"READ. New observations belong only to explicit offload tasks; legacy ordinary observations are not deleted. Only completed RULE/DQN observations supply training episodes. Stable createdAt/key ordering; no outputs or credentials copied.",
-        "parameters":[{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}],
-        "responses":{"200":{"description":"Observations","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/OffloadingSample"}}}}},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"},"422":{"description":"Invalid pagination"}}
+        "operationId": "listOffloadingSamples",
+        "description": "READ. New observations belong only to explicit offload tasks; legacy ordinary observations are not deleted. Only completed RULE/DQN observations supply training episodes. Stable createdAt/key ordering; no outputs or credentials copied.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OffloadingSample"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Invalid pagination"
+          }
+        }
       }
     },
     "/api/namespaces/{namespace}/edge/gateways/{id}": {
@@ -1622,9 +1744,31 @@
         "operationId": "listFlows",
         "description": "READ: latest USER flow revision summaries in flowId order. q matches literal id/description substring; labelKey and labelValue must occur together and match exactly.",
         "parameters": [
-          {"name":"q","in":"query","schema":{"type":"string","maxLength":200}},
-          {"name":"labelKey","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},
-          {"name":"labelValue","in":"query","schema":{"type":"string","maxLength":200}},
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "labelKey",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "labelValue",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
           {
             "name": "limit",
             "in": "query",
@@ -3675,6 +3819,263 @@
           }
         }
       }
+    },
+    "/api/namespaces/{namespace}/files": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listNamespaceFiles",
+        "description": "READ; latest revision per file, retained older revisions are available by explicit number.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NamespaceFileEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace or action forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid definition, file path/size, gate or disabled webhook"
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveNamespaceFile",
+        "description": "WRITE; append immutable revision with expectedRevision CAS. No deletion of pinned revisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamespaceFileSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceFile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace or action forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid definition, file path/size, gate or disabled webhook"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/files/revision": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getNamespaceFileRevision",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceFile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace or action forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid definition, file path/size, gate or disabled webhook"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/webhooks/{flowId}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "flowId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "triggerWebhook",
+        "description": "EXECUTE; USER Flow must opt in with webhook:true. JSON body is explicit Flow inputs. Checks gate first creation; replay returns original even if latest flow changes. Header namespace isolated from normal submissions. No anonymous secret URL.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Namespace or action forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or idempotency conflict"
+          },
+          "422": {
+            "description": "Invalid definition, file path/size, gate or disabled webhook"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3775,20 +4176,223 @@
         }
       },
       "Offload": {
-        "type":"object","additionalProperties":false,"required":["strategy","candidateClusters"],
-        "properties":{"strategy":{"type":"string","enum":["RULE","DQN"]},"candidateClusters":{"oneOf":[{"type":"array","minItems":1,"maxItems":100,"items":{"type":"string"}},{"$ref":"#/components/schemas/Binding"}]},"modelVersion":{"type":["string","null"]}},
-        "description":"Only execution=TERMINAL. Presence explicitly allows offloading. DQN requires modelVersion; RULE forbids it. Reuses existing Binding scope."
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "strategy",
+          "candidateClusters"
+        ],
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "RULE",
+              "DQN"
+            ]
+          },
+          "candidateClusters": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "$ref": "#/components/schemas/Binding"
+              }
+            ]
+          },
+          "modelVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "Only execution=TERMINAL. Presence explicitly allows offloading. DQN requires modelVersion; RULE forbids it. Reuses existing Binding scope."
       },
       "DqnModel": {
-        "type":"object","additionalProperties":false,"required":["stateSchema","weights1","bias1","weights2","bias2"],
-        "properties":{"stateSchema":{"const":"terminal-slot-cost-v1"},"weights1":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":13,"maxItems":13,"items":{"type":"number"}}},"bias1":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"number"}},"weights2":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"number"}}},"bias2":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"number"}}},
-        "description":"Linear/ReLU/Linear row-major weights. Java validates matching hidden dimensions and finite bounded values. No built-in model."
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stateSchema",
+          "weights1",
+          "bias1",
+          "weights2",
+          "bias2"
+        ],
+        "properties": {
+          "stateSchema": {
+            "const": "terminal-slot-cost-v1"
+          },
+          "weights1": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "items": {
+              "type": "array",
+              "minItems": 13,
+              "maxItems": 13,
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "bias1": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 128,
+            "items": {
+              "type": "number"
+            }
+          },
+          "weights2": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "bias2": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "description": "Linear/ReLU/Linear row-major weights. Java validates matching hidden dimensions and finite bounded values. No built-in model."
       },
-      "OffloadingTarget":{"type":"object","additionalProperties":false,"required":["kind","id"],"properties":{"kind":{"type":"string","enum":["TERMINAL","EDGE","CLOUD"]},"id":{"type":"string"}}},
+      "OffloadingTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "TERMINAL",
+              "EDGE",
+              "CLOUD"
+            ]
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
       "OffloadingSample": {
-        "type":"object","additionalProperties":false,
-        "properties":{"key":{"type":"string"},"executionId":{"type":"string"},"applicationId":{"type":"string"},"applicationVersion":{"type":"string"},"workload":{"type":"object","additionalProperties":true},"inputBytes":{"type":"integer","minimum":0},"target":{"$ref":"#/components/schemas/OffloadingTarget"},"strategy":{"type":["string","null"],"enum":["RULE","DQN",null]},"modelVersion":{"type":["string","null"]},"state":{"type":["array","null"],"items":{"type":"number"}},"action":{"type":["integer","null"],"minimum":0,"maximum":2},"createdAt":{"type":"string","format":"date-time"},"startedAt":{"type":["string","null"],"format":"date-time"},"finishedAt":{"type":["string","null"],"format":"date-time"},"outcome":{"type":["string","null"],"enum":["SUCCESS","FAILED","CANCELLED",null]},"reward":{"type":["number","null"]}},
-        "description":"One observation per Attempt; not an Execution state mirror. Timings include platform service overhead, not algorithm-only SDK timing."
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "executionId": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": "string"
+          },
+          "applicationVersion": {
+            "type": "string"
+          },
+          "workload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "inputBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "target": {
+            "$ref": "#/components/schemas/OffloadingTarget"
+          },
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "RULE",
+              "DQN",
+              null
+            ]
+          },
+          "modelVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "number"
+            }
+          },
+          "action": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 2
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "SUCCESS",
+              "FAILED",
+              "CANCELLED",
+              null
+            ]
+          },
+          "reward": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "description": "One observation per Attempt; not an Execution state mirror. Timings include platform service overhead, not algorithm-only SDK timing."
       },
       "GatewayRegistration": {
         "type": "object",
@@ -4081,7 +4685,10 @@
                 "type": "string",
                 "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
               },
-              "port": {"type": "string", "description": "A declared task output; Loop ports contain ordered arrays."}
+              "port": {
+                "type": "string",
+                "description": "A declared task output; Loop ports contain ordered arrays."
+              }
             },
             "required": [
               "source",
@@ -4091,11 +4698,26 @@
             "additionalProperties": false
           },
           {
-            "type": "object", "additionalProperties": false,
-            "required": ["source", "path"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "path"
+            ],
             "properties": {
-              "source": {"const": "ITEM", "type": "string"},
-              "path": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "string"}, "description": "Starts with value or index; only inside a Loop item."}
+              "source": {
+                "const": "ITEM",
+                "type": "string"
+              },
+              "path": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                  "type": "string"
+                },
+                "description": "Starts with value or index; only inside a Loop item."
+              }
             }
           }
         ],
@@ -4200,19 +4822,54 @@
             "description": "If expression must render true or false; choice persisted"
           },
           "container": {
-            "anyOf": [{"$ref": "#/components/schemas/Container"}, {"type": "null"}]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Container"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "http": {
-            "anyOf": [{"$ref": "#/components/schemas/HttpTask"}, {"type": "null"}]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HttpTask"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sql": {
-            "anyOf": [{"$ref": "#/components/schemas/SqlTask"}, {"type": "null"}]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SqlTask"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "repeat": {
-            "anyOf": [{"$ref": "#/components/schemas/Repeat"}, {"type": "null"}]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Repeat"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "loop": {
-            "anyOf": [{"$ref": "#/components/schemas/Loop"}, {"type": "null"}]
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Loop"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4225,54 +4882,191 @@
       "Repeat": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["iterations"],
+        "required": [
+          "iterations"
+        ],
         "properties": {
-          "iterations": {"$ref": "#/components/schemas/Binding"},
-          "initial": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
-          "feedback": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}}
+          "iterations": {
+            "$ref": "#/components/schemas/Binding"
+          },
+          "initial": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "feedback": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          }
         },
         "description": "Fixed 1..100 iterations, resolved at start. Matching initial/feedback state keys, excluding iterations/iterationCount. Each round is a barrier; no nested Repeat. External consumers reference Repeat outputs, never its children."
       },
       "Loop": {
-        "type": "object", "additionalProperties": false, "required": ["values"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "values"
+        ],
         "properties": {
-          "values": {"$ref": "#/components/schemas/Binding"},
-          "concurrency": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1},
-          "outputs": {"type": "object", "maxProperties": 30, "additionalProperties": {"$ref": "#/components/schemas/Binding"}}
+          "values": {
+            "$ref": "#/components/schemas/Binding"
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 1
+          },
+          "outputs": {
+            "type": "object",
+            "maxProperties": 30,
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          }
         },
         "description": "Snapshot an array of 0..1000 items; sequential child tasks per item. Bounded concurrent groups. Declared outputs collected in input order after all items succeed. Repeat may contain Loop; Loop cannot contain Repeat/Loop. See s5-loop.md."
       },
       "Container": {
         "type": "object",
         "properties": {
-          "applicationId": {"type": "string"},
-          "version": {"type": "string"},
-          "candidateClusters": {"oneOf": [{"$ref": "#/components/schemas/Binding"}, {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string"}}], "description": "Resolve to a nonempty unique array. Static arrays normalize to LITERAL at parse time."},
-          "command": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string", "maxLength": 8192}},
-          "parameters": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
-          "inputFiles": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
-          "outputFiles": {"type": "array", "maxItems": 30, "items": {"type": "string"}},
-          "execution": {"type": "string", "enum": ["CLUSTER", "TERMINAL"], "default": "CLUSTER", "description": "TERMINAL requires authenticated edge ingress provenance and an administrator-configured Docker context. It forbids container.candidateClusters; CLUSTER requires them and forbids offload."},
-          "offload": {"$ref":"#/components/schemas/Offload"}
+          "applicationId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "candidateClusters": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Binding"
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Resolve to a nonempty unique array. Static arrays normalize to LITERAL at parse time."
+          },
+          "command": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "inputFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          },
+          "outputFiles": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string"
+            }
+          },
+          "execution": {
+            "type": "string",
+            "enum": [
+              "CLUSTER",
+              "TERMINAL"
+            ],
+            "default": "CLUSTER",
+            "description": "TERMINAL requires authenticated edge ingress provenance and an administrator-configured Docker context. It forbids container.candidateClusters; CLUSTER requires them and forbids offload."
+          },
+          "offload": {
+            "$ref": "#/components/schemas/Offload"
+          },
+          "namespaceFiles": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NamespaceFileRef"
+            },
+            "description": "Local input filename -> same-namespace pinned UTF-8 file revision. /cea-work/in/<name>; at most 256KiB total."
+          }
         },
-        "required": ["applicationId", "version", "command"],
+        "required": [
+          "applicationId",
+          "version",
+          "command"
+        ],
         "additionalProperties": false,
         "description": "Explicit application task. Requires timeout. Inputs staged at /cea-work/in/name; outputs collected from /cea-work/out/name. Dataset parameter P also injects P_PATH. No automatic Flow inputs. See s4-job-execution.md."
       },
       "HttpTask": {
-        "type": "object", "additionalProperties": false,
+        "type": "object",
+        "additionalProperties": false,
         "properties": {
-          "connection": {"type": "string"}, "method": {"enum": ["GET", "POST"]},
-          "path": {"$ref": "#/components/schemas/Binding"},
-          "body": {"anyOf": [{"$ref": "#/components/schemas/Binding"}, {"type": "null"}]}
-        }, "required": ["connection", "method", "path"]
+          "connection": {
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "path": {
+            "$ref": "#/components/schemas/Binding"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Binding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "connection",
+          "method",
+          "path"
+        ]
       },
       "SqlTask": {
-        "type": "object", "additionalProperties": false,
+        "type": "object",
+        "additionalProperties": false,
         "properties": {
-          "connection": {"type": "string"}, "query": {"type": "string", "maxLength": 65536},
-          "parameters": {"type": "array", "maxItems": 100, "items": {"$ref": "#/components/schemas/Binding"}}
-        }, "required": ["connection", "query"]
+          "connection": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "parameters": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Binding"
+            }
+          }
+        },
+        "required": [
+          "connection",
+          "query"
+        ]
       },
       "FlowDefinition": {
         "type": "object",
@@ -4362,6 +5156,37 @@
                 "type": "null"
               }
             ]
+          },
+          "checks": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/FlowCheck"
+            }
+          },
+          "webhook": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Opt-in authenticated POST webhook; JSON body contains Flow inputs"
+          },
+          "sla": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlowSla"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "afterExecution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            },
+            "description": "Durable same-chain tasks after terminal result; failures never rewrite result; inspect TaskRuns"
           }
         },
         "required": [
@@ -4624,6 +5449,14 @@
                 "type": "null"
               }
             ]
+          },
+          "slaViolatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "First Executor observation exceeding SLA, durable; null if not observed"
           }
         },
         "required": [
@@ -4705,11 +5538,22 @@
             "enum": [
               "MAIN",
               "ERRORS",
-              "FINALLY"
+              "FINALLY",
+              "AFTER_EXECUTION"
             ]
           },
-          "parentTaskRunId": {"type": ["string", "null"], "description": "Nearest dynamic Repeat/Loop parent TaskRun UUID; null at root scope"},
-          "iteration": {"type": "integer", "minimum": 0, "description": "Zero at root; one-based local round/item ordinal under its dynamic parent. item.index is zero-based."},
+          "parentTaskRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nearest dynamic Repeat/Loop parent TaskRun UUID; null at root scope"
+          },
+          "iteration": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero at root; one-based local round/item ordinal under its dynamic parent. item.index is zero-based."
+          },
           "retryAt": {
             "anyOf": [
               {
@@ -5318,6 +6162,112 @@
             }
           }
         }
+      },
+      "NamespaceFileSave": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content": {
+            "type": "string",
+            "description": "UTF-8 text, at most 65536 bytes"
+          }
+        },
+        "required": [
+          "path",
+          "expectedRevision",
+          "content"
+        ]
+      },
+      "NamespaceFile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "revision",
+          "content"
+        ]
+      },
+      "NamespaceFileEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "revision"
+        ]
+      },
+      "NamespaceFileRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "path",
+          "revision"
+        ]
+      },
+      "FlowCheck": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "when": {
+            "type": "string",
+            "description": "Existing Pebble condition over inputs/vars; must render true to admit execution"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "when",
+          "message"
+        ]
+      },
+      "FlowSla": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "maxDuration": {
+            "type": "string",
+            "description": "ISO-8601 PT0.001S..PT24H, elapsed startedAt to main completion including Errors/Finally; violation only, not cancellation"
+          }
+        },
+        "required": [
+          "maxDuration"
+        ]
       }
     }
   }

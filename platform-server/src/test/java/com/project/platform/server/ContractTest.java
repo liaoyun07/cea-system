@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -47,6 +47,12 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("NamespaceFileSave",NamespaceFileController.Save.class),
+                Map.entry("NamespaceFile",com.project.platform.dataflow.definition.NamespaceFileService.File.class),
+                Map.entry("NamespaceFileEntry",com.project.platform.dataflow.definition.NamespaceFileService.Entry.class),
+                Map.entry("NamespaceFileRef",FlowDefinition.NamespaceFile.class),
+                Map.entry("FlowCheck",FlowDefinition.Check.class),
+                Map.entry("FlowSla",FlowDefinition.Sla.class),
                 Map.entry("FlowSourceRequest",FlowController.SourceRequest.class),
                 Map.entry("FlowPreviewRequest",FlowController.PreviewRequest.class),
                 Map.entry("FlowImportRequest",FlowController.ImportRequest.class),

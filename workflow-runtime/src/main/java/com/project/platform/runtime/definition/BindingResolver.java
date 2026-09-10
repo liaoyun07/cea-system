@@ -9,7 +9,14 @@ import java.util.Map;
 import java.util.Set;
 
 public final class BindingResolver {
+    private final TemplateRenderer renderer=new TemplateRenderer();
     public record Prepared(Map<String, Object> inputs, Map<String, Object> variables) {}
+
+    public void checks(FlowDefinition flow,Prepared prepared) {
+        var context=Map.<String,Object>of("inputs",prepared.inputs(),"vars",prepared.variables());
+        for(var check:flow.checks())if(!"true".equals(renderer.render(check.when(),context).trim()))
+            throw WorkflowException.invalid("checks",check.message());
+    }
 
     public Prepared prepare(FlowDefinition flow, Map<String, Object> supplied) {
         Map<String, Object> values = supplied == null ? Map.of() : supplied;
