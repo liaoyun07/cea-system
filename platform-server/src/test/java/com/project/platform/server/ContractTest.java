@@ -47,6 +47,11 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("FlowSourceRequest",FlowController.SourceRequest.class),
+                Map.entry("FlowPreviewRequest",FlowController.PreviewRequest.class),
+                Map.entry("FlowImportRequest",FlowController.ImportRequest.class),
+                Map.entry("FlowImportEntry",com.project.platform.dataflow.definition.FlowService.ImportEntry.class),
+                Map.entry("FlowPreview",com.project.platform.dataflow.definition.FlowService.Preview.class),
                 Map.entry("Offload",FlowDefinition.Offload.class),
                 Map.entry("DqnModel",com.project.platform.offloading.DqnModel.class),
                 Map.entry("OffloadingSample",com.project.platform.offloading.OffloadingService.Sample.class),

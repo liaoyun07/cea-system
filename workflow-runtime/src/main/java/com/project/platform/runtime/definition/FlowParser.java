@@ -11,10 +11,16 @@ public final class FlowParser {
     private final YAMLMapper mapper = YAMLMapper.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).build();
     private final FlowValidator validator;
 
     public FlowParser(FlowValidator validator) { this.validator = validator; }
+
+    public String yaml(FlowDefinition flow) {
+        validator.validate(flow);
+        return mapper.writeValueAsString(flow);
+    }
 
     public FlowDefinition parse(String source) {
         if (source == null || source.isBlank() || source.length() > 262_144) {
@@ -30,4 +36,3 @@ public final class FlowParser {
         return flow;
     }
 }
-

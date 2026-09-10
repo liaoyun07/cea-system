@@ -59,13 +59,17 @@ public final class JdbcFlowRepository {
                         rs.getString("created_by"), rs.getTimestamp("created_at").toInstant()), namespace, flowId, limit, offset);
     }
 
-    public List<FlowRevision.Summary> list(String namespace, int limit, int offset) {
+    public List<FlowRevision.Summary> search(String namespace,String query,String labelKey,String labelValue,int limit,int offset) {
         return jdbc.query("""
                 SELECT r.* FROM wf_flow_head h JOIN wf_flow_revision r
                 ON h.namespace=r.namespace AND h.flow_id=r.flow_id AND h.latest_revision=r.revision
-                WHERE h.namespace=? AND h.management_scope='USER' ORDER BY h.flow_id LIMIT ? OFFSET ?
+                WHERE h.namespace=? AND h.management_scope='USER'
+                AND (LOCATE(?,h.flow_id)>0 OR LOCATE(?,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.definition_json,'$.description')),''))>0)
+                AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(r.definition_json,'$.labels'),JSON_OBJECT()),CAST(? AS JSON))
+                ORDER BY h.flow_id LIMIT ? OFFSET ?
                 """, (rs,row) -> new FlowRevision.Summary(namespace, rs.getString("flow_id"), rs.getInt("revision"),
-                rs.getString("created_by"), rs.getTimestamp("created_at").toInstant()), namespace, limit, offset);
+                rs.getString("created_by"), rs.getTimestamp("created_at").toInstant()), namespace,query,query,
+                json.write(labelKey==null?java.util.Map.of():java.util.Map.of(labelKey,labelValue)),limit,offset);
     }
 
     public void requireScope(String namespace,String flowId,String scope) {

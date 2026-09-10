@@ -1,0 +1,29 @@
+### Point only to your new backend; provide your own API credentials in the HTTP client.
+@base = http://127.0.0.1:18085/api/namespaces/lab/flows
+
+### Structural schema
+GET {{base}}/editor/schema
+
+### No-code sends JSON as the same source text; YAML source works in the same field.
+POST {{base}}/hello-editor/validate
+Content-Type: application/json
+
+{"source":"{\"schemaVersion\":1,\"namespace\":\"lab\",\"id\":\"hello-editor\",\"inputs\":{\"name\":{\"type\":\"STRING\",\"required\":true}},\"tasks\":[{\"id\":\"hello\",\"type\":\"core.Log\",\"message\":\"Hello {{ inputs.name }}\"}]}"}
+
+### Resolve actual inputs without saving or executing
+POST {{base}}/hello-editor/preview
+Content-Type: application/json
+
+{"source":"schemaVersion: 1\nnamespace: lab\nid: hello-editor\ninputs:\n  name: {type: STRING, required: true}\ntasks:\n  - {id: hello, type: core.Log, message: 'Hello {{ inputs.name }}'}","inputs":{"name":"Ada"}}
+
+### Explicit import; 0 creates, an existing Flow requires its latest revision.
+POST {{base}}/import
+Content-Type: application/json
+
+{"flows":[{"expectedRevision":0,"source":"schemaVersion: 1\nnamespace: lab\nid: hello-editor\nlabels: {team: example}\ntasks:\n  - {id: hello, type: core.Log, message: 'Hello'}"}]}
+
+### Preserves source; add format=json or format=yaml for normalized definition
+GET {{base}}/hello-editor/export?revision=1
+
+### Only latest USER flows, not edge-policy flows
+GET {{base}}?q=hello&labelKey=team&labelValue=example&limit=20&offset=0

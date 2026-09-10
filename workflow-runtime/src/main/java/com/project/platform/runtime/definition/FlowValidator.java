@@ -10,6 +10,9 @@ import java.util.ArrayList;
 import com.project.platform.runtime.scheduler.ScheduleCalculator;
 
 public final class FlowValidator {
+    private static final Set<String> TASK_TYPES=Set.of("core.Log","core.Sleep","core.Http","core.Sql","platform.Application",
+            "core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat","core.Loop");
+    public static Set<String> taskTypes() {return TASK_TYPES;}
     private final TemplateRenderer renderer;
     public FlowValidator(TemplateRenderer renderer) { this.renderer = renderer; }
 
@@ -40,6 +43,7 @@ public final class FlowValidator {
         Set<String> taskIds = new HashSet<>();
         for (Task task : flow.allTasks()) {
             identifier(task.id(), "tasks.id");
+            if(task.type()==null || !TASK_TYPES.contains(task.type()))throw WorkflowException.invalid("tasks."+task.id(),"unsupported task type");
             if (!taskIds.add(task.id())) throw WorkflowException.invalid("tasks.id", "duplicate " + task.id());
             if ("core.Log".equals(task.type())) {
                 renderer.validate(task.message());

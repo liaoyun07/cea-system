@@ -4,7 +4,15 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共82份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共83份（含8份包声明），测试类另列。
+
+## S6-01实际增量
+
+新增FlowSchema从现有FlowDefinition record、Jackson字段别名/Binding多态和Validator支持类型生成结构Schema；FlowService.schema为实际消费者。校验/输入预览复用FlowParser/FlowValidator/BindingResolver；导入复用原save事务，按flowId排序取得head锁；搜索只读dataflow自己的最新USER修订。5个新HTTP操作、5个请求/响应record，无新DSL/表/字段/迁移/状态/SPI，Execution主链不变。完整语义见[协议](contracts/s6-flow-editing.md)和[ADR-0018](decisions/ADR-0018-flow-editing.md)。其余S6批次未实现。
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowSchema.java` | 从运行模型生成编辑用结构Schema；不替代语义校验 | generate | 无状态/缓存/数据库 | WF-016 | FlowManagementTest |
 
 ## S5-04b实际增量
 
@@ -86,7 +94,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError、phase/retryAt；parentTaskRunId/iteration标记Repeat轮次 | WF-004、WF-006 | I/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/WorkflowException.java` | 领域校验/冲突/未找到异常 | invalid/missing/conflict | 不暴露SQL或模板上下文 | WF-001 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/JsonCodec.java` | 统一JSON序列化与请求规范摘要 | write/read/map/flow/hash | map键排序SHA256 | WF-001、WF-005 | D/I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowParser.java` | JSON/YAML入口与未知字段拒绝 | parse | 无写入；限源文本长度 | WF-001 | D/C |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowParser.java` | 单文档JSON/YAML与未知/重复/尾随文档拒绝；规范YAML导出 | parse/yaml | 无写入；限源文本长度 | WF-001、WF-016 | D/C/FlowManagementTest |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowValidator.java` | 叶子/控制树、DAG环、Cron/输入、跨阶段ID与Binding校验 | validate/identifier | 保存前校验；表达式引用运行时检查 | WF-001、WF-002 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/BindingResolver.java` | 类型检查、默认输入、变量与最终输出 | prepare/resolve/outputs | 仅根据作者定义的Flow准备输入/变量，不从Application派生 | WF-002 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/TemplateRenderer.java` | 严格Pebble表达式 | validate/render | 无模板语句；限制渲染长度 | WF-002 | D/I |
@@ -100,8 +108,8 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程最多4个叶子任务；许可限制并行派发，不阻塞调度线程 | WF-007 | I |
 | `platform-foundation/src/main/java/com/project/platform/foundation/identity/AccessPolicy.java` | Actor与命名空间/action授权 | require | 无存储；拒绝越权 | SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowRevision.java` | 版本内容和列表摘要 | record访问器 | 不可变版本与来源；删除无业务消费者checksum | WF-003 | I/C |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化 | save/get/history/list | 锁稳定head，CAS保存；只追加版本 | WF-003 | I |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | 定义管理应用门面 | save/get/history/list/rollback | WRITE/READ授权；启用Schedule另需EXECUTE；修订/并发配置/Schedule同事务 | WF-003、SEC-001 | I |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化及USER源搜索 | save/get/history/search | 锁稳定head，CAS保存；只追加版本 | WF-003、WF-015 | I/FlowManagementTest |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | 定义管理及编辑门面 | save/get/history/list/search/rollback/schema/validate/preview/export/importFlows | WRITE/READ授权；启用Schedule另需EXECUTE；修订/并发配置/Schedule同事务，批量全有或全无 | WF-003、WF-015、WF-016、SEC-001 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | 提交、取消与运行查询门面 | submit/get/list/tasks/attempts/logs/cancel | 授权；原始请求hash优先查幂等，解析版本后委托runtime | WF-004、WF-006、SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
@@ -109,7 +117,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-server/src/main/java/com/project/platform/server/security/SecurityProperties.java` | 外部配置账号/命名空间/actions | record访问器 | 不提交密码到源码；没有默认密码 | SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/security/IdentityDirectory.java` | 配置身份映射与密码编码 | users/actor | 启动校验；不接受客户端指定actor | SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/security/SecurityConfiguration.java` | HTTP Basic与无会话安全链 | apiSecurity/users/identityDirectory | 仅本地基线；无生产IAM承诺 | SEC-001 | I |
-| `platform-server/src/main/java/com/project/platform/server/api/FlowController.java` | 定义/版本HTTP适配 | save/get/revisions/rollback/list | 不直接访问任何Repository或表 | WF-003 | I/C/A |
+| `platform-server/src/main/java/com/project/platform/server/api/FlowController.java` | 定义/版本/编辑HTTP适配 | save/get/revisions/rollback/list/schema/validate/preview/export/importFlows | 不直接访问任何Repository或表 | WF-003、WF-015、WF-016 | I/C/A/FlowManagementTest |
 | `platform-server/src/main/java/com/project/platform/server/api/ExecutionController.java` | 执行HTTP适配与返回View | submit/get/list/tasks/attempts/logs/cancel | 202在提交/取消事务完成后；不泄露内部定义快照 | WF-004、WF-006 | I/C/A |
 | `platform-server/src/main/java/com/project/platform/server/api/ApiExceptionHandler.java` | 领域和请求错误HTTP映射 | workflow/forbidden/malformed | 400/403/404/409/422；基础设施错误不改业务状态 | SEC-001、WF-004 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/package-info.java` | 根包职责声明 | 无 | 无 | FND-001 | 结构检查 |
@@ -170,6 +178,8 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/CommonTaskRunner.java` | HTTP GET/POST和只读SQL、限时/限量/连接边界 | run；HttpConnection/SqlConnection | Worker结果，POST开始标记用既有prepared_json；不新建表 | WF-012 | CommonTaskTest/C |
 
 ## 测试入口
+
+- [FlowManagementTest](../platform-server/src/test/java/com/project/platform/server/FlowManagementTest.java)：11项真实MySQL/HTTP编辑Schema、无副作用预览、导出再导入运行、原子批次、反序并发CAS、权限/范围/搜索及全部示例格式往返。
 
 - [OffloadingTest](../platform-server/src/test/java/com/project/platform/server/OffloadingTest.java)：10项真实MySQL/HTTP模型、权限、画像、反馈和终端FIFO并发测试。真实三位置训练/模型执行在ImageDistributionTest中，完整结果以最新验证记录为准；以下旧批次计数是历史入口说明。
 
