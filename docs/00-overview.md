@@ -1,5 +1,7 @@
 # 系统总览
 
+UI-01提供[独立最小工作台](../frontend/README.md)：Vue客户端 → 同源/api代理 → 现有Flow/Execution API。列表、YAML校验/保存、固定修订执行、任务/日志/结果已实现；没有改变八模块、后端状态所有权或数据库。完整可视化编排和资源/账号/网关管理界面仍未实现，旧前端及S7未迁移。
+
 S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出/搜索；本轮补充固定版本Namespace文件及真实Task消费、认证Webhook/统一Checks、SLA告警和终态后处理。执行状态仍由同一个Executor/Worker推进，详细边界见[编辑协议](contracts/s6-flow-editing.md)与[文件/生命周期](contracts/s6-files-lifecycle.md)。S6后端最小范围及完整回归已通过；S5计量、长期DQN和完整前端仍未实现。
 
 基线日期：2026-09-11。S1–S3执行基础、S4资源/应用目录、镜像分发/常驻部署、一次性Job/产物与通用任务均已实现；当前验收状态与边界见[进度](04-progress.md)。

@@ -1,10 +1,14 @@
 # 当前进度
 
-最新授权：继续完成S6剩余02–04；已完成。2026-09-11 00:02:08 +08:00完整verify通过212项Maven与12项Python测试，见[本次验收](verification/VER-S6-002-files-lifecycle.md)。S6按已授权的最小后端范围DONE；S5的DQN研究和数据处理速率仍后置，不进入S7或完整前端。
+最新增量：2026-09-11用户授权UI-01独立前端最小闭环并要求参考Kestra风格/操作。[frontend](../frontend/README.md)已接通现有API，11项实际JAR浏览器联调通过，包含日志分页/动态实例检查；9项Node单测、构建及格式检查通过。Java主链未改，本次重新执行完整verify，212项Maven/12项Python于00:45:59通过。最终证据见[UI验收](verification/VER-UI-001-console.md)。S7、完整No-code、其他管理页、计量和长期DQN不在本批范围。
+
+S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过212项Maven与12项Python测试，见[S6验收](verification/VER-S6-002-files-lifecycle.md)。S6按已授权的最小后端范围DONE；S5的DQN研究和数据处理速率仍后置。
 
 更新时间：2026-09-11。S6-01至04全部验收通过；S5已实现的核心链继续通过回归，长期DQN、计量和物理多云性能尚未完成，不因后置而标为达标。
 
 ## 当前事实
+
+- UI-01：内存Basic认证、命名空间；真实Flow列表/搜索/分页、YAML源校验/Schema参考、修订CAS和未保存提示；显式Flow.inputs类型表单/预览、固定修订及未决请求同键重试；Execution/TaskRun/Attempt、增量日志、取消、主结果与afterExecution展示。前端独立npm工程，不增Java、表、API或第二套绑定。原先“前端未实现”的记录指此批之前或完整前端范围。
 
 - S6-02至04：固定版本Namespace小型文本文件进入原Application Prepared/容器文件链；认证Webhook和统一Checks；SLA首次超限持久查询；AFTER_EXECUTION阶段通过原Executor/Worker运行，主终态/输出/结束时间不被后处理错误改写。完整回归通过，见[S6协议](contracts/s6-files-lifecycle.md)。
 
@@ -48,6 +52,7 @@
 
 | 工作包 | 状态 | 交付/剩余验收 |
 |---|---|---|
+| UI-01 | DONE（最小前端） | 原API源编辑/保存/固定修订执行/详情，9项Node及11项真实浏览器联调PASS；不是完整No-code或全管理台 |
 | S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
 | S4-02 | DONE | a纯契约目录保留，b真实镜像分发/c常驻部署完成；103项统一verify PASS，见VER-S4-004 |
 | S4-03 | DONE | 真实Job/产物/同Attempt接管/取消/平台槽及全量回归PASS |
@@ -70,6 +75,8 @@
 
 ## 下一步
 
+UI-01可在用户配置的新后端上运行；真实集群/算法目录、数据与凭据仍须部署登记。UI-01不是S7切换验收，未启动用户旧服务或迁移旧库。完整管理台、S7及新增功能需要后续确认。
+
 S6后端范围已完成并按持续授权发布GitHub；下一阶段或完整前端需用户另行确认，不自动进入S7。S5-05计量和长期多步DQN后置，不作为S6前置；策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
@@ -86,6 +93,8 @@ S6后端范围已完成并按持续授权发布GitHub；下一阶段或完整前
 | OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11随S4真实运行接入最小实现；其他已选后置项不变。见[范围清单](06-deployment-safeguards-review.md)，目录API不能冒充远程接口/凭据/部署保障验收 |
 
 ## 完成记录
+
+2026-09-11：UI-01独立Vue工作台最小闭环完成，参考Kestra侧栏/列表/源编辑/执行详情；只消费原API，不修改Java、DB、旧AMIS或执行主链。9项Node单测、11项真实JAR浏览器测试、构建/格式检查通过；212项Maven/12项Python本次全量回归通过。启动步骤及限制见frontend/README，失败原因/修复见VER-UI-001。按持续授权提交并更新GitHub。
 
 2026-09-11：完成S6-02至04。固定修订Namespace文本文件进入真实Application/Prepared；认证Webhook及所有提交入口Checks；SLA告警与原Executor的终态后处理。新增3份生产Java、4个HTTP操作、6个record、1张文件表、SLA时间列与phase扩容，无新Binding/Runner/SPI/执行链。212项Maven和12项Python完整verify于00:02:08通过，见VER-S6-002。S6后端阶段DONE，前端、S7、计量和长期DQN仍未实现。
 

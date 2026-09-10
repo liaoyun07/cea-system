@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [UI-01独立前端](ui-console.md)：通过现有API完成源编辑、固定修订执行、日志与结果；无新HTTP操作或旧DTO适配。
+
 - [S6-02至04文件与生命周期](s6-files-lifecycle.md)：小型文本固定修订/真实容器消费、认证Webhook、统一Checks、maxDuration告警及原执行链终态后处理。
 
 - [S6-01编辑与流程管理](s6-flow-editing.md)：统一结构Schema、无副作用校验/输入预览、原子导入、源导出和USER搜索；不等于完整No-code前端。

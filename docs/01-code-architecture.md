@@ -4,6 +4,21 @@
 
 ## 工程结构
 
+UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文件。实际调用：Vue → 同源/api代理 → 既有Controller/公开服务 → 原Execution链。生产文件如下，启动和测试见[前端README](../frontend/README.md)。
+
+| 前端文件 | 当前职责 |
+|---|---|
+| `frontend/src/main.js` | 挂载Vue及全局样式 |
+| `frontend/src/App.vue` | 内存认证、命名空间、列表/搜索/分页、页面切换和未保存提示 |
+| `frontend/src/FlowEditor.vue` | YAML源、服务端校验/Schema、CAS修订、输入预览、固定请求幂等提交 |
+| `frontend/src/ExecutionDetail.vue` | 实际Execution/TaskRun/Attempt、增量日志、结果与后处理、取消/轮询释放 |
+| `frontend/src/api.js` | Basic、同源请求、超时和结构化错误，无新服务状态 |
+| `frontend/src/model.js` | 六种输入转换、提交快照、日志去重/窗口、显式插入的Log草稿 |
+| `frontend/src/style.css` | Kestra参考方向的工作台、编辑区、执行标签、响应式样式 |
+| `frontend/vite.config.js` | 独立构建、开发/本地预览同源代理 |
+
+测试：`frontend/tests/unit/model.test.js`（转换/请求/错误）和`frontend/tests/e2e/console.spec.js`（实际JAR浏览器闭环）；`frontend/tests/run-e2e.mjs`管理仅本次临时MySQL/JAR/预览生命周期。无Java/表/字段/API/SPI变更。
+
 根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共86份（含8份包声明），测试类另列。
 
 ## S6-02至04实际增量

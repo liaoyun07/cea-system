@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；[工作包](features/UI-01-console.md)、[验证记录](verification/VER-UI-001-console.md)。只覆盖源编辑与基本执行管理，不把完整No-code或全部旧管理页面标为完成。
+
 当前增量：S6-02至04的Namespace Files、Webhook/Checks/SLA/afterExecution已实现，212项Maven/12项Python完整verify通过，见[验收](verification/VER-S6-002-files-lifecycle.md)。WF-016完成的是后端编辑协议，不是完整前端。用户同意S5计量和DQN研究后置，MET-001仍未实现。
 
 本表是功能编号和状态的唯一汇总。NOT_STARTED 表示没有业务实现，NOT_RUN 表示没有该功能的测试结果。SCAFFOLD 仅指目录、POM 和包声明，不能称为业务完成。
@@ -24,7 +26,7 @@
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-017 | 通用动态Loop、item作用域、有序集合输出 | S5 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | IMPLEMENTED（后端协议） | PASS |
+| WF-016 | 统一编辑 Schema、No-code 前端对接 | S6/UI-01 | platform-dataflow/frontend | IMPLEMENTED（协议＋最小源编辑前端；No-code未实现） | PASS（当前范围） |
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
 | RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IMPLEMENTED | PASS |
 | DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IMPLEMENTED | PASS |
