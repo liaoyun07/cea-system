@@ -1,0 +1,58 @@
+# Local isolated deployment; backend runtime paths, not Windows paths.
+server:
+  address: 0.0.0.0
+  port: 18085
+platform:
+  worker:
+    concurrency: 4
+  distribution:
+    command: [skopeo]
+    timeout: PT5M
+    registries:
+      center:
+        address: registry-center:5000
+        tls-verify: false
+        auth-file: /run/secrets/registry-auth.json
+      edge-a:
+        address: registry-edge-a:5000
+        tls-verify: false
+        auth-file: /run/secrets/registry-auth.json
+      edge-b:
+        address: registry-edge-b:5000
+        tls-verify: false
+        auth-file: /run/secrets/registry-auth.json
+      edge-c:
+        address: registry-edge-c:5000
+        tls-verify: false
+        auth-file: /run/secrets/registry-auth.json
+    targets:
+      lab: {cloud: center, edge-a: edge-a, edge-b: edge-b, edge-c: edge-c}
+  kubernetes:
+    connections:
+      lab:
+        cloud:
+          kubeconfig: /run/secrets/cloud.yaml
+          context: cea
+          namespace: cea-lab
+        edge-a:
+          kubeconfig: /run/secrets/edge-a.yaml
+          context: cea
+          namespace: cea-lab
+        edge-b:
+          kubeconfig: /run/secrets/edge-b.yaml
+          context: cea
+          namespace: cea-lab
+        edge-c:
+          kubeconfig: /run/secrets/edge-c.yaml
+          context: cea
+          namespace: cea-lab
+  jobs:
+    slots:
+      lab: {cloud: 2, edge-a: 1, edge-b: 1, edge-c: 1}
+    storage:
+      lab:
+        endpoint: http://minio:9000
+        access-key-file: /run/secrets/s3-access
+        secret-key-file: /run/secrets/s3-secret
+        artifact-bucket: cea-artifacts
+        readable-buckets: [datasets]

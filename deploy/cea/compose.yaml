@@ -1,0 +1,205 @@
+name: cea
+
+x-log: &log
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+x-registry: &registry
+  image: registry:2
+  restart: unless-stopped
+  mem_limit: 256m
+  logging: *log
+  environment:
+    REGISTRY_AUTH: htpasswd
+    REGISTRY_AUTH_HTPASSWD_REALM: cea
+    REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    REGISTRY_STORAGE_DELETE_ENABLED: "false"
+x-k3s: &k3s
+  image: rancher/k3s:v1.30.6-k3s1
+  privileged: true
+  cgroup: host
+  restart: unless-stopped
+  mem_limit: 2g
+  cpus: 3
+  tmpfs: [/run, /var/run]
+  logging: *log
+  healthcheck:
+    test: ["CMD", "kubectl", "get", "--raw=/readyz"]
+    interval: 10s
+    timeout: 5s
+    retries: 30
+    start_period: 60s
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    mem_limit: 768m
+    command: ["--innodb-buffer-pool-size=256M", "--max-connections=100"]
+    environment:
+      MYSQL_DATABASE: cea
+      MYSQL_USER: ${BACKEND_DB_USER:?Run initialize.ps1}
+      MYSQL_PASSWORD: ${BACKEND_DB_PASSWORD:?Run initialize.ps1}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Run initialize.ps1}
+    ports: ["127.0.0.1:${CEA_MYSQL_PORT:-18306}:3306"]
+    volumes: [mysql-data:/var/lib/mysql]
+    logging: *log
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -u\"$$MYSQL_USER\" -D cea -e 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: [server, /data, --console-address, ":9001"]
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run initialize.ps1}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run initialize.ps1}
+    ports:
+      - "127.0.0.1:${CEA_S3_PORT:-18900}:9000"
+      - "127.0.0.1:${CEA_S3_CONSOLE_PORT:-18901}:9001"
+    volumes: [minio-data:/data]
+    logging: *log
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  registry-center:
+    <<: *registry
+    volumes: [registry-center-data:/var/lib/registry, "./secrets/registry.htpasswd:/auth/htpasswd:ro"]
+  registry-edge-a:
+    <<: *registry
+    volumes: [registry-edge-a-data:/var/lib/registry, "./secrets/registry.htpasswd:/auth/htpasswd:ro"]
+  registry-edge-b:
+    <<: *registry
+    volumes: [registry-edge-b-data:/var/lib/registry, "./secrets/registry.htpasswd:/auth/htpasswd:ro"]
+  registry-edge-c:
+    <<: *registry
+    volumes: [registry-edge-c-data:/var/lib/registry, "./secrets/registry.htpasswd:/auth/htpasswd:ro"]
+  cloud:
+    <<: *k3s
+    command: [server, --node-name=cea-cloud, --tls-san=cloud, --disable=traefik, --disable=servicelb, --disable=metrics-server, --disable=coredns, --disable=local-storage, --disable-network-policy, --write-kubeconfig-mode=600]
+    volumes:
+      - cloud-data:/var/lib/rancher/k3s
+      - cloud-kubelet:/var/lib/kubelet
+      - cloud-cni:/var/lib/cni
+      - cloud-log:/var/log
+      - ./secrets/registries/cloud.yaml:/etc/rancher/k3s/registries.yaml:ro
+      - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
+  edge-a:
+    <<: *k3s
+    command: [server, --node-name=cea-edge-a, --tls-san=edge-a, --disable=traefik, --disable=servicelb, --disable=metrics-server, --disable=coredns, --disable=local-storage, --disable-network-policy, --write-kubeconfig-mode=600]
+    volumes:
+      - edge-a-data:/var/lib/rancher/k3s
+      - edge-a-kubelet:/var/lib/kubelet
+      - edge-a-cni:/var/lib/cni
+      - edge-a-log:/var/log
+      - ./secrets/registries/edge-a.yaml:/etc/rancher/k3s/registries.yaml:ro
+      - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
+  edge-b:
+    <<: *k3s
+    command: [server, --node-name=cea-edge-b, --tls-san=edge-b, --disable=traefik, --disable=servicelb, --disable=metrics-server, --disable=coredns, --disable=local-storage, --disable-network-policy, --write-kubeconfig-mode=600]
+    volumes:
+      - edge-b-data:/var/lib/rancher/k3s
+      - edge-b-kubelet:/var/lib/kubelet
+      - edge-b-cni:/var/lib/cni
+      - edge-b-log:/var/log
+      - ./secrets/registries/edge-b.yaml:/etc/rancher/k3s/registries.yaml:ro
+      - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
+  edge-c:
+    <<: *k3s
+    command: [server, --node-name=cea-edge-c, --tls-san=edge-c, --disable=traefik, --disable=servicelb, --disable=metrics-server, --disable=coredns, --disable=local-storage, --disable-network-policy, --write-kubeconfig-mode=600]
+    volumes:
+      - edge-c-data:/var/lib/rancher/k3s
+      - edge-c-kubelet:/var/lib/kubelet
+      - edge-c-cni:/var/lib/cni
+      - edge-c-log:/var/log
+      - ./secrets/registries/edge-c.yaml:/etc/rancher/k3s/registries.yaml:ro
+      - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
+  backend:
+    image: cea/backend:local
+    build: {context: ../.., dockerfile: deploy/cea/backend.Dockerfile}
+    restart: unless-stopped
+    mem_limit: 2g
+    environment:
+      BACKEND_DB_URL: "jdbc:mysql://mysql:3306/cea?connectionTimeZone=UTC"
+      BACKEND_DB_USER: ${BACKEND_DB_USER}
+      BACKEND_DB_PASSWORD: ${BACKEND_DB_PASSWORD}
+      BACKEND_USER: ${BACKEND_USER}
+      BACKEND_PASSWORD: ${BACKEND_PASSWORD}
+      BACKEND_NAMESPACES: lab
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1200m"
+    ports: ["127.0.0.1:${CEA_API_PORT:-18085}:18085"]
+    volumes:
+      - ./application.yaml:/config/application.yaml:ro
+      - ./secrets/backend:/run/secrets:ro
+    depends_on:
+      mysql: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      cloud: {condition: service_healthy}
+      edge-a: {condition: service_healthy}
+      edge-b: {condition: service_healthy}
+      edge-c: {condition: service_healthy}
+    logging: *log
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u \"$$BACKEND_USER:$$BACKEND_PASSWORD\" http://localhost:18085/api/namespaces/lab/flows >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+  frontend:
+    image: cea/frontend:local
+    build: {context: ../.., dockerfile: deploy/cea/frontend.Dockerfile}
+    restart: unless-stopped
+    mem_limit: 128m
+    ports: ["127.0.0.1:${CEA_HTTP_PORT:-18080}:80"]
+    depends_on: {backend: {condition: service_healthy}}
+    logging: *log
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  storage-tool:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    profiles: [tools]
+    entrypoint: [/bin/sh]
+    env_file: [.env]
+    volumes:
+      - ./s3-policy.json:/config/s3-policy.json:ro
+      - ../../.local/cea:/data
+  image-tool:
+    image: quay.io/skopeo/stable:v1.20.0
+    profiles: [tools]
+    entrypoint: [skopeo]
+    volumes:
+      - ./secrets/backend/registry-auth.json:/run/secrets/registry-auth.json:ro
+      - ../../.local/cea:/data:ro
+
+volumes:
+  mysql-data:
+  minio-data:
+  registry-center-data:
+  registry-edge-a-data:
+  registry-edge-b-data:
+  registry-edge-c-data:
+  cloud-data:
+  cloud-kubelet:
+  cloud-cni:
+  cloud-log:
+  edge-a-data:
+  edge-a-kubelet:
+  edge-a-cni:
+  edge-a-log:
+  edge-b-data:
+  edge-b-kubelet:
+  edge-b-cni:
+  edge-b-log:
+  edge-c-data:
+  edge-c-kubelet:
+  edge-c-cni:
+  edge-c-log:

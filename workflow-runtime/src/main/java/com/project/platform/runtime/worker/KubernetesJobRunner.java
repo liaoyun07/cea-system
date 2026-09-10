@@ -105,6 +105,10 @@ public final class KubernetesJobRunner {
         if(exec(client,pod,"touch",ROOT+"/"+name)!=0)throw new IOException("cannot persist Pod marker");
     }
     private void upload(KubernetesClient client,String pod,String name,Path file) throws IOException {
-        if(!client.pods().withName(pod).inContainer("task").file(name).upload(file))throw new IOException("cannot stage input file");
+        // Stage bytes only: Path upload preserves host ownership in a tar,
+        // which a capability-restricted Pod cannot restore for a non-root Worker.
+        try(var input=Files.newInputStream(file)) {
+            if(!client.pods().withName(pod).inContainer("task").file(name).upload(input))throw new IOException("cannot stage input file");
+        }
     }
 }

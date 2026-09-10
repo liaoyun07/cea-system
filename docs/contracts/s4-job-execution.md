@@ -16,6 +16,8 @@ Linux镜像必须包含`/bin/sh`、`tar`、`sleep`和基本文件命令，启动
 
 ## 调用与故障语义
 
+DEPLOY-01修正文件传入：后端使用Fabric8 `upload(InputStream)`传字节，不用 `upload(Path)`的tar/UID/GID复制。模型、数据集和内联文件仍通过同一入口进入Pod；保留drop ALL capabilities，不为了恢复宿主文件归属而增加权限。实现参考Fabric8 7.7.0的[PodUpload](https://github.com/fabric8io/kubernetes-client/blob/v7.7.0/kubernetes-client/src/main/java/io/fabric8/kubernetes/client/dsl/internal/uploadable/PodUpload.java)。本地Kestra 0354ddf8cb的`core/.../runners/FilesService.java`同样将输入视作内容写入工作目录；本项目有意用既有Kubernetes文件API而非复制Kestra执行器。无新增状态/字段/迁移。
+
 FlowExecutionService → Executor派发 → Worker租约 → ApplicationTaskRunner解析既有Binding/契约 → resource观测/预约 → deployment准备digest镜像 → 持久prepared_json → KubernetesJobRunner创建或接管固定Job → 后端收集并发布产物 → 持久Worker结果 → Executor归并。
 
 - 选址检查真实Ready且可调度的节点和数据集本地性；原子预约配置的**平台Job槽**，不是CPU/内存物理预约，不使用卸载DQN。无槽等待同Attempt，占用任务timeout，不消耗业务重试。

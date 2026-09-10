@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+DEPLOY-01是OPS-001/FL-001的独立部署工作包，当前DONE/PASS，不是新增领域能力。[范围](features/DEPLOY-01-independent.md)与[实测记录](verification/VER-DEPLOY-001-cea.md)覆盖D盘Compose、显式配置、四集群联邦算法、浏览器和重启复核；FL-001本批已扩至真实MNIST训练60000/测试10000。算法Pod stdout未汇入Execution日志；不包含MIG-001旧数据转换/切换，OPS汇总仍保留最终上线未验收的边界。
+
 UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；[工作包](features/UI-01-console.md)、[验证记录](verification/VER-UI-001-console.md)。只覆盖源编辑与基本执行管理，不把完整No-code或全部旧管理页面标为完成。
 
 当前增量：S6-02至04的Namespace Files、Webhook/Checks/SLA/afterExecution已实现，212项Maven/12项Python完整verify通过，见[验收](verification/VER-S6-002-files-lifecycle.md)。WF-016完成的是后端编辑协议，不是完整前端。用户同意S5计量和DQN研究后置，MET-001仍未实现。

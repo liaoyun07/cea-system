@@ -4,6 +4,8 @@
 
 ## 工程结构
 
+DEPLOY-01新增`deploy/cea/`：Dockerfile/Compose负责12个CEA常驻容器与独立卷；application.yaml/.env.example负责显式连接；initialize/start/seed-federated/verify-federated脚本分别负责本地配置、服务启动、首次业务登记、真实算法验收，verify-browser.mjs读取实际工作台。详细范围见[部署文档](../deploy/cea/README.md)。未新增Java文件/表/API/SPI；现有`KubernetesJobRunner.upload`改为InputStream文件内容上传，避免非root Linux后端的tar归属信息与受限Pod权限冲突，执行主链不变。
+
 UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文件。实际调用：Vue → 同源/api代理 → 既有Controller/公开服务 → 原Execution链。生产文件如下，启动和测试见[前端README](../frontend/README.md)。
 
 | 前端文件 | 当前职责 |

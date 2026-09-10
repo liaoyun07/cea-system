@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+DEPLOY-01独立部署已验证：D盘Docker数据、`cea` Compose分组、前后端/MySQL/MinIO/四个Registry/四个K3s；[部署与配置入口](deploy/cea/README.md)。访问 `http://127.0.0.1:18080`，账号developer，随机密码在本地`deploy/cea/.env`的BACKEND_PASSWORD。FedAvg/FedProx已各完成全量MNIST两轮、11个Job及数值复核；整组重启后数据保留。不是旧系统切换或物理多云/吞吐验收，详见[验证记录](docs/verification/VER-DEPLOY-001-cea.md)。
+
 UI-01独立前端最小闭环已实现于[frontend](frontend/README.md)：参考Kestra交互的流程列表、YAML编辑/CAS保存、固定修订执行、任务/日志/结果。单独npm构建，通过现有API接新后端，不修改旧AMIS；完整No-code及其他管理页面仍未实现。使用`cd frontend; npm ci; npm run dev`，访问`http://127.0.0.1:18100`。后端需先按下方说明自行配置启动；无默认密码或自动业务seed。
 
 S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing.md)，本轮补充[Namespace Files、Webhook/Checks、SLA和afterExecution](docs/contracts/s6-files-lifecycle.md)，212项Maven及12项Python完整回归通过，见[当前进度](docs/04-progress.md)。沿用唯一Flow和执行链；完整前端未实现，DQN研究与S5计量按用户决定后置。

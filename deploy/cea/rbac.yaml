@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: cea-lab}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: cea-backend, namespace: cea-lab}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cea-backend-token
+  namespace: cea-lab
+  annotations: {kubernetes.io/service-account.name: cea-backend}
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: cea-backend, namespace: cea-lab}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, create, update, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, create, update, patch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [get, create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: cea-backend, namespace: cea-lab}
+subjects: [{kind: ServiceAccount, name: cea-backend, namespace: cea-lab}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: cea-backend}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: cea-observe-nodes}
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: cea-observe-nodes}
+subjects: [{kind: ServiceAccount, name: cea-backend, namespace: cea-lab}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cea-observe-nodes}

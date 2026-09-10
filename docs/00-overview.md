@@ -1,5 +1,7 @@
 # 系统总览
 
+DEPLOY-01提供当前可运行的[独立CEA部署](../deploy/cea/README.md)：同一台Windows/Docker Desktop上12个常驻容器，D盘Linux命名卷，独立前后端、数据库、存储、四仓库和四集群。FedAvg/FedProx真实两轮及重启持久性通过；不导入旧业务数据，不等于S7切换、物理多云或吞吐验收。仅修正既有Kubernetes文件上传为字节流，没有新模型/表/执行链。算法Pod stdout尚未汇入工作台Execution日志。
+
 UI-01提供[独立最小工作台](../frontend/README.md)：Vue客户端 → 同源/api代理 → 现有Flow/Execution API。列表、YAML校验/保存、固定修订执行、任务/日志/结果已实现；没有改变八模块、后端状态所有权或数据库。完整可视化编排和资源/账号/网关管理界面仍未实现，旧前端及S7未迁移。
 
 S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出/搜索；本轮补充固定版本Namespace文件及真实Task消费、认证Webhook/统一Checks、SLA告警和终态后处理。执行状态仍由同一个Executor/Worker推进，详细边界见[编辑协议](contracts/s6-flow-editing.md)与[文件/生命周期](contracts/s6-files-lifecycle.md)。S6后端最小范围及完整回归已通过；S5计量、长期DQN和完整前端仍未实现。

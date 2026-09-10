@@ -1,0 +1,11 @@
+**
+!platform-server/
+!platform-server/target/
+!platform-server/target/platform-server-0.1.0-SNAPSHOT.jar
+!frontend/
+!frontend/dist/
+!frontend/dist/**
+!deploy/
+!deploy/cea/
+!deploy/cea/*.Dockerfile
+!deploy/cea/nginx.conf

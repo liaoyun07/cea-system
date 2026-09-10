@@ -44,7 +44,7 @@ def main():
         metrics = json.loads((root / f"evaluate-r{round_no}.json").read_text())
         reference = evaluate(checked_model(merged), load(root / "test.pt"), 32)
         assert metrics["round"] == round_no and metrics["algorithm"] == args.algorithm
-        assert metrics["samples"] == 256
+        assert metrics["samples"] == len(load(root / "test.pt")["y"])
         assert abs(metrics["loss"] - reference["loss"]) < 1e-6
         assert metrics["accuracy"] == reference["accuracy"]
         report.append(metrics)
