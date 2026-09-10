@@ -1,5 +1,7 @@
 # S4-03 一次性 Application 任务
 
+S5-02b增量：candidateClusters支持同一Binding（静态数组解析为Literal），inputFiles支持URI数组及平台生成的本地清单。准确字段/恢复语义见[Loop协议](s5-loop.md)，以下单文件语义仍适用。
+
 已实现并验收，范围以[进度](../04-progress.md)及[验证记录](../verification/VER-S4-005-external-task-runtime.md)为准。没有新增HTTP路由；通过既有Flow保存、提交、查询与取消API运行。
 
 ## 唯一事实源

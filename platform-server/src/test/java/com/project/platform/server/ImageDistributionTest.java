@@ -490,6 +490,73 @@ class ImageDistributionTest {
             assertEquals(1,executions().attempts(actor,"lab",id,executions().tasks(actor,"lab",id).getFirst().id()).size());
         } finally {local.close();}
     }
+    @Test void collectionManifestSurvivesWorkerTakeoverWithSameJobAndAttempt() throws Exception {
+        String yaml=sleeper("PT60S","sleep 5; cat /cea-work/in/models.json > /cea-work/out/manifest.json; cat /cea-work/in/models.item-0 /cea-work/in/models.item-1 > /cea-work/out/data.txt")
+                .replace("      command:","      inputFiles:\n        models: {source: LITERAL, value: ['s3://datasets/sample/v1/data.txt', 's3://datasets/sample/v1/data.txt']}\n      outputFiles: [manifest.json, data.txt]\n      command:");
+        String id=dispatch(yaml),name=remoteName(id);
+        var run=executions().tasks(actor,"lab",id).getFirst();
+        var local=new WorkerEngine(context.getBean(JdbcWorkerStore.class),new com.project.platform.runtime.definition.TemplateRenderer(),1000,context.getBean(TaskRunner.class));
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var running=pool.submit(local::runOnce);
+            await().atMost(Duration.ofSeconds(30)).until(()->activePod(name));
+            String uid=admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get().getMetadata().getUid();
+            String prepared=context.getBean(JdbcTemplate.class).queryForObject("SELECT prepared_json FROM wf_worker_job WHERE task_run_id=?",String.class,run.id());
+            assertTrue(prepared.contains("models.json"));assertTrue(prepared.contains("models.item-1"));
+            local.close();running.get(5,TimeUnit.SECONDS);
+            context.getBean(JdbcTemplate.class).update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",run.id());
+            drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+            assertEquals(uid,admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get().getMetadata().getUid());
+            assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+            var outputs=executions().tasks(actor,"lab",id).getFirst().outputs();
+            for(String file:List.of("manifest.json","data.txt"))try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(outputs.get(file).toString()).getPath().substring(1)).build())) {
+                String content=new String(input.readAllBytes(),StandardCharsets.UTF_8);
+                if(file.equals("manifest.json"))assertEquals(List.of("/cea-work/in/models.item-0","/cea-work/in/models.item-1"),json.read(content,List.class));
+                else assertEquals("actual dataset bytes\nactual dataset bytes\n",content);
+            }
+        } finally {local.close();}
+    }
+    @Test void loopCancellationStopsRemoteAndSlotWaitingItemsBeforeFinally() throws Exception {
+        String id=submit("""
+                tasks:
+                  - id: each
+                    type: core.Loop
+                    loop: {values: {source: LITERAL, value: [a, b, c]}, concurrency: 2}
+                    tasks:
+                      - id: remote
+                        type: platform.Application
+                        timeout: PT60S
+                        container:
+                          applicationId: service
+                          version: v1
+                          candidateClusters: [edge]
+                          command: [sh, -c, 'sleep 40']
+                finally: [{id: cleanup, type: core.Log, message: cleaned}]
+                """);
+        await().atMost(Duration.ofSeconds(10)).until(()->{
+            context.getBean(FlowExecutor.class).processNext();
+            return executions().tasks(actor,"lab",id).stream().filter(r->r.taskId().equals("remote")).count()==2;
+        });
+        var children=executions().tasks(actor,"lab",id).stream().filter(r->r.taskId().equals("remote")).toList();
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var one=pool.submit(context.getBean(WorkerEngine.class)::runOnce);var two=pool.submit(context.getBean(WorkerEngine.class)::runOnce);
+            await().atMost(Duration.ofSeconds(30)).until(()->children.stream().anyMatch(r->activePod("cea-"+r.id()+"-a1")));
+            executions().cancel(actor,"lab",id);context.getBean(FlowExecutor.class).processNext();
+            assertEquals(ExecutionState.KILLING,executions().get(actor,"lab",id).state());
+            one.get(30,TimeUnit.SECONDS);two.get(30,TimeUnit.SECONDS);drive(id);
+        }
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",id).state());
+        assertEquals(2,executions().tasks(actor,"lab",id).stream().filter(r->r.taskId().equals("remote")).count());
+        assertTrue(children.stream().noneMatch(r->activePod("cea-"+r.id()+"-a1")));
+        assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",id).stream().filter(r->r.taskId().equals("cleanup")).findFirst().orElseThrow().state());
+    }
+    @Test void collectionFilesRejectInvalidUriTypeAndExpandedNameCollisionBeforeDispatch() throws Exception {
+        for(String files:List.of("{source: LITERAL, value: [42]}","{source: LITERAL, value: ['https://invalid/data']}","{source: LITERAL, value: ['s3://datasets/sample.txt']}")) {
+            String yaml=sleeper("PT60S","true").replace("      command:","      inputFiles:\n        models: "+files+"\n"+(files.contains("sample.txt")?"        models.json: {source: LITERAL, value: 's3://datasets/sample.txt'}\n":"")+"      command:");
+            String id=submit(yaml);drive(id);
+            assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",id).state());
+            assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(remoteName(id)).get());
+        }
+    }
     @Test void applicationCancellationWaitsForRemoteStopBeforeFinally() throws Exception {
         String id=dispatch(sleeper("PT60S","sleep 40")),name=remoteName(id);
         try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
@@ -630,29 +697,35 @@ class ImageDistributionTest {
     @Test void fedProxMigratesThroughActualTrainingAggregationAndEvaluation() throws Exception {verifyFederation("fedprox");}
     private void verifyFederation(String algorithm) throws Exception {
         prepareFederation();
-        String id=executions().submit(actor,"lab",UUID.randomUUID().toString(),new FlowExecutionService.Request(algorithm,null,Map.of()));
+        var letters=algorithm.equals("fedavg")?List.of("a","b","c"):List.of("a","c");
+        var clientValues=letters.stream().map(letter->Map.of("id","edge-"+letter,"clusters",List.of("edge-"+letter))).toList();
+        String id=executions().submit(actor,"lab",UUID.randomUUID().toString(),new FlowExecutionService.Request(algorithm,null,Map.of("clients",clientValues)));
         driveFederation(id);
         var execution=executions().get(actor,"lab",id);
         assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
         assertEquals(2,((Number)execution.outputs().get("completed_rounds")).intValue());
         var runs=executions().tasks(actor,"lab",id);
         var leaves=runs.stream().filter(r->execution.definition().allTasks().stream().anyMatch(t->t.id().equals(r.taskId())&&t.container()!=null)).toList();
-        assertEquals(11,leaves.size());assertEquals(11,leaves.stream().map(r->r.id()).distinct().count());
+        int expectedLeaves=1+2*(letters.size()+2);
+        assertEquals(expectedLeaves,leaves.size());assertEquals(expectedLeaves,leaves.stream().map(r->r.id()).distinct().count());
         Path evidence=Path.of("target","federated-evidence",algorithm);Files.createDirectories(evidence);
         for(var run:leaves) {
             assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
-            String file=run.taskId().equals("init")?"init.pt":run.taskId().replace('_','-')+"-r"+run.iteration()+(run.taskId().equals("evaluate")?".json":".pt");
+            var parent=runs.stream().filter(r->r.id().equals(run.parentTaskRunId())).findFirst();
+            int round=run.taskId().equals("train")?parent.orElseThrow().iteration():run.iteration();
+            String task=run.taskId().equals("train")?"client-"+letters.get(run.iteration()-1):run.taskId();
+            String file=task.equals("init")?"init.pt":task+"-r"+round+(task.equals("evaluate")?".json":".pt");
             String uri=run.outputs().values().iterator().next().toString();
             try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
                 byte[] content=input.readAllBytes();Files.write(evidence.resolve(file),content);
                 federation.copyFileToContainer(Transferable.of(content),"/tmp/audit/"+algorithm+"/"+file);
             }
-            String cluster=run.taskId().startsWith("client_")?"edge-"+run.taskId().substring(7):"cloud";
+            String cluster=run.taskId().equals("train")?"edge-"+letters.get(run.iteration()-1):"cloud";
             assertEquals(cluster,context.getBean(JdbcTemplate.class).queryForObject(
                     "SELECT cluster_id FROM res_job_reservation WHERE namespace='lab' AND allocation_id=?",String.class,run.id()+"-1"));
             var podSpec=admin.batch().v1().jobs().inNamespace("s4-test").withName("cea-"+run.id()+"-a1").get().getSpec().getTemplate().getSpec();
             var environment=podSpec.getContainers().getFirst().getEnv().stream().collect(java.util.stream.Collectors.toMap(e->e.getName(),e->e.getValue()));
-            if(run.taskId().startsWith("client_")) {
+            if(run.taskId().equals("train")) {
                 assertEquals(cluster,environment.get("CLIENT_ID"));
                 assertEquals("/cea-work/in/dataset-DATASET",environment.get("DATASET_PATH"));
             } else if(run.taskId().equals("evaluate")) {
@@ -661,14 +734,17 @@ class ImageDistributionTest {
         }
         for(int round=1;round<=2;round++) {
             final int n=round;
-            var clients=runs.stream().filter(r->r.taskId().startsWith("client_")&&r.iteration()==n).toList();
+            var loop=runs.stream().filter(r->r.taskId().equals("clients")&&r.iteration()==n).findFirst().orElseThrow();
+            var clients=runs.stream().filter(r->r.taskId().equals("train")&&r.parentTaskRunId().equals(loop.id())).sorted(Comparator.comparingInt(r->r.iteration())).toList();
+            assertEquals(letters.size(),clients.size());
+            assertEquals(clients.stream().map(r->r.outputs().get("model.pt")).toList(),loop.outputs().get("models"));
             var aggregate=runs.stream().filter(r->r.taskId().equals("aggregate")&&r.iteration()==n).findFirst().orElseThrow();
             var evaluate=runs.stream().filter(r->r.taskId().equals("evaluate")&&r.iteration()==n).findFirst().orElseThrow();
             assertTrue(clients.stream().allMatch(r->!aggregate.startedAt().isBefore(r.endedAt())));
             assertFalse(evaluate.startedAt().isBefore(aggregate.endedAt()));
             var latestStart=clients.stream().map(r->r.startedAt()).max(Comparator.naturalOrder()).orElseThrow();
             var earliestEnd=clients.stream().map(r->r.endedAt()).min(Comparator.naturalOrder()).orElseThrow();
-            assertTrue(latestStart.isBefore(earliestEnd),"three client TaskRuns overlap");
+            assertTrue(latestStart.isBefore(earliestEnd),"dynamic client TaskRuns overlap");
             if(n==2) {
                 var prior=runs.stream().filter(r->r.taskId().equals("evaluate")&&r.iteration()==1).findFirst().orElseThrow();
                 assertTrue(clients.stream().allMatch(r->!r.startedAt().isBefore(prior.endedAt())));
@@ -678,7 +754,8 @@ class ImageDistributionTest {
             byte[] data=federation.copyFileFromContainer("/tmp/mnist/"+file,input->input.readAllBytes());
             federation.copyFileToContainer(Transferable.of(data),"/tmp/audit/"+algorithm+"/"+file);
         }
-        var audit=federation.execInContainer("python","verify_run.py","/tmp/audit/"+algorithm,algorithm);
+        var auditArgs=new ArrayList<>(List.of("python","verify_run.py","/tmp/audit/"+algorithm,algorithm,"--clients"));auditArgs.addAll(letters);
+        var audit=federation.execInContainer(auditArgs.toArray(String[]::new));
         Files.writeString(evidence.resolve("numerical-audit.json"),audit.getStdout());
         assertEquals(0,audit.getExitCode(),audit.getStderr());
         assertEquals("PASS",json.map(audit.getStdout().trim()).get("numericalAudit"));

@@ -34,7 +34,7 @@ public final class JdbcExecutionStore {
                 key,hash,execution.state().name(),json.write(execution.definition()),json.write(execution.inputs()),json.write(execution.variables()),Timestamp.from(execution.createdAt()));
         int index=0;
         var repeated=new HashSet<String>();
-        for(var spec:execution.definition().allTasks())if(spec.repeat()!=null) {
+        for(var spec:execution.definition().allTasks())if(spec.dynamic()) {
             var children=new ArrayList<FlowDefinition.Task>();FlowDefinition.flatten(spec.tasks(),children);
             children.forEach(child->repeated.add(child.id()));
         }
@@ -98,9 +98,19 @@ public final class JdbcExecutionStore {
     public void createIteration(TaskRun parent,int iteration,List<FlowDefinition.Task> children) {
         if(jdbc.queryForObject("SELECT COUNT(*) FROM wf_task_run WHERE parent_task_run_id=? AND iteration=?",Integer.class,parent.id(),iteration)>0)return;
         int index=jdbc.queryForObject("SELECT COALESCE(MAX(task_index),-1)+1 FROM wf_task_run WHERE execution_id=?",Integer.class,parent.executionId());
-        var flattened=new ArrayList<FlowDefinition.Task>();FlowDefinition.flatten(children,flattened);
+        var flattened=new ArrayList<FlowDefinition.Task>();flattenScope(children,flattened);
         for(var task:flattened)jdbc.update("INSERT INTO wf_task_run(id,execution_id,task_id,task_index,state,outputs_json,phase,parent_task_run_id,iteration) VALUES(?,?,?,?,'CREATED','{}',?,?,?)",
                 UUID.randomUUID().toString(),parent.executionId(),task.id(),index++,parent.phase().name(),parent.id(),iteration);
+    }
+    private void flattenScope(List<FlowDefinition.Task> tasks,List<FlowDefinition.Task> target) {
+        for(var task:tasks) {
+            target.add(task);
+            if(!task.dynamic())flattenScope(task.tasks(),target);
+            flattenScope(task.thenTasks(),target);flattenScope(task.elseTasks(),target);
+        }
+    }
+    public List<Integer> iterations(String parent) {
+        return jdbc.queryForList("SELECT DISTINCT iteration FROM wf_task_run WHERE parent_task_run_id=? ORDER BY iteration",Integer.class,parent);
     }
     public void startExecution(String id,Instant now) {
         jdbc.update("UPDATE wf_execution SET state='RUNNING',started_at=? WHERE id=?",Timestamp.from(now),id);

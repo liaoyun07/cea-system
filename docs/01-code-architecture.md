@@ -8,6 +8,12 @@
 
 S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/README.md)：Python数值核心、文件CLI、数据准备及数值验证。五份Application契约和两份Flow YAML位于examples/federated，经[注册脚本](../scripts/register-federated.ps1)写入既有数据库，不新增Maven模块或生产Java文件。Java调用链仍为FlowExecutionService → FlowExecutor → WorkerEngine → ApplicationTaskRunner → KubernetesJobRunner。
 
+## S5-02b实际增量
+
+无新增生产Java文件/模块/API/SPI。`FlowDefinition.java`增加Loop record、ITEM Binding及candidateClusters统一反序列化；`FlowValidator.java`校验作用域/边界；`BindingResolver.java`解析当前item，`CommonTaskRunner.java`复用该解析入口。`FlowExecutor.java`按同一执行锁推进动态组和屏障；`JdbcExecutionStore.java`仅创建当前动态作用域并查询已接纳的局部序号。
+
+`ApplicationTaskRunner.java`解析动态集群及URI数组，Prepared.inlineFiles在既有prepared_json保存JSON清单；`ObjectStorage.java`复用同一输入URI权限检查，在派发前拒绝确定非法输入，避免进入远程不确定结果恢复。`KubernetesJobRunner.java`无新增分支，仍搬运命名本地文件。V11只替换TaskRun唯一索引以包含父作用域，无新业务表/列；完整字段消费者见[协议](contracts/s5-loop.md)。
+
 ## 模块依赖白名单
 
 依赖指向被使用方。跨模块只调用公开接口；POM白名单由结构脚本检查；ArchUnit检查包环、runtime方向、model不依赖Spring/JDBC及Controller不访问持久化。

@@ -65,11 +65,11 @@ public final class FlowValidator {
                     throw WorkflowException.invalid("container","Application requires container/timeout and forbids message/duration");
                 identifier(c.applicationId(),"applicationId");
                 if(c.version()==null || !c.version().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("version","version token required");
-                if(c.candidateClusters().isEmpty() || c.candidateClusters().size()>100 || c.command().isEmpty() || c.command().size()>100
+                if(c.candidateClusters()==null || c.command().isEmpty() || c.command().size()>100
                         || c.parameters().size()>100 || c.inputFiles().size()>30 || c.outputFiles().size()>30)
                     throw WorkflowException.invalid("container","invalid command, candidates or file/parameter count");
-                c.candidateClusters().forEach(id->identifier(id,"candidateClusters"));
-                if(new HashSet<>(c.candidateClusters()).size()!=c.candidateClusters().size() || new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
+                if(c.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
+                if(new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
                     throw WorkflowException.invalid("container","duplicate candidate/output");
                 for(String arg:c.command())if(arg==null || arg.length()>8192)throw WorkflowException.invalid("command","argument too large or null");
                 c.inputFiles().keySet().forEach(this::fileName);c.outputFiles().forEach(this::fileName);
@@ -77,6 +77,15 @@ public final class FlowValidator {
                 if(task.message()!=null || task.duration()!=null || task.retry()!=null || task.timeout()!=null)
                     throw WorkflowException.invalid("tasks."+task.id(),"control tasks cannot have message/duration/retry/timeout");
                 if("core.If".equals(task.type())) renderer.validate(task.condition());
+                if("core.Loop".equals(task.type())) {
+                    var loop=task.loop();
+                    if(loop==null || loop.concurrency()<1 || loop.concurrency()>100 || loop.outputs().size()>30)
+                        throw WorkflowException.invalid("loop","concurrency 1..100 and at most 30 outputs required");
+                    loop.outputs().keySet().forEach(name->identifier(name,"loop.outputs"));
+                    if(loop.values() instanceof Literal literal)loopValues(literal.value());
+                    var children=new ArrayList<Task>();FlowDefinition.flatten(task.tasks(),children);
+                    if(children.stream().anyMatch(Task::dynamic))throw WorkflowException.invalid("loop","nested Loop/Repeat is not supported");
+                }
                 if("core.Repeat".equals(task.type())) {
                     var repeat=task.repeat();
                     if(repeat==null || !repeat.initial().keySet().equals(repeat.feedback().keySet()) || repeat.initial().size()>30)
@@ -90,6 +99,7 @@ public final class FlowValidator {
             if(!"core.Http".equals(task.type()) && task.http()!=null)throw WorkflowException.invalid("http","only Http supports http");
             if(!"core.Sql".equals(task.type()) && task.sql()!=null)throw WorkflowException.invalid("sql","only Sql supports sql");
             if(!"core.Repeat".equals(task.type()) && task.repeat()!=null)throw WorkflowException.invalid("repeat","only Repeat supports repeat");
+            if(!"core.Loop".equals(task.type()) && task.loop()!=null)throw WorkflowException.invalid("loop","only Loop supports loop");
             if (task.timeout()!=null) duration(task.timeout(), "timeout");
             if (task.retry()!=null) {
                 var retry=task.retry();
@@ -113,7 +123,7 @@ public final class FlowValidator {
             identifier(name, "outputs");
             var main=new ArrayList<Task>(); FlowDefinition.flatten(flow.tasks(),main);
             var visible=main.stream().map(Task::id).collect(java.util.stream.Collectors.toSet());
-            for(var task:main)if(task.repeat()!=null){var children=new ArrayList<Task>();FlowDefinition.flatten(task.tasks(),children);children.forEach(child->visible.remove(child.id()));}
+            for(var task:main)if(task.dynamic()){var children=new ArrayList<Task>();FlowDefinition.flatten(task.tasks(),children);children.forEach(child->visible.remove(child.id()));}
             validateBinding(binding, flow, visible, "outputs." + name);
         });
         if(flow.schedule()!=null) new BindingResolver().prepare(flow,flow.schedule().inputs());
@@ -122,30 +132,39 @@ public final class FlowValidator {
         if(value==null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("files","simple named files required; no directories or traversal");
     }
     private void validateTaskBindings(FlowDefinition flow,List<Task> group,String mode,Set<String> inherited) {
+        validateTaskBindings(flow,group,mode,inherited,false);
+    }
+    private void validateTaskBindings(FlowDefinition flow,List<Task> group,String mode,Set<String> inherited,boolean itemScope) {
         var prior=new HashSet<>(inherited);
         for(Task task:group) {
             var available=new HashSet<>(prior);
             if("core.Dag".equals(mode))ancestors(task,group,available);
             available.remove(task.id());
             if(task.container()!=null) {
-                task.container().parameters().forEach((name,b)->{identifier(name,"parameters");validateBinding(b,flow,available,"parameters."+name);});
-                task.container().inputFiles().forEach((name,b)->validateBinding(b,flow,available,"inputFiles."+name));
+                validateBinding(task.container().candidateClusters(),flow,available,"candidateClusters",itemScope);
+                task.container().parameters().forEach((name,b)->{identifier(name,"parameters");validateBinding(b,flow,available,"parameters."+name,itemScope);});
+                task.container().inputFiles().forEach((name,b)->validateBinding(b,flow,available,"inputFiles."+name,itemScope));
             }
             if(task.http()!=null) {
-                validateBinding(task.http().path(),flow,available,"http.path");
-                if(task.http().body()!=null)validateBinding(task.http().body(),flow,available,"http.body");
+                validateBinding(task.http().path(),flow,available,"http.path",itemScope);
+                if(task.http().body()!=null)validateBinding(task.http().body(),flow,available,"http.body",itemScope);
             }
-            if(task.sql()!=null)task.sql().parameters().forEach(b->validateBinding(b,flow,available,"sql.parameters"));
-            if(task.repeat()!=null) {
+            if(task.sql()!=null)task.sql().parameters().forEach(b->validateBinding(b,flow,available,"sql.parameters",itemScope));
+            if(task.loop()!=null) {
+                validateBinding(task.loop().values(),flow,available,"loop.values",itemScope);
+                validateTaskBindings(flow,task.tasks(),"core.Sequential",available,true);
+                var inside=new HashSet<>(available);task.tasks().forEach(child->completed(child,inside));
+                task.loop().outputs().forEach((name,b)->validateBinding(b,flow,inside,"loop.outputs."+name,true));
+            } else if(task.repeat()!=null) {
                 validateBinding(task.repeat().iterations(),flow,available,"repeat.iterations");
                 task.repeat().initial().forEach((name,b)->validateBinding(b,flow,available,"repeat.initial."+name));
                 var inside=new HashSet<>(available);inside.add(task.id());
                 validateTaskBindings(flow,task.tasks(),"core.Sequential",inside);
                 task.tasks().forEach(child->completed(child,inside));
                 task.repeat().feedback().forEach((name,b)->validateBinding(b,flow,inside,"repeat.feedback."+name));
-            } else validateTaskBindings(flow,task.tasks(),task.type(),available);
-            validateTaskBindings(flow,task.thenTasks(),"core.Sequential",available);
-            validateTaskBindings(flow,task.elseTasks(),"core.Sequential",available);
+            } else validateTaskBindings(flow,task.tasks(),task.type(),available,itemScope);
+            validateTaskBindings(flow,task.thenTasks(),"core.Sequential",available,itemScope);
+            validateTaskBindings(flow,task.elseTasks(),"core.Sequential",available,itemScope);
             if("core.Sequential".equals(mode))completed(task,prior);
         }
     }
@@ -157,7 +176,7 @@ public final class FlowValidator {
         }
     }
     private void completed(Task task,Set<String> available) {
-        available.add(task.id());if(task.repeat()==null)task.tasks().forEach(t->completed(t,available));
+        available.add(task.id());if(!task.dynamic())task.tasks().forEach(t->completed(t,available));
         // An If guarantees its decision, not either branch's artifacts.
     }
     private void validateGroup(List<Task> tasks,boolean dag,int depth) {
@@ -201,9 +220,16 @@ public final class FlowValidator {
         done.add(name);
     }
     private void validateBinding(Binding binding, FlowDefinition flow, Set<String> taskIds, String path) {
+        validateBinding(binding,flow,taskIds,path,false);
+    }
+    private void validateBinding(Binding binding, FlowDefinition flow, Set<String> taskIds, String path,boolean itemScope) {
         if (binding == null) throw WorkflowException.invalid(path, "binding required");
         switch (binding) {
             case Literal ignored -> { }
+            case ItemRef ref -> {
+                if(!itemScope || ref.path().isEmpty() || ref.path().size()>16 || !Set.of("value","index").contains(ref.path().getFirst())
+                        || ref.path().stream().anyMatch(part->part==null || part.isBlank()))throw WorkflowException.invalid(path,"ITEM requires a Loop scope and a value/index field path");
+            }
             case InputRef ref -> {
                 if (!flow.inputs().containsKey(ref.name())) throw WorkflowException.invalid(path, "unknown input");
             }
@@ -213,11 +239,22 @@ public final class FlowValidator {
             case TaskOutputRef ref -> {
                 var task=flow.allTasks().stream().filter(t->t.id().equals(ref.taskId())).findFirst().orElse(null);
                 String port=task!=null && "core.If".equals(task.type())?"evaluationResult":"message";
-                boolean valid=task!=null && (task.repeat()!=null?task.repeat().initial().containsKey(ref.port()) || Set.of("iterations","iterationCount").contains(ref.port()):task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
+                boolean valid=task!=null && (task.loop()!=null?task.loop().outputs().containsKey(ref.port()):task.repeat()!=null?task.repeat().initial().containsKey(ref.port()) || Set.of("iterations","iterationCount").contains(ref.port()):task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
                 if (!taskIds.contains(ref.taskId()) || !valid) {
                     throw WorkflowException.invalid(path, "unknown task output");
                 }
             }
         }
+    }
+    public static List<?> loopValues(Object value) {
+        if(!(value instanceof List<?> values) || values.size()>1000)throw WorkflowException.invalid("loop.values","array of at most 1000 items required");
+        return values;
+    }
+    public static List<String> candidateClusters(Object value) {
+        if(!(value instanceof List<?> values) || values.isEmpty() || values.size()>100 || values.stream().anyMatch(v->!(v instanceof String)))
+            throw WorkflowException.invalid("candidateClusters","1..100 cluster identifiers required");
+        var result=values.stream().map(String.class::cast).toList();result.forEach(id->identifier(id,"candidateClusters"));
+        if(new HashSet<>(result).size()!=result.size())throw WorkflowException.invalid("candidateClusters","duplicate candidate");
+        return result;
     }
 }

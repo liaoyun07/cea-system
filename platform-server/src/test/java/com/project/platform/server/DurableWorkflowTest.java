@@ -104,7 +104,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(10,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(11,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {
         String id=register();
@@ -1282,6 +1282,162 @@ private String custom(String body) {
             assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
             assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.iteration()>0));
         }
+    }
+    private String loopSource(String flow) {return "schemaVersion: 1\nnamespace: lab\nid: "+flow+"\n"+"""
+            inputs:
+              items: {type: ARRAY, defaultValue: [a, a, c, d]}
+            tasks:
+              - id: each
+                type: core.Loop
+                loop:
+                  values: {source: INPUT, name: items}
+                  concurrency: 2
+                  outputs:
+                    messages: {source: TASK_OUTPUT, taskId: say, port: message}
+                    indices: {source: ITEM, path: [index]}
+                tasks:
+                  - {id: say, type: core.Log, message: '{{ item.index }}:{{ item.value }}'}
+            outputs:
+              messages: {source: TASK_OUTPUT, taskId: each, port: messages}
+              indices: {source: TASK_OUTPUT, taskId: each, port: indices}
+            finally: [{id: cleanup, type: core.Log, message: cleaned}]
+            """;}
+    private void admitLoop(String execution,int count) {
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(()->{
+            executor().processNext();return executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).count()==count;
+        });
+    }
+    @Test void loopBoundsConcurrencyOrdersDuplicateItemsAndRestartsWithoutReplaying() {
+        String flow=id(),execution=submitRepeat(loopSource(flow),flow);admitLoop(execution,2);
+        var first=jobs().claim("first",30000);var second=jobs().claim("second",30000);
+        assertNotNull(first);assertNotNull(second);assertNull(jobs().claim("third",30000));
+        var lower=((Number)((Map<?,?>)first.job().context().get("item")).get("index")).intValue()==0?first:second;
+        var upper=lower==first?second:first;
+        assertEquals(Map.of("index",0,"value","a"),lower.job().context().get("item"));
+        assertFalse(json.write(lower.job().context()).contains("_loopValues"));
+        assertTrue(jobs().finish(upper,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","1:a"))));
+        admitLoop(execution,3);
+        assertEquals(ExecutionState.RUNNING,executions().get(actor,"lab",execution).state());
+        var admitted=executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).map(ExecutionRecord.TaskRun::id).toList();
+        context.close();context=open();
+        assertEquals(admitted,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).map(ExecutionRecord.TaskRun::id).toList());
+        assertTrue(jobs().finish(lower,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","0:a"))));
+        assertFalse(jobs().finish(upper,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","late"))));
+        drain();
+        assertEquals(List.of("0:a","1:a","2:c","3:d"),executions().get(actor,"lab",execution).outputs().get("messages"));
+        assertEquals(List.of(0,1,2,3),executions().get(actor,"lab",execution).outputs().get("indices"));
+        assertEquals(4,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).count());
+    }
+    @Test void loopLeafRetryKeepsItemAndFailureDrainsPeersWithoutAdmittingMore() {
+        String flow=id(),execution=submitRepeat(loopSource(flow).replace("type: core.Log, message: '{{ item.index }}:{{ item.value }}'", "type: core.Log, retry: {type: constant, maxAttempts: 2, interval: PT0.01S}, message: \"{{ taskrun.attemptsCount == 1 ? missing : item.value }}\""),flow);
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        for(var run:executions().tasks(actor,"lab",execution))if(run.taskId().equals("say"))assertEquals(2,executions().attempts(actor,"lab",execution,run.id()).size());
+        flow=id();execution=submitRepeat(loopSource(flow),flow);admitLoop(execution,2);
+        var bad=jobs().claim("bad",30000);var slow=jobs().claim("slow",30000);
+        assertTrue(jobs().finish(bad,com.project.platform.runtime.worker.WorkerJob.Result.failed("permanent item failure")));
+        for(int i=0;i<10;i++){executor().processNext();pause(25);}
+        assertEquals(2,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).count());
+        assertEquals(ExecutionState.RUNNING,executions().get(actor,"lab",execution).state());
+        assertTrue(jobs().finish(slow,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","done"))));
+        drain();assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+        assertTrue(executions().get(actor,"lab",execution).error().contains("permanent item failure"));
+    }
+    @Test void loopCancellationStopsAdmittedItemsAndRunsFinallyOnlyOnce() {
+        String flow=id(),execution=submitRepeat(loopSource(flow),flow);admitLoop(execution,2);
+        executions().cancel(actor,"lab",execution);drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",execution).state());
+        var runs=executions().tasks(actor,"lab",execution);
+        assertEquals(2,runs.stream().filter(t->t.taskId().equals("say")).count());
+        assertTrue(runs.stream().filter(t->t.taskId().equals("say")).allMatch(t->t.state()==ExecutionState.KILLED));
+        var cleanup=runs.stream().filter(t->t.taskId().equals("cleanup")).findFirst().orElseThrow();
+        assertEquals(ExecutionState.SUCCESS,cleanup.state());assertEquals(1,executions().attempts(actor,"lab",execution,cleanup.id()).size());
+    }
+    @Test void loopEmptyAndVariableLiteralAndTaskOutputCollectionsUseExistingBindings() {
+        for(String value:List.of("[]","[x,y]"))for(String source:List.of("literal","variable","output")) {
+            String flow=id(),yaml=loopSource(flow);String binding;
+            if(source.equals("literal"))binding="{source: LITERAL, value: "+value+"}";
+            else if(source.equals("variable")) {
+                yaml=yaml.replace("tasks:\n  - id: each", "variables:\n  values: {source: LITERAL, value: "+value+"}\ntasks:\n  - id: each");
+                binding="{source: VARIABLE, name: values}";
+            } else {
+                yaml=yaml.replace("tasks:\n  - id: each", "tasks:\n  - id: seed\n    type: core.Loop\n    loop:\n      values: {source: LITERAL, value: "+value+"}\n      outputs: {values: {source: ITEM, path: [value]}}\n    tasks: [{id: echo, type: core.Log, message: seed}]\n  - id: each");
+                binding="{source: TASK_OUTPUT, taskId: seed, port: values}";
+            }
+            String execution=submitRepeat(yaml.replace("{source: INPUT, name: items}",binding),flow);drain();
+            assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+            assertEquals(value.equals("[]")?List.of():List.of("0:x","1:y"),executions().get(actor,"lab",execution).outputs().get("messages"));
+        }
+    }
+    @Test void repeatLoopScopesSeparateIdenticalTaskIdsAndBarrierFeedback() {
+        String flow=id(),yaml=repeatSource(flow).replace("{source: TASK_OUTPUT, taskId: train, port: message}","{source: TASK_OUTPUT, taskId: each, port: values}");
+        yaml=yaml.replace("- {id: train, type: core.Log, message: '{{ outputs.rounds.value }}-x'}", """
+                - id: each
+                        type: core.Loop
+                        loop:
+                          values: {source: LITERAL, value: [a, b]}
+                          concurrency: 2
+                          outputs: {values: {source: TASK_OUTPUT, taskId: train, port: message}}
+                        tasks:
+                          - {id: train, type: core.Log, message: '{{ item.value }}:{{ outputs.rounds.value }}'}""")
+                .replace("{{ outputs.train.message }}","{{ outputs.each.values }}");
+        String execution=submitRepeat(yaml,flow);drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        var runs=executions().tasks(actor,"lab",execution);var trains=runs.stream().filter(t->t.taskId().equals("train")).toList();
+        assertEquals(4,trains.size());assertEquals(4,trains.stream().map(ExecutionRecord.TaskRun::id).distinct().count());
+        assertEquals(2,trains.stream().map(ExecutionRecord.TaskRun::parentTaskRunId).distinct().count());
+        assertEquals(List.of(1,2,1,2),trains.stream().map(ExecutionRecord.TaskRun::iteration).toList());
+        var second=runs.stream().filter(t->t.taskId().equals("each")&&t.iteration()==2).findFirst().orElseThrow();
+        assertTrue(trains.stream().filter(t->t.parentTaskRunId().equals(second.id())).allMatch(t->t.outputs().get("message").toString().contains("seed")));
+    }
+    @Test void loopFailureInsideParallelGroupStopsNewItemsWhileSiblingDrains() {
+        String flow=id(),yaml=loopSource(flow).replace("- {id: say, type: core.Log, message: '{{ item.index }}:{{ item.value }}'}", """
+                - id: pair
+                        type: core.Parallel
+                        tasks:
+                          - {id: say, type: core.Log, message: '{{ item.value }}'}
+                          - {id: peer, type: core.Log, message: peer}""");
+        String execution=submitRepeat(yaml,flow);admitLoop(execution,2);
+        var leases=new ArrayList<com.project.platform.runtime.worker.WorkerJob.Lease>();
+        for(int i=0;i<4;i++)leases.add(Objects.requireNonNull(jobs().claim("worker-"+i,30000)));
+        var bad=leases.stream().filter(l->l.job().task().id().equals("say")&&Integer.valueOf(0).equals(((Map<?,?>)l.job().context().get("item")).get("index"))).findFirst().orElseThrow();
+        for(var lease:leases)if(lease==bad)assertTrue(jobs().finish(lease,com.project.platform.runtime.worker.WorkerJob.Result.failed("nested failure")));
+        else if(Integer.valueOf(1).equals(((Map<?,?>)lease.job().context().get("item")).get("index")))assertTrue(jobs().finish(lease,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","ok"))));
+        for(int i=0;i<10;i++){executor().processNext();pause(25);}
+        assertEquals(2,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).count());
+        assertEquals(ExecutionState.RUNNING,executions().get(actor,"lab",execution).state());
+        var pending=leases.stream().filter(l->l.job().task().id().equals("peer")&&Integer.valueOf(0).equals(((Map<?,?>)l.job().context().get("item")).get("index"))).findFirst().orElseThrow();
+        assertTrue(jobs().finish(pending,com.project.platform.runtime.worker.WorkerJob.Result.success(Map.of("message","drained"))));
+        drain();assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+    }
+    @Test void loopMigrationRequiresOfflineUpgradePreservesHistoryAndEnforcesRootScope() throws Exception {
+        var created=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e",
+                "CREATE DATABASE s5_loop_upgrade_test; GRANT ALL ON s5_loop_upgrade_test.* TO 'backend_test'@'%';");
+        assertEquals(0,created.getExitCode(),created.getStderr());
+        String url=mysql.getJdbcUrl().replace("/backend_s1_test","/s5_loop_upgrade_test");
+        org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").target("10").load().migrate();
+        var oldDb=new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(url,mysql.getUsername(),mysql.getPassword()));
+        oldDb.update("INSERT INTO wf_execution(id,namespace,flow_id,flow_revision,submitted_by,request_key,request_hash,state,definition_json,inputs_json,variables_json,outputs_json,created_at) VALUES('history','lab','old',1,'writer','old-key',?,'RUNNING','{}','{}','{}','{}',CURRENT_TIMESTAMP(6))","c".repeat(64));
+        oldDb.update("INSERT INTO wf_task_run(id,execution_id,task_id,task_index,state,outputs_json,phase,iteration) VALUES('root','history','each',0,'SUCCESS','{}','MAIN',0)");
+        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword())
+                .locations("classpath:db/migration/runtime","classpath:db/migration/dataflow").load();
+        assertThrows(org.flywaydb.core.api.FlywayException.class,upgrade::migrate);
+        oldDb.update("UPDATE wf_execution SET state='SUCCESS',main_state='SUCCESS' WHERE id='history'");
+        upgrade.repair();upgrade.migrate(); // Only the deliberately failed disposable test schema.
+        assertEquals("SUCCESS",oldDb.queryForObject("SELECT state FROM wf_task_run WHERE id='root'",String.class));
+        assertThrows(DataAccessException.class,()->oldDb.update("INSERT INTO wf_task_run(id,execution_id,task_id,task_index,state,outputs_json,phase,iteration) VALUES('duplicate','history','each',1,'SUCCESS','{}','MAIN',0)"));
+    }
+    @Test void fortyItemsUseOneDefinitionAndRuntimeRejectsOversizedCollection() {
+        String flow=id();flows().save(actor,"lab",flow,0,loopSource(flow).replace("concurrency: 2","concurrency: 10"));
+        var items=java.util.stream.IntStream.range(0,40).mapToObj(i->"client-"+i).toList();
+        String execution=executions().submit(actor,"lab",id(),new Request(flow,null,Map.of("items",items)));drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        assertEquals(3,executions().get(actor,"lab",execution).definition().allTasks().size());
+        var runs=executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("say")).toList();
+        assertEquals(40,runs.size());assertEquals(40,runs.stream().map(ExecutionRecord.TaskRun::id).distinct().count());
+        assertEquals(java.util.stream.IntStream.range(0,40).boxed().toList(),executions().get(actor,"lab",execution).outputs().get("indices"));
+        execution=executions().submit(actor,"lab",id(),new Request(flow,null,Map.of("items",Collections.nCopies(1001,"x"))));drain();
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+        assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.taskId().equals("say")));
     }
     private void awaitChild(Process child,int port) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);

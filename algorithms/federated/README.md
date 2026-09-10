@@ -16,11 +16,11 @@
 在backend根目录执行：
 
 ```powershell
-docker build -t cea-federated:s5-v1 algorithms/federated
-docker run --rm cea-federated:s5-v1 python -m unittest -v test_federated
+docker build -t cea-federated:s5-loop-v1 algorithms/federated
+docker run --rm cea-federated:s5-loop-v1 python -m unittest -v test_federated
 New-Item -ItemType Directory -Force .local/mnist
 $taskData = (Resolve-Path .local/mnist).Path
-docker run --rm --mount "type=bind,source=$taskData,target=/data" cea-federated:s5-v1 python /app/seed.py --output /data
+docker run --rm --mount "type=bind,source=$taskData,target=/data" cea-federated:s5-loop-v1 python /app/seed.py --output /data
 ```
 
 默认生成真实MNIST训练60000条（按标签排序后1:2:3分为10000/20000/30000）和独立测试10000条。显式传--train-samples 768 --test-samples 256可复现集成验收规模；不代表完整数据集精度测试。下载失败即失败，不回退合成数据。manifest.json记录来源和样本数，数据只写.local且不提交Git。
@@ -36,19 +36,21 @@ docker run --rm --mount "type=bind,source=$taskData,target=/data" cea-federated:
 先配置BACKEND_USER、BACKEND_PASSWORD及新后端专用资源；注册脚本只写你指定的新后端API：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/register-federated.ps1 -Image '你的仓库/lab/cea-federated:s5-v1'
+powershell -ExecutionPolicy Bypass -File scripts/register-federated.ps1 -Image '你的仓库/lab/cea-federated:s5-loop-v1'
 ```
 
 脚本读取JSON契约和YAML，依次登记两个数据集版本、五个应用版本、两个Flow首版，不触碰已有集群配置、不自动执行任务。已存在的Flow会因expectedRevision=0拒绝覆盖；编辑使用既有revision API，不通过脚本强制重置。应用/数据集已有版本按后端不可变版本语义处理，修改内容须使用新版本并同步Flow。
 
-通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。契约仅允许mnist-train/v1、mnist-test/v1，不能输入任意名称绕过。
+通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖clients、rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。契约仅允许mnist-train/v1、mnist-test/v1，不能输入任意名称绕过。
 
 每轮evaluate的TaskRun outputs.metrics.json是该轮全局损失/准确率产物，最终Flow输出global_model和completed_rounds。执行历史保留全部轮次，没有新增图表、指标数据库或吞吐计算。
+
+已有S5-02注册数据不会自动改变：本批aggregate CLI改为清单协议，需将新构建镜像登记为新的ApplicationVersion（例如v2），同步编辑Flow中的版本和Loop定义并保存新修订，再提交新Execution。首次注册示例在空目录仍用v1；不得覆盖已有版本或只更新Flow却继续用旧聚合镜像。
 
 ## 文件契约
 
 输入模型：/cea-work/in/global_model；客户端数据：DATASET_PATH；测试数据：TEST_DATASET_PATH。后两者由系统按照DatasetRule和选中集群注入，是本地pt文件，不是对象存储URL。
 
-输出默认/cea-work/out/model.pt；evaluate显式--output /cea-work/out/metrics.json。aggregate通过--clients依次指定显式文件，禁止扫描产物目录。state_dict文件只使用weights_only=True读取；应仅登记受信任的数据和镜像。
+输出默认/cea-work/out/model.pt；evaluate显式--output /cea-work/out/metrics.json。aggregate通过--clients-manifest /cea-work/in/client_models.json读取平台准备的有序本地路径数组，禁止扫描产物目录。state_dict文件只使用weights_only=True读取；应仅登记受信任的数据和镜像。
 
-当前固定三客户端来自Flow定义，不是后端硬编码上限；如需更多客户端，作者增加训练节点、输入文件绑定与aggregate argv即可，算法聚合接受任意非空更新列表。不支持本批之外的条件循环、部分参与客户端调度或自动客户端发现。
+客户端由clients数组显式给出，默认三项，如`[{"id":"edge-a","clusters":["edge-a"]},{"id":"edge-c","clusters":["edge-c"]}]`。Loop内只有一份train，增加客户端不再增加Task和aggregate argv。并发上限由Flow的loop.concurrency控制（示例6），实际还受Worker和平台Job槽约束。每项CLIENT_ID必须唯一；算法拒绝重复客户端，不由Loop去重。集合不得为空用于联邦聚合；通用Loop本身允许空集合。没有自动客户端发现/抽样或无限循环。

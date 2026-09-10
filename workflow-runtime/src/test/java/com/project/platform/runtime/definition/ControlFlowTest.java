@@ -8,6 +8,53 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ControlFlowTest {
+    private String loop() {return """
+            inputs: {clients: {type: ARRAY, defaultValue: [{id: a, clusters: [edge]}]}}
+            tasks:
+              - id: clients
+                type: core.Loop
+                loop:
+                  values: {source: INPUT, name: clients}
+                  concurrency: 2
+                  outputs: {ids: {source: ITEM, path: [value, id]}}
+                tasks:
+                  - id: train
+                    type: platform.Application
+                    timeout: PT1M
+                    container:
+                      applicationId: train
+                      version: v1
+                      candidateClusters: {source: ITEM, path: [value, clusters]}
+                      command: [echo, hello]
+                      parameters: {ID: {source: ITEM, path: [value, id]}}
+            outputs: {ids: {source: TASK_OUTPUT, taskId: clients, port: ids}}
+            """;}
+    @Test void loopUsesOneBindingModelAndTypedItemPaths() {
+        var flow=parse(loop());var json=new JsonCodec();assertEquals(flow,json.flow(json.write(flow)));
+        var resolver=new BindingResolver();var context=java.util.Map.<String,Object>of("inputs",java.util.Map.of(),"vars",java.util.Map.of(),"outputs",java.util.Map.of(),"item",java.util.Map.of("index",0,"value",java.util.Map.of("id","a","clusters",java.util.List.of("edge"))));
+        assertEquals("a",resolver.resolve(new FlowDefinition.ItemRef(java.util.List.of("value","id")),context));
+        assertEquals(java.util.List.of("edge"),resolver.resolve(flow.tasks().getFirst().tasks().getFirst().container().candidateClusters(),context));
+        assertThrows(WorkflowException.class,()->resolver.resolve(new FlowDefinition.ItemRef(java.util.List.of("value","missing")),context));
+    }
+    @Test void staticCandidateArraysNormalizeToLiteralAndKeepSourceOnRoundTrip() {
+        var flow=parse(loop().replace("candidateClusters: {source: ITEM, path: [value, clusters]}","candidateClusters: [edge]"));
+        assertEquals(new FlowDefinition.Literal(java.util.List.of("edge")),flow.tasks().getFirst().tasks().getFirst().container().candidateClusters());
+        assertEquals(flow,new JsonCodec().flow(new JsonCodec().write(flow)));
+    }
+    @Test void loopRejectsScopeLeaksUnboundedConcurrencyAndImplicitChildOutputs() {
+        for(String source:java.util.List.of(loop().replace("concurrency: 2","concurrency: 0"),loop().replace("concurrency: 2","concurrency: 101"),
+                loop().replace("name: clients}","name: missing}"),loop().replace("port: ids}","port: _loopValues}"),
+                loop().replace("outputs: {ids: {source: TASK_OUTPUT, taskId: clients, port: ids}}","outputs: {ids: {source: ITEM, path: [index]}}"),
+                loop()+"variables: {bad: {source: ITEM, path: [value]}}\n"))assertThrows(WorkflowException.class,()->parse(source));
+        assertThrows(WorkflowException.class,()->parse(loop().replace("outputs: {ids: {source: TASK_OUTPUT, taskId: clients, port: ids}}","outputs: {ids: {source: TASK_OUTPUT, taskId: train, port: model.pt}}")));
+    }
+    @Test void loopCollectionsAreBoundedArraysAndCandidatesAreValidatedAfterBinding() {
+        for(String inner:java.util.List.of("core.Loop, loop: {values: {source: LITERAL, value: [a]}}","core.Repeat, repeat: {iterations: {source: LITERAL, value: 2}}"))
+            assertThrows(WorkflowException.class,()->parse("tasks: [{id: outer, type: core.Loop, loop: {values: {source: LITERAL, value: [a]}}, tasks: [{id: inner, type: "+inner+", tasks: [{id: leaf, type: core.Log, message: x}]}]}]"));
+        assertEquals(java.util.List.of(),FlowValidator.loopValues(java.util.List.of()));
+        for(Object value:java.util.List.of("[]",java.util.Map.of("a",1),java.util.Collections.nCopies(1001,0)))assertThrows(WorkflowException.class,()->FlowValidator.loopValues(value));
+        for(Object value:java.util.List.of("edge",java.util.List.of(),java.util.List.of("edge","edge"),java.util.List.of("../edge")))assertThrows(WorkflowException.class,()->FlowValidator.candidateClusters(value));
+    }
     private String repeat() {return """
             tasks:
               - id: rounds

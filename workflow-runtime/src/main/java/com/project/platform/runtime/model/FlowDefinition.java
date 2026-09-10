@@ -44,27 +44,43 @@ public record FlowDefinition(
     public record Task(String id, String type, String message, Retry retry, String timeout, String duration,
                        List<Task> tasks, List<String> dependsOn, String condition,
                        @JsonProperty("then") List<Task> thenTasks, @JsonProperty("else") List<Task> elseTasks,
-                       Container container,Http http,Sql sql,Repeat repeat) {
+                       Container container,Http http,Sql sql,Repeat repeat,Loop loop) {
         public Task { tasks=list(tasks); dependsOn=list(dependsOn); thenTasks=list(thenTasks); elseTasks=list(elseTasks); }
-        public boolean control() { return type!=null && Set.of("core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat").contains(type); }
+        public boolean control() { return type!=null && Set.of("core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat","core.Loop").contains(type); }
+        public boolean dynamic() {return repeat!=null || loop!=null;}
     }
     public record Repeat(Binding iterations,Map<String,Binding> initial,Map<String,Binding> feedback) {
         public Repeat {initial=immutable(initial);feedback=immutable(feedback);}
     }
+    public record Loop(Binding values,Integer concurrency,Map<String,Binding> outputs) {
+        public Loop {concurrency=concurrency==null?1:concurrency;outputs=immutable(outputs);}
+    }
     public record Http(String connection,String method,Binding path,Binding body) {}
     public record Sql(String connection,String query,List<Binding> parameters) {public Sql {parameters=list(parameters);}}
-    public record Container(String applicationId,String version,List<String> candidateClusters,List<String> command,
+    public record Container(String applicationId,String version,
+                            @tools.jackson.databind.annotation.JsonDeserialize(using=CandidateClustersDeserializer.class) Binding candidateClusters,List<String> command,
                             Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles) {
-        public Container {candidateClusters=list(candidateClusters);command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);}
+        public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);}
+    }
+    /** Static candidate arrays are syntax sugar for the same Literal Binding, including persisted definitions. */
+    public static final class CandidateClustersDeserializer extends tools.jackson.databind.ValueDeserializer<Binding> {
+        @Override public Binding deserialize(tools.jackson.core.JsonParser parser,tools.jackson.databind.DeserializationContext context) {
+            return parser.isExpectedStartArrayToken()?new Literal(context.readValue(parser,List.class)):context.readValue(parser,Binding.class);
+        }
+        @Override public Binding deserializeWithType(tools.jackson.core.JsonParser parser,tools.jackson.databind.DeserializationContext context,tools.jackson.databind.jsontype.TypeDeserializer typeDeserializer) {
+            return deserialize(parser,context);
+        }
     }
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "source")
     @JsonSubTypes({
         @JsonSubTypes.Type(value = Literal.class, name = "LITERAL"),
         @JsonSubTypes.Type(value = InputRef.class, name = "INPUT"),
         @JsonSubTypes.Type(value = VariableRef.class, name = "VARIABLE"),
-        @JsonSubTypes.Type(value = TaskOutputRef.class, name = "TASK_OUTPUT")
+        @JsonSubTypes.Type(value = TaskOutputRef.class, name = "TASK_OUTPUT"),
+        @JsonSubTypes.Type(value = ItemRef.class, name = "ITEM")
     })
-    public sealed interface Binding permits Literal, InputRef, VariableRef, TaskOutputRef {}
+    public sealed interface Binding permits Literal, InputRef, VariableRef, TaskOutputRef,ItemRef {}
+    public record ItemRef(List<String> path) implements Binding {public ItemRef {path=list(path);}}
     public record Literal(Object value) implements Binding {}
     public record InputRef(String name) implements Binding {}
     public record VariableRef(String name) implements Binding {}

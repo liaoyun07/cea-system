@@ -1,8 +1,14 @@
 schemaVersion: 1
 namespace: lab
 id: fedavg
-description: Three explicit edge clients, weighted aggregation and global evaluation in every round.
+description: Dynamic edge clients, weighted aggregation and global evaluation in every round.
 inputs:
+  clients:
+    type: ARRAY
+    defaultValue:
+      - {id: edge-a, clusters: [edge-a]}
+      - {id: edge-b, clusters: [edge-b]}
+      - {id: edge-c, clusters: [edge-c]}
   rounds: {type: INTEGER, defaultValue: 2}
   model: {type: STRING, defaultValue: mlp}
   training_dataset: {type: STRING, defaultValue: mnist-train/v1}
@@ -33,52 +39,23 @@ tasks:
         global_model: {source: TASK_OUTPUT, taskId: aggregate, port: model.pt}
     tasks:
       - id: clients
-        type: core.Parallel
+        type: core.Loop
+        loop:
+          values: {source: INPUT, name: clients}
+          concurrency: 6
+          outputs:
+            models: {source: TASK_OUTPUT, taskId: train, port: model.pt}
         tasks:
-          - id: client_a
+          - id: train
             type: platform.Application
             timeout: PT5M
             container:
               applicationId: fedavg-train
               version: v1
-              candidateClusters: [edge-a]
+              candidateClusters: {source: ITEM, path: [value, clusters]}
               command: [python, /app/app.py, train]
               parameters:
-                CLIENT_ID: {source: LITERAL, value: edge-a}
-                DATASET: {source: INPUT, name: training_dataset}
-                LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
-                BATCH_SIZE: {source: INPUT, name: batch_size}
-                LEARNING_RATE: {source: INPUT, name: learning_rate}
-              inputFiles:
-                global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
-              outputFiles: [model.pt]
-          - id: client_b
-            type: platform.Application
-            timeout: PT5M
-            container:
-              applicationId: fedavg-train
-              version: v1
-              candidateClusters: [edge-b]
-              command: [python, /app/app.py, train]
-              parameters:
-                CLIENT_ID: {source: LITERAL, value: edge-b}
-                DATASET: {source: INPUT, name: training_dataset}
-                LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
-                BATCH_SIZE: {source: INPUT, name: batch_size}
-                LEARNING_RATE: {source: INPUT, name: learning_rate}
-              inputFiles:
-                global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
-              outputFiles: [model.pt]
-          - id: client_c
-            type: platform.Application
-            timeout: PT5M
-            container:
-              applicationId: fedavg-train
-              version: v1
-              candidateClusters: [edge-c]
-              command: [python, /app/app.py, train]
-              parameters:
-                CLIENT_ID: {source: LITERAL, value: edge-c}
+                CLIENT_ID: {source: ITEM, path: [value, id]}
                 DATASET: {source: INPUT, name: training_dataset}
                 LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
                 BATCH_SIZE: {source: INPUT, name: batch_size}
@@ -93,11 +70,9 @@ tasks:
           applicationId: fl-aggregate
           version: v1
           candidateClusters: [cloud]
-          command: [python, /app/app.py, aggregate, --clients, /cea-work/in/client_a, /cea-work/in/client_b, /cea-work/in/client_c]
+          command: [python, /app/app.py, aggregate, --clients-manifest, /cea-work/in/client_models.json]
           inputFiles:
-            client_a: {source: TASK_OUTPUT, taskId: client_a, port: model.pt}
-            client_b: {source: TASK_OUTPUT, taskId: client_b, port: model.pt}
-            client_c: {source: TASK_OUTPUT, taskId: client_c, port: model.pt}
+            client_models: {source: TASK_OUTPUT, taskId: clients, port: models}
           outputFiles: [model.pt]
       - id: evaluate
         type: platform.Application

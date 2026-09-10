@@ -837,11 +837,11 @@
     "/api/namespaces/{namespace}/executions/{id}/tasks": {
       "get": {
         "operationId": "listTasks",
-        "description": "READ: all tasks in sequence order (max 100)",
+        "description": "READ: all materialized TaskRuns in creation order, including dynamic scopes",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "READ: all tasks in sequence order (max 100)",
+            "description": "READ: all materialized TaskRuns in creation order, including dynamic scopes",
             "content": {
               "application/json": {
                 "schema": {
@@ -2189,13 +2189,7 @@
                 "type": "string",
                 "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
               },
-              "port": {
-                "type": "string",
-                "enum": [
-                  "message",
-                  "evaluationResult"
-                ]
-              }
+              "port": {"type": "string", "description": "A declared task output; Loop ports contain ordered arrays."}
             },
             "required": [
               "source",
@@ -2203,6 +2197,14 @@
               "port"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object", "additionalProperties": false,
+            "required": ["source", "path"],
+            "properties": {
+              "source": {"const": "ITEM", "type": "string"},
+              "path": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "string"}, "description": "Starts with value or index; only inside a Loop item."}
+            }
           }
         ],
         "discriminator": {
@@ -2225,6 +2227,7 @@
               "core.Http",
               "core.Sql",
               "core.Repeat",
+              "core.Loop",
               "core.Sequential",
               "core.Parallel",
               "core.Dag",
@@ -2315,6 +2318,9 @@
           },
           "repeat": {
             "anyOf": [{"$ref": "#/components/schemas/Repeat"}, {"type": "null"}]
+          },
+          "loop": {
+            "anyOf": [{"$ref": "#/components/schemas/Loop"}, {"type": "null"}]
           }
         },
         "required": [
@@ -2335,12 +2341,21 @@
         },
         "description": "Fixed 1..100 iterations, resolved at start. Matching initial/feedback state keys, excluding iterations/iterationCount. Each round is a barrier; no nested Repeat. External consumers reference Repeat outputs, never its children."
       },
+      "Loop": {
+        "type": "object", "additionalProperties": false, "required": ["values"],
+        "properties": {
+          "values": {"$ref": "#/components/schemas/Binding"},
+          "concurrency": {"type": "integer", "minimum": 1, "maximum": 100, "default": 1},
+          "outputs": {"type": "object", "maxProperties": 30, "additionalProperties": {"$ref": "#/components/schemas/Binding"}}
+        },
+        "description": "Snapshot an array of 0..1000 items; sequential child tasks per item. Bounded concurrent groups. Declared outputs collected in input order after all items succeed. Repeat may contain Loop; Loop cannot contain Repeat/Loop. See s5-loop.md."
+      },
       "Container": {
         "type": "object",
         "properties": {
           "applicationId": {"type": "string"},
           "version": {"type": "string"},
-          "candidateClusters": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string"}},
+          "candidateClusters": {"oneOf": [{"$ref": "#/components/schemas/Binding"}, {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string"}}], "description": "Resolve to a nonempty unique array. Static arrays normalize to LITERAL at parse time."},
           "command": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string", "maxLength": 8192}},
           "parameters": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
           "inputFiles": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
@@ -2799,8 +2814,8 @@
               "FINALLY"
             ]
           },
-          "parentTaskRunId": {"type": ["string", "null"], "description": "Owning Repeat TaskRun; null outside Repeat"},
-          "iteration": {"type": "integer", "minimum": 0, "description": "Zero outside Repeat, otherwise one-based round"},
+          "parentTaskRunId": {"type": ["string", "null"], "description": "Nearest dynamic Repeat/Loop parent TaskRun UUID; null at root scope"},
+          "iteration": {"type": "integer", "minimum": 0, "description": "Zero at root; one-based local round/item ordinal under its dynamic parent. item.index is zero-based."},
           "retryAt": {
             "anyOf": [
               {

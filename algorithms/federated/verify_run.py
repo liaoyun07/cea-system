@@ -11,23 +11,25 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("directory")
     parser.add_argument("algorithm", choices=["fedavg", "fedprox"])
+    parser.add_argument("--clients", nargs="+", default=list("abc"))
     args = parser.parse_args()
     root = Path(args.directory)
-    shards = [load(root / f"edge-{letter}.pt") for letter in "abc"]
+    shards = [load(root / f"edge-{letter}.pt") for letter in args.clients]
     indices = torch.cat([shard["indices"] for shard in shards])
-    assert len(indices.unique()) == len(indices) == 768
+    expected_samples = sum(len(shard["y"]) for shard in shards)
+    assert len(indices.unique()) == len(indices) == expected_samples
     assert all(shard["split"] == "train" for shard in shards)
     assert load(root / "test.pt")["split"] == "test"
     previous = load(root / "init.pt")
     assert previous["round"] == 0 and previous["algorithm"] == args.algorithm
     report = []
     for round_no in (1, 2):
-        updates = [load(root / f"client-{letter}-r{round_no}.pt") for letter in "abc"]
+        updates = [load(root / f"client-{letter}-r{round_no}.pt") for letter in args.clients]
         total = sum(u["samples"] for u in updates)
         merged = load(root / f"aggregate-r{round_no}.pt")
         assert merged["round"] == round_no and merged["algorithm"] == args.algorithm
-        assert total == 768 and [u["samples"] for u in updates] == [128, 256, 384]
-        for letter, update in zip("abc", updates):
+        assert total == expected_samples and [u["samples"] for u in updates] == [len(s["y"]) for s in shards]
+        for letter, update in zip(args.clients, updates):
             assert update["baseRound"] == round_no - 1 and update["round"] == round_no
             data = load(root / f"edge-{letter}.pt")
             expected = checked_model(previous)

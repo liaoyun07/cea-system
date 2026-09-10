@@ -1,8 +1,10 @@
 # 当前进度
 
-更新时间：2026-09-10。S4及S5-01 Repeat已验收，S5-02仅FedAvg/FedProx迁移完成：完整verify于15:00:58 +08:00通过135项，0失败/错误/跳过，另有7项Python数值测试通过。S5整体仍IN_PROGRESS，03–05及其他流任务尚未实现。见[S5工作包](features/S5-research-edge.md)和[本批验收记录](verification/VER-S5-002-federated.md)。
+更新时间：2026-09-10。S5-02b通用Loop、动态客户端和集合文件已验收：16:00:37 +08:00完整verify通过150项，另7项Python通过，0失败/错误/跳过。见[Loop协议](contracts/s5-loop.md)及[本批验证](verification/VER-S5-003-loop.md)。S5整体仍IN_PROGRESS，03–05及其他流任务未实现。
 
 ## 当前事实
+
+- S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
 - 独立8模块，70份生产Java（含8份包声明），9个测试类（含1个Failsafe部署测试）；模块依赖不变。runtime不依赖业务模块。
 - 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
@@ -10,12 +12,12 @@
 - 叶子支持Log/Sleep、真实Application Job、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application Pod内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
-- V1–V10共15张业务表；S5仅给TaskRun增加parent_task_run_id/iteration及轮次唯一约束，没有新表。Worker传输沿用S4的cancel_reason/prepared_json。没有新映射表/领域状态/hash；字段消费者见协议。
-- 当前27个HTTP操作，34个公开record映射。新增能力沿用既有Flow/Execution API，不新增Worker HTTP端点。
-- 最近完整验收为135项：runtime 26、持久化/恢复78、真实镜像/Job 20、HTTP/SQL 6、协议3、架构1、实际JAR启动1，另有镜像内7项Python数值测试。包括S1–S4回归和S5-01/02，不代表S5整体完成。
-- Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，不支持嵌套或条件循环。
+- V1–V11共15张业务表；S5-01给TaskRun增加parent_task_run_id/iteration；S5-02b复用这两个字段，V11将唯一约束扩展到父作用域，无新业务表/列。Worker传输沿用S4的cancel_reason/prepared_json。没有新映射表/领域状态/hash；字段消费者见协议。
+- 当前27个HTTP操作，35个公开record映射。新增能力沿用既有Flow/Execution API，不新增Worker HTTP端点。
+- 最近完整验收为150项：runtime 30、持久化/恢复86、真实镜像/Job 23、HTTP/SQL 6、协议3、架构1、实际JAR启动1，另有镜像内7项Python数值测试。包括S1–S4回归和S5-01/02/02b，不代表S5整体完成。
+- Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
-- FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST训练768条/测试256条、三客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；本批没有生产Java/表/字段/API/SPI变更。
+- FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
 - 仍未实现：其他流任务、前端/No-code、终端接入/卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。联邦学习测试不是全量精度、真实多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
 - 详细语义：[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)、[最小部署](operations/s4-minimal-deployment.md)。设计取舍见ADR-0009/0010；完整源码索引见架构文档。
 
@@ -28,7 +30,7 @@
 | S2 恢复和失败语义 | DONE | PASS；S2历史与本次回归 |
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
 | S4 资源与运行环境 | DONE | PASS；123项统一verify，见VER-S4-005；最小范围与限制见下文 |
-| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02 PASS，135项Maven及7项Python验证；03–05未实现 |
+| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02/02b PASS，150项Maven及7项Python验证；03–05未实现 |
 | S6 P2与编辑管理 | NOT_STARTED | NOT_RUN |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
 
@@ -43,13 +45,14 @@
 | S4-05 | DONE | 真实JVM强杀、DB短时故障、可执行JAR空库启动与统一验收PASS |
 | S5-01 | DONE | Repeat定义/状态反馈/新轮次/屏障/恢复/重试/取消，真实容器产物及统一verify PASS，见VER-S5-001 |
 | S5-02 | DONE | 仅FedAvg/FedProx，真实训练/聚合/评估数值、API注册和全量回归PASS，见VER-S5-002 |
+| S5-02b | DONE | 通用Loop、ITEM、动态集群、集合文件；150项全量verify和7项Python PASS，见VER-S5-003 |
 | S5-03–05 | NOT_STARTED | 网关/终端与策略、终端卸载、计量分别后续验收 |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-本批已按用户最新要求完成FedAvg/FedProx迁移；其他流任务暂不迁移，也不自动进入S5-03至05。后续批次仍按范围分别授权、实现和验收。数据处理速率口径尚待讨论确认，本批没有新增SDK或计算逻辑。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
+本批已完成通用Loop及FedAvg/FedProx动态客户端迁移；其他流任务暂不迁移，也不自动进入S5-03至05。后续批次仍按范围分别授权、实现和验收。数据处理速率口径尚待讨论确认，本批没有新增SDK或计算逻辑。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 

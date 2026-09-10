@@ -21,6 +21,7 @@
 | FL-001 | FedAvg/FedProx应用与显式Flow迁移 | S5 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
+| WF-017 | 通用动态Loop、item作用域、有序集合输出 | S5 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
 | RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IMPLEMENTED | PASS |
@@ -49,4 +50,4 @@ RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预�
 详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、No-code仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S5已开始，当前批次状态见下方；S6/S7未进入。
 
 SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
-S5的WF-013与FL-001已实现，135项Maven verify及7项Python测试通过，见[FedAvg/FedProx验收](verification/VER-S5-002-federated.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，EDGE/OFF/MET未实现；S5整体仍IN_PROGRESS。
+S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，EDGE/OFF/MET未实现；S5整体仍IN_PROGRESS。

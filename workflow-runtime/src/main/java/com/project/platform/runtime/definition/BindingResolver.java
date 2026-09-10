@@ -42,18 +42,39 @@ public final class BindingResolver {
 
     public Map<String, Object> outputs(Map<String, Binding> bindings, Map<String, Object> inputs,
                                        Map<String, Object> variables, Map<String, Map<String, Object>> tasks) {
+        return outputs(bindings,inputs,variables,tasks,Map.of());
+    }
+    public Map<String, Object> outputs(Map<String, Binding> bindings, Map<String, Object> inputs,
+                                       Map<String, Object> variables, Map<String, Map<String, Object>> tasks,Map<String,Object> item) {
         Map<String, Object> result = new LinkedHashMap<>();
-        bindings.forEach((name, binding) -> result.put(name, resolve(binding, inputs, variables, tasks)));
+        bindings.forEach((name, binding) -> result.put(name, resolve(binding, inputs, variables, tasks,item)));
         return result;
     }
 
     public Object resolve(Binding binding, Map<String, Object> inputs, Map<String, Object> variables,
                           Map<String, Map<String, Object>> tasks) {
+        return resolve(binding,inputs,variables,tasks,Map.of());
+    }
+    @SuppressWarnings("unchecked") public Object resolve(Binding binding,Map<String,Object> context) {
+        return resolve(binding,(Map<String,Object>)context.get("inputs"),(Map<String,Object>)context.get("vars"),
+                (Map<String,Map<String,Object>>)context.get("outputs"),(Map<String,Object>)context.getOrDefault("item",Map.of()));
+    }
+    public Object resolve(Binding binding, Map<String, Object> inputs, Map<String, Object> variables,
+                          Map<String, Map<String, Object>> tasks,Map<String,Object> item) {
         if (binding == null) throw WorkflowException.invalid("binding", "must not be null");
         return switch (binding) {
             case Literal literal -> literal.value();
             case InputRef ref -> required(inputs, ref.name(), "inputs");
             case VariableRef ref -> required(variables, ref.name(), "variables");
+            case ItemRef ref -> {
+                if(item.isEmpty())throw WorkflowException.invalid("item","outside Loop scope");
+                Object value=item;
+                for(String part:ref.path()) {
+                    if(!(value instanceof Map<?,?> object) || !object.containsKey(part))throw WorkflowException.invalid("item","unknown path component: "+part);
+                    value=object.get(part);
+                }
+                yield value;
+            }
             case TaskOutputRef ref -> {
                 Map<String, Object> output = tasks.get(ref.taskId());
                 if (output == null) throw WorkflowException.invalid("outputs." + ref.taskId(), "task has not succeeded");

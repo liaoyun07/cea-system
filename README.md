@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。[S5](docs/features/S5-research-edge.md)已完成Repeat状态反馈与整轮屏障，以及FedAvg/FedProx应用和显式Flow迁移；最新135项Maven验证及7项Python数值测试通过，见[验收记录](docs/verification/VER-S5-002-federated.md)。真实MNIST子集两轮验证使用隔离K3s，不是物理多云或性能验收。S5整体仍进行中；旧数据切换、其他流任务、网关/终端、DQN、计量SDK和前端未实现。
+独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。[S5](docs/features/S5-research-edge.md)已完成Repeat状态反馈与整轮屏障，以及FedAvg/FedProx应用和显式Flow迁移；通用Loop让客户端列表动态展开，FedAvg/FedProx各只定义一份train。最新150项Maven验证及7项Python数值测试通过，见[验收记录](docs/verification/VER-S5-003-loop.md)。真实MNIST子集两轮验证使用隔离K3s，不是物理多云或性能验收。S5整体仍进行中；旧数据切换、其他流任务、网关/终端、DQN、计量SDK和前端未实现。
 
 ## 文档入口
 
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V10，创建15张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V11，创建15张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：

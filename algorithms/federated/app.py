@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("stage", choices=["init", "train", "aggregate", "evaluate"])
     parser.add_argument("--input", default="/cea-work/in/global_model")
-    parser.add_argument("--clients", nargs="+")
+    parser.add_argument("--clients-manifest")
     parser.add_argument("--output", default="/cea-work/out/model.pt")
     args = parser.parse_args()
     if args.stage == "init":
@@ -24,7 +24,10 @@ def main():
         result = {"algorithm": algorithm, "dataset": dataset, "model": name, "round": 0,
                   "state": build_model(dataset, name).state_dict()}
     elif args.stage == "aggregate":
-        result = aggregate([load(path) for path in args.clients or []])
+        paths = json.loads(Path(args.clients_manifest).read_text())
+        if not isinstance(paths, list) or not paths or not all(isinstance(path, str) for path in paths):
+            raise ValueError("client manifest must be a non-empty array of local file paths")
+        result = aggregate([load(path) for path in paths])
     else:
         previous = load(args.input)
         model = checked_model(previous)

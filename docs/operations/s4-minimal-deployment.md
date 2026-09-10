@@ -5,7 +5,7 @@
 ## 从空环境启动
 
 1. JDK21、Maven3.8.8–3.x构建新backend：运行`scripts/verify.ps1`。需要Docker执行隔离MySQL/Registry/K3s/MinIO测试，含最终可执行JAR启动测试。JAR位于platform-server/target，不使用旧工程JAR。
-2. 创建专用空MySQL8库及该库账号。设置README中的BACKEND_DB_URL/USER/PASSWORD、BACKEND_USER/PASSWORD/NAMESPACES。不能指向web-platform库。Flyway执行V1–V10（S5增加轮次字段，沿用停机排空要求）；从已运行的新后端升级须先排空活动执行，停止所有旧版本进程，再启动；不混跑版本、不自动repair。
+2. 创建专用空MySQL8库及该库账号。设置README中的BACKEND_DB_URL/USER/PASSWORD、BACKEND_USER/PASSWORD/NAMESPACES。不能指向web-platform库。Flyway执行V1–V11（S5增加轮次字段/父作用域唯一索引，沿用停机排空要求）；从已运行的新后端升级须先排空活动执行，停止所有旧版本进程，再启动；不混跑版本、不自动repair。
 3. 启动`java -jar platform-server/target/platform-server-0.1.0-SNAPSHOT.jar`。未配置账号/DB、连接失败或迁移失败必须定位并纠正；不关闭鉴权或跳过迁移。用未认证GET /api/namespaces/lab/flows确认401，用配置身份确认200，再按README保存和执行Log示例。
 4. 若要运行外部任务，按[镜像/部署](../contracts/s4-image-deployment.md)、[Job](../contracts/s4-job-execution.md)、[通用任务](../contracts/s4-common-tasks.md)配置所需连接。无对应任务时不要求安装所有外部组件。运行Application前须准备Skopeo、可读写Registry、正确namespace的Kube凭据、Job槽、S3 bucket和应用/数据集目录。
 5. 先执行一个产物上传/下游读取的小Flow，确认Pod、S3产物、TaskRun/Attempt均为真实结果，再运行研究任务。目录登记/只读候选检查不等于外部依赖连通性验收。

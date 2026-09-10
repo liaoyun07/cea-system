@@ -39,6 +39,7 @@ public final class FlowExecutor {
         private String scopeParent;
         private int scopeIteration;
         private Map<String,Map<String,Object>> inheritedOutputs=Map.of();
+        private Map<String,Object> item=Map.of();
         Cycle(ExecutionRecord execution) { this.execution=execution;this.flow=execution.definition();refresh(); }
         void refresh() {
             runs.clear();
@@ -46,15 +47,21 @@ public final class FlowExecutor {
         }
         private Map<String,Map<String,Object>> outputs() {
             var output=new LinkedHashMap<>(inheritedOutputs);
-            for(var run:runs.values())if(run.state()==SUCCESS)output.put(run.taskId(),run.outputs());
+            for(var run:runs.values())if(run.state()==SUCCESS) {
+                var visible=new LinkedHashMap<>(run.outputs());visible.remove("_loopValues");output.put(run.taskId(),visible);
+            }
             return output;
         }
         private <T>T inIteration(TaskRun parent,int iteration,java.util.function.Supplier<T> action) {
-            String previousParent=scopeParent;int previousIteration=scopeIteration;var previousOutputs=inheritedOutputs;
-            var enclosing=outputs();enclosing.put(parent.taskId(),parent.outputs());
+            String previousParent=scopeParent;int previousIteration=scopeIteration;var previousOutputs=inheritedOutputs;var previousItem=item;
+            var enclosing=outputs();
+            if(parent.outputs().containsKey("_loopValues")) {
+                var current=new LinkedHashMap<String,Object>();current.put("index",iteration-1);
+                current.put("value",((List<?>)parent.outputs().get("_loopValues")).get(iteration-1));item=FlowDefinition.immutable(current);
+            } else enclosing.put(parent.taskId(),parent.outputs());
             scopeParent=parent.id();scopeIteration=iteration;inheritedOutputs=enclosing;refresh();
             try{return action.get();}
-            finally{scopeParent=previousParent;scopeIteration=previousIteration;inheritedOutputs=previousOutputs;refresh();}
+            finally{scopeParent=previousParent;scopeIteration=previousIteration;inheritedOutputs=previousOutputs;item=previousItem;refresh();}
         }
         void run() {
             if(execution.state()==KILLING && execution.mainState()!=KILLED) {
@@ -116,6 +123,7 @@ public final class FlowExecutor {
             var run=runs.get(spec.id()); if(run.state().terminal()) return;
             if(!spec.control()) { leaf(spec,run);return; }
             if(spec.repeat()!=null){repeat(spec,run);return;}
+            if(spec.loop()!=null){loop(spec,run);return;}
             if(run.state()==CREATED) {
                 Map<String,Object> output=Map.of();
                 if("core.If".equals(spec.type())) {
@@ -170,6 +178,48 @@ public final class FlowExecutor {
                 store.controlState(run,FAILED,run.outputs(),ex.getMessage(),now);refresh();
             }
         }
+        private void loop(Task spec,TaskRun run) {
+            try {
+                if(run.state()==CREATED) {
+                    var values=FlowValidator.loopValues(bindings.resolve(spec.loop().values(),execution.inputs(),execution.variables(),outputs(),item));
+                    store.controlState(run,RUNNING,Map.of("_loopValues",values),null,now);refresh();run=runs.get(spec.id());
+                }
+                var parent=run;var values=(List<?>)parent.outputs().get("_loopValues");
+                var iterations=store.iterations(parent.id());
+                int active=0;String error=null;
+                for(int iteration:iterations) {
+                    var result=inIteration(parent,iteration,()->loopItem(spec));
+                    if(!result.state().terminal())active++;
+                    if(result.error()!=null && error==null)error=result.error();
+                }
+                int admitted=iterations.size();
+                while(error==null && active<spec.loop().concurrency() && admitted<values.size()) {
+                    int iteration=++admitted;store.createIteration(parent,iteration,spec.tasks());
+                    var result=inIteration(parent,iteration,()->loopItem(spec));
+                    if(!result.state().terminal())active++;
+                    if(result.error()!=null)error=result.error();
+                }
+                if(active>0)return;
+                if(error!=null) {store.controlState(parent,FAILED,parent.outputs(),error,now);refresh();return;}
+                if(admitted==values.size()) {
+                    var collected=new LinkedHashMap<String,Object>();
+                    spec.loop().outputs().keySet().forEach(name->collected.put(name,new ArrayList<Object>()));
+                    for(int iteration=1;iteration<=admitted;iteration++) {
+                        var result=inIteration(parent,iteration,()->bindings.outputs(spec.loop().outputs(),execution.inputs(),execution.variables(),outputs(),item));
+                        result.forEach((name,value)->{ @SuppressWarnings("unchecked") var list=(List<Object>)collected.get(name);list.add(value); });
+                    }
+                    // Keep the single snapshot for history, but never expose it through Binding or child context.
+                    collected.put("_loopValues",values);store.controlState(parent,SUCCESS,collected,null,now);refresh();
+                }
+            } catch(WorkflowException ex) {store.controlState(run,FAILED,run.outputs(),ex.getMessage(),now);refresh();}
+        }
+        private Outcome loopItem(Task spec) {
+            var result=group(spec.tasks(),"core.Sequential",false);
+            // Stop admission as soon as a leaf has exhausted its retries, even while its peers drain.
+            String failure=runs.values().stream().filter(r->r.state()==FAILED || r.state()==KILLED)
+                    .map(r->r.error()==null?"loop item failed":r.error()).findFirst().orElse(result.error());
+            return new Outcome(result.state(),failure);
+        }
         private void leaf(Task spec,TaskRun run) {
             var attempts=store.attempts(run.id());
             if(run.state()==CREATED || run.state()==RETRYING) {
@@ -194,21 +244,24 @@ public final class FlowExecutor {
             refresh();
         }
         private Map<String,Object> context(TaskRun run,int attempt) {
-            return Map.of("inputs",execution.inputs(),"vars",execution.variables(),"outputs",outputs(),
-                    "execution",Map.of("id",execution.id(),"namespace",execution.namespace(),"submittedBy",execution.submittedBy()),"taskrun",Map.of("id",run.id(),"attemptsCount",attempt,"iteration",run.iteration()));
+            var context=new LinkedHashMap<String,Object>(Map.of("inputs",execution.inputs(),"vars",execution.variables(),"outputs",outputs(),
+                    "execution",Map.of("id",execution.id(),"namespace",execution.namespace(),"submittedBy",execution.submittedBy()),"taskrun",Map.of("id",run.id(),"attemptsCount",attempt,"iteration",run.iteration())));
+            if(!item.isEmpty())context.put("item",item);
+            return context;
         }
         private void skipTree(Task spec) {
             var run=runs.get(spec.id());
             if(run==null)return; // Future Repeat iterations have no TaskRun yet.
             if(run.state()==CREATED) store.skip(execution.id(),run.taskIndex(),run.taskIndex()+1,now);
-            spec.tasks().forEach(this::skipTree);spec.thenTasks().forEach(this::skipTree);spec.elseTasks().forEach(this::skipTree);refresh();
+            if(!spec.dynamic())spec.tasks().forEach(this::skipTree);
+            spec.thenTasks().forEach(this::skipTree);spec.elseTasks().forEach(this::skipTree);refresh();
         }
         private boolean stopTree(Task spec) {
             var run=runs.get(spec.id());
             if(run==null)return true;
-            if(spec.repeat()!=null && run.state()==RUNNING) {
-                int iteration=((Number)run.outputs().get("iterationCount")).intValue()+1;
-                boolean stopped=inIteration(run,iteration,()->{
+            if(spec.dynamic() && run.state()==RUNNING) {
+                boolean stopped=true;
+                for(int iteration:store.iterations(run.id()))stopped&=inIteration(run,iteration,()->{
                     boolean value=true;for(var child:spec.tasks())value&=stopTree(child);return value;
                 });
                 if(!stopped)return false;
@@ -224,7 +277,7 @@ public final class FlowExecutor {
                 store.killTask(run,now);
             } else if(run.state()==CREATED) skipTree(spec);
             boolean stopped=true;
-            for(var child:spec.tasks())stopped&=stopTree(child);
+            if(!spec.dynamic())for(var child:spec.tasks())stopped&=stopTree(child);
             for(var child:spec.thenTasks())stopped&=stopTree(child);
             for(var child:spec.elseTasks())stopped&=stopTree(child);
             refresh();return stopped;

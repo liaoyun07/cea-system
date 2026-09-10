@@ -63,6 +63,7 @@ class ContractTest {
                 Map.entry("HttpTask",FlowDefinition.Http.class),
                 Map.entry("SqlTask",FlowDefinition.Sql.class),
                 Map.entry("Repeat",FlowDefinition.Repeat.class),
+                Map.entry("Loop",FlowDefinition.Loop.class),
                 Map.entry("Input",FlowDefinition.Input.class),
                 Map.entry("Retry",FlowDefinition.Retry.class),
                 Map.entry("Concurrency",FlowDefinition.Concurrency.class),
@@ -108,7 +109,8 @@ class ContractTest {
             assertEquals(algorithm,federation.id());
             assertEquals("core.Repeat",federation.tasks().get(1).type());
             assertEquals("evaluate",federation.tasks().get(1).tasks().getLast().id());
-            assertEquals(3,federation.tasks().get(1).tasks().getFirst().tasks().size());
+            assertEquals("core.Loop",federation.tasks().get(1).tasks().getFirst().type());
+            assertEquals(1,federation.tasks().get(1).tasks().getFirst().tasks().size());
         }
         var repeat=parser.parse(Files.readString(Path.of("..","examples","s5-repeat-flow.yaml")));
         assertEquals("core.Repeat",repeat.tasks().getFirst().type());

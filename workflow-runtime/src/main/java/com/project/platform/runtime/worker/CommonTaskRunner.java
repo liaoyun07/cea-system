@@ -36,7 +36,7 @@ public final class CommonTaskRunner implements TaskRunner {
         catch(Exception ex){return WorkerJob.Result.failed("external task failed ("+ex.getClass().getSimpleName()+")");}
     }
     @SuppressWarnings("unchecked") private Object resolve(TaskContext context,Binding binding) {
-        var c=context.job().context();return bindings.resolve(binding,(Map<String,Object>)c.get("inputs"),(Map<String,Object>)c.get("vars"),(Map<String,Map<String,Object>>)c.get("outputs"));
+        return bindings.resolve(binding,context.job().context());
     }
     private WorkerJob.Result request(TaskContext context,String namespace) throws Exception {
         var h=context.job().task().http();var c=http.getOrDefault(namespace,Map.of()).get(h.connection());

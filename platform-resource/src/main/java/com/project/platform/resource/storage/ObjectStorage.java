@@ -24,13 +24,18 @@ public final class ObjectStorage {
         return MinioClient.builder().endpoint(c.endpoint()).credentials(Files.readString(Path.of(c.accessKeyFile())).trim(),Files.readString(Path.of(c.secretKeyFile())).trim()).build();
     }
     public void download(String namespace,String uri,Path destination) throws Exception {
-        var c=connection(namespace);var parsed=URI.create(uri);
-        if(!"s3".equals(parsed.getScheme()) || parsed.getHost()==null || parsed.getUserInfo()!=null || parsed.getQuery()!=null || parsed.getFragment()!=null
-                || parsed.getPort()!=-1 || parsed.getPath()==null || parsed.getPath().length()<2
-                || !(c.artifactBucket().equals(parsed.getHost()) ? parsed.getPath().startsWith("/"+namespace+"/") : c.readableBuckets().contains(parsed.getHost())))throw ResourceException.invalid("input URI is outside configured S3 namespace/buckets");
+        var c=connection(namespace);var parsed=validateInput(namespace,uri);
         try(var client=client(c);var input=client.getObject(GetObjectArgs.builder().bucket(parsed.getHost()).object(parsed.getPath().substring(1)).build())) {
             Files.copy(input,destination,StandardCopyOption.REPLACE_EXISTING);
         }
+    }
+    public URI validateInput(String namespace,String uri) {
+        var c=connection(namespace);URI parsed;
+        try {parsed=URI.create(uri);}catch(IllegalArgumentException ex){throw ResourceException.invalid("invalid S3 input URI");}
+        if(!"s3".equals(parsed.getScheme()) || parsed.getHost()==null || parsed.getUserInfo()!=null || parsed.getQuery()!=null || parsed.getFragment()!=null
+                || parsed.getPort()!=-1 || parsed.getPath()==null || parsed.getPath().length()<2
+                || !(c.artifactBucket().equals(parsed.getHost()) ? parsed.getPath().startsWith("/"+namespace+"/") : c.readableBuckets().contains(parsed.getHost())))throw ResourceException.invalid("input URI is outside configured S3 namespace/buckets");
+        return parsed;
     }
     public String publish(String namespace,String executionId,String taskRunId,int attempt,String name,Path file) throws Exception {
         var c=connection(namespace);String key=key(namespace,executionId,taskRunId,attempt,name);
