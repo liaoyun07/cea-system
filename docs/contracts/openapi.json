@@ -3805,9 +3805,10 @@
           "command": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "string", "maxLength": 8192}},
           "parameters": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
           "inputFiles": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
-          "outputFiles": {"type": "array", "maxItems": 30, "items": {"type": "string"}}
+          "outputFiles": {"type": "array", "maxItems": 30, "items": {"type": "string"}},
+          "execution": {"type": "string", "enum": ["CLUSTER", "TERMINAL"], "default": "CLUSTER", "description": "TERMINAL requires authenticated edge ingress provenance and an administrator-configured Docker context. It forbids candidateClusters; CLUSTER requires candidateClusters. No offload decision is made in S5-04a."}
         },
-        "required": ["applicationId", "version", "candidateClusters", "command"],
+        "required": ["applicationId", "version", "command"],
         "additionalProperties": false,
         "description": "Explicit application task. Requires timeout. Inputs staged at /cea-work/in/name; outputs collected from /cea-work/out/name. Dataset parameter P also injects P_PATH. No automatic Flow inputs. See s4-job-execution.md."
       },

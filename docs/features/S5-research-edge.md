@@ -1,5 +1,7 @@
 # S5 边缘卸载与研究能力
 
+S5-04于2026-09-10获准继续，用户确认终端Docker。本轮先验收04a：可信来源、真实本地Docker及同链文件/取消/结果；04b规则/DQN/画像与反馈退出条件保持不变，整体不提前标DONE。见[ADR-0015](../decisions/ADR-0015-terminal-docker.md)。
+
 2026-09-10用户授权开始S5，基线8efaa59。分批实现，S5整体IN_PROGRESS；S6/S7未进入。
 
 | 工作包 | 范围 | 验收条件 |
@@ -13,7 +15,7 @@
 
 首批实现S5-01，不提前创建edge/offloading的空类/表/接口。S5-02研究验证依赖S5-01；S5-03/04各批先检查旧系统业务与Kestra对应边界。S5-05尚未实现，不能把S4测试中的Job运行时间当作已确定的算法计量。
 
-S5-01已通过133项完整verify，包含真实容器两轮产物反馈与整轮屏障，详见[验收记录](../verification/VER-S5-001-repeat.md)。S5-02随后完成FedAvg/FedProx真实MNIST子集两轮训练、聚合和全局评估，135项Maven及7项Python验证通过，见[本批验收](../verification/VER-S5-002-federated.md)。后续S5-02b通用Loop、动态集群和集合文件已通过150项Maven及7项Python，见[验收记录](../verification/VER-S5-003-loop.md)。S5-03已完成后端接入、策略管理及统一结果查询；166项全量回归及107项收尾复测通过，见[接入验收](../verification/VER-S5-004-edge-access.md)。04–05未实现，没有性能验收结论。
+S5-01已通过133项完整verify，包含真实容器两轮产物反馈与整轮屏障，详见[验收记录](../verification/VER-S5-001-repeat.md)。S5-02随后完成FedAvg/FedProx真实MNIST子集两轮训练、聚合和全局评估，135项Maven及7项Python验证通过，见[本批验收](../verification/VER-S5-002-federated.md)。后续S5-02b通用Loop、动态集群和集合文件已通过150项Maven及7项Python，见[验收记录](../verification/VER-S5-003-loop.md)。S5-03已完成后端接入、策略管理及统一结果查询；166项全量回归及107项收尾复测通过，见[接入验收](../verification/VER-S5-004-edge-access.md)。S5-04a随后完成终端Docker与可信Application执行，最新175项Maven及7项Python完整回归通过，见[终端验收](../verification/VER-S5-005-terminal-docker.md)。04b卸载决策/画像与05计量仍未实现，没有物理多云或性能验收结论。
 
 ## 首批具体语义
 

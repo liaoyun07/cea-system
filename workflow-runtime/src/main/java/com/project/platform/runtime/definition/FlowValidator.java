@@ -65,9 +65,11 @@ public final class FlowValidator {
                     throw WorkflowException.invalid("container","Application requires container/timeout and forbids message/duration");
                 identifier(c.applicationId(),"applicationId");
                 if(c.version()==null || !c.version().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("version","version token required");
-                if(c.candidateClusters()==null || c.command().isEmpty() || c.command().size()>100
+                if((c.execution()==ContainerExecution.CLUSTER && c.candidateClusters()==null) || c.command().isEmpty() || c.command().size()>100
                         || c.parameters().size()>100 || c.inputFiles().size()>30 || c.outputFiles().size()>30)
                     throw WorkflowException.invalid("container","invalid command, candidates or file/parameter count");
+                if(c.execution()==ContainerExecution.TERMINAL && c.candidateClusters()!=null)
+                    throw WorkflowException.invalid("candidateClusters","TERMINAL uses the authenticated request origin, not cluster candidates");
                 if(c.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
                 if(new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
                     throw WorkflowException.invalid("container","duplicate candidate/output");
@@ -141,7 +143,7 @@ public final class FlowValidator {
             if("core.Dag".equals(mode))ancestors(task,group,available);
             available.remove(task.id());
             if(task.container()!=null) {
-                validateBinding(task.container().candidateClusters(),flow,available,"candidateClusters",itemScope);
+                if(task.container().candidateClusters()!=null)validateBinding(task.container().candidateClusters(),flow,available,"candidateClusters",itemScope);
                 task.container().parameters().forEach((name,b)->{identifier(name,"parameters");validateBinding(b,flow,available,"parameters."+name,itemScope);});
                 task.container().inputFiles().forEach((name,b)->validateBinding(b,flow,available,"inputFiles."+name,itemScope));
             }

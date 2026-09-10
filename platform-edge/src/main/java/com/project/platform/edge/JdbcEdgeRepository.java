@@ -82,6 +82,14 @@ public final class JdbcEdgeRepository {
         if(jdbc.queryForObject("SELECT COUNT(*) FROM edge_submission WHERE namespace=? AND terminal_id=? AND execution_id=?",Integer.class,ns,terminal,execution)==0)
             throw WorkflowException.missing("terminal execution not found");
     }
+    public Origin executionOrigin(String ns,String execution,String principal) {
+        return one(jdbc.query("""
+                SELECT s.terminal_id,g.cluster_id FROM edge_submission s
+                JOIN edge_terminal t ON t.namespace=s.namespace AND t.id=s.terminal_id
+                JOIN edge_gateway g ON g.namespace=t.namespace AND g.id=t.gateway_id
+                WHERE s.namespace=? AND s.execution_id=? AND g.principal=?
+                """,(rs,row)->new Origin(rs.getString(1),rs.getString(2)),ns,execution,principal),"gateway execution");
+    }
     private Gateway gateway(ResultSet rs,int row) throws SQLException { return new Gateway(rs.getString("id"),rs.getString("cluster_id"),rs.getString("principal"),rs.getBoolean("enabled"),seen(rs)); }
     private Terminal terminal(ResultSet rs,int row) throws SQLException { return new Terminal(rs.getString("id"),rs.getString("gateway_id"),rs.getBoolean("enabled"),seen(rs)); }
     private Policy policy(ResultSet rs,int row) throws SQLException { return new Policy(rs.getString("id"),rs.getString("cluster_id"),rs.getString("event_type"),rs.getBoolean("enabled")); }

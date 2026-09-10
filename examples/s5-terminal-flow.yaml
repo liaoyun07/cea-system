@@ -1,0 +1,31 @@
+schemaVersion: 1
+namespace: lab
+id: terminal-file-flow
+description: Submit through edge-access; requires registered shell-tools/v1 and an administrator-configured terminal Docker context.
+inputs:
+  message: {type: STRING, defaultValue: hello}
+tasks:
+  - id: terminal
+    type: platform.Application
+    timeout: PT2M
+    container:
+      applicationId: shell-tools
+      version: v1
+      execution: TERMINAL
+      parameters:
+        GREETING: {source: INPUT, name: message}
+      command: [sh, -c, 'printf "%s\n" "$GREETING" > /cea-work/out/data.txt']
+      outputFiles: [data.txt]
+  - id: edge
+    type: platform.Application
+    timeout: PT2M
+    container:
+      applicationId: shell-tools
+      version: v1
+      candidateClusters: [edge-a]
+      inputFiles:
+        data: {source: TASK_OUTPUT, taskId: terminal, port: data.txt}
+      command: [sh, -c, 'wc -c < /cea-work/in/data > /cea-work/out/bytes.txt']
+      outputFiles: [bytes.txt]
+outputs:
+  result: {source: TASK_OUTPUT, taskId: edge, port: bytes.txt}

@@ -44,6 +44,10 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 ## 当前与目标的区别
 
+S5-04a增加显式Application TERMINAL执行路径及真实Docker适配，保留原Executor/Worker/TaskRun/Attempt链。终端来源只从接入回执取得，Docker连接由管理员配置，普通CLUSTER任务仍走原Kubernetes选址；本地执行不等于规则/DQN卸载已完成，见[协议](contracts/s5-terminal-docker.md)和当前验证状态。
+
+该子批已通过175项Maven与7项Python完整回归，见[最新验收](verification/VER-S5-005-terminal-docker.md)。以下S4/S5-01至03的数量为历史验收；自动卸载、画像反馈及物理终端部署仍未完成。
+
 S5-03新增入口：受信网关CONNECT身份 → edge终端归属/策略事件匹配 → dataflow公开服务 → 原Execution链。策略拥有独立管理范围，但Flow定义/修订仍在原表；result直接查询原Execution，无边缘执行状态镜像或离线结果队列。后端协议及四表真实消费者见[接入协议](contracts/s5-edge-access.md)。
 
 当前调用链：HTTP身份认证 → dataflow权限/版本/提交 → Executor派发持久WorkerJob → Worker事务外执行 → 持久结果 → Executor归并状态/日志/续消息 → dataflow查询。server负责装配，不直接写业务表。定义版本表由dataflow所有；运行表和消息由runtime所有。

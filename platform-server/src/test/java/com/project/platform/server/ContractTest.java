@@ -112,6 +112,9 @@ class ContractTest {
     }
     @Test void checkedInExampleUsesTheRealDefinitionParser() throws Exception {
         var parser = new FlowParser(new FlowValidator(new TemplateRenderer()));
+        var terminal=parser.parse(Files.readString(Path.of("..","examples","s5-terminal-flow.yaml")));
+        assertEquals(FlowDefinition.ContainerExecution.TERMINAL,terminal.tasks().getFirst().container().execution());
+        assertEquals(FlowDefinition.ContainerExecution.CLUSTER,terminal.tasks().getLast().container().execution());
         for(String algorithm:List.of("fedavg","fedprox")) {
             var federation=parser.parse(Files.readString(Path.of("..","examples","federated",algorithm+".yaml")));
             assertEquals(algorithm,federation.id());

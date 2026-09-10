@@ -1,8 +1,10 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已完成Repeat、Loop、FedAvg/FedProx迁移，以及S5-03网关/终端后端接入、策略管理和统一结果查询。完整166项Maven回归与7项Python测试通过，收尾权限改动另复测107项通过，见[最新验收](docs/verification/VER-S5-004-edge-access.md)。S5整体仍进行中，卸载DQN、计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s测试为单机隔离环境，不是物理多云或性能验收。
+独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已完成Repeat、Loop、FedAvg/FedProx迁移、网关/终端后端接入、策略管理和统一结果查询，以及S5-04a终端Docker执行。完整175项Maven回归与7项Python测试通过，见[最新验收](docs/verification/VER-S5-005-terminal-docker.md)。S5整体仍进行中，S5-04b卸载规则/DQN与画像反馈、计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收。
 
 ## 文档入口
+
+- [S5-04a终端Docker执行](docs/contracts/s5-terminal-docker.md)：终端本地执行、可信来源、文件传递和失败/取消已验证；规则/DQN与画像仍待后续子批，不代表完整卸载能力。
 
 - [S5-03网关/终端与策略](docs/contracts/s5-edge-access.md)：账号配置、管理API、事件触发和正常结果查询。需要管理员登记资源/网关/终端及显式策略Flow，不自动初始化业务模板。
 
@@ -15,7 +17,7 @@
 ## 构建和测试
 
 JDK 21、Maven 3.8.8–3.x；Spring Boot 4.1.1、Jackson 3、MySQL 8、Flyway，版本由父 POM 锁定。
-完整验证需要运行中的 Docker，Testcontainers 自动创建独立 MySQL 及清理容器，不连接旧数据库。首次需要下载依赖和测试镜像；缺少 Docker 会失败，不跳过集成测试冒充通过。
+完整验证需要运行中的 Docker 和PATH中可用的Docker CLI，Testcontainers自动创建独立MySQL、Registry/K3s/MinIO及终端测试引擎并清理容器，不连接旧数据库。首次需要下载依赖和测试镜像；缺少Docker会失败，不跳过集成测试冒充通过。
 
 在 backend 目录运行：
 

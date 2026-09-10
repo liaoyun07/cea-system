@@ -59,9 +59,10 @@ public record FlowDefinition(
     public record Sql(String connection,String query,List<Binding> parameters) {public Sql {parameters=list(parameters);}}
     public record Container(String applicationId,String version,
                             @tools.jackson.databind.annotation.JsonDeserialize(using=CandidateClustersDeserializer.class) Binding candidateClusters,List<String> command,
-                            Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles) {
-        public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);}
+                            Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles,ContainerExecution execution) {
+        public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;}
     }
+    public enum ContainerExecution { CLUSTER, TERMINAL }
     /** Static candidate arrays are syntax sugar for the same Literal Binding, including persisted definitions. */
     public static final class CandidateClustersDeserializer extends tools.jackson.databind.ValueDeserializer<Binding> {
         @Override public Binding deserialize(tools.jackson.core.JsonParser parser,tools.jackson.databind.DeserializationContext context) {

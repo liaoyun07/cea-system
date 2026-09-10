@@ -43,6 +43,16 @@ class DefinitionTest {
         assertThrows(WorkflowException.class,()->parser.parse(application("").replace("    timeout: PT1M\n","")));
         assertThrows(WorkflowException.class,()->parser.parse(application("      aliases: {a: b}\n")));
     }
+    @Test void terminalExecutionUsesSameApplicationButCannotAcceptClusterTargetsOrDockerAddresses() {
+        String terminal=application("").replace("candidateClusters: [edge]","execution: TERMINAL");
+        var flow=parser.parse(terminal);
+        assertEquals(ContainerExecution.TERMINAL,flow.tasks().getFirst().container().execution());
+        assertEquals(flow,parser.parse(json.write(flow)));
+        assertEquals(ContainerExecution.CLUSTER,parser.parse(application("")).tasks().getFirst().container().execution());
+        assertThrows(WorkflowException.class,()->parser.parse(terminal+"      candidateClusters: [edge]\n"));
+        assertThrows(WorkflowException.class,()->parser.parse(terminal+"      dockerContext: arbitrary\n"));
+        assertThrows(WorkflowException.class,()->parser.parse(terminal.replace("TERMINAL","DQN")));
+    }
     @Test void applicationCannotReadFutureOrParallelSiblingWithoutDependency() {
         String flow=application("      parameters: {VALUE: {source: TASK_OUTPUT, taskId: later, port: message}}\n  - {id: later, type: core.Log, message: hi}\n");
         assertThrows(WorkflowException.class,()->parser.parse(flow));

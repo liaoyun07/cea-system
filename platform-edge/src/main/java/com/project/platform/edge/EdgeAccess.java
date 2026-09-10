@@ -6,6 +6,8 @@ import java.util.Map;
 
 /** Access/management data only. Execution state and results belong to runtime. */
 public final class EdgeAccess {
+    /** Trusted ingress provenance for Worker dispatch, not caller-supplied task parameters. */
+    public record Origin(String terminalId,String clusterId) {}
     private EdgeAccess() {}
     public record GatewayRegistration(String clusterId,String principal,boolean enabled) {}
     public record Gateway(String id,String clusterId,String principal,boolean enabled,Instant lastSeenAt) {}

@@ -109,6 +109,15 @@ public final class EdgeAccessService {
         repository.requireExecution(ns,id,execution);
         return executions.get(executionActor(actor),ns,execution);
     }
+    /** Accepted work retains its authority if ingress is later disabled. No new submission is authorized here. */
+    public Origin executionOrigin(Actor actor,String ns,String execution) {
+        authorize(actor,ns,Action.CONNECT);
+        return repository.executionOrigin(ns,execution,actor.name());
+    }
+    public Actor workerActor(Actor actor,String ns,String execution) {
+        executionOrigin(actor,ns,execution);
+        return new Actor(actor.name(),Set.of(ns),Set.of(Action.READ,Action.EXECUTE));
+    }
     private Gateway connected(Actor actor,String ns) {
         authorize(actor,ns,Action.CONNECT);
         var gateway=repository.gatewayForPrincipal(ns,actor.name());

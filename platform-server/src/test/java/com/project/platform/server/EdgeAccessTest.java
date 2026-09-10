@@ -94,6 +94,21 @@ class EdgeAccessTest {
         }
         fail("messages did not drain");
     }
+    @Test void workerAuthorityRequiresPersistedGatewayExecutionAndIsNamespaceScoped() throws Exception {
+        String terminal=terminal(),flow=id();flows().save(manager,"lab",flow,0,source(flow));
+        String execution=edge().submit(gateway,"lab",terminal,"worker-authority",request(flow));
+        assertEquals(new Origin(terminal,"edge-a"),edge().executionOrigin(gateway,"lab",execution));
+        var worker=edge().workerActor(gateway,"lab",execution);
+        assertEquals(Set.of("lab"),worker.namespaces());assertEquals(Set.of(Action.READ,Action.EXECUTE),worker.actions());
+        assertEquals(Set.of(Action.CONNECT),gateway.actions());
+        assertThrows(WorkflowException.class,()->edge().workerActor(new Actor("gateway-b",Set.of("lab"),Set.of(Action.CONNECT)),"lab",execution));
+        assertThrows(WorkflowException.class,()->edge().workerActor(gateway,"lab",UUID.randomUUID().toString()));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->edge().workerActor(manager,"lab",execution));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->edge().workerActor(gateway,"other",execution));
+        edge().putTerminal(manager,"lab",terminal,new TerminalRegistration("a",false));
+        assertEquals(worker,edge().workerActor(gateway,"lab",execution));
+        drain();
+    }
     @Test void heartbeatAndManagementUseAuthenticatedGatewayNotPayload() throws Exception {
         String terminal=terminal();
         assertEquals(401,call(null,"POST","/edge-access/heartbeat",null,null).statusCode());

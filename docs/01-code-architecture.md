@@ -4,7 +4,16 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共76份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共78份（含8份包声明），测试类另列。
+
+## S5-04a实际增量
+
+用户确认终端Docker。新增下列两个runtime类；既有ApplicationTaskRunner复用契约/文件准备，通过server注入的可信终端目标选择Docker。EdgeAccessService新增executionOrigin/workerActor，内部权限只来自持久接入关系。JobConfiguration配置namespace/terminal→Docker context；不改变模块依赖或Executor主链，无新数据库表/列/API。完整字段消费者与限制见[终端协议](contracts/s5-terminal-docker.md)，规则/DQN及画像仍未实现。
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/ContainerTask.java` | 两种容器执行器共用的命令、文件和启动包装 | Spec/Filesystem/name | 无业务状态 | RUN-001 | ImageDistributionTest |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/DockerTaskRunner.java` | 可信context上的真实容器执行、文件传递、停止和同Attempt确认 | run | 不写Execution表；复用TaskContext租约 | RUN-001 | ImageDistributionTest |
 
 S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/README.md)：Python数值核心、文件CLI、数据准备及数值验证。五份Application契约和两份Flow YAML位于examples/federated，经[注册脚本](../scripts/register-federated.ps1)写入既有数据库，不新增Maven模块或生产Java文件。Java调用链仍为FlowExecutionService → FlowExecutor → WorkerEngine → ApplicationTaskRunner → KubernetesJobRunner。
 
@@ -38,8 +47,8 @@ S5-03增加6份生产Java，合计76份（含8份package-info）；新增4张edg
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
 | `platform-edge/src/main/java/com/project/platform/edge/EdgeAccess.java` | 接入登记、策略及事件record | Gateway/Terminal/Policy/Event | 不含Execution状态 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
-| `platform-edge/src/main/java/com/project/platform/edge/JdbcEdgeRepository.java` | edge四表持久化 | putGateway/putTerminal/putPolicy/receipt/record | 终端锁、唯一事件路由、接入回执 | EDGE-001、EDGE-002 | EdgeAccessTest |
-| `platform-edge/src/main/java/com/project/platform/edge/EdgeAccessService.java` | 归属检查、策略范围、统一提交/查询 | submit/event/result | 接入回执及Execution同事务；不复制运行状态 | EDGE-001、EDGE-002 | EdgeAccessTest/A |
+| `platform-edge/src/main/java/com/project/platform/edge/JdbcEdgeRepository.java` | edge四表持久化及可信执行来源查询 | putGateway/putTerminal/putPolicy/receipt/record/executionOrigin | 终端锁、唯一事件路由、接入回执；不读运行表 | EDGE-001、EDGE-002 | EdgeAccessTest |
+| `platform-edge/src/main/java/com/project/platform/edge/EdgeAccessService.java` | 归属检查、策略范围、统一提交/查询及内部执行鉴权 | submit/event/result/executionOrigin/workerActor | 接入回执及Execution同事务；不复制运行状态 | EDGE-001、EDGE-002、SEC-001 | EdgeAccessTest/A |
 | `platform-server/src/main/java/com/project/platform/server/api/EdgeController.java` | 管理HTTP入口 | gateway/terminal/policy/list | READ/WRITE；外部CONNECT账号检查 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
 | `platform-server/src/main/java/com/project/platform/server/api/EdgeAccessController.java` | 网关HTTP入口 | heartbeat/submit/event/result | CONNECT；202在事务完成后返回 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
 | `platform-server/src/main/java/com/project/platform/server/configuration/EdgeConfiguration.java` | 装配edge公开服务 | edgeRepository/edgeAccessService | 使用既有同库TransactionTemplate | EDGE-001、EDGE-002 | EdgeAccessTest/A |
@@ -52,11 +61,11 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 |---|---|---|---|---|---|
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskRunner.java` | 被Worker真实消费的外部任务执行边界 | run | 不定义第二套状态 | RUN-001 | J/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskContext.java` | 租约作用域的冻结计划及停止请求 | job/check/prepared/prepare/cancellation/stop | 只访问Worker传输表；旧owner禁止写计划 | RUN-001 | J |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、文件暂存/收集、远程停止 | run；Spec/Filesystem | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、文件暂存/收集、远程停止 | run；使用ContainerTask.Spec/Filesystem | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
 | `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
 | `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace S3文件下载/发布/存在校验 | download/publish/published | 管理员凭据文件；产物前缀隔离 | RES-001、RUN-001 | J |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到runtime Job的适配 | run | prepared_json冻结cluster/digest/env/文件；不改Execution状态 | RUN-001、DEP-001 | J/A |
-| `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3连接及真实TaskRunner装配 | Settings/Beans | 外部配置，无业务状态 | RUN-001、SEC-001 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到runtime Kubernetes或Docker的适配 | run/TerminalTarget | prepared_json冻结cluster/dockerContext/digest/env/文件；不改Execution状态 | RUN-001、DEP-001 | J/A |
+| `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3/终端Docker连接及可信TaskRunner装配 | Settings/Beans | 外部配置，无业务状态；通过edge公开服务注入来源/权限 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionState.java` | 执行/任务状态 | terminal | Execution无RETRYING/SKIPPED；TaskRun可RETRYING/SKIPPED；QUEUED仅Execution | WF-004 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError、phase/retryAt；parentTaskRunId/iteration标记Repeat轮次 | WF-004、WF-006 | I/C |

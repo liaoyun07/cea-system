@@ -7,30 +7,14 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import com.project.platform.runtime.worker.ContainerTask.*;
+import static com.project.platform.runtime.worker.ContainerTask.WRAPPER;
 
 /** Owns one remote Job per Attempt. It never writes Execution/TaskRun state. */
 public final class KubernetesJobRunner {
-    public record Spec(String image,List<String> command,Map<String,String> environment,List<String> inputs,List<String> outputs) {}
-    public interface Filesystem {
-        void download(String name,Path destination) throws Exception;
-        String publish(String name,Path source) throws Exception;
-        String published(String name) throws Exception;
-    }
     private static final String ROOT="/cea-work";
-    // The wrapper remains alive for artifact collection. The image needs sh, tar and sleep, not a platform SDK.
-    private static final String WRAPPER="""
-            mkdir -p /cea-work/in /cea-work/out
-            while [ ! -f /cea-work/start ]; do sleep 0.2; done
-            "$@"
-            code=$?
-            printf '%s' "$code" > /cea-work/exit.tmp
-            mv /cea-work/exit.tmp /cea-work/exit
-            while [ ! -f /cea-work/published ]; do sleep 0.2; done
-            exit "$code"
-            """;
-    public static String name(WorkerJob job){return "cea-"+job.taskRunId()+"-a"+job.attemptNo();}
     public WorkerJob.Result run(TaskContext context,KubernetesClient client,Spec spec,Filesystem files) throws Exception {
-        String name=name(context.job());
+        String name=ContainerTask.name(context.job());
         boolean acknowledged=false;
         while(true) {
             context.check();

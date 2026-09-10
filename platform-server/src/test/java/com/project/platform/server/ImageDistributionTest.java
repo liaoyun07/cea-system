@@ -36,6 +36,8 @@ import com.project.platform.runtime.model.ExecutionState;
 import com.project.platform.runtime.persistence.JdbcWorkerStore;
 import java.util.concurrent.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.project.platform.edge.*;
+import com.project.platform.edge.EdgeAccess.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ImageDistributionTest {
@@ -63,6 +65,15 @@ class ImageDistributionTest {
     private List<String> applicationArguments;
     private GenericContainer<?> federation;
     private String federationImage;
+    // Isolated terminal engine. Its unsecured test socket is bound only to host loopback, never production configuration.
+    private final GenericContainer<?> terminalEngine=new GenericContainer<>("docker:28-dind").withNetwork(network)
+            .withPrivilegedMode(true).withEnv("DOCKER_TLS_CERTDIR","").withExposedPorts(2375)
+            .withCommand("--tls=false","--insecure-registry=target:5000")
+            .withCreateContainerCmdModifier(cmd->cmd.getHostConfig().withPortBindings(new com.github.dockerjava.api.model.PortBinding(
+                    com.github.dockerjava.api.model.Ports.Binding.bindIpAndPort("127.0.0.1",0),new com.github.dockerjava.api.model.ExposedPort(2375))))
+            .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forListeningPort()).withStartupTimeout(Duration.ofMinutes(2));
+    private final String terminalContext="cea-test-"+UUID.randomUUID();
+    private boolean terminalContextCreated;
 
     private GenericContainer<?> registry(String alias) {
         return new GenericContainer<>("registry:2").withNetwork(network).withNetworkAliases(alias).withExposedPorts(5000)
@@ -73,6 +84,10 @@ class ImageDistributionTest {
     @BeforeAll void start() throws Exception {
         try {
             mysql.start();source.start();target.start();tool.start();storage.start();
+            terminalEngine.start();
+            await().atMost(Duration.ofSeconds(30)).until(()->terminalEngine.execInContainer("docker","info").getExitCode()==0);
+            dockerCli("context","create",terminalContext,"--docker","host=tcp://127.0.0.1:"+terminalEngine.getMappedPort(2375));terminalContextCreated=true;
+            assertEquals(0,terminalEngine.execInContainer("docker","login","target:5000","--username","test","--password",password).getExitCode());
             accessKey=Files.createTempFile("cea-s4-s3-key-",".txt");secretKey=Files.createTempFile("cea-s4-s3-secret-",".txt");
             Files.writeString(accessKey,"s4-test-key");Files.writeString(secretKey,"s4-test-secret");
             try(var s3=s3()) {
@@ -173,6 +188,8 @@ class ImageDistributionTest {
                     "--platform.security.users[0].name=writer","--platform.security.users[0].password=test-api","--platform.security.users[0].namespaces=lab",
                     "--platform.security.users[0].actions=READ,WRITE,EXECUTE","--platform.security.users[1].name=viewer","--platform.security.users[1].password=test-api",
                     "--platform.security.users[1].namespaces=lab","--platform.security.users[1].actions=READ","--logging.level.root=WARN",
+                    "--platform.security.users[2].name=gateway","--platform.security.users[2].password=test-api","--platform.security.users[2].namespaces=lab",
+                    "--platform.security.users[2].actions=CONNECT","--platform.jobs.terminals.lab.pc="+terminalContext,
                     "--platform.distribution.registries.source.address=source:5000","--platform.distribution.registries.source.tls-verify=false",
                     "--platform.distribution.registries.source.auth-file=/tmp/auth.json","--platform.distribution.registries.target.address=target:5000",
                     "--platform.distribution.registries.target.tls-verify=false","--platform.distribution.registries.target.auth-file=/tmp/auth.json",
@@ -191,13 +208,40 @@ class ImageDistributionTest {
             applications().register(actor,"lab","service","v1",new ApplicationVersion("service","v1","source:5000/alpine:v1",
                     Map.of("GREETING",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.STRING,true,"hello",List.of(),null))));
             applications().register(actor,"lab","python","v1",new ApplicationVersion("python","v1","source:5000/python:v1",Map.of()));
+            edge().putGateway(actor,"lab","gateway",new GatewayRegistration("edge","gateway",true));
+            edge().putTerminal(actor,"lab","pc",new TerminalRegistration("gateway",true));
         } catch(Exception ex) { close();throw ex; }
     }
     @AfterAll void close() {
+        terminalEngine.stop();
+        if(terminalContextCreated)try{dockerCli("context","rm","--force",terminalContext);terminalContextCreated=false;}catch(Exception ex){throw new RuntimeException(ex);}
         if(context!=null)context.close();if(admin!=null)admin.close();if(federation!=null)federation.stop();kubernetes.stop();tool.stop();target.stop();source.stop();storage.stop();mysql.stop();network.close();
         if(federationImage!=null)DockerClientFactory.instance().client().removeImageCmd(federationImage).exec();
         if(kubeconfig!=null)try{Files.deleteIfExists(kubeconfig);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
         for(Path file:new Path[]{accessKey,secretKey})if(file!=null)try{Files.deleteIfExists(file);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
+    }
+    private void dockerCli(String... arguments) throws Exception {
+        var command=new ArrayList<>(List.of("docker"));command.addAll(List.of(arguments));
+        Path log=Files.createTempFile("cea-docker-fixture-",".log");Process process=null;
+        try {process=new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(log.toFile()).start();
+            assertTrue(process.waitFor(30,TimeUnit.SECONDS));assertEquals(0,process.exitValue(),Files.readString(log));
+        } finally {if(process!=null && process.isAlive())process.destroyForcibly();Files.deleteIfExists(log);}
+    }
+    private EdgeAccessService edge(){return context.getBean(EdgeAccessService.class);}
+    private void primeTerminal(String application) throws Exception {
+        String image=distribution().prepare(actor,"lab",application,"v1","edge").image();
+        var pulled=terminalEngine.execInContainer("docker","pull",image);assertEquals(0,pulled.getExitCode(),pulled.getStderr());
+    }
+    private String terminalSubmit(String tasks) throws Exception {
+        primeTerminal("service");
+        String flow="terminal"+UUID.randomUUID().toString().replace("-","");
+        context.getBean(FlowService.class).save(actor,"lab",flow,0,"schemaVersion: 1\nnamespace: lab\nid: "+flow+"\n"+tasks);
+        return edge().submit(new Actor("gateway",Set.of("lab"),Set.of(Action.CONNECT)),"lab","pc",UUID.randomUUID().toString(),
+                new FlowExecutionService.Request(flow,null,Map.of()));
+    }
+    private String terminalState(String name) throws Exception {
+        var result=terminalEngine.execInContainer("docker","inspect","--format","{{.State.Status}}",name);
+        return result.getExitCode()==0?result.getStdout().trim():"absent";
     }
     private String storageEndpoint(){return "http://"+storage.getHost()+":"+storage.getMappedPort(9000);}
     private io.minio.MinioClient s3(){return io.minio.MinioClient.builder().endpoint(storageEndpoint()).credentials("s4-test-key","s4-test-secret").build();}
@@ -454,6 +498,113 @@ class ImageDistributionTest {
         drive(id);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",id).state());
         assertTrue(executions().get(actor,"lab",id).error().contains("output file missing"));
     }
+    @Test void gatewayApplicationUsesRealWorkerAndTerminalArtifactFeedsClusterTask() throws Exception {
+        applications().register(actor,"lab","terminal-reader","v1",new ApplicationVersion("terminal-reader","v1","source:5000/alpine:v1",Map.of(
+                "GREETING",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.STRING,true,"hello",List.of(),null),
+                "DATASET",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.STRING,true,"sample/v1",List.of(),
+                        new ApplicationVersion.DatasetRule("txt",List.of(new ApplicationVersion.DatasetRef("sample","v1")))))));
+        primeTerminal("terminal-reader");
+        String id=terminalSubmit("""
+                tasks:
+                  - id: local
+                    type: platform.Application
+                    timeout: PT60S
+                    container:
+                      applicationId: terminal-reader
+                      version: v1
+                      execution: TERMINAL
+                      command: [sh, -c, 'cat "$DATASET_PATH" > /cea-work/out/result.txt; printf "%s\\n" "$GREETING" >> /cea-work/out/result.txt']
+                      outputFiles: [result.txt]
+                  - id: cluster
+                    type: platform.Application
+                    timeout: PT60S
+                    container:
+                      applicationId: service
+                      version: v1
+                      candidateClusters: [edge]
+                      command: [sh, -c, 'cat /cea-work/in/data > /cea-work/out/final.txt; printf "edge\\n" >> /cea-work/out/final.txt']
+                      inputFiles: {data: {source: TASK_OUTPUT, taskId: local, port: result.txt}}
+                      outputFiles: [final.txt]
+                outputs: {result: {source: TASK_OUTPUT, taskId: cluster, port: final.txt}}
+                """);
+        drive(id);var execution=executions().get(actor,"lab",id);
+        assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
+        assertEquals("actual dataset bytes\nhello\nedge\n",artifact(execution.outputs().get("result").toString()));
+        var local=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("local")).findFirst().orElseThrow();
+        String name="cea-"+local.id()+"-a1";
+        assertEquals("exited",terminalState(name));assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get());
+        assertEquals(0,context.getBean(JdbcTemplate.class).queryForObject("SELECT COUNT(*) FROM res_job_reservation WHERE allocation_id=?",Integer.class,local.id()+"-1"));
+        assertEquals(1,executions().attempts(actor,"lab",id,local.id()).size());
+    }
+    @Test void terminalExecutionRejectsOrdinaryUserWithoutIngressReceipt() throws Exception {
+        String id=submit(sleeper("PT30S","true").replace("candidateClusters: [edge]","execution: TERMINAL"));
+        drive(id);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",id).state());
+        assertEquals("absent",terminalState(remoteName(id)));
+    }
+    @Test void terminalPreservesQuotedMultilineParametersWithoutHostShellInterpretation() throws Exception {
+        String value="中文 'single' \"double\" \\path\n$(touch /cea-work/out/injected)\n";
+        String source=sleeper("PT60S","printf \"%s\" \"$GREETING\" > /cea-work/out/value.txt; test ! -f /cea-work/out/injected")
+                .replace("candidateClusters: [edge]","execution: TERMINAL")
+                .replace("      command:","      parameters: {GREETING: {source: LITERAL, value: "+json.write(value)+"}}\n      outputFiles: [value.txt]\n      command:");
+        String id=terminalSubmit(source);drive(id);
+        var execution=executions().get(actor,"lab",id);assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
+        assertEquals(value,artifact(executions().tasks(actor,"lab",id).getFirst().outputs().get("value.txt").toString()));
+    }
+    @Test void terminalCommandExitAndMissingOutputAreRealFailures() throws Exception {
+        for(boolean missing:List.of(false,true)) {
+            String source=sleeper("PT60S",missing?"true":"exit 7").replace("candidateClusters: [edge]","execution: TERMINAL");
+            if(missing)source=source.replace("      command:","      outputFiles: [missing.txt]\n      command:");
+            else source=source.replace("    timeout:","    retry: {type: constant, maxAttempts: 2, interval: PT0.1S}\n    timeout:");
+            String id=terminalSubmit(source);drive(id);
+            var execution=executions().get(actor,"lab",id);assertEquals(ExecutionState.FAILED,execution.state(),execution.error());
+            assertTrue(execution.error().contains(missing?"output file missing":"code 7"),execution.error());
+            assertEquals("exited",terminalState(remoteName(id)));
+            assertEquals(missing?1:2,executions().attempts(actor,"lab",id,executions().tasks(actor,"lab",id).getFirst().id()).size());
+        }
+    }
+    @Test void terminalWorkerTakeoverRetainsContainerAndDoesNotRepeatCommand() throws Exception {
+        String source=sleeper("PT90S","printf x >> /cea-work/out/once.txt; sleep 5")
+                .replace("candidateClusters: [edge]","execution: TERMINAL").replace("      command:","      outputFiles: [once.txt]\n      command:");
+        String id=terminalSubmit(source);
+        awaitDispatch(id);String name=remoteName(id);
+        var local=new WorkerEngine(context.getBean(JdbcWorkerStore.class),new com.project.platform.runtime.definition.TemplateRenderer(),1000,context.getBean(TaskRunner.class));
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var running=pool.submit(local::runOnce);
+            await().atMost(Duration.ofSeconds(40)).until(()->terminalEngine.execInContainer("docker","exec",name,"test","-f","/cea-work/out/once.txt").getExitCode()==0);
+            String uid=terminalEngine.execInContainer("docker","inspect","--format","{{.Id}}",name).getStdout().trim();
+            local.close();running.get(5,TimeUnit.SECONDS);
+            var run=executions().tasks(actor,"lab",id).getFirst();
+            context.getBean(JdbcTemplate.class).update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",run.id());
+            drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+            assertEquals(uid,terminalEngine.execInContainer("docker","inspect","--format","{{.Id}}",name).getStdout().trim());
+            assertEquals("x",artifact(executions().tasks(actor,"lab",id).getFirst().outputs().get("once.txt").toString()));
+            assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+        } finally {local.close();}
+    }
+    @Test void terminalCancellationStopsContainerBeforeFinally() throws Exception {
+        String id=terminalSubmit(sleeper("PT90S","touch /cea-work/executing; sleep 60").replace("candidateClusters: [edge]","execution: TERMINAL"));
+        awaitDispatch(id);String name=remoteName(id);
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var running=pool.submit(()->context.getBean(WorkerEngine.class).runOnce());
+            await().atMost(Duration.ofSeconds(40)).until(()->terminalEngine.execInContainer("docker","exec",name,"test","-f","/cea-work/executing").getExitCode()==0);
+            executions().cancel(actor,"lab",id);context.getBean(FlowExecutor.class).processNext();running.get(20,TimeUnit.SECONDS);
+            drive(id);assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",id).state());
+            assertEquals("exited",terminalState(name));
+            assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("cleanup")).findFirst().orElseThrow().state());
+        }
+    }
+    @Test void terminalTimeoutStopsRunningCommandAndRunsFinally() throws Exception {
+        String id=terminalSubmit(sleeper("PT15S","sleep 60").replace("candidateClusters: [edge]","execution: TERMINAL"));
+        drive(id);var execution=executions().get(actor,"lab",id);
+        assertEquals(ExecutionState.FAILED,execution.state());assertTrue(execution.error().contains("timed out"),execution.error());
+        assertEquals("exited",terminalState(remoteName(id)));
+        assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("cleanup")).findFirst().orElseThrow().state());
+    }
+    private String artifact(String uri) throws Exception {
+        try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
+            return new String(input.readAllBytes(),StandardCharsets.UTF_8);
+        }
+    }
     private String sleeper(String timeout,String command) {return """
             tasks:
               - id: remote
@@ -469,10 +620,13 @@ class ImageDistributionTest {
             """.formatted(timeout,command);}
     private String dispatch(String source) {
         String id=submit(source);
+        awaitDispatch(id);return id;
+    }
+    private void awaitDispatch(String id) {
         await().atMost(Duration.ofSeconds(5)).until(()->{
             context.getBean(FlowExecutor.class).processNext();
             return executions().tasks(actor,"lab",id).stream().anyMatch(t->t.state()==ExecutionState.RUNNING);
-        });return id;
+        });
     }
     private String remoteName(String id) {return "cea-"+executions().tasks(actor,"lab",id).getFirst().id()+"-a1";}
     private boolean activePod(String name) {return admin.pods().inNamespace("s4-test").withLabel("job-name",name).list().getItems().stream().anyMatch(p->"Running".equals(p.getStatus().getPhase()));}

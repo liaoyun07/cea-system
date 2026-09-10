@@ -2,6 +2,8 @@
 
 职责：流程定义、版本与执行管理入口。
 
+S5-04a的ApplicationTaskRunner根据显式execution选择Docker或Kubernetes；终端来源由server注入，dataflow不依赖edge或其Repository。两者复用契约、参数、镜像准备、文件/S3和原prepared_json，见[终端执行协议](../docs/contracts/s5-terminal-docker.md)。
+
 已实现Flow不可变版本/CAS/回滚、权限校验和执行管理和取消门面。仅拥有wf_flow_head、wf_flow_revision；无消费者的版本checksum已删除。通过runtime公开执行服务操作运行状态，不直接访问运行表。S3保存定义与同步runtime并发/Schedule在同一事务中；启用Schedule还须EXECUTE权限。
 
 管理Flow保存、编辑、版本和提交；S4-02a自动派生服务已撤销，不读取Application参数生成Flow Inputs。作者显式定义的Flow是唯一事实源，未来No-code编辑同一份定义，当前没有No-code。ApplicationTaskRunner已通过deployment/resource公开服务准备镜像、选址和文件，并调用runtime的Job Runner。
