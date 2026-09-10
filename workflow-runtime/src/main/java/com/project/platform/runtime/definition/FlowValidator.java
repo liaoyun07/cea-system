@@ -77,10 +77,19 @@ public final class FlowValidator {
                 if(task.message()!=null || task.duration()!=null || task.retry()!=null || task.timeout()!=null)
                     throw WorkflowException.invalid("tasks."+task.id(),"control tasks cannot have message/duration/retry/timeout");
                 if("core.If".equals(task.type())) renderer.validate(task.condition());
+                if("core.Repeat".equals(task.type())) {
+                    var repeat=task.repeat();
+                    if(repeat==null || !repeat.initial().keySet().equals(repeat.feedback().keySet()) || repeat.initial().size()>30)
+                        throw WorkflowException.invalid("repeat","initial/feedback must declare the same state keys (at most 30)");
+                    repeat.initial().keySet().forEach(name->{identifier(name,"repeat.initial");if(Set.of("iterations","iterationCount").contains(name))throw WorkflowException.invalid("repeat","reserved output name");});
+                    var children=new ArrayList<Task>();FlowDefinition.flatten(task.tasks(),children);
+                    if(children.stream().anyMatch(child->"core.Repeat".equals(child.type())))throw WorkflowException.invalid("repeat","nested Repeat is not supported");
+                }
             } else throw WorkflowException.invalid("tasks." + task.id(), "unsupported task type");
             if(!"platform.Application".equals(task.type()) && task.container()!=null)throw WorkflowException.invalid("container","only Application supports container");
             if(!"core.Http".equals(task.type()) && task.http()!=null)throw WorkflowException.invalid("http","only Http supports http");
             if(!"core.Sql".equals(task.type()) && task.sql()!=null)throw WorkflowException.invalid("sql","only Sql supports sql");
+            if(!"core.Repeat".equals(task.type()) && task.repeat()!=null)throw WorkflowException.invalid("repeat","only Repeat supports repeat");
             if (task.timeout()!=null) duration(task.timeout(), "timeout");
             if (task.retry()!=null) {
                 var retry=task.retry();
@@ -103,7 +112,9 @@ public final class FlowValidator {
         flow.outputs().forEach((name, binding) -> {
             identifier(name, "outputs");
             var main=new ArrayList<Task>(); FlowDefinition.flatten(flow.tasks(),main);
-            validateBinding(binding, flow, main.stream().map(Task::id).collect(java.util.stream.Collectors.toSet()), "outputs." + name);
+            var visible=main.stream().map(Task::id).collect(java.util.stream.Collectors.toSet());
+            for(var task:main)if(task.repeat()!=null){var children=new ArrayList<Task>();FlowDefinition.flatten(task.tasks(),children);children.forEach(child->visible.remove(child.id()));}
+            validateBinding(binding, flow, visible, "outputs." + name);
         });
         if(flow.schedule()!=null) new BindingResolver().prepare(flow,flow.schedule().inputs());
     }
@@ -125,7 +136,14 @@ public final class FlowValidator {
                 if(task.http().body()!=null)validateBinding(task.http().body(),flow,available,"http.body");
             }
             if(task.sql()!=null)task.sql().parameters().forEach(b->validateBinding(b,flow,available,"sql.parameters"));
-            validateTaskBindings(flow,task.tasks(),task.type(),available);
+            if(task.repeat()!=null) {
+                validateBinding(task.repeat().iterations(),flow,available,"repeat.iterations");
+                task.repeat().initial().forEach((name,b)->validateBinding(b,flow,available,"repeat.initial."+name));
+                var inside=new HashSet<>(available);inside.add(task.id());
+                validateTaskBindings(flow,task.tasks(),"core.Sequential",inside);
+                task.tasks().forEach(child->completed(child,inside));
+                task.repeat().feedback().forEach((name,b)->validateBinding(b,flow,inside,"repeat.feedback."+name));
+            } else validateTaskBindings(flow,task.tasks(),task.type(),available);
             validateTaskBindings(flow,task.thenTasks(),"core.Sequential",available);
             validateTaskBindings(flow,task.elseTasks(),"core.Sequential",available);
             if("core.Sequential".equals(mode))completed(task,prior);
@@ -139,7 +157,7 @@ public final class FlowValidator {
         }
     }
     private void completed(Task task,Set<String> available) {
-        available.add(task.id());task.tasks().forEach(t->completed(t,available));
+        available.add(task.id());if(task.repeat()==null)task.tasks().forEach(t->completed(t,available));
         // An If guarantees its decision, not either branch's artifacts.
     }
     private void validateGroup(List<Task> tasks,boolean dag,int depth) {
@@ -195,7 +213,7 @@ public final class FlowValidator {
             case TaskOutputRef ref -> {
                 var task=flow.allTasks().stream().filter(t->t.id().equals(ref.taskId())).findFirst().orElse(null);
                 String port=task!=null && "core.If".equals(task.type())?"evaluationResult":"message";
-                boolean valid=task!=null && (task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
+                boolean valid=task!=null && (task.repeat()!=null?task.repeat().initial().containsKey(ref.port()) || Set.of("iterations","iterationCount").contains(ref.port()):task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
                 if (!taskIds.contains(ref.taskId()) || !valid) {
                     throw WorkflowException.invalid(path, "unknown task output");
                 }

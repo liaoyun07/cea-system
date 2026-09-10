@@ -38,16 +38,16 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 | `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3连接及真实TaskRunner装配 | Settings/Beans | 外部配置，无业务状态 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionState.java` | 执行/任务状态 | terminal | Execution无RETRYING/SKIPPED；TaskRun可RETRYING/SKIPPED；QUEUED仅Execution | WF-004 | I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError和TaskRun的phase/retryAt | WF-004、WF-006 | I/C |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError、phase/retryAt；parentTaskRunId/iteration标记Repeat轮次 | WF-004、WF-006 | I/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/WorkflowException.java` | 领域校验/冲突/未找到异常 | invalid/missing/conflict | 不暴露SQL或模板上下文 | WF-001 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/JsonCodec.java` | 统一JSON序列化与请求规范摘要 | write/read/map/flow/hash | map键排序SHA256 | WF-001、WF-005 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowParser.java` | JSON/YAML入口与未知字段拒绝 | parse | 无写入；限源文本长度 | WF-001 | D/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/FlowValidator.java` | 叶子/控制树、DAG环、Cron/输入、跨阶段ID与Binding校验 | validate/identifier | 保存前校验；表达式引用运行时检查 | WF-001、WF-002 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/BindingResolver.java` | 类型检查、默认输入、变量与最终输出 | prepare/resolve/outputs | 仅根据作者定义的Flow准备输入/变量，不从Application派生 | WF-002 | D/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/definition/TemplateRenderer.java` | 严格Pebble表达式 | validate/render | 无模板语句；限制渲染长度 | WF-002 | D/I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcExecutionStore.java` | 运行状态、消息、日志及Flow准入锁 | transaction/create/nextMessage/admission/promote/controlState/requestCancel | 状态、日志、消息同一JDBC事务；数据库时间与消费行锁 | WF-004、WF-005、WF-008 | I |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcExecutionStore.java` | 运行状态、消息、日志及Flow准入锁 | transaction/create/createIteration/nextMessage/admission/promote/controlState/requestCancel | 状态、日志、消息同一JDBC事务；数据库时间与消费行锁 | WF-004、WF-005、WF-008 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/execution/ExecutionService.java` | runtime公开提交/查询入口 | submit/configureConcurrency/transaction及查询取消 | 准入/提交事务+唯一幂等键；不自己验证HTTP身份 | WF-004、WF-005、WF-006 | I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/executor/FlowExecutor.java` | 唯一状态推进者：控制树解释、叶子派发归并、三段处理 | processNext | 短事务；分支持久化、并行失败收敛、清理及额度释放；不执行叶子代码 | WF-005、WF-008、WF-009、WF-010 | I |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/executor/FlowExecutor.java` | 唯一状态推进者：控制树解释、叶子派发归并、三段处理 | processNext | 短事务；Repeat轮次屏障/反馈与按作用域读取；分支持久化、并行失败收敛、清理及额度释放；不执行叶子代码 | WF-005、WF-008、WF-009、WF-010 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/ExecutionReducer.java` | 同组节点就绪与固定重试时间的纯决策 | ready/retryAt | 无I/O；供Executor使用 | WF-008 | L/I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表与结果持久化 | dispatch/result/remove/claim/heartbeat/finish | 领取短事务；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007 | I/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerJob.java` | 派发载荷及Lease/Result记录 | record访问器、Result.success/failed | 冻结Task/上下文；TaskRun+Attempt定位，epoch隔离持有者 | WF-007 | I |
@@ -113,7 +113,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - runtime：[V5__control_flow_and_scheduling.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V5__control_flow_and_scheduling.sql)，新增wf_flow_control、wf_schedule和FIFO sequence_no，删除next_task。
 - resource：[V6__resource_catalog.sql](../platform-resource/src/main/resources/db/migration/resource/V6__resource_catalog.sql)，res_cluster、res_dataset_version、res_dataset_location。外键限制同命名空间的集群/版本引用；仅资源模块读写。
 - deployment：[V7__application_contract.sql](../platform-deployment/src/main/resources/db/migration/deployment/V7__application_contract.sql)，dep_application_version。数据集引用仅经资源API验证，不跨模块读表或建跨域外键；当前资源版本不可删除。
-- 共15张业务表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- 共15张业务表；V10新增TaskRun轮次/所属Repeat字段，按轮惰性创建TaskRun并保留历史，不新增表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
 - S4-02a历史批次只装配应用目录；应用JSON使用父BOM的Jackson，deployment不依赖runtime JsonCodec。自动派生服务及两个API已撤销，BindingResolver.prepare恢复原实现。S4-03在真实Task消费者接入显式Binding及Job，不恢复派生链；字段消费者见[Job协议](contracts/s4-job-execution.md)。
 - 资源目录链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选预览不创建Execution、预约或Job；真实执行消费者另外调用JobPlacementService和ObjectStorage。JobConfiguration装配适配器与运行时执行边界；Executor仍独占运行状态。
 - S1/S2活动执行必须排空后停机升级，不提供混版本执行兼容。叶子语义见[S2协议](contracts/s2-protocol.md)，控制树/准入/触发/锁顺序见[S3协议](contracts/s3-protocol.md)。
@@ -134,7 +134,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 
 - T：[ControlFlowTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/ControlFlowTest.java)，6项控制定义/拓扑/分支/额度/Cron/时区DST测试。
 
-- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：17项独立真实Registry/Skopeo/MySQL/K3s/MinIO验证，覆盖镜像分发与常驻部署、Application Job、数据集/命名产物、平台槽并发、取消/超时、同Job接管、Python执行及Worker JVM强杀/DB短时故障。
+- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：18项独立真实Registry/Skopeo/MySQL/K3s/MinIO验证，覆盖镜像分发与常驻部署、Application Job、数据集/命名产物、平台槽并发、取消/超时、同Job接管、Python执行及Worker JVM强杀/DB短时故障；S5新增两轮真实文件反馈与评估屏障。
 
 - [CommonTaskTest](../platform-server/src/test/java/com/project/platform/server/CommonTaskTest.java)：6项真实HTTP/MySQL通用任务测试。
 - [DeploymentSmokeIT](../platform-server/src/test/java/com/project/platform/server/DeploymentSmokeIT.java)：Failsafe在package后启动实际JAR，空库迁移/认证/提交执行；不是测试类路径启动。
@@ -159,3 +159,4 @@ S1–S3模型采用record及嵌套record，不是每个领域名都拆成独立�
 ## 自动检查的边界
 
 [check-scaffold.ps1](../scripts/check-scaffold.ps1) 检查 POM 与文档模块集合、依赖白名单/环、生产 Java 索引、功能编号及本地文档链接。它不能替代 Java 语义测试、真实数据库并发测试或类级依赖测试。
+S5-01没有新增生产Java文件。FlowDefinition新增Repeat嵌套record；FlowValidator、FlowExecutor、JdbcExecutionStore与ExecutionRecord承担定义、屏障推进、轮次持久化和查询字段。详见[Repeat协议](contracts/s5-repeat.md)。

@@ -104,7 +104,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(9,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(10,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {
         String id=register();
@@ -1201,6 +1201,88 @@ private String custom(String body) {
         assertThrows(ResourceException.class,()->resources().cluster(only,"catalog","unknown"));
     }
 
+    private String repeatSource(String id) {return "schemaVersion: 1\nnamespace: lab\nid: "+id+"\n"+"""
+            tasks:
+              - id: rounds
+                type: core.Repeat
+                repeat:
+                  iterations: {source: LITERAL, value: 2}
+                  initial: {value: {source: LITERAL, value: seed}}
+                  feedback: {value: {source: TASK_OUTPUT, taskId: train, port: message}}
+                tasks:
+                  - {id: train, type: core.Log, message: '{{ outputs.rounds.value }}-x'}
+                  - {id: evaluate, type: core.Log, message: '{{ taskrun.iteration }}:{{ outputs.train.message }}'}
+            outputs:
+              result: {source: TASK_OUTPUT, taskId: rounds, port: value}
+            finally: [{id: cleanup, type: core.Log, message: cleaned}]
+            """;}
+    private String submitRepeat(String source,String flowId) {
+        flows().save(actor,"lab",flowId,0,source);
+        return executions().submit(actor,"lab",id(),new Request(flowId,null,Map.of()));
+    }
+    @Test void repeatFeedbackUsesNewTaskRunsAndPreservesEveryRound() {
+        String flow=id(),execution=submitRepeat(repeatSource(flow),flow);drain();
+        assertEquals("seed-x-x",executions().get(actor,"lab",execution).outputs().get("result"));
+        var tasks=executions().tasks(actor,"lab",execution);assertEquals(6,tasks.size());
+        var parent=tasks.stream().filter(t->t.taskId().equals("rounds")).findFirst().orElseThrow();
+        assertEquals(2,parent.outputs().get("iterationCount"));
+        var trains=tasks.stream().filter(t->t.taskId().equals("train")).toList();
+        assertEquals(List.of(1,2),trains.stream().map(ExecutionRecord.TaskRun::iteration).toList());
+        assertNotEquals(trains.get(0).id(),trains.get(1).id());
+        for(var train:trains){assertEquals(parent.id(),train.parentTaskRunId());assertEquals(1,executions().attempts(actor,"lab",execution,train.id()).size());}
+        var eval=tasks.stream().filter(t->t.taskId().equals("evaluate")).toList();
+        assertEquals("1:seed-x",eval.get(0).outputs().get("message"));assertEquals("2:seed-x-x",eval.get(1).outputs().get("message"));
+        assertFalse(trains.get(1).startedAt().isBefore(eval.get(0).endedAt()));
+    }
+    @Test void repeatRestartAtRoundBarrierDoesNotRepeatCompletedWork() {
+        String flow=id(),execution=submitRepeat(repeatSource(flow),flow);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(()->{
+            executor().processNext();worker().runOnce();
+            return executions().tasks(actor,"lab",execution).stream().anyMatch(t->t.taskId().equals("rounds")&&Integer.valueOf(1).equals(t.outputs().get("iterationCount")));
+        });
+        var first=executions().tasks(actor,"lab",execution).stream().filter(t->t.iteration()==1).map(ExecutionRecord.TaskRun::id).toList();
+        context.close();context=open();drain();
+        assertEquals("seed-x-x",executions().get(actor,"lab",execution).outputs().get("result"));
+        assertEquals(first,executions().tasks(actor,"lab",execution).stream().filter(t->t.iteration()==1).map(ExecutionRecord.TaskRun::id).toList());
+    }
+    @Test void repeatDagWaitsForBothBranchesBeforeFeedback() {
+        String flow=id();String source=repeatSource(flow).replace("- {id: train, type: core.Log, message: '{{ outputs.rounds.value }}-x'}\n      - {id: evaluate, type: core.Log, message: '{{ taskrun.iteration }}:{{ outputs.train.message }}'}", """
+                - id: dag
+                        type: core.Dag
+                        tasks:
+                          - {id: evaluate, type: core.Log, dependsOn: [train, peer], message: '{{ outputs.train.message }}:{{ outputs.peer.message }}'}
+                          - {id: train, type: core.Log, message: '{{ outputs.rounds.value }}-x'}
+                          - {id: peer, type: core.Log, message: '{{ taskrun.iteration }}'}""");
+        assertTrue(source.contains("type: core.Dag"));
+        String execution=submitRepeat(source,flow);drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        var tasks=executions().tasks(actor,"lab",execution);var eval=tasks.stream().filter(t->t.taskId().equals("evaluate")).toList();
+        assertEquals("seed-x:1",eval.get(0).outputs().get("message"));assertEquals("seed-x-x:2",eval.get(1).outputs().get("message"));
+        assertFalse(tasks.stream().filter(t->t.taskId().equals("train")&&t.iteration()==2).findFirst().orElseThrow().startedAt().isBefore(eval.get(0).endedAt()));
+    }
+    @Test void repeatLeafRetryIsNotAnotherRoundAndFailedRoundStops() {
+        String flow=id(),source=repeatSource(flow).replace("type: core.Log, message: '{{ outputs.rounds.value }}-x'","type: core.Log, retry: {type: constant, maxAttempts: 2, interval: PT0.01S}, message: \"{{ taskrun.attemptsCount == 1 ? missing : outputs.rounds.value ~ '-x' }}\"");
+        String execution=submitRepeat(source,flow);drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        for(var train:executions().tasks(actor,"lab",execution))if(train.taskId().equals("train"))assertEquals(2,executions().attempts(actor,"lab",execution,train.id()).size());
+        flow=id();execution=submitRepeat(repeatSource(flow).replace("{{ outputs.rounds.value }}-x","{{ missing }}"),flow);drain();
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+        assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.iteration()==2));
+    }
+    @Test void repeatCancellationSkipsFutureRoundsAndRunsFinally() {
+        String flow=id(),execution=submitRepeat(repeatSource(flow),flow);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(()->{
+            executor().processNext();return executions().tasks(actor,"lab",execution).stream().anyMatch(t->t.iteration()==1&&t.state()==ExecutionState.RUNNING);
+        });
+        executions().cancel(actor,"lab",execution);drain();assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",execution).state());
+        assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.iteration()==2));
+        assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("cleanup")).findFirst().orElseThrow().state());
+    }
+    @Test void repeatInvalidCountFailsWithoutCreatingChildren() {
+        for(String count:List.of("0","101","1.5","'two'")) {
+            String flow=id(),execution=submitRepeat(repeatSource(flow).replace("value: 2}","value: "+count+"}"),flow);drain();
+            assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
+            assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.iteration()>0));
+        }
+    }
     private void awaitChild(Process child,int port) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(30);
         while(System.nanoTime()<deadline) {

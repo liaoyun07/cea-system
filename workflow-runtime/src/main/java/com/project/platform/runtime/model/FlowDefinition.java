@@ -44,9 +44,12 @@ public record FlowDefinition(
     public record Task(String id, String type, String message, Retry retry, String timeout, String duration,
                        List<Task> tasks, List<String> dependsOn, String condition,
                        @JsonProperty("then") List<Task> thenTasks, @JsonProperty("else") List<Task> elseTasks,
-                       Container container,Http http,Sql sql) {
+                       Container container,Http http,Sql sql,Repeat repeat) {
         public Task { tasks=list(tasks); dependsOn=list(dependsOn); thenTasks=list(thenTasks); elseTasks=list(elseTasks); }
-        public boolean control() { return type!=null && Set.of("core.Sequential","core.Parallel","core.Dag","core.If").contains(type); }
+        public boolean control() { return type!=null && Set.of("core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat").contains(type); }
+    }
+    public record Repeat(Binding iterations,Map<String,Binding> initial,Map<String,Binding> feedback) {
+        public Repeat {initial=immutable(initial);feedback=immutable(feedback);}
     }
     public record Http(String connection,String method,Binding path,Binding body) {}
     public record Sql(String connection,String query,List<Binding> parameters) {public Sql {parameters=list(parameters);}}

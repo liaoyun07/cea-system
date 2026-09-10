@@ -388,6 +388,53 @@ class ImageDistributionTest {
         }
         assertEquals(0,context.getBean(JdbcTemplate.class).queryForObject("SELECT COUNT(*) FROM res_job_reservation WHERE released=FALSE",Integer.class));
     }
+    @Test void repeatCarriesActualArtifactsAndWaitsForEvaluation() throws Exception {
+        String id=submit("""
+                tasks:
+                  - id: rounds
+                    type: core.Repeat
+                    repeat:
+                      iterations: {source: LITERAL, value: 2}
+                      initial: {model: {source: LITERAL, value: 's3://datasets/sample/v1/data.txt'}}
+                      feedback: {model: {source: TASK_OUTPUT, taskId: train, port: model.txt}}
+                    tasks:
+                      - id: train
+                        type: platform.Application
+                        timeout: PT60S
+                        container:
+                          applicationId: service
+                          version: v1
+                          candidateClusters: [edge]
+                          command: [sh, -c, 'cat /cea-work/in/model > /cea-work/out/model.txt; printf "updated\\n" >> /cea-work/out/model.txt']
+                          inputFiles: {model: {source: TASK_OUTPUT, taskId: rounds, port: model}}
+                          outputFiles: [model.txt]
+                      - id: evaluate
+                        type: platform.Application
+                        timeout: PT60S
+                        container:
+                          applicationId: service
+                          version: v1
+                          candidateClusters: [edge]
+                          command: [sh, -c, 'sleep 1; wc -l < /cea-work/in/model > /cea-work/out/count.txt']
+                          inputFiles: {model: {source: TASK_OUTPUT, taskId: train, port: model.txt}}
+                          outputFiles: [count.txt]
+                outputs: {model: {source: TASK_OUTPUT, taskId: rounds, port: model}}
+                """);
+        drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+        String uri=executions().get(actor,"lab",id).outputs().get("model").toString();
+        try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
+            assertEquals("actual dataset bytes\nupdated\nupdated\n",new String(input.readAllBytes(),StandardCharsets.UTF_8));
+        }
+        var tasks=executions().tasks(actor,"lab",id);
+        var train=tasks.stream().filter(t->t.taskId().equals("train")).toList();
+        var evaluate=tasks.stream().filter(t->t.taskId().equals("evaluate")).toList();
+        assertEquals(2,train.size());assertEquals(2,evaluate.size());
+        assertNotEquals(train.get(0).outputs().get("model.txt"),train.get(1).outputs().get("model.txt"));
+        assertFalse(train.get(1).startedAt().isBefore(evaluate.get(0).endedAt()));
+        for(int i=0;i<2;i++)try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(evaluate.get(i).outputs().get("count.txt").toString()).getPath().substring(1)).build())) {
+            assertEquals(Integer.toString(i+2),new String(input.readAllBytes(),StandardCharsets.UTF_8).trim());
+        }
+    }
     @Test void applicationMissingOutputFailsRatherThanPublishingSuccess() throws Exception {
         String id=submit("""
                 tasks:

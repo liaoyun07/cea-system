@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。123项统一验证通过，见[S4验收](docs/verification/VER-S4-005-external-task-runtime.md)。没有迁入旧数据，DQN和前端未实现；S5未进入。
+独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。[S5](docs/features/S5-research-edge.md)首批Repeat状态反馈与整轮屏障已完成，最新133项统一验证通过，见[验收记录](docs/verification/VER-S5-001-repeat.md)。S5整体仍进行中；没有迁入旧数据，真实联邦学习、网关/终端、DQN、计量SDK和前端未实现。
 
 ## 文档入口
 
@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V9，创建15张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V10，创建15张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：
@@ -114,4 +114,7 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code尚未实现。Application Task使用同一份Flow及既有Binding。
 
-S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。当前剩余S4已获授权，不进入S5。
+S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。S4已完成，当前S5-01验收状态见进度。
+## S5-01 Repeat
+
+[协议](docs/contracts/s5-repeat.md) · [通用状态反馈示例](examples/s5-repeat-flow.yaml)。每轮创建独立TaskRun，整轮结束后传递反馈，不覆盖前一轮。示例是Log状态反馈，不是联邦学习训练或吞吐基准。当前验收状态见进度；真实FedAvg/FedProx、终端卸载与计量分别在后续S5批次。

@@ -1,0 +1,25 @@
+schemaVersion: 1
+namespace: lab
+id: state-feedback
+description: Generic state feedback example, not a machine-learning benchmark
+inputs:
+  rounds: {type: INTEGER, defaultValue: 2}
+tasks:
+  - id: iterations
+    type: core.Repeat
+    repeat:
+      iterations: {source: INPUT, name: rounds}
+      initial:
+        value: {source: LITERAL, value: seed}
+      feedback:
+        value: {source: TASK_OUTPUT, taskId: transform, port: message}
+    tasks:
+      - id: transform
+        type: core.Log
+        message: '{{ outputs.iterations.value }}-updated'
+      - id: inspect
+        type: core.Log
+        message: 'round={{ taskrun.iteration }}, value={{ outputs.transform.message }}'
+outputs:
+  finalValue: {source: TASK_OUTPUT, taskId: iterations, port: value}
+  completedRounds: {source: TASK_OUTPUT, taskId: iterations, port: iterationCount}

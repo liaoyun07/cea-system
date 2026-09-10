@@ -1,14 +1,16 @@
 # 可修改的实施计划
 
-计划版本：0.11。建立日期：2026-09-08。实际状态只在[当前进度](04-progress.md)维护；本文件记录计划、依赖、退出条件与变更历史，不维护第二份完成百分比。
+计划版本：0.12。建立日期：2026-09-08。实际状态只在[当前进度](04-progress.md)维护；本文件记录计划、依赖、退出条件与变更历史，不维护第二份完成百分比。
 
 ## 当前授权与实施原则
+
+2026-09-10用户授权开始S5。按[S5工作包](features/S5-research-edge.md)分为01 Repeat、02真实联邦学习验证、03网关/终端与策略、04终端卸载、05计量。首批实现01，设计见[ADR-0011](decisions/ADR-0011-repeat.md)；其余不提前标完成。计量候选仍待讨论，不因授权开始阶段而擅定科研指标；S6/S7未进入。
 
 2026-09-10继续S4-03/04/05：显式Application Task、Job文件传输、同Attempt接管、资源观测/平台槽预约和取消回收，设计见[ADR-0009](decisions/ADR-0009-s4-job-execution.md)；GET/POST、只读SQL及容器内Shell/Python见[ADR-0010](decisions/ADR-0010-s4-common-tasks.md)。保留进程/DB短时故障和真实JAR启动验收；不以完成一个子批次替代全阶段。
 
 2026-09-10用户授权完成S4剩余部分，覆盖S4-02b/c、S4-03、S4-04及S4-05，取代上批仅修正S4-02a的实施限制。显式Flow边界仍有效；按真实消费者逐批实现/验收，未通过不标完成。设计见[ADR-0008](decisions/ADR-0008-s4-external-runtime.md)。
 
-用户已授权开始S4，按[S4工作包](features/S4-resource-runtime.md)逐批验收；当前S4-01设计见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。S1–S3为已验收基线，S5–S7仍是后续路线。本批不减少S4原退出条件。2026-09-10用户持续授权：以后完成较大的新增或修改并验证后，按[AGENTS.md](../AGENTS.md)主动提交并更新GitHub；不扩大实施阶段。
+S4原授权按[S4工作包](features/S4-resource-runtime.md)逐批验收，S4-01设计见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)；现S1–S4均为已验收基线，当前进入S5，不减少S4原退出条件。2026-09-10用户持续授权：以后完成较大的新增或修改并验证后，按[AGENTS.md](../AGENTS.md)主动提交并更新GitHub；不扩大实施阶段。
 
 2026-09-10用户修正S4-02a方向：只保留应用契约目录，撤销自动派生Flow Inputs及独立alias/binding。Flow作者显式定义输入和Task来源，未来YAML/No-code共用Flow；等真实Application/Container Task可执行时再实现参数映射闭环。该历史子批仅修正S4-02a；现已由上方最新授权推进剩余S4。仍禁止无消费者的新模型/表/SPI。原镜像准备/分发及常驻部署退出条件保留。设计见[ADR-0007](decisions/ADR-0007-application-contract-binding.md)。
 
@@ -76,3 +78,4 @@ S1工作包：S1-01领域模型与JSON/YAML校验；S1-02不可变修订与并�
 | 2026-09-10 | 0.10 | 用户授权完成S4剩余工作，按b/c、03、04、05逐批验收；显式Flow边界不变，不进入S5 | 用户“完成s4的剩下部分”；ADR-0008 |
 | 2026-09-10 | 0.9 | 修正S4-02a为纯应用契约目录；撤销自动Flow Input派生、alias/fixedValues与plan/resolve。显式Task参数映射延后到真实Application/Container Task执行闭环；不进入b/c或S4-03，S4原退出条件保留 | 用户“S4-02a方向修正要求”；修订ADR-0007 |
 | 2026-09-10 | 0.11 | 落实S4-03/04/05最小执行范围：平台Job槽、Ready节点与本地性、真实Job/文件、GET/POST、只读SQL、容器Shell/Python，以及进程/DB短时故障和实际JAR验收；明确不支持写SQL、任意镜像和跨地域容灾，不进入S5 | 用户“继续实现S4剩下部分”；ADR-0009/0010 |
+| 2026-09-10 | 0.12 | 授权S5，拆分五个可验收批次，先Repeat轮次/反馈/屏障；网关、终端卸载、算法迁移与计量保持后续验收，不缩减S5总退出条件 | 用户“开始S5”；ADR-0011 |

@@ -12,10 +12,11 @@
 - [S3示例](../../examples/s3-control-flow.yaml) / [S3规格](../features/WF-009-011-s3.md) / [S3决策](../decisions/ADR-0005-s3-control-flow.md)。
 - [S2规格](../features/WF-007-008-s2.md) / [决策](../decisions/ADR-0004-s2-worker-lifecycle.md)。
 
-没有公开Worker HTTP API，当前Worker共享数据库及应用版本。S4远程依赖分别使用Registry认证、Kubernetes凭据/RBAC及S3/HTTP/SQL外置凭据，不能把本地Basic当作所有内部通信鉴权。数据库以V1–V9迁移为准；ContractTest检查路由、33个record字段映射、引用和示例，不是完整OpenAPI规范验证器。
+没有公开Worker HTTP API，当前Worker共享数据库及应用版本。S4远程依赖分别使用Registry认证、Kubernetes凭据/RBAC及S3/HTTP/SQL外置凭据，不能把本地Basic当作所有内部通信鉴权。数据库以V1–V10迁移为准；ContractTest检查路由、34个record字段映射、引用和示例，不是完整OpenAPI规范验证器。
 
 S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](s4-image-deployment.md)。本批真实Job/通用任务与部署验收状态见进度，不把镜像准备成功当作Flow运行成功。
 
 - [S4-03 Job/显式文件协议](s4-job-execution.md)
 - [S4-04 HTTP/SQL/隔离脚本](s4-common-tasks.md)
 - [S4最小部署与故障处理](../operations/s4-minimal-deployment.md)
+- [S5-01 Repeat轮次与反馈](s5-repeat.md)：新增Repeat配置和TaskRun轮次字段；没有新路由或Binding来源。

@@ -62,6 +62,7 @@ class ContractTest {
                 Map.entry("Container",FlowDefinition.Container.class),
                 Map.entry("HttpTask",FlowDefinition.Http.class),
                 Map.entry("SqlTask",FlowDefinition.Sql.class),
+                Map.entry("Repeat",FlowDefinition.Repeat.class),
                 Map.entry("Input",FlowDefinition.Input.class),
                 Map.entry("Retry",FlowDefinition.Retry.class),
                 Map.entry("Concurrency",FlowDefinition.Concurrency.class),
@@ -102,6 +103,9 @@ class ContractTest {
     }
     @Test void checkedInExampleUsesTheRealDefinitionParser() throws Exception {
         var parser = new FlowParser(new FlowValidator(new TemplateRenderer()));
+        var repeat=parser.parse(Files.readString(Path.of("..","examples","s5-repeat-flow.yaml")));
+        assertEquals("core.Repeat",repeat.tasks().getFirst().type());
+        assertEquals(2,new BindingResolver().prepare(repeat,Map.of()).inputs().get("rounds"));
         var flow = parser.parse(Files.readString(Path.of("..","examples","s1-log-flow.yaml")));
         assertEquals(2,flow.tasks().size());
         assertEquals(2,new BindingResolver().prepare(flow,Map.of("name","Ada")).inputs().get("count"));

@@ -17,7 +17,7 @@
 | WF-010 | 并发槽、FIFO、QUEUE/FAIL | S3 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-011 | Schedule/Cron、Disabled、触发幂等 | S3 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-012 | HTTP/SQL 与隔离 Shell/Python Task | S4 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-013 | Repeat 状态反馈、轮次隔离和屏障 | S5 | workflow-runtime | NOT_STARTED | NOT_RUN |
+| WF-013 | Repeat 状态反馈、轮次隔离和屏障 | S5 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | NOT_STARTED | NOT_RUN |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | WF-016 | 统一编辑 Schema、No-code 前端对接 | S6 | platform-dataflow | NOT_STARTED | NOT_RUN |
@@ -45,6 +45,7 @@ S4工作包见[S4规格](features/S4-resource-runtime.md)。S4-01/02历史验收
 
 RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预约平台槽，不冒充CPU物理独占。DEP-001仍为纯契约目录，显式Flow绑定在真实执行消费者解析。命名文件由Flow声明，不新增自动alias/映射表。DEP-002常驻Deployment不等于Job。
 
-详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、No-code仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S5–S7未进入。
+详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、No-code仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S5已开始，当前批次状态见下方；S6/S7未进入。
 
 SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
+S5首批WF-013已实现，133项统一verify通过，见[验收记录](verification/VER-S5-001-repeat.md)及[S5工作包](features/S5-research-edge.md)。计量口径仍待确认，EDGE/OFF/MET及真实联邦学习迁移未提前实现；S5整体仍IN_PROGRESS。

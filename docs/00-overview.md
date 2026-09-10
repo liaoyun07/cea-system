@@ -52,7 +52,7 @@ S4已接入应用目录、真实Registry复制、常驻Deployment和一次性App
 
 Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与未来No-code共用Flow，当前No-code未实现。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
 
-凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4本批验证状态见进度；S5–S7未进入。
+凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4已验收；S5首批Repeat定义/屏障/轮次反馈通过133项统一验证，见[验收记录](verification/VER-S5-001-repeat.md)。S5整体仍进行中，真实联邦学习、网关/终端、卸载和计量未实现；S6/S7未进入。
 
 ## 设计来源与效力
 

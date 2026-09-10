@@ -33,7 +33,13 @@ public final class JdbcExecutionStore {
                 """,execution.id(),execution.namespace(),execution.flowId(),execution.flowRevision(),execution.submittedBy(),
                 key,hash,execution.state().name(),json.write(execution.definition()),json.write(execution.inputs()),json.write(execution.variables()),Timestamp.from(execution.createdAt()));
         int index=0;
+        var repeated=new HashSet<String>();
+        for(var spec:execution.definition().allTasks())if(spec.repeat()!=null) {
+            var children=new ArrayList<FlowDefinition.Task>();FlowDefinition.flatten(spec.tasks(),children);
+            children.forEach(child->repeated.add(child.id()));
+        }
         for(var task:execution.definition().allTasks()) {
+            if(repeated.contains(task.id())){index++;continue;}
             jdbc.update("INSERT INTO wf_task_run(id,execution_id,task_id,task_index,state,outputs_json,phase) VALUES(?,?,?,?,'CREATED','{}',?)",
                     UUID.randomUUID().toString(),execution.id(),task.id(),index,execution.definition().phaseAt(index).name());
             index++;
@@ -71,6 +77,9 @@ public final class JdbcExecutionStore {
         return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,namespace,limit,offset);
     }
     public List<TaskRun> tasks(String id) { return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? ORDER BY task_index",this::task,id); }
+    public List<TaskRun> scopedTasks(String id,String parent,int iteration) {
+        return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? AND parent_task_run_id <=> ? AND iteration=? ORDER BY task_index",this::task,id,parent,iteration);
+    }
     public List<Attempt> attempts(String taskRunId) {
         return jdbc.query("SELECT * FROM wf_task_attempt WHERE task_run_id=? ORDER BY attempt_no",
                 (rs,row)->new Attempt(taskRunId,rs.getInt("attempt_no"),ExecutionState.valueOf(rs.getString("state")),
@@ -83,8 +92,15 @@ public final class JdbcExecutionStore {
     }
     public Map<String,Map<String,Object>> successfulOutputs(String id) {
         var outputs=new LinkedHashMap<String,Map<String,Object>>();
-        for(var task:tasks(id)) if(task.state()==ExecutionState.SUCCESS) outputs.put(task.taskId(),task.outputs());
+        for(var task:scopedTasks(id,null,0)) if(task.state()==ExecutionState.SUCCESS) outputs.put(task.taskId(),task.outputs());
         return outputs;
+    }
+    public void createIteration(TaskRun parent,int iteration,List<FlowDefinition.Task> children) {
+        if(jdbc.queryForObject("SELECT COUNT(*) FROM wf_task_run WHERE parent_task_run_id=? AND iteration=?",Integer.class,parent.id(),iteration)>0)return;
+        int index=jdbc.queryForObject("SELECT COALESCE(MAX(task_index),-1)+1 FROM wf_task_run WHERE execution_id=?",Integer.class,parent.executionId());
+        var flattened=new ArrayList<FlowDefinition.Task>();FlowDefinition.flatten(children,flattened);
+        for(var task:flattened)jdbc.update("INSERT INTO wf_task_run(id,execution_id,task_id,task_index,state,outputs_json,phase,parent_task_run_id,iteration) VALUES(?,?,?,?,'CREATED','{}',?,?,?)",
+                UUID.randomUUID().toString(),parent.executionId(),task.id(),index++,parent.phase().name(),parent.id(),iteration);
     }
     public void startExecution(String id,Instant now) {
         jdbc.update("UPDATE wf_execution SET state='RUNNING',started_at=? WHERE id=?",Timestamp.from(now),id);
@@ -184,7 +200,7 @@ public final class JdbcExecutionStore {
     private TaskRun task(ResultSet rs,int row)throws SQLException {
         return new TaskRun(rs.getString("id"),rs.getString("execution_id"),rs.getString("task_id"),rs.getInt("task_index"),
                 ExecutionState.valueOf(rs.getString("state")),json.map(rs.getString("outputs_json")),instant(rs,"started_at"),
-                instant(rs,"ended_at"),rs.getString("error_text"),FlowDefinition.Phase.valueOf(rs.getString("phase")),instant(rs,"retry_at"));
+                instant(rs,"ended_at"),rs.getString("error_text"),FlowDefinition.Phase.valueOf(rs.getString("phase")),instant(rs,"retry_at"),rs.getString("parent_task_run_id"),rs.getInt("iteration"));
     }
     private static Instant instant(ResultSet rs,String column)throws SQLException {
         Timestamp value=rs.getTimestamp(column); return value==null?null:value.toInstant();

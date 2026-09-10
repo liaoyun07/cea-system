@@ -58,7 +58,7 @@ class DefinitionTest {
 
     private FlowDefinition flow(Map<String,Input> inputs, Map<String,Binding> variables, Map<String,Binding> outputs) {
         return new FlowDefinition(1,"lab","test","test",Map.of(),inputs,variables,
-                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null);
+                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null);
     }
 
     @Test void jsonAndYamlHaveTheSameModel() {
@@ -86,10 +86,10 @@ class DefinitionTest {
 
     @Test void duplicateTaskAndUnsupportedTaskAreRejected() {
         FlowDefinition duplicate = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(duplicate));
         FlowDefinition unsupported = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
+                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(unsupported));
     }
 

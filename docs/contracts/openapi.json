@@ -2224,6 +2224,7 @@
               "platform.Application",
               "core.Http",
               "core.Sql",
+              "core.Repeat",
               "core.Sequential",
               "core.Parallel",
               "core.Dag",
@@ -2311,6 +2312,9 @@
           },
           "sql": {
             "anyOf": [{"$ref": "#/components/schemas/SqlTask"}, {"type": "null"}]
+          },
+          "repeat": {
+            "anyOf": [{"$ref": "#/components/schemas/Repeat"}, {"type": "null"}]
           }
         },
         "required": [
@@ -2319,6 +2323,17 @@
         ],
         "additionalProperties": false,
         "description": "Log requires message; Sleep requires duration. Application/Http/Sql require timeout and their matching container/http/sql section, forbidding message/duration. Http supports GET/POST; POST forbids retry. Sql supports one parameterized read-only SELECT. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout. dependsOn is allowed only on direct children of the same Dag; referenced task outputs must be upstream. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
+      },
+      "Repeat": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["iterations"],
+        "properties": {
+          "iterations": {"$ref": "#/components/schemas/Binding"},
+          "initial": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
+          "feedback": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}}
+        },
+        "description": "Fixed 1..100 iterations, resolved at start. Matching initial/feedback state keys, excluding iterations/iterationCount. Each round is a barrier; no nested Repeat. External consumers reference Repeat outputs, never its children."
       },
       "Container": {
         "type": "object",
@@ -2784,6 +2799,8 @@
               "FINALLY"
             ]
           },
+          "parentTaskRunId": {"type": ["string", "null"], "description": "Owning Repeat TaskRun; null outside Repeat"},
+          "iteration": {"type": "integer", "minimum": 0, "description": "Zero outside Repeat, otherwise one-based round"},
           "retryAt": {
             "anyOf": [
               {
@@ -2807,7 +2824,9 @@
           "endedAt",
           "error",
           "phase",
-          "retryAt"
+          "retryAt",
+          "parentTaskRunId",
+          "iteration"
         ],
         "additionalProperties": false,
         "description": "Control tasks have TaskRuns but no Attempts. If outputs evaluationResult once; unselected descendants are SKIPPED. QUEUED and KILLING apply only to Execution."

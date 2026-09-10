@@ -8,6 +8,32 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ControlFlowTest {
+    private String repeat() {return """
+            tasks:
+              - id: rounds
+                type: core.Repeat
+                repeat:
+                  iterations: {source: LITERAL, value: 2}
+                  initial: {model: {source: LITERAL, value: seed}}
+                  feedback: {model: {source: TASK_OUTPUT, taskId: train, port: message}}
+                tasks: [{id: train, type: core.Log, message: '{{ outputs.rounds.model }}-x'}]
+            outputs: {model: {source: TASK_OUTPUT, taskId: rounds, port: model}}
+            """;}
+    @Test void repeatKeepsExplicitBindingsAndRejectsAmbiguousState() {
+        assertEquals(java.util.Set.of("model"),parse(repeat()).tasks().getFirst().repeat().initial().keySet());
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("initial: {model:","initial: {other:")));
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("initial: {model:","initial: {iterationCount:").replace("feedback: {model:","feedback: {iterationCount:")));
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("type: core.Repeat","type: core.Sequential")));
+    }
+    @Test void repeatDoesNotExposeChildOutputsOutsideItsIteration() {
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("outputs: {model: {source: TASK_OUTPUT, taskId: rounds, port: model}}","outputs: {model: {source: TASK_OUTPUT, taskId: train, port: message}}")));
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("initial: {model: {source: LITERAL, value: seed}}","initial: {model: {source: TASK_OUTPUT, taskId: train, port: message}}")));
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("tasks: [{id: train, type: core.Log, message: '{{ outputs.rounds.model }}-x'}]","tasks: [{id: choice, type: core.If, condition: 'true', then: [{id: train, type: core.Log, message: x}]}]")));
+    }
+    @Test void repeatRejectsNestingAndDoesNotInferDependencies() {
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("tasks: [{id: train, type: core.Log, message: '{{ outputs.rounds.model }}-x'}]","tasks: [{id: nested, type: core.Repeat, repeat: {iterations: {source: LITERAL, value: 2}}, tasks: [{id: train, type: core.Log, message: x}]}]")));
+        assertThrows(WorkflowException.class,()->parse(repeat().replace("iterations: {source: LITERAL, value: 2}","iterations: {source: INPUT, name: missing}")));
+    }
     private final FlowParser parser=new FlowParser(new FlowValidator(new TemplateRenderer()));
     private FlowDefinition parse(String body) { return parser.parse("schemaVersion: 1\nnamespace: lab\nid: graph\n"+body); }
     @Test void dagAcceptsReverseOrderAndRejectsCyclesAndNonSiblingDependencies() {
