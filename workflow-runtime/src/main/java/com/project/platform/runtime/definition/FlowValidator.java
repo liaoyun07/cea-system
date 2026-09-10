@@ -71,6 +71,15 @@ public final class FlowValidator {
                 if(c.execution()==ContainerExecution.TERMINAL && c.candidateClusters()!=null)
                     throw WorkflowException.invalid("candidateClusters","TERMINAL uses the authenticated request origin, not cluster candidates");
                 if(c.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
+                if(c.offload()!=null) {
+                    var o=c.offload();
+                    if(c.execution()!=ContainerExecution.TERMINAL || o.strategy()==null || o.candidateClusters()==null)
+                        throw WorkflowException.invalid("offload","only TERMINAL tasks may explicitly enable RULE/DQN offloading with candidates");
+                    if(o.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
+                    if(o.strategy()==OffloadStrategy.DQN) {
+                        if(o.modelVersion()==null || !o.modelVersion().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("modelVersion","DQN requires a registered model version");
+                    } else if(o.modelVersion()!=null)throw WorkflowException.invalid("modelVersion","RULE does not use a DQN model");
+                }
                 if(new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
                     throw WorkflowException.invalid("container","duplicate candidate/output");
                 for(String arg:c.command())if(arg==null || arg.length()>8192)throw WorkflowException.invalid("command","argument too large or null");
@@ -144,6 +153,7 @@ public final class FlowValidator {
             available.remove(task.id());
             if(task.container()!=null) {
                 if(task.container().candidateClusters()!=null)validateBinding(task.container().candidateClusters(),flow,available,"candidateClusters",itemScope);
+                if(task.container().offload()!=null)validateBinding(task.container().offload().candidateClusters(),flow,available,"offload.candidateClusters",itemScope);
                 task.container().parameters().forEach((name,b)->{identifier(name,"parameters");validateBinding(b,flow,available,"parameters."+name,itemScope);});
                 task.container().inputFiles().forEach((name,b)->validateBinding(b,flow,available,"inputFiles."+name,itemScope));
             }

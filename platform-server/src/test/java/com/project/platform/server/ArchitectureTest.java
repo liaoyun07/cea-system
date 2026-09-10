@@ -38,5 +38,9 @@ class ArchitectureTest {
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.runtime.worker..").should()
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.runtime.persistence.JdbcExecutionStore").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.offloading..").should()
+                .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime.persistence..","com.project.platform.edge..","com.project.platform.dataflow..").check(classes);
+        noClasses().that().resideInAnyPackage("com.project.platform.dataflow..","com.project.platform.server.api..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.offloading.JdbcOffloadingRepository").check(classes);
     }
 }

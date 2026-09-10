@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -47,6 +47,10 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("Offload",FlowDefinition.Offload.class),
+                Map.entry("DqnModel",com.project.platform.offloading.DqnModel.class),
+                Map.entry("OffloadingSample",com.project.platform.offloading.OffloadingService.Sample.class),
+                Map.entry("OffloadingTarget",com.project.platform.offloading.OffloadingService.Target.class),
                 Map.entry("GatewayRegistration",com.project.platform.edge.EdgeAccess.GatewayRegistration.class),
                 Map.entry("Gateway",com.project.platform.edge.EdgeAccess.Gateway.class),
                 Map.entry("TerminalRegistration",com.project.platform.edge.EdgeAccess.TerminalRegistration.class),
@@ -113,6 +117,8 @@ class ContractTest {
     @Test void checkedInExampleUsesTheRealDefinitionParser() throws Exception {
         var parser = new FlowParser(new FlowValidator(new TemplateRenderer()));
         var terminal=parser.parse(Files.readString(Path.of("..","examples","s5-terminal-flow.yaml")));
+        var offload=parser.parse(Files.readString(Path.of("..","examples","s5-offloading-flow.yaml")));
+        assertEquals(FlowDefinition.OffloadStrategy.RULE,offload.tasks().getFirst().container().offload().strategy());
         assertEquals(FlowDefinition.ContainerExecution.TERMINAL,terminal.tasks().getFirst().container().execution());
         assertEquals(FlowDefinition.ContainerExecution.CLUSTER,terminal.tasks().getLast().container().execution());
         for(String algorithm:List.of("fedavg","fedprox")) {

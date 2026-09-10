@@ -1,12 +1,14 @@
 # 当前协议入口
 
+- [S5-04b终端卸载](s5-terminal-offloading.md)：显式offload、单步Q/规则、模型/观测API、终端FIFO及配置升级；不包含计量SDK。
+
 - [S5-04a终端Docker](s5-terminal-docker.md)：同一Application的终端执行、可信来源、Docker context和文件/取消；不是完整卸载DQN。
 
 - [S5-02b Loop、ITEM和集合文件](s5-loop.md)：复用同一Binding与执行链，有界动态实例、显式有序输出、动态candidateClusters。
 
 当前为S3执行协议及S4资源/应用目录、镜像/部署、Job/产物和通用任务协议；S1文档保留历史语义，S2叶子与失败语义仍适用，但顺序游标/单Worker串行已由S3替代，远程取消须等待停止的增量语义以S4协议为准。
 
-- [OpenAPI 3.1](openapi.json)：39个HTTP操作（S5-03新增12个接入/策略操作），含3个应用目录、1个镜像准备、4个常驻部署操作；没有自动派生/解析接口，字段以此为准。
+- [OpenAPI 3.1](openapi.json)：42个HTTP操作（S5-04b新增模型注册/查询、样本导出3个操作）；没有自动派生/解析接口，字段以此为准。
 - [S4-02a应用契约目录](s4-application-catalog.md)：版本、类型/默认值/choices、数据集允许范围；目录本身不派生Flow Inputs或启动任务，真实执行见下方S4-03协议。
 - [S4-01资源目录](s4-resource-catalog.md)：集群/数据集版本/位置、权限、候选拒绝原因与当前边界。
 - [S3控制流与调度](s3-protocol.md)：嵌套控制、DAG/If、准入FIFO、Schedule、字段消费者和锁顺序。
@@ -16,7 +18,7 @@
 - [S3示例](../../examples/s3-control-flow.yaml) / [S3规格](../features/WF-009-011-s3.md) / [S3决策](../decisions/ADR-0005-s3-control-flow.md)。
 - [S2规格](../features/WF-007-008-s2.md) / [决策](../decisions/ADR-0004-s2-worker-lifecycle.md)。
 
-没有公开Worker HTTP API，当前Worker共享数据库及应用版本。S4远程依赖分别使用Registry认证、Kubernetes凭据/RBAC及S3/HTTP/SQL外置凭据；S5-04a终端Docker连接配置由管理员提供，不能把本地Basic当作所有内部通信鉴权。数据库以V1–V13迁移为准；ContractTest检查路由、43个record字段映射、引用和示例，不是完整OpenAPI规范验证器。
+没有公开Worker HTTP API，当前Worker共享数据库及应用版本。S4远程依赖分别使用Registry认证、Kubernetes凭据/RBAC及S3/HTTP/SQL外置凭据；终端Docker连接配置由管理员提供，不能把本地Basic当作所有内部通信鉴权。数据库以V1–V15迁移为准；ContractTest检查路由、47个record字段映射、引用和示例，不是完整OpenAPI规范验证器。
 
 S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分离，见[镜像/部署协议](s4-image-deployment.md)。本批真实Job/通用任务与部署验收状态见进度，不把镜像准备成功当作Flow运行成功。
 

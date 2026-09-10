@@ -29,6 +29,10 @@ public final class ObjectStorage {
             Files.copy(input,destination,StandardCopyOption.REPLACE_EXISTING);
         }
     }
+    public long size(String namespace,String uri) throws Exception {
+        var c=connection(namespace);var parsed=validateInput(namespace,uri);
+        try(var client=client(c)){return client.statObject(StatObjectArgs.builder().bucket(parsed.getHost()).object(parsed.getPath().substring(1)).build()).size();}
+    }
     public URI validateInput(String namespace,String uri) {
         var c=connection(namespace);URI parsed;
         try {parsed=URI.create(uri);}catch(IllegalArgumentException ex){throw ResourceException.invalid("invalid S3 input URI");}

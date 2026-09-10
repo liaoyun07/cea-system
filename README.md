@@ -1,10 +1,11 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已完成Repeat、Loop、FedAvg/FedProx迁移、网关/终端后端接入、策略管理和统一结果查询，以及S5-04a终端Docker执行。完整175项Maven回归与7项Python测试通过，见[最新验收](docs/verification/VER-S5-005-terminal-docker.md)。S5整体仍进行中，S5-04b卸载规则/DQN与画像反馈、计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收。
+独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已有Repeat、Loop、FedAvg/FedProx、网关/终端后端接入、策略管理和Docker执行。本批S5-04b新增显式终端卸载、规则/单步Q网络、画像反馈和终端FIFO，真实三位置执行及训练闭环、188项Maven和12项Python完整回归均通过，见[最新验收](docs/verification/VER-S5-006-terminal-offloading.md)。S5整体仍进行中；计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收；单步Q网络不是长期DQN性能结论。
 
 ## 文档入口
 
-- [S5-04a终端Docker执行](docs/contracts/s5-terminal-docker.md)：终端本地执行、可信来源、文件传递和失败/取消已验证；规则/DQN与画像仍待后续子批，不代表完整卸载能力。
+- [S5-04b终端卸载](docs/contracts/s5-terminal-offloading.md)：显式允许卸载、规则/单步Q模型、真实画像、容量FIFO及配置升级。
+- [S5-04a终端Docker执行](docs/contracts/s5-terminal-docker.md)：终端本地执行、可信来源、文件传递和失败/取消基础。
 
 - [S5-03网关/终端与策略](docs/contracts/s5-edge-access.md)：账号配置、管理API、事件触发和正常结果查询。需要管理员登记资源/网关/终端及显式策略Flow，不自动初始化业务模板。
 
@@ -32,7 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V13，创建19张业务表及迁移历史表。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V15，创建22张业务表及迁移历史表。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
 
 在已配置 JDK 21 的 PowerShell 中设置：

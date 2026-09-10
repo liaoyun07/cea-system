@@ -1,0 +1,23 @@
+schemaVersion: 1
+namespace: lab
+id: terminal-offloading
+description: Explicitly allow a terminal task to move to registered edge or cloud targets. Submit through edge-access.
+inputs:
+  message: {type: STRING, defaultValue: hello}
+tasks:
+  - id: process
+    type: platform.Application
+    timeout: PT2M
+    container:
+      applicationId: shell-tools
+      version: v1
+      execution: TERMINAL
+      offload:
+        strategy: RULE
+        candidateClusters: [edge-a, cloud]
+      parameters:
+        GREETING: {source: INPUT, name: message}
+      command: [sh, -c, 'printf "%s\n" "$GREETING" > /cea-work/out/result.txt']
+      outputFiles: [result.txt]
+outputs:
+  result: {source: TASK_OUTPUT, taskId: process, port: result.txt}

@@ -4,11 +4,24 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共78份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共82份（含8份包声明），测试类另列。
+
+## S5-04b实际增量
+
+ApplicationTaskRunner调用offloading公开服务冻结决策、记录画像与反馈，调用resource公开服务进行终端FIFO准入；普通CLUSTER不调用决策。Executor/Worker归并主链不变，无新Runner/SPI。JobConfiguration装配服务及终端context/slots；ObjectStorage.size读取真实对象大小。FlowDefinition.Container增加Offload，仍使用原Binding。完整字段消费者见[卸载协议](contracts/s5-terminal-offloading.md)。
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 13维单步Q网络校验、推断与不可用动作屏蔽 | validate/predict/choose | 无持久状态 | OFF-001 | OffloadingTest/ImageDistributionTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/JdbcOffloadingRepository.java` | 画像观测、首次决策和不可覆盖模型版本 | begin/started/finish/estimate/register | 仅off两表；Attempt唯一键、首次反馈条件更新 | OFF-001、OFF-002 | OffloadingTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端卸载规则、状态构造、模型选择和反馈门面 | decide/observe/started/finish/samples | 不读写运行或资源表 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
+| `platform-server/src/main/java/com/project/platform/server/api/OffloadingController.java` | 模型注册/查询及真实样本导出 | register/model/samples | 仅服务调用；WRITE/READ授权 | OFF-001、OFF-002 | OffloadingTest/ContractTest |
+
+V14增加resource的res_terminal_reservation，JobPlacementService以既有网关资源行锁串行化FIFO入队/准入/释放。V15增加off_task_observation、off_dqn_model；共22张业务表、V1–V15，42个HTTP操作和47个公开record映射。没有第二份Execution状态表。新增OffloadingTest，测试类共11个。离线训练位于[algorithms/offloading](../algorithms/offloading/README.md)，不是新增服务模块。
 
 ## S5-04a实际增量
 
-用户确认终端Docker。新增下列两个runtime类；既有ApplicationTaskRunner复用契约/文件准备，通过server注入的可信终端目标选择Docker。EdgeAccessService新增executionOrigin/workerActor，内部权限只来自持久接入关系。JobConfiguration配置namespace/terminal→Docker context；不改变模块依赖或Executor主链，无新数据库表/列/API。完整字段消费者与限制见[终端协议](contracts/s5-terminal-docker.md)，规则/DQN及画像仍未实现。
+04a新增下列两个runtime类；ApplicationTaskRunner复用契约/文件准备，通过server注入的可信终端目标选择Docker。EdgeAccessService的executionOrigin/workerActor权限只来自持久接入关系。04a本身无新表/API，04b依赖/表及规则/模型增量见上节；Executor主链始终不变。完整字段消费者见[终端协议](contracts/s5-terminal-docker.md)。
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
@@ -35,7 +48,7 @@ S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/READ
 | platform-deployment | platform-resource, platform-foundation |
 | platform-offloading | workflow-runtime, platform-resource, platform-foundation |
 | platform-edge | workflow-runtime, platform-resource, platform-foundation, platform-dataflow |
-| platform-dataflow | workflow-runtime, platform-deployment, platform-resource, platform-foundation |
+| platform-dataflow | workflow-runtime, platform-deployment, platform-resource, platform-foundation, platform-offloading |
 | platform-server | workflow-runtime, platform-foundation, platform-resource, platform-deployment, platform-offloading, platform-edge, platform-dataflow |
 
 runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation 间接依赖业务。业务模块不能互相读取表。选址/镜像准备/外部执行等接口放在其真正使用方的 API/SPI，由 server 注入实现，避免 runtime → 业务模块的反向依赖。未来必要依赖先修改 ADR/白名单，再改代码。
@@ -143,7 +156,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 - runtime：[V5__control_flow_and_scheduling.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V5__control_flow_and_scheduling.sql)，新增wf_flow_control、wf_schedule和FIFO sequence_no，删除next_task。
 - resource：[V6__resource_catalog.sql](../platform-resource/src/main/resources/db/migration/resource/V6__resource_catalog.sql)，res_cluster、res_dataset_version、res_dataset_location。外键限制同命名空间的集群/版本引用；仅资源模块读写。
 - deployment：[V7__application_contract.sql](../platform-deployment/src/main/resources/db/migration/deployment/V7__application_contract.sql)，dep_application_version。数据集引用仅经资源API验证，不跨模块读表或建跨域外键；当前资源版本不可删除。
-- 共19张业务表；V12增加Flow head管理范围，V13增加edge四表，详见接入协议。V10新增TaskRun轮次/所属Repeat字段，按轮惰性创建TaskRun并保留历史，不新增表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- 当前共22张业务表；V14终端FIFO、V15画像/模型见上节。V12增加Flow head管理范围，V13增加edge四表。V10新增TaskRun轮次/所属Repeat字段；V8修改Worker停止/计划字段，V9增加resource预约表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
 - S4-02a历史批次只装配应用目录；应用JSON使用父BOM的Jackson，deployment不依赖runtime JsonCodec。自动派生服务及两个API已撤销，BindingResolver.prepare恢复原实现。S4-03在真实Task消费者接入显式Binding及Job，不恢复派生链；字段消费者见[Job协议](contracts/s4-job-execution.md)。
 - 资源目录链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选预览不创建Execution、预约或Job；真实执行消费者另外调用JobPlacementService和ObjectStorage。JobConfiguration装配适配器与运行时执行边界；Executor仍独占运行状态。
 - S1/S2活动执行必须排空后停机升级，不提供混版本执行兼容。叶子语义见[S2协议](contracts/s2-protocol.md)，控制树/准入/触发/锁顺序见[S3协议](contracts/s3-protocol.md)。
@@ -155,6 +168,8 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/CommonTaskRunner.java` | HTTP GET/POST和只读SQL、限时/限量/连接边界 | run；HttpConnection/SqlConnection | Worker结果，POST开始标记用既有prepared_json；不新建表 | WF-012 | CommonTaskTest/C |
 
 ## 测试入口
+
+- [OffloadingTest](../platform-server/src/test/java/com/project/platform/server/OffloadingTest.java)：10项真实MySQL/HTTP模型、权限、画像、反馈和终端FIFO并发测试。真实三位置训练/模型执行在ImageDistributionTest中，完整结果以最新验证记录为准；以下旧批次计数是历史入口说明。
 
 - [EdgeAccessTest](../platform-server/src/test/java/com/project/platform/server/EdgeAccessTest.java)：16项真实MySQL/HTTP接入、多节点、管理隔离、权限归属、幂等、事务回滚及进程上下文重启测试；不是物理网关/终端网络验收。
 

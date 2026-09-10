@@ -23,6 +23,10 @@
 | platform-foundation | 身份权限及少量公共基础能力 | 不收容所有公共业务和 Repository |
 | platform-server | HTTP 协议适配、配置、模块与运行角色装配 | 不在 Controller 中编排或创建 Pod |
 
+## 当前终端卸载增量
+
+S5-04b只在`TERMINAL + offload`显式授权时调用卸载服务；普通CLUSTER保持原资源选址。ApplicationTaskRunner→OffloadingService冻结同Attempt决策→JobPlacementService准入→原Docker/Kubernetes Runner→记录真实反馈，Executor仍独占运行状态。terminal FIFO归resource，画像/单步Q权重归offloading，dataflow只调用两者公开服务。规则/模型均使用实际容量与观测，没有预装随机模型或静默回退。详见[协议](contracts/s5-terminal-offloading.md)及[验收](verification/VER-S5-006-terminal-offloading.md)。
+
 ## 目标执行关系（未全部实现）
 
 用户编排由 dataflow 管理；边缘策略由 edge 管理。两者通过统一提交接口进入 runtime。runtime 判断就绪节点，由执行位置接口选择固定位置/普通资源规则/终端卸载策略，持久记录位置后交 Worker 执行。卸载任务使用同一 TaskRun/Attempt 与结果归并机制。
@@ -46,7 +50,7 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 S5-04a增加显式Application TERMINAL执行路径及真实Docker适配，保留原Executor/Worker/TaskRun/Attempt链。终端来源只从接入回执取得，Docker连接由管理员配置，普通CLUSTER任务仍走原Kubernetes选址；本地执行不等于规则/DQN卸载已完成，见[协议](contracts/s5-terminal-docker.md)和当前验证状态。
 
-该子批已通过175项Maven与7项Python完整回归，见[最新验收](verification/VER-S5-005-terminal-docker.md)。以下S4/S5-01至03的数量为历史验收；自动卸载、画像反馈及物理终端部署仍未完成。
+04a当时通过175项Maven与7项Python完整回归，见[历史验收](verification/VER-S5-005-terminal-docker.md)。04b已增加上述显式卸载与画像，当前验证以[最新记录](verification/VER-S5-006-terminal-offloading.md)为准。以下旧批次数量均为历史；物理终端部署、长期DQN性能及计量仍未完成。
 
 S5-03新增入口：受信网关CONNECT身份 → edge终端归属/策略事件匹配 → dataflow公开服务 → 原Execution链。策略拥有独立管理范围，但Flow定义/修订仍在原表；result直接查询原Execution，无边缘执行状态镜像或离线结果队列。后端协议及四表真实消费者见[接入协议](contracts/s5-edge-access.md)。
 

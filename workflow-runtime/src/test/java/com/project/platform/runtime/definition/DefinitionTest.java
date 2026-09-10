@@ -160,4 +160,28 @@ class DefinitionTest {
         assertThrows(WorkflowException.class, () -> parser.parse("x".repeat(262145)));
         assertThrows(WorkflowException.class, () -> parser.parse("schemaVersion: 2\nnamespace: lab\nid: x\ntasks: [{id: x,type: core.Log,message: hi}]"));
     }
+    @Test void offloadingRequiresExplicitTerminalEligibilityAndOneExistingBinding() {
+        String source="""
+                schemaVersion: 1
+                namespace: lab
+                id: offload
+                inputs: {clusters: {type: ARRAY, required: true}}
+                tasks:
+                  - id: work
+                    type: platform.Application
+                    timeout: PT1M
+                    container:
+                      applicationId: app
+                      version: v1
+                      execution: TERMINAL
+                      command: [sh, -c, 'true']
+                      offload: {strategy: RULE, candidateClusters: {source: INPUT, name: clusters}}
+                """;
+        assertEquals(OffloadStrategy.RULE,parser.parse(source).tasks().getFirst().container().offload().strategy());
+        assertThrows(WorkflowException.class,()->parser.parse(source.replace("TERMINAL","CLUSTER")));
+        assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: DQN")));
+        assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: RULE, modelVersion: v1")));
+        assertThrows(WorkflowException.class,()->parser.parse(source.replace("name: clusters","name: missing")));
+        assertEquals("v1",parser.parse(source.replace("strategy: RULE","strategy: DQN, modelVersion: v1")).tasks().getFirst().container().offload().modelVersion());
+    }
 }

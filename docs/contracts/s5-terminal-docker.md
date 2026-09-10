@@ -1,6 +1,6 @@
 # S5-04a 终端 Docker 执行
 
-这是终端本地执行子批，不是完整的卸载决策。规则/DQN、画像与反馈仍待S5-04b实现；没有S5-05计量SDK。
+本文维护终端Docker执行基础；S5-04b已增加[显式卸载/画像/队列协议](s5-terminal-offloading.md)。下面无offload时仍必须本地执行。没有S5-05计量SDK。
 
 ## 一份Flow、一份Application
 
@@ -24,12 +24,12 @@
    ```
 
    SSH用户名须能访问终端Docker socket。需要经过网关时，在该主机SSH配置中为terminal-pc设置ProxyJump；不将SSH地址、私钥或Docker socket写进Flow。生产不用裸TCP、关闭主机校验或业务镜像挂载Docker socket。Docker控制凭据等同高权限，应只由受信Worker持有。
-3. 使用外部Spring配置：`platform.jobs.terminals.lab.terminal-pc=cea-terminal-pc`。namespace/terminal ID须与登记一致；所有会接管该任务的Worker必须具备同名同目标context。进行中的执行未排空前不要重定向context。
+3. 使用外部Spring配置：`platform.jobs.terminals.lab.terminal-pc.docker-context=cea-terminal-pc`和`platform.jobs.terminals.lab.terminal-pc.slots=1`。04b将原字符串改为对象，不保留双格式。namespace/terminal ID须与登记一致；所有Worker必须具备同名同目标context及相同slots。进行中的执行未排空前不要重定向context。
 4. 配置该网关所属EDGE集群的既有镜像分发目标及S3存储。Worker进程使用的Docker CLI凭据配置须能拉取目标仓库；终端必须能访问目标仓库并信任其TLS。账号/凭据只放部署配置，不传入算法环境变量。
 
 后端仍只开放原有接入/管理API，没有Docker管理或Worker HTTP接口。本机context仅适合开发验证；单机Docker-in-Docker测试不代表SSH/ProxyJump或真实多机验证。
 
-部署本批前先排空现有执行，统一更新新后端API/Executor/Worker，再启用含TERMINAL的Flow；不混跑不认识新字段的旧Worker。不需要数据库迁移，也不启动或替换旧工程服务。
+部署前先排空现有执行，统一更新新后端API/Executor/Worker；不混跑不认识新字段的旧Worker。04a本身无数据库迁移，当前04b增加V14/V15，只用于新后端专用库；不启动或替换旧工程服务。
 
 ## 文件、命令和结果
 
@@ -45,7 +45,7 @@ Docker通过文件传递实际命令和参数：先复制UTF-8脚本，再原子
 
 成功必须命令退出0且全部声明产物发布成功；退出非0或缺文件返回真实失败。取消/超时停止容器后才交给Executor推进Finally。取消不删除已产生的用户产物。已结束容器保留用于同Attempt结果确认，运维只在对应Execution终态且无接管需求后清理，不自动prune用户Docker。
 
-终端/SSH失联不是业务成功，也不盲目启动新Attempt；没有离线补发、断点续跑或恢复ACK。平台无法连接终端时无法证明远端停止，故不会提前宣称取消完成。终端专属容量/排队以及卸载策略仍在下一子批，不把全局Worker并发当作已实现的终端资源调度。
+终端/SSH失联不是业务成功，也不盲目启动新Attempt；没有离线补发、断点续跑或恢复ACK。平台无法连接终端时无法证明远端停止，故不会提前宣称取消完成。当前04b终端FIFO是另一层平台容量，不等同全局Worker并发或CPU/内存物理预约。
 
 与Kubernetes路径相同，禁止在活跃Attempt期间外部强删容器；强删后不存在跨远端销毁的exactly-once保证。该运维边界没有通过新增业务状态表掩盖。
 
@@ -55,4 +55,4 @@ S5-03提交时临时使用READ/EXECUTE，但Worker原先按submittedBy重新取�
 
 ## 数据与边界
 
-无新表/迁移/HTTP API/第二套Binding。新增Container.execution（目标校验）、Prepared.dockerContext（接管目标）、Settings.terminals（部署连接选择）。Origin/TerminalTarget是内部方法返回值，不是新增HTTP record。Executor、TaskRun、Attempt和状态归并主链不变。设计对照见[ADR-0015](../decisions/ADR-0015-terminal-docker.md)。
+04a无新表/迁移/HTTP API/第二套Binding；当前04b表/API增量以卸载协议为准。Container.execution用于目标校验、Prepared.dockerContext/terminalId用于接管和释放正确终端、Settings.terminals用于部署连接和容量选择。Origin/TerminalTarget是内部方法返回值，不是HTTP record。Executor、TaskRun、Attempt和状态归并主链不变。基础对照见[ADR-0015](../decisions/ADR-0015-terminal-docker.md)。

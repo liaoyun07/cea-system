@@ -2,7 +2,7 @@
 
 职责：流程定义、版本与执行管理入口。
 
-S5-04a的ApplicationTaskRunner根据显式execution选择Docker或Kubernetes；终端来源由server注入，dataflow不依赖edge或其Repository。两者复用契约、参数、镜像准备、文件/S3和原prepared_json，见[终端执行协议](../docs/contracts/s5-terminal-docker.md)。
+ApplicationTaskRunner根据显式execution选择Docker或Kubernetes；终端来源由server注入，dataflow不依赖edge或其Repository。S5-04b仅对显式允许卸载的TERMINAL调用OffloadingService决策，普通任务只记录画像；仍复用契约、参数、镜像准备、文件/S3和原prepared_json，见[卸载协议](../docs/contracts/s5-terminal-offloading.md)。
 
 已实现Flow不可变版本/CAS/回滚、权限校验和执行管理和取消门面。仅拥有wf_flow_head、wf_flow_revision；无消费者的版本checksum已删除。通过runtime公开执行服务操作运行状态，不直接访问运行表。S3保存定义与同步runtime并发/Schedule在同一事务中；启用Schedule还须EXECUTE权限。
 
@@ -14,4 +14,4 @@ S5-03区分USER/EDGE_POLICY管理范围：两者共享Flow修订表和定义模�
 - [功能索引](../docs/02-feature-index.md)
 - [当前进度](../docs/04-progress.md)
 
-依赖：`workflow-runtime`、`platform-deployment`、`platform-resource`、`platform-foundation`。实际调用及依赖约束以Java索引为准。
+依赖：`workflow-runtime`、`platform-deployment`、`platform-resource`、`platform-foundation`、`platform-offloading`。实际调用及依赖约束以Java索引为准。

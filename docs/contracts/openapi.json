@@ -3,7 +3,7 @@
   "info": {
     "title": "Cloud Edge Backend API",
     "version": "2.0.0",
-    "description": "S1-S5-03 workflow, resources, application runtime, dynamic loops, gateway/terminal ingress and separately managed policy Flows. No terminal offloading or algorithm metrics yet."
+    "description": "S1-S5-04 workflows, resources, application runtime, gateway/terminal ingress, explicit terminal offloading, versioned Q models and actual execution observations. No algorithm throughput metrics yet."
   },
   "servers": [
     {
@@ -16,6 +16,29 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/offloading/models/{version}": {
+      "parameters": [
+        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"version","in":"path","required":true,"schema":{"type":"string"}}
+      ],
+      "put": {
+        "operationId":"registerOffloadingModel","description":"WRITE. Register immutable validated weights. Identical repeat allowed; changed same version returns 409.",
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},
+        "responses":{"200":{"description":"Registered","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},"409":{"description":"Version conflict"},"422":{"description":"Invalid shape/schema/numbers"},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"}}
+      },
+      "get": {
+        "operationId":"getOffloadingModel","description":"READ. Retrieve an explicit model version; no implicit latest or random fallback.",
+        "responses":{"200":{"description":"Model","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DqnModel"}}}},"404":{"description":"Missing version"},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"}}
+      }
+    },
+    "/api/namespaces/{namespace}/offloading/samples": {
+      "parameters":[{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}}],
+      "get": {
+        "operationId":"listOffloadingSamples","description":"READ. Ordinary observations supply profiles; only completed RULE/DQN observations supply training episodes. Stable createdAt/key ordering; no outputs or credentials copied.",
+        "parameters":[{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}],
+        "responses":{"200":{"description":"Observations","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/OffloadingSample"}}}}},"403":{"description":"Forbidden"},"401":{"description":"Unauthenticated"},"422":{"description":"Invalid pagination"}}
+      }
+    },
     "/api/namespaces/{namespace}/edge/gateways/{id}": {
       "parameters": [
         {
@@ -3344,6 +3367,22 @@
       }
     },
     "schemas": {
+      "Offload": {
+        "type":"object","additionalProperties":false,"required":["strategy","candidateClusters"],
+        "properties":{"strategy":{"type":"string","enum":["RULE","DQN"]},"candidateClusters":{"oneOf":[{"type":"array","minItems":1,"maxItems":100,"items":{"type":"string"}},{"$ref":"#/components/schemas/Binding"}]},"modelVersion":{"type":["string","null"]}},
+        "description":"Only execution=TERMINAL. Presence explicitly allows offloading. DQN requires modelVersion; RULE forbids it. Reuses existing Binding scope."
+      },
+      "DqnModel": {
+        "type":"object","additionalProperties":false,"required":["stateSchema","weights1","bias1","weights2","bias2"],
+        "properties":{"stateSchema":{"const":"terminal-slot-cost-v1"},"weights1":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"array","minItems":13,"maxItems":13,"items":{"type":"number"}}},"bias1":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"number"}},"weights2":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"number"}}},"bias2":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"number"}}},
+        "description":"Linear/ReLU/Linear row-major weights. Java validates matching hidden dimensions and finite bounded values. No built-in model."
+      },
+      "OffloadingTarget":{"type":"object","additionalProperties":false,"required":["kind","id"],"properties":{"kind":{"type":"string","enum":["TERMINAL","EDGE","CLOUD"]},"id":{"type":"string"}}},
+      "OffloadingSample": {
+        "type":"object","additionalProperties":false,
+        "properties":{"key":{"type":"string"},"executionId":{"type":"string"},"applicationId":{"type":"string"},"applicationVersion":{"type":"string"},"workload":{"type":"object","additionalProperties":true},"inputBytes":{"type":"integer","minimum":0},"target":{"$ref":"#/components/schemas/OffloadingTarget"},"strategy":{"type":["string","null"],"enum":["RULE","DQN",null]},"modelVersion":{"type":["string","null"]},"state":{"type":["array","null"],"items":{"type":"number"}},"action":{"type":["integer","null"],"minimum":0,"maximum":2},"createdAt":{"type":"string","format":"date-time"},"startedAt":{"type":["string","null"],"format":"date-time"},"finishedAt":{"type":["string","null"],"format":"date-time"},"outcome":{"type":["string","null"],"enum":["SUCCESS","FAILED","CANCELLED",null]},"reward":{"type":["number","null"]}},
+        "description":"One observation per Attempt; not an Execution state mirror. Timings include platform service overhead, not algorithm-only SDK timing."
+      },
       "GatewayRegistration": {
         "type": "object",
         "properties": {
@@ -3806,7 +3845,8 @@
           "parameters": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
           "inputFiles": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Binding"}},
           "outputFiles": {"type": "array", "maxItems": 30, "items": {"type": "string"}},
-          "execution": {"type": "string", "enum": ["CLUSTER", "TERMINAL"], "default": "CLUSTER", "description": "TERMINAL requires authenticated edge ingress provenance and an administrator-configured Docker context. It forbids candidateClusters; CLUSTER requires candidateClusters. No offload decision is made in S5-04a."}
+          "execution": {"type": "string", "enum": ["CLUSTER", "TERMINAL"], "default": "CLUSTER", "description": "TERMINAL requires authenticated edge ingress provenance and an administrator-configured Docker context. It forbids container.candidateClusters; CLUSTER requires them and forbids offload."},
+          "offload": {"$ref":"#/components/schemas/Offload"}
         },
         "required": ["applicationId", "version", "command"],
         "additionalProperties": false,

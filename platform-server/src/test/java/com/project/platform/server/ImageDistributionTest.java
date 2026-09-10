@@ -38,6 +38,7 @@ import java.util.concurrent.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import com.project.platform.edge.*;
 import com.project.platform.edge.EdgeAccess.*;
+import com.project.platform.offloading.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ImageDistributionTest {
@@ -189,7 +190,7 @@ class ImageDistributionTest {
                     "--platform.security.users[0].actions=READ,WRITE,EXECUTE","--platform.security.users[1].name=viewer","--platform.security.users[1].password=test-api",
                     "--platform.security.users[1].namespaces=lab","--platform.security.users[1].actions=READ","--logging.level.root=WARN",
                     "--platform.security.users[2].name=gateway","--platform.security.users[2].password=test-api","--platform.security.users[2].namespaces=lab",
-                    "--platform.security.users[2].actions=CONNECT","--platform.jobs.terminals.lab.pc="+terminalContext,
+                    "--platform.security.users[2].actions=CONNECT","--platform.jobs.terminals.lab.pc.docker-context="+terminalContext,
                     "--platform.distribution.registries.source.address=source:5000","--platform.distribution.registries.source.tls-verify=false",
                     "--platform.distribution.registries.source.auth-file=/tmp/auth.json","--platform.distribution.registries.target.address=target:5000",
                     "--platform.distribution.registries.target.tls-verify=false","--platform.distribution.registries.target.auth-file=/tmp/auth.json",
@@ -560,6 +561,12 @@ class ImageDistributionTest {
             assertTrue(execution.error().contains(missing?"output file missing":"code 7"),execution.error());
             assertEquals("exited",terminalState(remoteName(id)));
             assertEquals(missing?1:2,executions().attempts(actor,"lab",id,executions().tasks(actor,"lab",id).getFirst().id()).size());
+            assertEquals(0,context.getBean(com.project.platform.resource.placement.JobPlacementService.class).terminalLoad(actor,"lab","edge","pc",1).active());
+            var run=executions().tasks(actor,"lab",id).getFirst();
+            for(int attempt=1;attempt<=(missing?1:2);attempt++) {
+                var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-"+attempt);
+                assertEquals("FAILED",sample.outcome());assertEquals(-10.0,sample.reward());
+            }
         }
     }
     @Test void terminalWorkerTakeoverRetainsContainerAndDoesNotRepeatCommand() throws Exception {
@@ -579,6 +586,9 @@ class ImageDistributionTest {
             assertEquals(uid,terminalEngine.execInContainer("docker","inspect","--format","{{.Id}}",name).getStdout().trim());
             assertEquals("x",artifact(executions().tasks(actor,"lab",id).getFirst().outputs().get("once.txt").toString()));
             assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+            var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
+            assertEquals("SUCCESS",sample.outcome());assertNull(sample.strategy());
+            assertEquals(0,context.getBean(com.project.platform.resource.placement.JobPlacementService.class).terminalLoad(actor,"lab","edge","pc",1).active());
         } finally {local.close();}
     }
     @Test void terminalCancellationStopsContainerBeforeFinally() throws Exception {
@@ -604,6 +614,61 @@ class ImageDistributionTest {
         try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
             return new String(input.readAllBytes(),StandardCharsets.UTF_8);
         }
+    }
+    @Test void offloadingRealThreeTargetsTrainRegisterAndExecuteDqn() throws Exception {
+        prepareFederation();
+        var decisions=context.getBean(OffloadingService.class);var slots=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);
+        var samples=new ArrayList<OffloadingService.Sample>();
+        String command="printf offload > /cea-work/out/placement.txt";
+        for(String target:List.of("TERMINAL","EDGE","CLOUD")) {
+            String blocker="block"+UUID.randomUUID();
+            try {
+                if(!target.equals("TERMINAL"))assertTrue(slots.reserveTerminal(actor,"lab",blocker,"edge","pc",1));
+                String candidate=target.equals("CLOUD")?"cloud":"edge";
+                String source=sleeper("PT90S",command).replace("candidateClusters: [edge]","execution: TERMINAL\n      offload: {strategy: RULE, candidateClusters: ["+candidate+"]}")
+                        .replace("      command:","      outputFiles: [placement.txt]\n      command:");
+                String id=terminalSubmit(source);drive(id);var execution=executions().get(actor,"lab",id);
+                assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
+                var run=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("remote")).findFirst().orElseThrow();
+                var sample=decisions.get("lab",run.id()+"-1");samples.add(sample);
+                assertEquals(target,sample.target().kind());assertNotNull(sample.reward());
+                assertEquals("offload",artifact(run.outputs().get("placement.txt").toString()));
+                assertNotNull(decisions.estimate(actor,"lab",new OffloadingService.Workload("service","v1",List.of("sh","-c",command),Map.of("GREETING","hello"),0),sample.target()));
+            } finally {slots.releaseTerminal("lab",blocker,"edge","pc");}
+        }
+        federation.copyFileToContainer(MountableFile.forHostPath(Path.of("..","algorithms","offloading","train.py")),"/tmp/offloading/train.py");
+        federation.copyFileToContainer(MountableFile.forHostPath(Path.of("..","algorithms","offloading","test_training.py")),"/tmp/offloading/test_training.py");
+        var unit=federation.execInContainer("python","/tmp/offloading/test_training.py");assertEquals(0,unit.getExitCode(),unit.getStderr());
+        federation.copyFileToContainer(Transferable.of(json.write(samples)),"/tmp/offloading/samples.json");
+        var trained=federation.execInContainer("python","/tmp/offloading/train.py","/tmp/offloading/samples.json","/tmp/offloading/model.json","--updates","300");
+        assertEquals(0,trained.getExitCode(),trained.getStderr());
+        var model=federation.copyFileFromContainer("/tmp/offloading/model.json",input->json.read(new String(input.readAllBytes(),StandardCharsets.UTF_8),DqnModel.class));
+        String version="trained-"+UUID.randomUUID();decisions.register(actor,"lab",version,model);
+        var reference=federation.execInContainer("python","-c","import json,torch; m=json.load(open('/tmp/offloading/model.json')); s=json.load(open('/tmp/offloading/samples.json'))[0]['state']; t=lambda x:torch.tensor(x,dtype=torch.float64); print(json.dumps((t(m['weights2'])@torch.relu(t(m['weights1'])@t(s)+t(m['bias1']))+t(m['bias2'])).tolist()))");
+        assertEquals(0,reference.getExitCode(),reference.getStderr());assertArrayEquals(json.read(reference.getStdout(),double[].class),model.predict(samples.getFirst().state()),1e-9);
+        String source=sleeper("PT90S",command).replace("candidateClusters: [edge]","execution: TERMINAL\n      offload: {strategy: DQN, modelVersion: "+version+", candidateClusters: [edge, cloud]}")
+                .replace("      command:","      outputFiles: [placement.txt]\n      command:");
+        String id=terminalSubmit(source);drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+        var run=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("remote")).findFirst().orElseThrow();
+        var decision=decisions.get("lab",run.id()+"-1");assertEquals(version,decision.modelVersion());assertEquals(model.choose(decision.state()),decision.action());
+        Path evidence=Path.of("target","offloading-evidence");Files.createDirectories(evidence);
+        Files.writeString(evidence.resolve("training.txt"),trained.getStdout());Files.writeString(evidence.resolve("unit-tests.txt"),unit.getStdout()+unit.getStderr());
+        Files.writeString(evidence.resolve("samples.json"),json.write(samples));Files.writeString(evidence.resolve("decision.json"),json.write(decision));
+    }
+    @Test void terminalQueueCancellationNeverStartsContainerOrLeaksSlot() throws Exception {
+        var slots=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);String blocker="wait"+UUID.randomUUID();
+        assertTrue(slots.reserveTerminal(actor,"lab",blocker,"edge","pc",1));
+        try {
+            String id=terminalSubmit(sleeper("PT90S","true").replace("candidateClusters: [edge]","execution: TERMINAL"));awaitDispatch(id);
+            try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+                var running=pool.submit(()->context.getBean(WorkerEngine.class).runOnce());
+                await().atMost(Duration.ofSeconds(20)).until(()->slots.terminalLoad(actor,"lab","edge","pc",1).waiting()==1);
+                assertEquals("absent",terminalState(remoteName(id)));executions().cancel(actor,"lab",id);context.getBean(FlowExecutor.class).processNext();running.get(10,TimeUnit.SECONDS);
+                drive(id);assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",id).state());assertEquals(0,slots.terminalLoad(actor,"lab","edge","pc",1).waiting());
+                var sample=context.getBean(OffloadingService.class).get("lab",executions().tasks(actor,"lab",id).getFirst().id()+"-1");
+                assertEquals("CANCELLED",sample.outcome());assertNull(sample.startedAt());assertNull(sample.reward());
+            }
+        } finally {slots.releaseTerminal("lab",blocker,"edge","pc");}
     }
     private String sleeper(String timeout,String command) {return """
             tasks:

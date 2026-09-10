@@ -30,8 +30,8 @@
 | RUN-001 | Kubernetes Job、终端Docker与产物发布 | S4/S5 | workflow-runtime | IMPLEMENTED | PASS |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | IMPLEMENTED | PASS |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
-| OFF-001 | 终端卸载资格、DQN/规则决策 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
-| OFF-002 | 终端任务画像、模型版本与反馈 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
+| OFF-001 | 终端卸载资格、规则/单步Q决策 | S5 | platform-offloading | IMPLEMENTED | PASS |
+| OFF-002 | 应用任务画像、模型版本与反馈 | S5 | platform-offloading | IMPLEMENTED | PASS |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | SEC-001 | 身份、命名空间权限与内部通信认证 | S1/S4 | platform-foundation | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |
@@ -52,4 +52,4 @@ RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预�
 SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
 S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，OFF/MET未实现；S5整体仍IN_PROGRESS。EDGE-001/002已按后端接入/策略协议范围完成，166项全量回归及107项收尾复测通过，见[接入验收](verification/VER-S5-004-edge-access.md)；不表示已部署物理网关代理。
 
-S5-04a已完成RUN-001终端Docker增量及SEC-001可信来源/Worker权限修复，最新175项Maven与7项Python完整回归PASS，见[终端执行验收](verification/VER-S5-005-terminal-docker.md)。没有新增表/API/执行链；本地Docker是卸载的执行前提，不是OFF-001的决策实现，因此OFF-001/002仍NOT_STARTED，S5-04整体未完成。
+S5-04a完成RUN-001终端Docker与可信来源基础；S5-04b增加OFF-001/002的显式卸载、规则/单步Q、画像/反馈及终端FIFO。新增3表、3个HTTP操作，原执行链不变。188项Maven与12项Python全量验证通过，见[本批验收](verification/VER-S5-006-terminal-offloading.md)。状态仅代表当前最小范围，单步模型不等于多步长期DQN优化，未做策略性能对比。

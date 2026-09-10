@@ -1,6 +1,6 @@
 # ADR-0015：终端 Docker 与统一 Application 执行链
 
-状态：已接受，S5-04a已实施并通过完整验证，见[验收记录](../verification/VER-S5-005-terminal-docker.md)。用户于2026-09-10确认参与本地算法执行的终端安装Docker；不要求传感器安装Docker。S5-04b仍未实现，不进入S5-05。
+状态：已接受，S5-04a已实施并通过完整验证，见[验收记录](../verification/VER-S5-005-terminal-docker.md)。用户于2026-09-10确认参与本地算法执行的终端安装Docker；不要求传感器安装Docker。后续04b由[ADR-0016](ADR-0016-terminal-offloading.md)扩展，当前配置和队列以新协议为准，不进入S5-05。
 
 ## 决策和批次
 

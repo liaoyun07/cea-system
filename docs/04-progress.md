@@ -1,24 +1,24 @@
 # 当前进度
 
-更新时间：2026-09-10。S5-04a终端Docker与接入权限闭环已完成，18:41:25完整verify通过175项Maven测试和7项Python测试，失败过程及最终结果见[验收记录](verification/VER-S5-005-terminal-docker.md)。S5整体仍IN_PROGRESS；04b卸载决策/画像和05计量尚未实现。
+更新时间：2026-09-10。S5-04b最小闭环完成：显式终端卸载、规则/单步Q、画像/反馈及终端FIFO；20:16:31完整verify通过188项Maven及12项Python，见[验收记录](verification/VER-S5-006-terminal-offloading.md)。S5整体仍IN_PROGRESS；05计量未实现，长期DQN优化/物理多云性能未验证。
 
 ## 当前事实
 
-- S5-04a：用户已确认参与算法执行的终端安装Docker。复用Application及原Worker链，新增显式TERMINAL目标、Docker context配置及可信来源检查；代码/验证边界见[协议](contracts/s5-terminal-docker.md)。尚未实现自动卸载，规则/DQN、画像反馈和终端容量队列仍待04b。
+- S5-04：用户确认终端Docker；显式TERMINAL+offload才进行规则或已注册单步Q模型决策。普通CLUSTER保持资源选址但记录实际画像。终端FIFO以同Attempt预约并在确认停止后释放，不重复派发；详情见[协议](contracts/s5-terminal-offloading.md)。
 
 - S5-03：外部CONNECT网关账号、集群/终端归属及心跳；USER/EDGE_POLICY管理隔离；终端多节点请求和事件策略均提交原Execution，结果校验终端归属后查询原状态/outputs。未复制Executor/Binding/执行状态，未部署代理。详见ADR-0014及接入协议。
 
 - S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
-- 独立8模块，78份生产Java（含8份包声明），10个测试类（含1个Failsafe部署测试）；S5-04a新增ContainerTask/DockerTaskRunner，模块依赖不变，runtime不依赖业务模块。
+- 独立8模块，82份生产Java（含8份包声明），11个测试类（含1个Failsafe部署测试）；04b新增OffloadingService/JdbcOffloadingRepository/DqnModel/OffloadingController，dataflow增加offloading公开服务依赖，runtime仍不依赖业务模块。
 - 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
 - 主链：提交 → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
 - 叶子支持Log/Sleep、真实Application Job或终端Docker、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application容器内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
-- V1–V13共19张业务表；S5-03增加Flow head管理范围及edge四表，不复制Execution状态。S5-01给TaskRun增加parent_task_run_id/iteration；S5-02b复用这两个字段，V11将唯一约束扩展到父作用域，无新业务表/列。Worker传输沿用S4的cancel_reason/prepared_json。S5-02b没有新映射表/领域状态/hash；S5-03的接入请求hash用于原始事件去重，执行状态仍不复制，字段消费者见接入协议。
-- 当前39个HTTP操作，43个公开record映射。S5-03新增12个管理/接入操作；沿用既有Flow/Execution链，不新增Worker HTTP端点。
-- 最新完整verify于18:41:25通过175项：runtime 31、持久化/恢复86、接入17、真实镜像/Job/Docker 30、HTTP/SQL 6、协议3、架构1、实际JAR启动1，另7项Python数值测试；零失败/错误/跳过。不累加此前定向测试，S5整体仍未完成。
+- V1–V15共22张业务表；04b增加resource终端预约表、offloading观测/模型两表，不复制Execution。字段真实消费者见卸载协议；既有接入hash、Worker prepared_json、TaskRun轮次/所属作用域语义保持。
+- 当前42个HTTP操作，47个公开record映射。04b增加模型注册/查询、观测分页导出，不新增Worker或反馈HTTP端点。
+- 本批最终完整verify通过188项：runtime32、持久化86、接入17、容器/联邦32、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。全部零失败/错误/跳过，未累加此前定向次数。首轮遗漏迁移数量断言的失败及修正保留在验收记录。
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
 - FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
@@ -34,7 +34,7 @@
 | S2 恢复和失败语义 | DONE | PASS；S2历史与本次回归 |
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
 | S4 资源与运行环境 | DONE | PASS；123项统一verify，见VER-S4-005；最小范围与限制见下文 |
-| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02/02b/03/04a PASS；175项Maven及7项Python全量通过，04b与05未实现 |
+| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02/02b/03/04最小范围PASS；188项Maven及12项Python通过，05未实现 |
 | S6 P2与编辑管理 | NOT_STARTED | NOT_RUN |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
 
@@ -52,14 +52,14 @@
 | S5-02b | DONE | 通用Loop、ITEM、动态集群、集合文件；150项全量verify和7项Python PASS，见VER-S5-003 |
 | S5-03 | DONE | 后端接入/策略及统一结果查询，完整回归和收尾复测PASS，见VER-S5-004；未部署网关代理 |
 | S5-04a | DONE | 终端Docker、真实来源/接入权限、文件/结果、retry/timeout/cancel/接管及全量回归PASS；不等于自动卸载 |
-| S5-04b | NOT_STARTED | 保留终端卸载资格、规则/DQN、画像/反馈和容量队列验收 |
+| S5-04b | DONE | 显式卸载、规则/单步Q、画像/反馈和终端FIFO及全量回归PASS；不宣称长期DQN或策略性能最优 |
 | S5-05 | NOT_STARTED | 计量口径待确认，本轮不实现 |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-下一子批为S5-04b：终端卸载资格、规则/DQN、画像与反馈，以及终端容量队列；先设计真实消费者，再实施。数据处理速率口径尚待讨论确认，本批没有新增SDK或计算逻辑。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
+S5-04最小卸载闭环已验收，不自动进入S5-05。下一功能批为计量，须先确认口径；本批没有新增SDK或数据速率计算。长期多步DQN、策略性能对比、物理终端SSH、SQL写入、更多HTTP方法及生产高可用均未宣称完成。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -75,6 +75,8 @@
 | OPEN-006 | 已决定：生产部署保障 | P01/P07保留现状；P04/P05/P06/P11随S4真实运行接入最小实现；其他已选后置项不变。见[范围清单](06-deployment-safeguards-review.md)，目录API不能冒充远程接口/凭据/部署保障验收 |
 
 ## 完成记录
+
+2026-09-10：完成S5-04b最小闭环，新增4份生产Java、3张表及3个HTTP操作，增加显式Offload和终端slots配置；dataflow只经offloading/resource公开服务调用，不改变Executor/Worker状态所有权，无新Binding/Runner/SPI。真实三位置执行、实际反馈训练模型及Java执行闭环通过，188项Maven与12项Python最终verify于20:16:31通过，见[VER-S5-006](verification/VER-S5-006-terminal-offloading.md)。按持续授权发布GitHub；单步Q是有意简化，未做长期DQN、物理多云性能或S5-05。
 
 2026-09-10：按用户确认的Docker方向完成S5-04a。新增ContainerTask/DockerTaskRunner两份生产Java；Container.execution、Prepared.dockerContext和Settings.terminals均有执行消费者，无新表/列/迁移/HTTP API/Binding/SPI。修复网关CONNECT账号在真实Application Worker中的权限缺口；保持普通集群选址不变。175项Maven及7项Python完整verify于18:41:25通过，含真实文件链、非零/缺文件、重试/超时/取消及同Attempt接管，见[VER-S5-005](verification/VER-S5-005-terminal-docker.md)。按持续授权提交GitHub；S5-04b及05未实施，物理终端/SSH连接尚未验证。
 

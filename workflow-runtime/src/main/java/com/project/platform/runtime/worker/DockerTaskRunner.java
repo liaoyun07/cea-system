@@ -9,6 +9,10 @@ import java.util.concurrent.TimeUnit;
 /** Docker context is deployment configuration, never a value supplied by the task author. */
 public final class DockerTaskRunner {
     private record Reply(int code,String text) {}
+    public boolean available(TaskContext context,String dockerContext) throws Exception {
+        try {return command(context,List.of("docker","--context",dockerContext),List.of("info","--format","{{.ServerVersion}}")).code()==0;}
+        catch(IOException unavailable){return false;}
+    }
     public WorkerJob.Result run(TaskContext task,String dockerContext,Spec spec,Filesystem files) throws Exception {
         String name=ContainerTask.name(task.job());
         var docker=new ArrayList<>(List.of("docker","--context",dockerContext));
