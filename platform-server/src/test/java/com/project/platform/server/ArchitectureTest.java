@@ -14,7 +14,13 @@ class ArchitectureTest {
         noClasses().that().resideInAPackage("com.project.platform.runtime..").should()
                 .dependOnClassesThat().resideInAnyPackage("com.project.platform.dataflow..",
                         "com.project.platform.server..","com.project.platform.offloading..",
-                        "com.project.platform.foundation..","com.project.platform.resource..").check(classes);
+                        "com.project.platform.foundation..","com.project.platform.resource..","com.project.platform.edge..","com.project.platform.deployment..").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.edge..").should()
+                .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime.persistence..","com.project.platform.server..").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.edge..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.dataflow.definition.JdbcFlowRepository").check(classes);
+        noClasses().that().resideInAPackage("com.project.platform.edge..").should()
+                .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.runtime.model..").should()
                 .dependOnClassesThat().resideInAnyPackage("org.springframework..","java.sql..").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.server.api..").should()

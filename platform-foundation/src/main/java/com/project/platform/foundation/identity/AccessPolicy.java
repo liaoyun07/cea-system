@@ -4,7 +4,7 @@ import java.util.Set;
 
 /** Authenticated identity is supplied by the transport, never by request JSON. */
 public final class AccessPolicy {
-    public enum Action { READ, WRITE, EXECUTE }
+    public enum Action { READ, WRITE, EXECUTE, CONNECT }
     public record Actor(String name, Set<String> namespaces, Set<Action> actions) {
         public Actor {
             namespaces = Set.copyOf(namespaces);
@@ -21,4 +21,3 @@ public final class AccessPolicy {
         }
     }
 }
-

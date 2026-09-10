@@ -23,6 +23,8 @@ public final class IdentityDirectory {
                 throw new IllegalArgumentException("Account identity, credentials, namespaces and actions are required");
             }
             Actor actor = new Actor(account.name(), account.namespaces(), account.actions());
+            if(actor.actions().contains(com.project.platform.foundation.identity.AccessPolicy.Action.CONNECT) && actor.actions().size()!=1)
+                throw new IllegalArgumentException("Gateway CONNECT accounts must not have management permissions");
             if (actors.putIfAbsent(account.name(), actor) != null) throw new IllegalArgumentException("Duplicate account name");
             return (UserDetails) User.withUsername(account.name()).password(encoder.encode(account.password())).authorities("API").build();
         }).toList();
@@ -34,4 +36,3 @@ public final class IdentityDirectory {
         return actor;
     }
 }
-

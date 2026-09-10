@@ -4,7 +4,7 @@
 
 当前为S3执行协议及S4资源/应用目录、镜像/部署、Job/产物和通用任务协议；S1文档保留历史语义，S2叶子与失败语义仍适用，但顺序游标/单Worker串行已由S3替代，远程取消须等待停止的增量语义以S4协议为准。
 
-- [OpenAPI 3.1](openapi.json)：27个HTTP操作，含3个应用目录、1个镜像准备、4个常驻部署操作；没有自动派生/解析接口，字段以此为准。
+- [OpenAPI 3.1](openapi.json)：39个HTTP操作（S5-03新增12个接入/策略操作），含3个应用目录、1个镜像准备、4个常驻部署操作；没有自动派生/解析接口，字段以此为准。
 - [S4-02a应用契约目录](s4-application-catalog.md)：版本、类型/默认值/choices、数据集允许范围；目录本身不派生Flow Inputs或启动任务，真实执行见下方S4-03协议。
 - [S4-01资源目录](s4-resource-catalog.md)：集群/数据集版本/位置、权限、候选拒绝原因与当前边界。
 - [S3控制流与调度](s3-protocol.md)：嵌套控制、DAG/If、准入FIFO、Schedule、字段消费者和锁顺序。
@@ -23,3 +23,7 @@ S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分�
 - [S4最小部署与故障处理](../operations/s4-minimal-deployment.md)
 - [S5-01 Repeat轮次与反馈](s5-repeat.md)：新增Repeat配置和TaskRun轮次字段；没有新路由或Binding来源。
 - [S5-02联邦学习文件契约与使用](../../algorithms/federated/README.md)：两个显式Flow、五个应用角色契约，复用上述API，没有新HTTP操作；后续Loop字段见下方。
+
+## S5-03接入补充
+
+[网关/终端与策略协议](s5-edge-access.md)：CONNECT身份、管理范围隔离、统一提交与正常结果查询；不包含离线恢复。完整路由与record继续维护在[OpenAPI](openapi.json)。

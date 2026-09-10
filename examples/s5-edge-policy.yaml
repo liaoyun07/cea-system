@@ -1,0 +1,15 @@
+# Protocol fixture, not an industrial algorithm or performance benchmark.
+schemaVersion: 1
+namespace: lab
+id: sensor-policy
+inputs:
+  value: {type: STRING, required: true}
+tasks:
+  - id: receive
+    type: core.Log
+    message: "{{ inputs.value }}"
+  - id: process
+    type: core.Log
+    message: "processed {{ outputs.receive.message }}"
+outputs:
+  result: {source: TASK_OUTPUT, taskId: process, port: message}

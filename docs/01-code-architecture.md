@@ -4,7 +4,7 @@
 
 ## 工程结构
 
-根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共70份（含8份包声明），测试类另列。
+根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共76份（含8份包声明），测试类另列。
 
 S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/README.md)：Python数值核心、文件CLI、数据准备及数值验证。五份Application契约和两份Flow YAML位于examples/federated，经[注册脚本](../scripts/register-federated.ps1)写入既有数据库，不新增Maven模块或生产Java文件。Java调用链仍为FlowExecutionService → FlowExecutor → WorkerEngine → ApplicationTaskRunner → KubernetesJobRunner。
 
@@ -25,13 +25,26 @@ S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/READ
 | platform-resource | platform-foundation |
 | platform-deployment | platform-resource, platform-foundation |
 | platform-offloading | workflow-runtime, platform-resource, platform-foundation |
-| platform-edge | workflow-runtime, platform-resource, platform-foundation |
+| platform-edge | workflow-runtime, platform-resource, platform-foundation, platform-dataflow |
 | platform-dataflow | workflow-runtime, platform-deployment, platform-resource, platform-foundation |
 | platform-server | workflow-runtime, platform-foundation, platform-resource, platform-deployment, platform-offloading, platform-edge, platform-dataflow |
 
 runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation 间接依赖业务。业务模块不能互相读取表。选址/镜像准备/外部执行等接口放在其真正使用方的 API/SPI，由 server 注入实现，避免 runtime → 业务模块的反向依赖。未来必要依赖先修改 ADR/白名单，再改代码。
 
 ## 当前全部生产 Java 文件
+
+S5-03增加6份生产Java，合计76份（含8份package-info）；新增4张edge业务表和Flow head管理范围字段，共19表、V1–V13。新增12个HTTP操作、8个公开record映射，总数39/43。edge仅通过dataflow公开服务进入现有执行链，runtime没有修改；字段与事务边界见[接入协议](contracts/s5-edge-access.md)。
+
+| Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
+|---|---|---|---|---|---|
+| `platform-edge/src/main/java/com/project/platform/edge/EdgeAccess.java` | 接入登记、策略及事件record | Gateway/Terminal/Policy/Event | 不含Execution状态 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
+| `platform-edge/src/main/java/com/project/platform/edge/JdbcEdgeRepository.java` | edge四表持久化 | putGateway/putTerminal/putPolicy/receipt/record | 终端锁、唯一事件路由、接入回执 | EDGE-001、EDGE-002 | EdgeAccessTest |
+| `platform-edge/src/main/java/com/project/platform/edge/EdgeAccessService.java` | 归属检查、策略范围、统一提交/查询 | submit/event/result | 接入回执及Execution同事务；不复制运行状态 | EDGE-001、EDGE-002 | EdgeAccessTest/A |
+| `platform-server/src/main/java/com/project/platform/server/api/EdgeController.java` | 管理HTTP入口 | gateway/terminal/policy/list | READ/WRITE；外部CONNECT账号检查 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
+| `platform-server/src/main/java/com/project/platform/server/api/EdgeAccessController.java` | 网关HTTP入口 | heartbeat/submit/event/result | CONNECT；202在事务完成后返回 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
+| `platform-server/src/main/java/com/project/platform/server/configuration/EdgeConfiguration.java` | 装配edge公开服务 | edgeRepository/edgeAccessService | 使用既有同库TransactionTemplate | EDGE-001、EDGE-002 | EdgeAccessTest/A |
+
+S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDGE_POLICY范围保存/读取/提交及USER范围检查；AccessPolicy增加CONNECT，IdentityDirectory拒绝CONNECT和管理权限混用。无新Runner/SPI/Executor/Binding。
 
 所有路径相对backend。生产文件逐一登记；测试别名：D=DefinitionTest，I=DurableWorkflowTest，C=ContractTest，A=ArchitectureTest，L=LifecycleTest，T=ControlFlowTest，J=ImageDistributionTest（路径见下文）。S4-03当前增加真实一次性Job；验证状态见进度。
 
@@ -121,7 +134,7 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - runtime：[V5__control_flow_and_scheduling.sql](../workflow-runtime/src/main/resources/db/migration/runtime/V5__control_flow_and_scheduling.sql)，新增wf_flow_control、wf_schedule和FIFO sequence_no，删除next_task。
 - resource：[V6__resource_catalog.sql](../platform-resource/src/main/resources/db/migration/resource/V6__resource_catalog.sql)，res_cluster、res_dataset_version、res_dataset_location。外键限制同命名空间的集群/版本引用；仅资源模块读写。
 - deployment：[V7__application_contract.sql](../platform-deployment/src/main/resources/db/migration/deployment/V7__application_contract.sql)，dep_application_version。数据集引用仅经资源API验证，不跨模块读表或建跨域外键；当前资源版本不可删除。
-- 共15张业务表；V10新增TaskRun轮次/所属Repeat字段，按轮惰性创建TaskRun并保留历史，不新增表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
+- 共19张业务表；V12增加Flow head管理范围，V13增加edge四表，详见接入协议。V10新增TaskRun轮次/所属Repeat字段，按轮惰性创建TaskRun并保留历史，不新增表；V8修改Worker停止/计划字段，V9增加resource预约表，字段消费者见S4 Job协议。V6/V7不修改既有workflow表。Executor派发Job与开始Attempt同事务；Worker短事务领取、事务外运行、结果持久化；Executor归并结果/日志/运行状态/续消息同事务。Worker不能直接修改Execution/TaskRun/Attempt。
 - S4-02a历史批次只装配应用目录；应用JSON使用父BOM的Jackson，deployment不依赖runtime JsonCodec。自动派生服务及两个API已撤销，BindingResolver.prepare恢复原实现。S4-03在真实Task消费者接入显式Binding及Job，不恢复派生链；字段消费者见[Job协议](contracts/s4-job-execution.md)。
 - 资源目录链：HTTP → ResourceCatalogService → JdbcResourceRepository。候选预览不创建Execution、预约或Job；真实执行消费者另外调用JobPlacementService和ObjectStorage。JobConfiguration装配适配器与运行时执行边界；Executor仍独占运行状态。
 - S1/S2活动执行必须排空后停机升级，不提供混版本执行兼容。叶子语义见[S2协议](contracts/s2-protocol.md)，控制树/准入/触发/锁顺序见[S3协议](contracts/s3-protocol.md)。
@@ -133,6 +146,8 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/CommonTaskRunner.java` | HTTP GET/POST和只读SQL、限时/限量/连接边界 | run；HttpConnection/SqlConnection | Worker结果，POST开始标记用既有prepared_json；不新建表 | WF-012 | CommonTaskTest/C |
 
 ## 测试入口
+
+- [EdgeAccessTest](../platform-server/src/test/java/com/project/platform/server/EdgeAccessTest.java)：16项真实MySQL/HTTP接入、多节点、管理隔离、权限归属、幂等、事务回滚及进程上下文重启测试；不是物理网关/终端网络验收。
 
 - D：[DefinitionTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/DefinitionTest.java)，14项模型/类型/绑定/模板测试。
 - I：[DurableWorkflowTest](../platform-server/src/test/java/com/project/platform/server/DurableWorkflowTest.java)，72项真实MySQL/HTTP/并发/故障/重启测试：原63项、7项应用目录测试、2项方向修正回归（已撤销接口404、应用登记不改Flow输入/定义/执行结果）。移除8项自动派生测试，保留并改写目录示例和HTTP测试。

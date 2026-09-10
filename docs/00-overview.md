@@ -44,15 +44,17 @@ K8s 一次性 Job 生命周期属于 runtime 执行适配器；常驻 Deployment
 
 ## 当前与目标的区别
 
+S5-03新增入口：受信网关CONNECT身份 → edge终端归属/策略事件匹配 → dataflow公开服务 → 原Execution链。策略拥有独立管理范围，但Flow定义/修订仍在原表；result直接查询原Execution，无边缘执行状态镜像或离线结果队列。后端协议及四表真实消费者见[接入协议](contracts/s5-edge-access.md)。
+
 当前调用链：HTTP身份认证 → dataflow权限/版本/提交 → Executor派发持久WorkerJob → Worker事务外执行 → 持久结果 → Executor归并状态/日志/续消息 → dataflow查询。server负责装配，不直接写业务表。定义版本表由dataflow所有；运行表和消息由runtime所有。
 
-当前有15张业务表，定义版本属于dataflow，执行/传输/调度属于runtime，集群/数据集/预约属于resource，应用契约属于deployment。模板是数据库数据，不是后端硬编码。S1–S3控制、队列、重试、Errors/Finally保持单一执行语义。
+当前有19张业务表，定义版本属于dataflow，执行/传输/调度属于runtime，集群/数据集/预约属于resource，应用契约属于deployment，网关/终端/策略/接入关联属于edge。模板是数据库数据，不是后端硬编码。S1–S3控制、队列、重试、Errors/Finally保持单一执行语义。
 
 S4已接入应用目录、真实Registry复制、常驻Deployment和一次性Application Job。一次性Job与常驻部署分开；同Attempt固定镜像digest、位置、参数和Job，Worker重连接管原Job。后端暂存输入、收集输出并发布S3产物；取消须等Pod停止。普通选址检查节点健康和数据本地性、预约平台作业槽，不走终端卸载DQN。
 
 Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与未来No-code共用Flow，当前No-code未实现。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
 
-凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4及S5-01 Repeat已验收；S5-02将FedAvg/FedProx实现为普通Application与显式Flow数据，初始化后按轮并行训练、加权聚合和全局评估，无执行器算法特例。S5-02b增加通用Loop，客户端集合动态展开为独立TaskRun；仍沿用单一Binding/Executor/Worker链，没有专用联邦状态表。150项Maven验证及7项Python测试通过，见[验收记录](verification/VER-S5-003-loop.md)。S5整体仍进行中，其他流任务、网关/终端、卸载和计量未实现；S6/S7未进入。
+凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4及S5-01 Repeat已验收；S5-02将FedAvg/FedProx实现为普通Application与显式Flow数据，初始化后按轮并行训练、加权聚合和全局评估，无执行器算法特例。S5-02b增加通用Loop，客户端集合动态展开为独立TaskRun；仍沿用单一Binding/Executor/Worker链，没有专用联邦状态表。150项Maven验证及7项Python测试通过，见[验收记录](verification/VER-S5-003-loop.md)。S5-03已完成后端网关/终端接入和策略入口；完整166项回归通过，收尾权限变更另复测107项通过，详见[接入验收](verification/VER-S5-004-edge-access.md)。S5整体仍进行中，其他流任务、网关代理部署、卸载和计量未实现；S6/S7未进入。
 
 ## 设计来源与效力
 

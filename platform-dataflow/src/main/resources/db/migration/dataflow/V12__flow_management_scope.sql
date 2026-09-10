@@ -1,0 +1,1 @@
+ALTER TABLE wf_flow_head ADD COLUMN management_scope VARCHAR(20) NOT NULL DEFAULT 'USER';

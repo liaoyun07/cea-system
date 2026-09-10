@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class)) {
+        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -47,6 +47,14 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("GatewayRegistration",com.project.platform.edge.EdgeAccess.GatewayRegistration.class),
+                Map.entry("Gateway",com.project.platform.edge.EdgeAccess.Gateway.class),
+                Map.entry("TerminalRegistration",com.project.platform.edge.EdgeAccess.TerminalRegistration.class),
+                Map.entry("Terminal",com.project.platform.edge.EdgeAccess.Terminal.class),
+                Map.entry("PolicyRequest",com.project.platform.edge.EdgeAccess.PolicyRequest.class),
+                Map.entry("Policy",com.project.platform.edge.EdgeAccess.Policy.class),
+                Map.entry("PolicyView",com.project.platform.edge.EdgeAccess.PolicyView.class),
+                Map.entry("EdgeEvent",com.project.platform.edge.EdgeAccess.Event.class),
                 Map.entry("SaveRequest",FlowController.SaveRequest.class),
                 Map.entry("RollbackRequest",FlowController.RollbackRequest.class),
                 Map.entry("ExecutionRequest",FlowExecutionService.Request.class),

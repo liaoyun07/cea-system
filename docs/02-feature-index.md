@@ -28,8 +28,8 @@
 | DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IMPLEMENTED | PASS |
 | DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | IMPLEMENTED | PASS |
 | RUN-001 | Kubernetes 一次性 Job 与产物发布 | S4 | workflow-runtime | IMPLEMENTED | PASS |
-| EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
-| EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | NOT_STARTED | NOT_RUN |
+| EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | IMPLEMENTED | PASS |
+| EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
 | OFF-001 | 终端卸载资格、DQN/规则决策 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
 | OFF-002 | 终端任务画像、模型版本与反馈 | S5 | platform-offloading | NOT_STARTED | NOT_RUN |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
@@ -50,4 +50,4 @@ RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预�
 详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、No-code仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S5已开始，当前批次状态见下方；S6/S7未进入。
 
 SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
-S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，EDGE/OFF/MET未实现；S5整体仍IN_PROGRESS。
+S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，OFF/MET未实现；S5整体仍IN_PROGRESS。EDGE-001/002已按后端接入/策略协议范围完成，166项全量回归及107项收尾复测通过，见[接入验收](verification/VER-S5-004-edge-access.md)；不表示已部署物理网关代理。

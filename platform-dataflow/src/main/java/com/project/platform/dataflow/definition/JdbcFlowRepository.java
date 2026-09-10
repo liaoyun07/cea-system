@@ -21,15 +21,16 @@ public final class JdbcFlowRepository {
         this.jdbc = jdbc; this.transactions = transactions; this.json = json; this.clock = clock;
     }
 
-    public FlowRevision save(FlowDefinition flow, String source, int expectedRevision, String actor) {
+    public FlowRevision save(FlowDefinition flow, String source, int expectedRevision, String actor, String scope) {
         return transactions.execute(status -> {
             // Lock the stable head even on first creation. No count-then-insert race.
-            jdbc.update("INSERT INTO wf_flow_head(namespace,flow_id,latest_revision) VALUES(?,?,0) ON DUPLICATE KEY UPDATE flow_id=flow_id",
-                    flow.namespace(), flow.id());
+            jdbc.update("INSERT INTO wf_flow_head(namespace,flow_id,latest_revision,management_scope) VALUES(?,?,0,?) ON DUPLICATE KEY UPDATE flow_id=flow_id",
+                    flow.namespace(), flow.id(),scope);
             Integer latest = jdbc.queryForObject(
                     "SELECT latest_revision FROM wf_flow_head WHERE namespace=? AND flow_id=? FOR UPDATE",
                     Integer.class, flow.namespace(), flow.id());
             if (latest != expectedRevision) throw WorkflowException.conflict("expectedRevision does not match latest revision");
+            requireScope(flow.namespace(),flow.id(),scope);
             int revision = latest + 1;
             var now = clock.instant();
             jdbc.update("""
@@ -62,9 +63,15 @@ public final class JdbcFlowRepository {
         return jdbc.query("""
                 SELECT r.* FROM wf_flow_head h JOIN wf_flow_revision r
                 ON h.namespace=r.namespace AND h.flow_id=r.flow_id AND h.latest_revision=r.revision
-                WHERE h.namespace=? ORDER BY h.flow_id LIMIT ? OFFSET ?
+                WHERE h.namespace=? AND h.management_scope='USER' ORDER BY h.flow_id LIMIT ? OFFSET ?
                 """, (rs,row) -> new FlowRevision.Summary(namespace, rs.getString("flow_id"), rs.getInt("revision"),
                 rs.getString("created_by"), rs.getTimestamp("created_at").toInstant()), namespace, limit, offset);
+    }
+
+    public void requireScope(String namespace,String flowId,String scope) {
+        var values=jdbc.queryForList("SELECT management_scope FROM wf_flow_head WHERE namespace=? AND flow_id=?",String.class,namespace,flowId);
+        if(values.isEmpty()) throw WorkflowException.missing("flow not found");
+        if(!scope.equals(values.getFirst())) throw WorkflowException.conflict("flow belongs to a different management scope");
     }
 
     private FlowRevision revision(ResultSet rs, int row) throws SQLException {

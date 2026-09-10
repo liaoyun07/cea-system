@@ -26,6 +26,12 @@ public final class FlowExecutionService {
     }
 
     public String submit(Actor actor, String namespace, String requestKey, Request request) {
+        return submitScoped(actor,namespace,requestKey,request,"USER");
+    }
+    public String submitPolicy(Actor actor,String namespace,String requestKey,Request request) {
+        return submitScoped(actor,namespace,requestKey,request,"EDGE_POLICY");
+    }
+    private String submitScoped(Actor actor,String namespace,String requestKey,Request request,String scope) {
         access.require(actor, namespace, Action.EXECUTE);
         if(requestKey!=null && requestKey.startsWith("schedule:")) throw WorkflowException.invalid("requestKey","schedule: prefix is reserved");
         if (request == null || request.flowId() == null) throw WorkflowException.invalid("flowId", "required");
@@ -34,6 +40,7 @@ public final class FlowExecutionService {
         String hash = json.hash(request);
         String existing = executions.findSubmission(namespace, actor.name(), requestKey, hash);
         if (existing != null) return existing;
+        flows.requireScope(namespace,request.flowId(),scope);
         var flow = flows.get(namespace, request.flowId(), request.revision());
         var prepared = bindings.prepare(flow.definition(), request.inputs());
         return executions.submit(flow.definition(), flow.revision(), actor.name(), requestKey, hash, prepared);
