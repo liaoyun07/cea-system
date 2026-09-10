@@ -1,0 +1,26 @@
+{
+  "applicationId": "fl-evaluate",
+  "version": "v1",
+  "image": "registry.example/lab/cea-federated:s5-v1",
+  "parameters": {
+    "TEST_DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-test/v1",
+      "dataset": {
+        "format": "pt",
+        "allowed": [
+          {
+            "datasetId": "mnist-test",
+            "version": "v1"
+          }
+        ]
+      }
+    },
+    "BATCH_SIZE": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 32
+    }
+  }
+}

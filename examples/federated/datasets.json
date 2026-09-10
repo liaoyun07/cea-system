@@ -1,0 +1,32 @@
+[
+  {
+    "datasetId": "mnist-train",
+    "version": "v1",
+    "format": "pt",
+    "locations": [
+      {
+        "clusterId": "edge-a",
+        "uri": "s3://datasets/mnist/v1/edge-a.pt"
+      },
+      {
+        "clusterId": "edge-b",
+        "uri": "s3://datasets/mnist/v1/edge-b.pt"
+      },
+      {
+        "clusterId": "edge-c",
+        "uri": "s3://datasets/mnist/v1/edge-c.pt"
+      }
+    ]
+  },
+  {
+    "datasetId": "mnist-test",
+    "version": "v1",
+    "format": "pt",
+    "locations": [
+      {
+        "clusterId": "cloud",
+        "uri": "s3://datasets/mnist/v1/test.pt"
+      }
+    ]
+  }
+]

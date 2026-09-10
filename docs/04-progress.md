@@ -1,6 +1,6 @@
 # 当前进度
 
-更新时间：2026-09-10。S4已按明确的最小范围完成。S5首批S5-01 Repeat已验收：完整verify于13:54:58 +08:00通过133项，0失败/错误/跳过。S5整体仍IN_PROGRESS，02–05尚未实现。见[S5工作包](features/S5-research-edge.md)和[本批验收记录](verification/VER-S5-001-repeat.md)。
+更新时间：2026-09-10。S4及S5-01 Repeat已验收，S5-02仅FedAvg/FedProx迁移完成：完整verify于15:00:58 +08:00通过135项，0失败/错误/跳过，另有7项Python数值测试通过。S5整体仍IN_PROGRESS，03–05及其他流任务尚未实现。见[S5工作包](features/S5-research-edge.md)和[本批验收记录](verification/VER-S5-002-federated.md)。
 
 ## 当前事实
 
@@ -12,10 +12,11 @@
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
 - V1–V10共15张业务表；S5仅给TaskRun增加parent_task_run_id/iteration及轮次唯一约束，没有新表。Worker传输沿用S4的cancel_reason/prepared_json。没有新映射表/领域状态/hash；字段消费者见协议。
 - 当前27个HTTP操作，34个公开record映射。新增能力沿用既有Flow/Execution API，不新增Worker HTTP端点。
-- 最近完整验收为133项：runtime 26、持久化/恢复78、真实镜像/Job 18、HTTP/SQL 6、协议3、架构1、实际JAR启动1。包括S1–S4回归和S5-01，不代表S5整体完成。
+- 最近完整验收为135项：runtime 26、持久化/恢复78、真实镜像/Job 20、HTTP/SQL 6、协议3、架构1、实际JAR启动1，另有镜像内7项Python数值测试。包括S1–S4回归和S5-01/02，不代表S5整体完成。
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，不支持嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
-- 仍未实现：前端/No-code、FedAvg/FedProx新后端迁移、终端接入/卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。真实容器产物反馈测试不是联邦学习算法或吞吐测试。
+- FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST训练768条/测试256条、三客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；本批没有生产Java/表/字段/API/SPI变更。
+- 仍未实现：其他流任务、前端/No-code、终端接入/卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。联邦学习测试不是全量精度、真实多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
 - 详细语义：[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)、[最小部署](operations/s4-minimal-deployment.md)。设计取舍见ADR-0009/0010；完整源码索引见架构文档。
 
 ## 阶段看板
@@ -27,7 +28,7 @@
 | S2 恢复和失败语义 | DONE | PASS；S2历史与本次回归 |
 | S3 通用控制流 | DONE | PASS；见VER-S3-001 |
 | S4 资源与运行环境 | DONE | PASS；123项统一verify，见VER-S4-005；最小范围与限制见下文 |
-| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01 PASS，133项统一verify；02–05未实现 |
+| S5 边缘卸载与研究能力 | IN_PROGRESS | S5-01/02 PASS，135项Maven及7项Python验证；03–05未实现 |
 | S6 P2与编辑管理 | NOT_STARTED | NOT_RUN |
 | S7 迁移和上线 | NOT_STARTED | NOT_RUN |
 
@@ -41,13 +42,14 @@
 | S4-04 | DONE | GET/POST、只读SQL、隔离Shell/Python及全量回归PASS |
 | S4-05 | DONE | 真实JVM强杀、DB短时故障、可执行JAR空库启动与统一验收PASS |
 | S5-01 | DONE | Repeat定义/状态反馈/新轮次/屏障/恢复/重试/取消，真实容器产物及统一verify PASS，见VER-S5-001 |
-| S5-02–05 | NOT_STARTED | 真实联邦学习、网关/终端与策略、终端卸载、计量分别后续验收 |
+| S5-02 | DONE | 仅FedAvg/FedProx，真实训练/聚合/评估数值、API注册和全量回归PASS，见VER-S5-002 |
+| S5-03–05 | NOT_STARTED | 网关/终端与策略、终端卸载、计量分别后续验收 |
 
 全部Java和测试入口见[代码索引](01-code-architecture.md)，本批职责与有意简化见[ADR-0006](decisions/ADR-0006-s4-resource-boundary.md)。[S4工作包](features/S4-resource-runtime.md)保留原阶段全部退出条件，不将未完成批次移到S5。
 
 ## 下一步
 
-下一批为S5-02真实FedAvg/FedProx镜像与Flow的迁移验证，再按S5-03至05推进。数据处理速率口径尚待讨论确认，本批没有新增SDK或计算逻辑。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
+本批已按用户最新要求完成FedAvg/FedProx迁移；其他流任务暂不迁移，也不自动进入S5-03至05。后续批次仍按范围分别授权、实现和验收。数据处理速率口径尚待讨论确认，本批没有新增SDK或计算逻辑。SQL写入、更多HTTP方法、任意镜像运行和生产高可用不属于本次已完成能力。
 
 本地运行和角色开关见[README](../README.md)。S2升级S3须停止提交、排空CREATED/RUNNING/KILLING并停机；备份新后端专用库，不混版本、不自动repair，不操作旧业务库。
 
@@ -94,3 +96,5 @@
 2026-09-10：继续完成S4-03/04/05，123项统一verify于13:07:08 +08:00通过，S4按已记录的最小范围DONE。新增8份生产Java、1张预约表、2个Worker传输字段，无新HTTP操作或自动Flow Input/alias；真实Job/文件/通用任务、强杀/DB短时故障和实际JAR验收见[VER-S4-005](verification/VER-S4-005-external-task-runtime.md)。按持续授权提交GitHub，S5未进入。
 
 2026-09-10：用户授权开始S5，完成首批S5-01通用Repeat。最终133项统一verify于13:54:58 +08:00通过；新增Repeat嵌套record、Task.repeat与TaskRun两个字段，V10无新业务表/生产Java文件/API/Binding来源。沿用Executor/Worker链；真实两轮文件反馈与整轮屏障、失败/重试/取消/轮间恢复见[VER-S5-001](verification/VER-S5-001-repeat.md)。按持续授权提交GitHub；S5整体IN_PROGRESS，02–05未实现，不进入S6/S7。
+
+2026-09-10：用户限定本批只迁移FedAvg/FedProx，完成S5-02/FL-001。新增Python算法镜像源码、数据准备、两份Flow、五份契约和API注册脚本；没有生产Java/数据库/API变化。最终135项Maven及7项Python测试于15:00:58 +08:00通过；真实MNIST子集两轮、22个Job及数值核对见[VER-S5-002](verification/VER-S5-002-federated.md)，中途失败和修正一并留档。按持续授权纳入GitHub发布；S5仍IN_PROGRESS，不迁移其他流任务，不进入03–05或S6/S7，不动旧系统。

@@ -1,6 +1,6 @@
 # 云边端协同平台新后端
 
-独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。[S5](docs/features/S5-research-edge.md)首批Repeat状态反馈与整轮屏障已完成，最新133项统一验证通过，见[验收记录](docs/verification/VER-S5-001-repeat.md)。S5整体仍进行中；没有迁入旧数据，真实联邦学习、网关/终端、DQN、计量SDK和前端未实现。
+独立重构工程，旧实现位于同级 `web-platform/`。目前S1–S4已按最小实现范围验收：执行基础、资源/应用目录、镜像准备/常驻部署、Application Job/文件产物、HTTP/只读SQL与隔离脚本。[S5](docs/features/S5-research-edge.md)已完成Repeat状态反馈与整轮屏障，以及FedAvg/FedProx应用和显式Flow迁移；最新135项Maven验证及7项Python数值测试通过，见[验收记录](docs/verification/VER-S5-002-federated.md)。真实MNIST子集两轮验证使用隔离K3s，不是物理多云或性能验收。S5整体仍进行中；旧数据切换、其他流任务、网关/终端、DQN、计量SDK和前端未实现。
 
 ## 文档入口
 
@@ -114,7 +114,13 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code尚未实现。Application Task使用同一份Flow及既有Binding。
 
-S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。S4已完成，当前S5-01验收状态见进度。
+S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。S4已完成，当前S5验收状态见进度。
 ## S5-01 Repeat
 
-[协议](docs/contracts/s5-repeat.md) · [通用状态反馈示例](examples/s5-repeat-flow.yaml)。每轮创建独立TaskRun，整轮结束后传递反馈，不覆盖前一轮。示例是Log状态反馈，不是联邦学习训练或吞吐基准。当前验收状态见进度；真实FedAvg/FedProx、终端卸载与计量分别在后续S5批次。
+[协议](docs/contracts/s5-repeat.md) · [通用状态反馈示例](examples/s5-repeat-flow.yaml)。每轮创建独立TaskRun，整轮结束后传递反馈，不覆盖前一轮。该示例是Log状态反馈，不是联邦学习训练或吞吐基准；真实FedAvg/FedProx另见下方S5-02。终端卸载与计量仍在后续S5批次。
+
+## S5-02 FedAvg / FedProx
+
+本批仅迁移这两个算法，其他流任务暂不迁移。通过既有Application/Repeat执行，Flow经API保存为数据库修订；没有Java内置模板或启动自动seed。源码、构建、数据准备和首次注册见[运行说明](algorithms/federated/README.md)，范围见[S5-02规格](docs/features/S5-02-federated.md)，实际验证见[验收记录](docs/verification/VER-S5-002-federated.md)。
+
+完整verify新增真实CPU算法镜像构建、MNIST准备及22个Job验证；首次需访问PyPI/PyTorch镜像源和官方MNIST下载站，耗时高于S4。已下载原始文件可在platform-server/target/federated-data/raw复用，仍逐次校验完整性并重新执行训练。网络失败会明确失败，不跳过或回退合成数据。

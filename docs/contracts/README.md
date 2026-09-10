@@ -20,3 +20,4 @@ S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分�
 - [S4-04 HTTP/SQL/隔离脚本](s4-common-tasks.md)
 - [S4最小部署与故障处理](../operations/s4-minimal-deployment.md)
 - [S5-01 Repeat轮次与反馈](s5-repeat.md)：新增Repeat配置和TaskRun轮次字段；没有新路由或Binding来源。
+- [S5-02联邦学习文件契约与使用](../../algorithms/federated/README.md)：两个显式Flow、五个应用角色契约，复用上述API，没有新HTTP操作或OpenAPI字段。

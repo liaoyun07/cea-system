@@ -1,0 +1,58 @@
+{
+  "applicationId": "fedprox-train",
+  "version": "v1",
+  "image": "registry.example/lab/cea-federated:s5-v1",
+  "parameters": {
+    "ALGORITHM": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "fedprox",
+      "choices": [
+        "fedprox"
+      ]
+    },
+    "DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-train/v1",
+      "dataset": {
+        "format": "pt",
+        "allowed": [
+          {
+            "datasetId": "mnist-train",
+            "version": "v1"
+          }
+        ]
+      }
+    },
+    "CLIENT_ID": {
+      "type": "STRING",
+      "required": true
+    },
+    "LOCAL_EPOCHS": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 1
+    },
+    "BATCH_SIZE": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 32
+    },
+    "LEARNING_RATE": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.01
+    },
+    "PROX_MU": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.1
+    },
+    "SEED": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 13
+    }
+  }
+}

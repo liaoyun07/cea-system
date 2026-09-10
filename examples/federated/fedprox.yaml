@@ -1,0 +1,122 @@
+schemaVersion: 1
+namespace: lab
+id: fedprox
+description: Three explicit edge clients, weighted aggregation and global evaluation in every round.
+inputs:
+  rounds: {type: INTEGER, defaultValue: 2}
+  model: {type: STRING, defaultValue: mlp}
+  training_dataset: {type: STRING, defaultValue: mnist-train/v1}
+  test_dataset: {type: STRING, defaultValue: mnist-test/v1}
+  local_epochs: {type: INTEGER, defaultValue: 1}
+  batch_size: {type: INTEGER, defaultValue: 32}
+  learning_rate: {type: NUMBER, defaultValue: 0.01}
+  prox_mu: {type: NUMBER, defaultValue: 0.1}
+tasks:
+  - id: init
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: fl-init
+      version: v1
+      candidateClusters: [cloud]
+      command: [python, /app/app.py, init]
+      parameters:
+        ALGORITHM: {source: LITERAL, value: fedprox}
+        MODEL: {source: INPUT, name: model}
+      outputFiles: [model.pt]
+  - id: rounds
+    type: core.Repeat
+    repeat:
+      iterations: {source: INPUT, name: rounds}
+      initial:
+        global_model: {source: TASK_OUTPUT, taskId: init, port: model.pt}
+      feedback:
+        global_model: {source: TASK_OUTPUT, taskId: aggregate, port: model.pt}
+    tasks:
+      - id: clients
+        type: core.Parallel
+        tasks:
+          - id: client_a
+            type: platform.Application
+            timeout: PT5M
+            container:
+              applicationId: fedprox-train
+              version: v1
+              candidateClusters: [edge-a]
+              command: [python, /app/app.py, train]
+              parameters:
+                CLIENT_ID: {source: LITERAL, value: edge-a}
+                DATASET: {source: INPUT, name: training_dataset}
+                LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
+                BATCH_SIZE: {source: INPUT, name: batch_size}
+                LEARNING_RATE: {source: INPUT, name: learning_rate}
+                PROX_MU: {source: INPUT, name: prox_mu}
+              inputFiles:
+                global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
+              outputFiles: [model.pt]
+          - id: client_b
+            type: platform.Application
+            timeout: PT5M
+            container:
+              applicationId: fedprox-train
+              version: v1
+              candidateClusters: [edge-b]
+              command: [python, /app/app.py, train]
+              parameters:
+                CLIENT_ID: {source: LITERAL, value: edge-b}
+                DATASET: {source: INPUT, name: training_dataset}
+                LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
+                BATCH_SIZE: {source: INPUT, name: batch_size}
+                LEARNING_RATE: {source: INPUT, name: learning_rate}
+                PROX_MU: {source: INPUT, name: prox_mu}
+              inputFiles:
+                global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
+              outputFiles: [model.pt]
+          - id: client_c
+            type: platform.Application
+            timeout: PT5M
+            container:
+              applicationId: fedprox-train
+              version: v1
+              candidateClusters: [edge-c]
+              command: [python, /app/app.py, train]
+              parameters:
+                CLIENT_ID: {source: LITERAL, value: edge-c}
+                DATASET: {source: INPUT, name: training_dataset}
+                LOCAL_EPOCHS: {source: INPUT, name: local_epochs}
+                BATCH_SIZE: {source: INPUT, name: batch_size}
+                LEARNING_RATE: {source: INPUT, name: learning_rate}
+                PROX_MU: {source: INPUT, name: prox_mu}
+              inputFiles:
+                global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
+              outputFiles: [model.pt]
+      - id: aggregate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fl-aggregate
+          version: v1
+          candidateClusters: [cloud]
+          command: [python, /app/app.py, aggregate, --clients, /cea-work/in/client_a, /cea-work/in/client_b, /cea-work/in/client_c]
+          inputFiles:
+            client_a: {source: TASK_OUTPUT, taskId: client_a, port: model.pt}
+            client_b: {source: TASK_OUTPUT, taskId: client_b, port: model.pt}
+            client_c: {source: TASK_OUTPUT, taskId: client_c, port: model.pt}
+          outputFiles: [model.pt]
+      - id: evaluate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fl-evaluate
+          version: v1
+          candidateClusters: [cloud]
+          command: [python, /app/app.py, evaluate, --output, /cea-work/out/metrics.json]
+          parameters:
+            TEST_DATASET: {source: INPUT, name: test_dataset}
+            BATCH_SIZE: {source: INPUT, name: batch_size}
+          inputFiles:
+            global_model: {source: TASK_OUTPUT, taskId: aggregate, port: model.pt}
+          outputFiles: [metrics.json]
+outputs:
+  global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
+  completed_rounds: {source: TASK_OUTPUT, taskId: rounds, port: iterationCount}

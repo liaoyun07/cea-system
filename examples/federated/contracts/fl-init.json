@@ -1,0 +1,38 @@
+{
+  "applicationId": "fl-init",
+  "version": "v1",
+  "image": "registry.example/lab/cea-federated:s5-v1",
+  "parameters": {
+    "ALGORITHM": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "fedavg",
+      "choices": [
+        "fedavg",
+        "fedprox"
+      ]
+    },
+    "DATASET_NAME": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist",
+      "choices": [
+        "mnist"
+      ]
+    },
+    "MODEL": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mlp",
+      "choices": [
+        "mlp",
+        "cnn"
+      ]
+    },
+    "SEED": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 13
+    }
+  }
+}

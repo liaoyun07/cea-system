@@ -1,0 +1,6 @@
+{
+  "applicationId": "fl-aggregate",
+  "version": "v1",
+  "image": "registry.example/lab/cea-federated:s5-v1",
+  "parameters": {}
+}

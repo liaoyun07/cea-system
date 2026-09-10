@@ -6,6 +6,8 @@
 
 根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共70份（含8份包声明），测试类另列。
 
+S5-02算法应用单独位于[algorithms/federated](../algorithms/federated/README.md)：Python数值核心、文件CLI、数据准备及数值验证。五份Application契约和两份Flow YAML位于examples/federated，经[注册脚本](../scripts/register-federated.ps1)写入既有数据库，不新增Maven模块或生产Java文件。Java调用链仍为FlowExecutionService → FlowExecutor → WorkerEngine → ApplicationTaskRunner → KubernetesJobRunner。
+
 ## 模块依赖白名单
 
 依赖指向被使用方。跨模块只调用公开接口；POM白名单由结构脚本检查；ArchUnit检查包环、runtime方向、model不依赖Spring/JDBC及Controller不访问持久化。
@@ -132,9 +134,9 @@ runtime 与 foundation 是两个底层边界；runtime 不能通过 foundation �
 - C：[ContractTest](../platform-server/src/test/java/com/project/platform/server/ContractTest.java)，3项路由/record字段与引用/示例防漂移检查，不等同完整OpenAPI规范验证器。
 - A：[ArchitectureTest](../platform-server/src/test/java/com/project/platform/server/ArchitectureTest.java)，1项包含多条依赖约束的架构测试。
 
-- T：[ControlFlowTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/ControlFlowTest.java)，6项控制定义/拓扑/分支/额度/Cron/时区DST测试。
+- T：[ControlFlowTest](../workflow-runtime/src/test/java/com/project/platform/runtime/definition/ControlFlowTest.java)，9项控制定义/拓扑/分支/额度/Cron/时区DST及Repeat作用域测试。
 
-- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：18项独立真实Registry/Skopeo/MySQL/K3s/MinIO验证，覆盖镜像分发与常驻部署、Application Job、数据集/命名产物、平台槽并发、取消/超时、同Job接管、Python执行及Worker JVM强杀/DB短时故障；S5新增两轮真实文件反馈与评估屏障。
+- [ImageDistributionTest](../platform-server/src/test/java/com/project/platform/server/ImageDistributionTest.java)：20项独立真实Registry/Skopeo/MySQL/K3s/MinIO验证，覆盖镜像分发与常驻部署、Application Job、数据集/命名产物、平台槽并发、取消/超时、同Job接管、Python执行及Worker JVM强杀/DB短时故障；S5包含两轮真实文件反馈与评估屏障，以及FedAvg/FedProx真实MNIST训练、聚合和全局评估。
 
 - [CommonTaskTest](../platform-server/src/test/java/com/project/platform/server/CommonTaskTest.java)：6项真实HTTP/MySQL通用任务测试。
 - [DeploymentSmokeIT](../platform-server/src/test/java/com/project/platform/server/DeploymentSmokeIT.java)：Failsafe在package后启动实际JAR，空库迁移/认证/提交执行；不是测试类路径启动。

@@ -61,6 +61,8 @@ class ImageDistributionTest {
     private Path kubeconfig;
     private KubernetesClient admin;
     private List<String> applicationArguments;
+    private GenericContainer<?> federation;
+    private String federationImage;
 
     private GenericContainer<?> registry(String alias) {
         return new GenericContainer<>("registry:2").withNetwork(network).withNetworkAliases(alias).withExposedPorts(5000)
@@ -192,7 +194,8 @@ class ImageDistributionTest {
         } catch(Exception ex) { close();throw ex; }
     }
     @AfterAll void close() {
-        if(context!=null)context.close();if(admin!=null)admin.close();kubernetes.stop();tool.stop();target.stop();source.stop();storage.stop();mysql.stop();network.close();
+        if(context!=null)context.close();if(admin!=null)admin.close();if(federation!=null)federation.stop();kubernetes.stop();tool.stop();target.stop();source.stop();storage.stop();mysql.stop();network.close();
+        if(federationImage!=null)DockerClientFactory.instance().client().removeImageCmd(federationImage).exec();
         if(kubeconfig!=null)try{Files.deleteIfExists(kubeconfig);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
         for(Path file:new Path[]{accessKey,secretKey})if(file!=null)try{Files.deleteIfExists(file);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
     }
@@ -544,6 +547,143 @@ class ImageDistributionTest {
                 """);drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
         String uri=executions().get(actor,"lab",id).outputs().get("result").toString();
         try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {assertEquals("6",new String(input.readAllBytes(),StandardCharsets.UTF_8));}
+    }
+    private void prepareFederation() throws Exception {
+        if(federation!=null)return;
+        Path evidence=Path.of("target","federated-evidence");Files.createDirectories(evidence);
+        String image="cea-federated-test:"+UUID.randomUUID();
+        // Always build current sources; Docker CLI uses the same BuildKit dependency cache as documented builds.
+        var build=new ProcessBuilder("docker","build","--progress","plain","-t",image,
+                Path.of("..","algorithms","federated").toString())
+                .redirectErrorStream(true).redirectOutput(evidence.resolve("image-build.txt").toFile()).start();
+        try {
+            assertTrue(build.waitFor(10,TimeUnit.MINUTES),"federated image build must complete");
+            assertEquals(0,build.exitValue(),Files.readString(evidence.resolve("image-build.txt")));
+            federationImage=image;
+        } finally {if(build.isAlive())build.destroyForcibly();}
+        federation=new GenericContainer<>(DockerImageName.parse(image)).withCommand("sleep","infinity");federation.start();
+        var numerical=federation.execInContainer("python","-m","unittest","-v","test_federated");
+        assertEquals(0,numerical.getExitCode(),numerical.getStderr());
+        Path rawCache=Path.of("target","federated-data","raw");Files.createDirectories(rawCache);
+        var rawNames=List.of("train-images-idx3-ubyte.gz","train-labels-idx1-ubyte.gz","t10k-images-idx3-ubyte.gz","t10k-labels-idx1-ubyte.gz");
+        for(String file:rawNames)if(Files.exists(rawCache.resolve(file)))
+            federation.copyFileToContainer(MountableFile.forHostPath(rawCache.resolve(file)),"/tmp/mnist/raw/"+file);
+        var seed=federation.execInContainer("python","seed.py","--output","/tmp/mnist","--train-samples","768","--test-samples","256");
+        assertEquals(0,seed.getExitCode(),seed.getStderr());
+        for(String file:rawNames)federation.copyFileFromContainer("/tmp/mnist/raw/"+file,rawCache.resolve(file).toString());
+        Files.writeString(evidence.resolve("unit-tests.txt"),numerical.getStdout()+numerical.getStderr());
+        federation.copyFileFromContainer("/tmp/mnist/manifest.json",evidence.resolve("dataset-manifest.json").toString());
+        try(var client=s3()) {
+            for(String file:List.of("edge-a.pt","edge-b.pt","edge-c.pt","test.pt")) {
+                byte[] data=federation.copyFileFromContainer("/tmp/mnist/"+file,input->input.readAllBytes());
+                client.putObject(io.minio.PutObjectArgs.builder().bucket("datasets").object("mnist/v1/"+file)
+                        .stream(new java.io.ByteArrayInputStream(data),data.length,-1).build());
+            }
+        }
+        Path archive=Files.createTempFile("cea-s5-federated-",".tar");
+        try(var content=DockerClientFactory.instance().client().saveImageCmd(image).exec()) {
+            Files.copy(content,archive,StandardCopyOption.REPLACE_EXISTING);
+            tool.copyFileToContainer(MountableFile.forHostPath(archive),"/tmp/federated.tar");
+        } finally {Files.deleteIfExists(archive);}
+        var copied=tool.execInContainer("skopeo","--command-timeout=180s","copy","--dest-tls-verify=false",
+                "--dest-authfile=/tmp/auth.json","docker-archive:/tmp/federated.tar","docker://source:5000/federated:v1");
+        assertEquals(0,copied.getExitCode(),copied.getStderr());
+        // Four catalog locations, one isolated K3s: tests locality/parallel Jobs, not physical multi-cloud.
+        var args=new ArrayList<>(applicationArguments);
+        args.remove("--platform.distribution.timeout=PT30S");args.add("--platform.distribution.timeout=PT3M");
+        for(String cluster:List.of("cloud","edge-a","edge-b","edge-c")) {
+            args.add("--platform.distribution.targets.lab."+cluster+"=target");
+            args.add("--platform.kubernetes.connections.lab."+cluster+".kubeconfig="+kubeconfig);
+            args.add("--platform.kubernetes.connections.lab."+cluster+".context=default");
+            args.add("--platform.kubernetes.connections.lab."+cluster+".namespace=s4-test");
+            args.add("--platform.jobs.slots.lab."+cluster+"=1");
+        }
+        context.close();applicationArguments=List.copyOf(args);
+        context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
+        for(String cluster:List.of("cloud","edge-a","edge-b","edge-c"))
+            resources().putCluster(actor,"lab",cluster,new Cluster(cluster,cluster.equals("cloud")?Kind.CLOUD:Kind.EDGE,true));
+        var registration=new ProcessBuilder("powershell","-NoProfile","-ExecutionPolicy","Bypass","-File",
+                Path.of("..","scripts","register-federated.ps1").toString(),"-Image","source:5000/federated:v1",
+                "-BaseUrl","http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port"));
+        registration.environment().put("BACKEND_USER","writer");registration.environment().put("BACKEND_PASSWORD","test-api");
+        var process=registration.redirectErrorStream(true).redirectOutput(evidence.resolve("registration.txt").toFile()).start();
+        try {
+            assertTrue(process.waitFor(60,TimeUnit.SECONDS),"registration script must complete");
+            assertEquals(0,process.exitValue(),Files.readString(evidence.resolve("registration.txt")));
+        } finally {if(process.isAlive())process.destroyForcibly();}
+    }
+    private void driveFederation(String id) throws Exception {
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var stop=new java.util.concurrent.atomic.AtomicBoolean();var workers=new ArrayList<Future<?>>();
+            for(int i=0;i<3;i++)workers.add(pool.submit(()->{while(!stop.get()){context.getBean(WorkerEngine.class).runOnce();Thread.sleep(20);}return null;}));
+            try {
+                await().atMost(Duration.ofMinutes(6)).pollInterval(Duration.ofMillis(50)).until(()->{
+                    context.getBean(FlowExecutor.class).processNext();return executions().get(actor,"lab",id).state().terminal();
+                });
+            } finally {
+                stop.set(true);
+                for(var worker:workers)try{worker.get(10,TimeUnit.SECONDS);}catch(TimeoutException ex){worker.cancel(true);}
+            }
+        }
+    }
+    @Test void fedAvgMigratesThroughActualTrainingAggregationAndEvaluation() throws Exception {verifyFederation("fedavg");}
+    @Test void fedProxMigratesThroughActualTrainingAggregationAndEvaluation() throws Exception {verifyFederation("fedprox");}
+    private void verifyFederation(String algorithm) throws Exception {
+        prepareFederation();
+        String id=executions().submit(actor,"lab",UUID.randomUUID().toString(),new FlowExecutionService.Request(algorithm,null,Map.of()));
+        driveFederation(id);
+        var execution=executions().get(actor,"lab",id);
+        assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
+        assertEquals(2,((Number)execution.outputs().get("completed_rounds")).intValue());
+        var runs=executions().tasks(actor,"lab",id);
+        var leaves=runs.stream().filter(r->execution.definition().allTasks().stream().anyMatch(t->t.id().equals(r.taskId())&&t.container()!=null)).toList();
+        assertEquals(11,leaves.size());assertEquals(11,leaves.stream().map(r->r.id()).distinct().count());
+        Path evidence=Path.of("target","federated-evidence",algorithm);Files.createDirectories(evidence);
+        for(var run:leaves) {
+            assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+            String file=run.taskId().equals("init")?"init.pt":run.taskId().replace('_','-')+"-r"+run.iteration()+(run.taskId().equals("evaluate")?".json":".pt");
+            String uri=run.outputs().values().iterator().next().toString();
+            try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
+                byte[] content=input.readAllBytes();Files.write(evidence.resolve(file),content);
+                federation.copyFileToContainer(Transferable.of(content),"/tmp/audit/"+algorithm+"/"+file);
+            }
+            String cluster=run.taskId().startsWith("client_")?"edge-"+run.taskId().substring(7):"cloud";
+            assertEquals(cluster,context.getBean(JdbcTemplate.class).queryForObject(
+                    "SELECT cluster_id FROM res_job_reservation WHERE namespace='lab' AND allocation_id=?",String.class,run.id()+"-1"));
+            var podSpec=admin.batch().v1().jobs().inNamespace("s4-test").withName("cea-"+run.id()+"-a1").get().getSpec().getTemplate().getSpec();
+            var environment=podSpec.getContainers().getFirst().getEnv().stream().collect(java.util.stream.Collectors.toMap(e->e.getName(),e->e.getValue()));
+            if(run.taskId().startsWith("client_")) {
+                assertEquals(cluster,environment.get("CLIENT_ID"));
+                assertEquals("/cea-work/in/dataset-DATASET",environment.get("DATASET_PATH"));
+            } else if(run.taskId().equals("evaluate")) {
+                assertEquals("/cea-work/in/dataset-TEST_DATASET",environment.get("TEST_DATASET_PATH"));
+            }
+        }
+        for(int round=1;round<=2;round++) {
+            final int n=round;
+            var clients=runs.stream().filter(r->r.taskId().startsWith("client_")&&r.iteration()==n).toList();
+            var aggregate=runs.stream().filter(r->r.taskId().equals("aggregate")&&r.iteration()==n).findFirst().orElseThrow();
+            var evaluate=runs.stream().filter(r->r.taskId().equals("evaluate")&&r.iteration()==n).findFirst().orElseThrow();
+            assertTrue(clients.stream().allMatch(r->!aggregate.startedAt().isBefore(r.endedAt())));
+            assertFalse(evaluate.startedAt().isBefore(aggregate.endedAt()));
+            var latestStart=clients.stream().map(r->r.startedAt()).max(Comparator.naturalOrder()).orElseThrow();
+            var earliestEnd=clients.stream().map(r->r.endedAt()).min(Comparator.naturalOrder()).orElseThrow();
+            assertTrue(latestStart.isBefore(earliestEnd),"three client TaskRuns overlap");
+            if(n==2) {
+                var prior=runs.stream().filter(r->r.taskId().equals("evaluate")&&r.iteration()==1).findFirst().orElseThrow();
+                assertTrue(clients.stream().allMatch(r->!r.startedAt().isBefore(prior.endedAt())));
+            }
+        }
+        for(String file:List.of("edge-a.pt","edge-b.pt","edge-c.pt","test.pt")) {
+            byte[] data=federation.copyFileFromContainer("/tmp/mnist/"+file,input->input.readAllBytes());
+            federation.copyFileToContainer(Transferable.of(data),"/tmp/audit/"+algorithm+"/"+file);
+        }
+        var audit=federation.execInContainer("python","verify_run.py","/tmp/audit/"+algorithm,algorithm);
+        Files.writeString(evidence.resolve("numerical-audit.json"),audit.getStdout());
+        assertEquals(0,audit.getExitCode(),audit.getStderr());
+        assertEquals("PASS",json.map(audit.getStdout().trim()).get("numericalAudit"));
+        Files.writeString(evidence.resolve("execution.json"),json.write(execution));
+        Files.writeString(evidence.resolve("task-runs.json"),json.write(runs));
     }
     @Test void killedWorkerJvmRecoversTheSameRemoteJob() throws Exception {
         String id=dispatch(sleeper("PT90S","sleep 8")),name=remoteName(id);

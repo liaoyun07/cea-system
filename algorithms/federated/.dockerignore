@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!model.py
+!app.py
+!seed.py
+!test_federated.py
+!verify_run.py

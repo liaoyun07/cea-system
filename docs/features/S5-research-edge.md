@@ -12,9 +12,11 @@
 
 首批实现S5-01，不提前创建edge/offloading的空类/表/接口。S5-02研究验证依赖S5-01；S5-03/04各批先检查旧系统业务与Kestra对应边界。S5-05尚未实现，不能把S4测试中的Job运行时间当作已确定的算法计量。
 
-S5-01已通过133项完整verify，包含真实容器两轮产物反馈与整轮屏障，详见[验收记录](../verification/VER-S5-001-repeat.md)。其余批次尚未实现，当前没有真实联邦学习或性能验收结论。
+S5-01已通过133项完整verify，包含真实容器两轮产物反馈与整轮屏障，详见[验收记录](../verification/VER-S5-001-repeat.md)。S5-02随后完成FedAvg/FedProx真实MNIST子集两轮训练、聚合和全局评估，135项Maven及7项Python验证通过，见[本批验收](../verification/VER-S5-002-federated.md)。03–05尚未实现，没有性能验收结论。
 
 ## 首批具体语义
+
+2026-09-10后续授权限定S5-02仅FedAvg/FedProx，具体迁移及验收见[S5-02规格](S5-02-federated.md)。TEP、图像预处理、分层联邦等其他流任务暂不迁移；本批不同时推进03–05。
 
 见[ADR-0011](../decisions/ADR-0011-repeat.md)和[Repeat协议](../contracts/s5-repeat.md)。状态由Executor持久推进，每轮新的TaskRun，同一轮失败重试增加Attempt；不靠改写模板任务ID或重置旧行实现循环。
 
