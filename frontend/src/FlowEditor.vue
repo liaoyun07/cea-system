@@ -185,9 +185,7 @@ onMounted(load);
         <h1>
           {{ saved?.flowId || '新建流程' }} <span class="tag" v-if="saved">r{{ saved.revision }}</span>
         </h1>
-        <p class="muted">
-          {{ saved ? `保存于 ${time(saved.createdAt)}` : '编辑同一份 YAML，保存为不可变修订。' }}
-        </p>
+        <p v-if="saved" class="muted">保存于 {{ time(saved.createdAt) }}</p>
       </div>
       <div class="actions">
         <button :disabled="busy || !source || !!pending || invalidForm" @click="validate">✓ 校验</button
@@ -298,7 +296,7 @@ onMounted(load);
         <div v-show="['source', 'split', 'schema'].includes(tab)" class="code-panel">
           <div class="code-title">
             <span>{{ tab !== 'schema' ? `${id || 'flow'}.yaml` : 'FlowDefinition · JSON Schema' }}</span
-            ><span>{{ tab !== 'schema' ? 'Ctrl / ⌘ + S 保存' : '由后端运行模型生成' }}</span>
+            ><span v-if="tab !== 'schema'">Ctrl / ⌘ + S 保存</span>
           </div>
           <textarea
             v-if="tab !== 'schema'"
@@ -313,19 +311,17 @@ onMounted(load);
           ></textarea>
           <pre v-else class="schema-code">{{ schema ? pretty(schema) : '正在读取结构…' }}</pre>
           <div class="code-footer">
-            <span>{{ source.split('\n').length }} 行 · UTF-8</span><span>YAML → FlowDefinition</span>
+            <span>{{ source.split('\n').length }} 行 · UTF-8</span>
           </div>
         </div>
       </div>
       <section v-if="runOpen" class="run-panel" aria-label="执行参数">
         <div class="run-title">
-          <h2>执行流程</h2>
+          <h2>
+            执行流程 <span class="tag">r{{ saved.revision }}</span>
+          </h2>
           <button aria-label="关闭执行参数" :disabled="busy || !!pending" @click="runOpen = false">×</button>
         </div>
-        <p class="muted">
-          本次固定使用 <strong>r{{ saved.revision }}</strong
-          >。预览只校验输入，不创建任务。
-        </p>
         <fieldset :disabled="busy || !!pending">
           <div v-for="field in fields" :key="field.name" class="input-field">
             <div class="input-label">
@@ -333,11 +329,7 @@ onMounted(load);
                 >{{ field.name }} <span v-if="field.required" class="required">*</span></label
               ><span class="tag">{{ field.type }}</span>
             </div>
-            <label class="provide"
-              ><input type="checkbox" v-model="field.provided" />提供本次值<span v-if="!field.provided"
-                >（省略，交由后端应用默认值/必填校验）</span
-              ></label
-            >
+            <label class="provide"><input type="checkbox" v-model="field.provided" />提供本次值</label>
             <template v-if="field.provided">
               <select v-if="field.type === 'BOOLEAN'" :id="`input-${field.name}`" v-model="field.value">
                 <option value="" disabled>请选择</option>

@@ -336,7 +336,39 @@ test('read-only viewer sees catalogs but cannot mutate; empty offload data is no
   page.once('dialog', (dialog) => dialog.accept());
   await nav(page, '卸载观测');
   await expect(page.locator('.empty h2')).toHaveText('暂无记录');
-  await expect(page.locator('.page-heading')).toContainText('不表示长期 DQN 已完成');
+  await expect(page.locator('.table-wrap tbody tr')).toHaveCount(0);
+  await expect(page.locator('.page-heading button')).toHaveCount(0);
+});
+
+test('pages keep headings and actions without instructional prose or help disclosures', async ({ page }) => {
+  await login(page);
+  for (const title of [
+    '流程',
+    '执行',
+    '应用与镜像',
+    '应用部署',
+    '集群资源',
+    '数据集',
+    '边缘网关',
+    '终端设备',
+    '边缘处理策略',
+    '卸载观测',
+  ]) {
+    await nav(page, title);
+    await expect(page.locator('.page-heading p, .empty p')).toHaveCount(0);
+    await expect(page.locator('.page-heading details, [role="tooltip"]')).toHaveCount(0);
+    await expect(page.locator('.list-toolbar button').last()).toBeVisible();
+    if (title === '执行' || title === '集群资源')
+      await page.screenshot({ path: `.local/evidence/clean-${title}.png`, fullPage: true });
+  }
+  await nav(page, '应用与镜像');
+  await page.getByRole('button', { name: '＋ 注册应用版本', exact: true }).click();
+  await expect(page.locator('.catalog-section > p.muted.small')).toHaveCount(0);
+  await expect(page.getByLabel('镜像引用', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '保存配置', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: '＋ 添加参数', exact: true }).click();
+  await expect(page.getByLabel('参数 1 · 默认值 JSON', { exact: true })).toBeVisible();
+  await page.screenshot({ path: '.local/evidence/clean-application-form.png', fullPage: true });
 });
 
 test('catalog failures are visible, not empty success, and switching pages discards late responses', async ({

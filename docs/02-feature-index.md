@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-03a已删除常驻教学/架构说明，不新增展开帮助或tooltip；保留字段、真实数据、错误/确认/结果。29项Node、29项浏览器、212项Maven及构建/格式/结构检查通过，18080尚未更新；见[验证记录](verification/VER-UI-003a-copy-cleanup.md)。不新增领域功能编号或后端能力。
+
 UI-03是RES-001、DEP-001/002、EDGE-001/002及OFF-002的前端消费者，沿用现有编号/API；只读卸载页不扩展模型研究。已有管理功能与真实分发/部署/策略事件验收通过，29项Node、28项浏览器及212项Maven/12项Python PASS。已更新CEA前端，详细已迁移/缺接口列表及失败经过见[UI-03规格](features/UI-03-management.md)和[验收](verification/VER-UI-003-management.md)。MIG-001旧数据/模板转换与切换仍未实施。
 
 UI-02是WF-016/WF-002/WF-003的前端消费者，不增加功能编号或后端模型；任务块、单表单、原Binding/目录、同源YAML和修订比较回退已实现，测试与部署状态见[UI-02验收](verification/VER-UI-002-no-code.md)。[功能边界](features/UI-02-no-code.md)不含完整Kestra、资源注册管理、Pod日志、指标或旧数据迁移。下方UI-01/S6描述保留对应历史批次边界。

@@ -172,7 +172,6 @@ onBeforeUnmount(() => {
         </section>
         <section class="panel full-panel" v-if="afterTasks.length">
           <h2>后处理 <span class="tag">AFTER_EXECUTION</span></h2>
-          <p class="muted">后处理失败不会改写主执行结果。主执行结束时间不包含后处理。</p>
           <div class="after-list">
             <div v-for="task in afterTasks" :key="task.id">
               <span class="mono">{{ task.taskId }}</span
@@ -220,7 +219,7 @@ onBeforeUnmount(() => {
         <section v-if="selectedTask" class="panel attempt-panel">
           <h2>{{ selectedTask.taskId }} · 执行尝试</h2>
           <div v-if="attemptError" class="notice error" role="alert">{{ attemptError }}</div>
-          <p v-if="!attempts.length" class="muted">暂无 Worker 尝试（控制节点由 Executor 推进）。</p>
+          <p v-if="!attempts.length" class="muted">暂无 Worker 尝试</p>
           <div v-for="attempt in attempts" :key="attempt.attemptNo" class="attempt">
             <strong>#{{ attempt.attemptNo }}</strong
             ><span class="status" :data-state="attempt.state">{{ attempt.state }}</span
@@ -245,7 +244,6 @@ onBeforeUnmount(() => {
       </section>
       <section v-else class="panel">
         <h2>主执行输出</h2>
-        <p class="muted">来自后端 Execution.outputs，未完成时可能为空。</p>
         <pre class="output-code" data-testid="execution-outputs">{{ pretty(run.outputs) }}</pre>
       </section>
     </template>

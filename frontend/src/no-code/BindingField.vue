@@ -77,7 +77,6 @@ function literal(event) {
           {{ name }}
         </option>
       </select>
-      <small>在“流程设置”中定义；这里仅引用，不自动创建。</small>
     </template>
     <template v-else-if="value?.source === 'TASK_OUTPUT'">
       <select
@@ -100,9 +99,6 @@ function literal(event) {
         </option>
         <option v-for="port in outputPorts(selected || {})" :key="port">{{ port }}</option>
       </select>
-      <small v-if="!scope.entries.length"
-        >当前没有可引用的上游。DAG 内请先设置依赖；循环外请引用循环的输出。</small
-      >
     </template>
     <template v-else-if="value?.source === 'ITEM'">
       <input
@@ -111,7 +107,6 @@ function literal(event) {
         placeholder="value / value.cluster / index"
         @change="patch('path', $event.target.value.split('.').filter(Boolean))"
       />
-      <small>value 为当前元素，index 为从 0 开始的下标；仅在 Loop 内可用。</small>
     </template>
     <template v-else>
       <template v-if="options?.length">

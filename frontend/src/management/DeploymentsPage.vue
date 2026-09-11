@@ -143,9 +143,6 @@ onMounted(() => action(catalogs));
       <div>
         <span class="eyebrow">DEPLOYMENTS</span>
         <h1>应用部署</h1>
-        <p class="muted">
-          查看与管理本命名空间的常驻应用。Kubernetes 提供实际状态；工作流的一次性 Job 请到执行页查看。
-        </p>
       </div>
       <button
         v-if="!draft && !selected"
@@ -216,18 +213,13 @@ onMounted(() => action(catalogs));
               rows="3"
               spellcheck="false"
               required
-            /><small class="muted"
-              >字符串数组，逐项作为 argv；[] 使用镜像默认命令。不在后端宿主执行 shell。</small
-            ></label
-          >
+            />
+          </label>
         </div>
         <details v-if="app">
-          <summary>所选版本的参数契约（未传值使用契约默认值）</summary>
+          <summary>所选版本的参数契约</summary>
           <pre>{{ JSON.stringify(app.parameters, null, 2) }}</pre>
         </details>
-        <p class="muted small">
-          仅创建新名称。已有名称会发生版本冲突，不会自动覆盖；需要修改或缩放现有部署时，先补齐完整配置回读接口。
-        </p>
         <button class="primary" type="submit">{{ writing ? '正在准备镜像并提交…' : '创建部署' }}</button>
       </fieldset>
     </form>
@@ -282,7 +274,6 @@ onMounted(() => action(catalogs));
         <h2>
           {{ busy ? '正在读取…' : !cluster ? '选择执行集群' : loaded ? '暂无常驻部署' : '未能读取部署状态' }}
         </h2>
-        <p>仅显示当前命名空间由 CEA 管理的 Deployment，不列出其他系统工作负载。</p>
       </div>
     </div>
   </section>

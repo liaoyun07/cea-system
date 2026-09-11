@@ -58,7 +58,6 @@ onMounted(load);
 <template>
   <section class="revision-view">
     <div v-if="error" class="notice error" role="alert">{{ error }}</div>
-    <p class="muted">比较保存过的源文件。回退会创建新修订，不修改历史；未保存草稿时禁止回退。</p>
     <div class="revision-list">
       <button v-for="row in rows" :key="row.revision" @click="inspect(row.revision)">
         r{{ row.revision }} · {{ time(row.createdAt) }}

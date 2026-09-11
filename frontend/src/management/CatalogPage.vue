@@ -207,7 +207,6 @@ onMounted(() => action(loadRows));
       <div>
         <span class="eyebrow">{{ config.caption }}</span>
         <h1>{{ config.title }}</h1>
-        <p class="muted">{{ config.help }}</p>
       </div>
       <button v-if="!draft && !raw && config.create" class="primary" :disabled="busy" @click="open()">
         ＋ {{ config.create }}
@@ -226,7 +225,7 @@ onMounted(() => action(loadRows));
           <div>
             <h2>{{ readonly ? '版本详情' : existing ? '编辑配置' : '新建登记' }}</h2>
             <span class="muted small">{{
-              dirty ? '有未保存修改' : readonly ? '不可变版本' : existing ? '已保存' : '填写后保存'
+              dirty ? '有未保存修改' : readonly ? '不可变版本' : existing ? '已保存' : '未保存'
             }}</span>
           </div>
           <div class="button-row">
@@ -268,10 +267,6 @@ onMounted(() => action(loadRows));
       </form>
       <section v-if="kind === 'applications' && readonly" class="management-editor">
         <h2>准备 / 分发镜像</h2>
-        <p class="muted small">
-          从已配置的源 Registry 复制至目标集群 Registry 并核验
-          digest。目标地址由后端配置；此处不保存分发历史。
-        </p>
         <div class="inline-form">
           <label
             >目标集群<select v-model="targetCluster" aria-label="目标集群" :disabled="busy">
@@ -329,7 +324,6 @@ onMounted(() => action(loadRows));
         <div v-if="!rows.length" class="empty">
           <span>◇</span>
           <h2>{{ busy ? '正在读取…' : loaded ? '暂无记录' : '未能读取目录' }}</h2>
-          <p>{{ loaded ? '只显示真实登记数据，不自动填充示例。' : '请检查上方错误并重试。' }}</p>
         </div>
       </div>
       <footer class="pagination">

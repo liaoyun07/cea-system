@@ -11,7 +11,6 @@ export const catalogs = {
       ['version', '版本'],
       ['image', '镜像'],
     ],
-    help: '登记已有镜像及参数契约。版本不可覆盖；修改请注册新版本。镜像文件仍由 Registry 管理。',
   },
   clusters: {
     title: '集群资源',
@@ -23,7 +22,6 @@ export const catalogs = {
       ['kind', '计算层'],
       ['enabled', '目录准入'],
     ],
-    help: '管理可参与执行的集群目录。登记不自动配置 kubeconfig、Registry 连接，也不代表集群健康。',
   },
   datasets: {
     title: '数据集',
@@ -36,7 +34,6 @@ export const catalogs = {
       ['format', '格式'],
       ['locations', '数据位置'],
     ],
-    help: '统一管理版本、格式与每个集群的数据位置。只登记 s3:// 对象引用，不上传或探测文件。',
   },
   gateways: {
     title: '边缘网关',
@@ -50,7 +47,6 @@ export const catalogs = {
       ['enabled', '接入开关'],
       ['lastSeenAt', '最近活动'],
     ],
-    help: '接入账号须由管理员在后端配置为 CONNECT 权限。网关与账号、边缘集群的归属不可改派。',
   },
   terminals: {
     title: '终端设备',
@@ -63,7 +59,6 @@ export const catalogs = {
       ['enabled', '接入开关'],
       ['lastSeenAt', '最近活动'],
     ],
-    help: '终端由所属网关接入。启停控制新的接入，不隐式取消已提交执行；最近活动时间不等同于在线状态。',
   },
   policies: {
     title: '边缘处理策略',
@@ -76,7 +71,6 @@ export const catalogs = {
       ['eventType', '事件类型'],
       ['enabled', '事件触发'],
     ],
-    help: '事件路由关联一份策略 Flow。与普通流程共享执行引擎，但分别管理；停用只阻止新事件提交。',
   },
   observations: {
     title: '卸载观测',
@@ -90,7 +84,6 @@ export const catalogs = {
       ['outcome', '结果'],
       ['createdAt', '决策时间'],
     ],
-    help: '只展示已记录的终端卸载样本。普通 CLUSTER 任务不进入此目录；该页面不启动模型训练，也不表示长期 DQN 已完成。',
   },
 };
 export const entryId = (row) => row.id || row.applicationId || row.datasetId || row.key;

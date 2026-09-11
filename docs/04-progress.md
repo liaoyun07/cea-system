@@ -1,5 +1,7 @@
 # 当前进度
 
+最新调整：UI-03a页面说明直接删除，未改成展开帮助或悬浮提示；必要字段、数据及错误/确认/结果保留。29项Node、29项真实浏览器、212项Maven完整回归及构建/格式/结构检查通过；十页真实CEA只读数据预览与1440px/650px截图检查通过。无Java、表、API或执行链变更。18080仍为上一批部署，等待本次更新确认；见[记录](verification/VER-UI-003a-copy-cleanup.md)。
+
 最新完成：UI-03已有管理能力迁移并更新CEA的18080前端。应用契约版本与真实镜像准备、Deployment创建/状态/版本前置删除、集群/数据集、网关/终端登记启停、同源策略No-code/YAML/CAS及卸载观测只读均已接通。最终29项Node、28项真实JAR/Registry/K3s浏览器回归、212项Maven及12项Python通过；首轮测试定位/断言问题如实保留在[UI-03验收](verification/VER-UI-003-management.md)。14:31:01实际CEA只读复核PASS：应用5、集群4、数据集2，空网关/终端/策略/观测和部署列表与API一致。只替换frontend，其他11个容器ID及StartedAt均未变；生产Java、表、API和执行主链未改。仍缺后端接口的功能见[迁移矩阵](features/UI-03-management.md)，不是全部旧页面或S7完成。
 
 上一批：UI-02同源No-code已实现并更新CEA的18080前端。任务块/单表单、显式Binding与目录选择、YAML联动、修订比较回退复用原API；最终23项Node单测、19项真实JAR浏览器回归、构建/格式检查和实际CEA只读复核PASS。后端完整verify首轮两项超时，未改代码或测试阈值，13:39:37第二轮212项Maven及容器内12项Python通过，失败经过保留在[UI-02验收](verification/VER-UI-002-no-code.md)。只替换frontend，其余11个CEA容器ID/StartedAt均不变，未改业务模板、执行数据、Java、表或API。不是完整Kestra、管理台全迁移或S7完成。
@@ -60,6 +62,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 
 | 工作包 | 状态 | 交付/剩余验收 |
 |---|---|---|
+| UI-03a | DONE（源码与验证） | 常驻说明直接删除；29项Node/29项浏览器/212项Maven PASS，CEA前端尚未更新 |
 | DEPLOY-01 | DONE（独立单机部署） | D盘Compose、独立配置/凭据、四集群两算法、22个成功Job、全量数据数值/浏览器/重启复核PASS；Pod stdout汇入日志、物理多云、旧切换不在范围 |
 | UI-01 | DONE（最小前端） | 原API源编辑/保存/固定修订执行/详情，9项Node及11项真实浏览器联调PASS；不是完整No-code或全管理台 |
 | UI-02 | DONE（当前DSL范围） | 23项Node/19项真实JAR浏览器及212项Maven/12项Python完整回归PASS，CEA前端更新/只读复核PASS；首轮失败保留在VER-UI-002 |

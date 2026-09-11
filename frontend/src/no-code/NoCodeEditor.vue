@@ -270,17 +270,15 @@ onMounted(() => {
     </div>
     <div v-if="!source.trim()" class="no-code-empty">
       <h2>从一个任务开始</h2>
-      <p>添加任务、配置参数，所有操作同步到同一份 YAML。</p>
       <button class="primary" :disabled="disabled" @click="initFlow">创建空流程</button>
     </div>
     <div v-else-if="parsed.error" class="notice warning">
       <strong>暂时无法显示 No-code</strong>
       <pre>{{ parsed.error }}</pre>
-      <p>原始 YAML 已保留，修正后将恢复可视化编辑。</p>
       <button @click="emit('show-source')">打开源码修正</button>
     </div>
     <div v-else-if="!schema" class="no-code-empty">
-      <p>{{ loading ? '正在读取后端编辑结构…' : '无法读取编辑结构，不显示伪造字段。' }}</p>
+      <p>{{ loading ? '正在读取编辑结构…' : '无法读取编辑结构' }}</p>
       <button :disabled="loading" @click="loadSchema">重新读取</button>
     </div>
     <div v-else class="no-code-layout">
@@ -306,9 +304,6 @@ onMounted(() => {
           @move="move"
           @remove="remove"
         />
-        <p class="canvas-footnote">
-          顺序组按列表顺序执行；DAG 按显式依赖执行。Loop / Repeat 的实际实例在执行后查看。
-        </p>
       </div>
       <aside class="task-inspector" aria-label="任务配置">
         <header>
@@ -321,8 +316,7 @@ onMounted(() => {
         <fieldset :key="externalEdit" :disabled="disabled">
           <template v-if="current">
             <p v-if="selected.length" class="inspector-description">
-              {{ taskLabels[current.type] }} <code>{{ current.type }}</code
-              ><br />任务 ID 在创建时填写；变更 ID 请在源码中同时核对引用。
+              {{ taskLabels[current.type] }} <code>{{ current.type }}</code>
             </p>
             <template v-if="entry?.parent?.task.type === 'core.Dag'">
               <label class="field-heading">依赖任务</label>
@@ -363,10 +357,10 @@ onMounted(() => {
                   {{ a.applicationId }} / {{ a.version }}
                 </option>
               </select>
-              <p class="catalog-image">{{ app?.image || '应用契约由后端登记；这里不会创建或构建镜像。' }}</p>
+              <p v-if="app?.image" class="catalog-image">{{ app.image }}</p>
               <details open class="form-section">
-                <summary>参数绑定 <small>显式指定来源</small></summary>
-                <p v-if="!parameterNames.length" class="muted small">该契约没有业务参数，或尚未读取契约。</p>
+                <summary>参数绑定</summary>
+                <p v-if="!parameterNames.length" class="muted small">暂无参数</p>
                 <div v-for="name in parameterNames" :key="name" class="contract-parameter">
                   <SchemaField
                     :schema="{ $ref: '#/$defs/Binding' }"
@@ -390,8 +384,7 @@ onMounted(() => {
                     >
                       · 默认 {{ app.parameters[name].defaultValue }}</template
                     >
-                    · 未绑定时交给后端应用契约默认值。</small
-                  >
+                  </small>
                 </div>
               </details>
               <details open class="form-section">
@@ -449,9 +442,6 @@ onMounted(() => {
                     ＋ {{ cluster.id }} · {{ cluster.kind }}
                   </button>
                 </div>
-                <p class="small muted">
-                  TERMINAL 的目标来自可信执行来源。输入/输出文件名在当前 Flow 显式定义，不自动推断镜像端口。
-                </p>
               </details>
             </template>
             <SchemaField
@@ -482,12 +472,10 @@ onMounted(() => {
               >
                 移动到组末尾
               </button>
-              <p class="small muted">移动后请校验依赖和参数作用域；不会自动改写绑定。</p>
             </details>
           </template>
           <p v-else class="muted">此任务已从 YAML 移除，请选择其他任务。</p>
         </fieldset>
-        <footer>修改立即同步到草稿 · 点击顶部“保存修订”才会持久化</footer>
       </aside>
     </div>
     <div v-if="adding" class="dialog-backdrop" @click.self="adding = null">

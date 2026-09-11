@@ -182,15 +182,12 @@ function paginate(delta) {
     <form class="login-card" @submit.prevent="login">
       <span class="eyebrow">WORKSPACE</span>
       <h1>连接工作空间</h1>
-      <p class="muted">使用新后端账号进入流程与执行工作台。</p>
       <label>命名空间<input v-model="namespace" required autocomplete="off" placeholder="lab" /></label>
       <label>账号<input v-model="username" required autocomplete="username" /></label>
       <label>密码<input v-model="password" required type="password" autocomplete="current-password" /></label>
       <div v-if="error" class="notice error" role="alert">{{ error }}</div>
       <button class="primary full" :disabled="busy">{{ busy ? '正在连接…' : '连接工作空间 →' }}</button>
-      <p class="small muted">凭据仅保留在当前页面内存，刷新后需重新连接。</p>
     </form>
-    <p class="login-foot">独立工作台 · 一个 Flow 定义，一条执行链</p>
   </div>
   <div v-else class="workspace">
     <aside class="sidebar">
@@ -270,9 +267,6 @@ function paginate(delta) {
           <div>
             <span class="eyebrow">{{ page === 'flows' ? 'FLOWS' : 'EXECUTIONS' }}</span>
             <h1>{{ pageTitle }}</h1>
-            <p class="muted">
-              {{ page === 'flows' ? '定义、校验并运行你的工作流。' : '查看实际执行状态、任务实例与输出。' }}
-            </p>
           </div>
           <button v-if="page === 'flows'" class="primary" :disabled="busy" @click="edit('')">
             ＋ 新建流程
@@ -294,7 +288,6 @@ function paginate(delta) {
               maxlength="200"
             /><button :disabled="busy">搜索</button>
           </form>
-          <span v-else class="muted">按创建时间显示执行记录</span>
           <button :disabled="busy" @click="loadList">{{ busy ? '加载中…' : '↻ 刷新' }}</button>
         </div>
         <div class="table-wrap">
@@ -357,13 +350,6 @@ function paginate(delta) {
           <div v-if="!(page === 'flows' ? flows : executions).length" class="empty">
             <span>◇</span>
             <h2>{{ busy ? '正在加载…' : page === 'flows' ? '暂无流程' : '暂无执行记录' }}</h2>
-            <p>
-              {{
-                page === 'flows'
-                  ? '创建流程或调整搜索条件。不会自动导入示例模板。'
-                  : '保存流程并启动后，执行记录会出现在这里。'
-              }}
-            </p>
           </div>
         </div>
         <footer class="pagination">

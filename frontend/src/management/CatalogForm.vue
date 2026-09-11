@@ -111,9 +111,6 @@ function addParameter() {
           ＋ 添加位置
         </button>
       </div>
-      <p class="muted small">
-        每个集群最多一项。修改已登记位置需使用新版本；不把模型或中间产物塞进数据集目录。
-      </p>
       <div v-for="(location, i) in draft.locations" :key="i" class="location-row">
         <label
           >位置 {{ i + 1 }} · 集群<select
@@ -140,7 +137,7 @@ function addParameter() {
           移除
         </button>
       </div>
-      <p v-if="!draft.locations.length" class="muted">尚未添加位置；至少登记一处集群位置后才能保存。</p>
+      <p v-if="!draft.locations.length" class="muted">暂无数据位置</p>
     </section>
 
     <section v-if="kind === 'applications'" class="catalog-section">
@@ -148,10 +145,6 @@ function addParameter() {
         <h2>镜像参数契约</h2>
         <button v-if="!readonly" type="button" @click="addParameter">＋ 添加参数</button>
       </div>
-      <p class="muted small">
-        声明镜像接受的参数，不自动生成 Flow 输入或绑定。默认值使用 JSON 标量，例如
-        "mlp"、32、true；留空表示未声明。
-      </p>
       <div v-if="readonly && draft.parameterRows.length" class="table-wrap compact-contract">
         <table>
           <thead>
@@ -221,8 +214,8 @@ function addParameter() {
                   :value="`${d.datasetId}/${d.version}`"
                 >
                   {{ d.datasetId }}/{{ d.version }} · {{ d.format }}
-                </option></select
-              ><small class="muted">可多选，只列出匹配格式的已登记版本。不同应用不自动求交集。</small></label
+                </option>
+              </select></label
             >
           </template>
         </div>
@@ -244,10 +237,6 @@ function addParameter() {
         策略 Flow <small class="muted">{{ existing ? `r${draft.expectedRevision}` : '未保存' }}</small>
       </h2>
     </div>
-    <p class="muted small">
-      Flow 的 id 必须与策略 ID 一致；namespace 为 {{ namespace }}。只维护这一份定义；策略不能启用独立
-      Schedule。
-    </p>
     <div class="tabs" role="tablist" aria-label="策略编辑方式">
       <button type="button" role="tab" :aria-selected="tab === 'nocode'" @click="tab = 'nocode'">
         可视化编排</button
