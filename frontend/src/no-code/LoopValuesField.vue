@@ -20,15 +20,25 @@ function patch(event) {
   );
   emit('patch', event);
 }
-function mode(array) {
-  if (array === arrayMode.value || invalid.value) return;
-  if (!window.confirm('切换集合来源将替换当前配置，是否继续？')) return;
+function mode(event) {
+  const source = event.target.value;
+  if (source === props.value?.source || invalid.value) return;
+  if (!window.confirm('更换集合来源将替换当前字段的配置（仅草稿），是否继续？')) {
+    event.target.value = props.value?.source;
+    return;
+  }
   let value = [];
-  if (array && props.value?.source === 'INPUT') {
+  if (source === 'LITERAL' && props.value?.source === 'INPUT') {
     const initial = props.flow.inputs?.[props.value.name]?.defaultValue;
     if (Array.isArray(initial)) value = initial;
   }
-  patch({ path: props.path, value: array ? { source: 'LITERAL', value } : { source: 'INPUT', name: '' } });
+  const binding =
+    source === 'LITERAL'
+      ? { source, value }
+      : source === 'TASK_OUTPUT'
+        ? { source, taskId: '', port: '' }
+        : { source, name: '' };
+  patch({ path: props.path, value: binding });
 }
 function move(index, delta) {
   const values = [...props.value.value];
@@ -38,10 +48,15 @@ function move(index, delta) {
 </script>
 <template>
   <div class="loop-values-field">
-    <div class="loop-value-modes" role="group" aria-label="values 来源模式">
-      <button type="button" :aria-pressed="!arrayMode" :disabled="invalid" @click="mode(false)">引用</button>
-      <button type="button" :aria-pressed="arrayMode" :disabled="invalid" @click="mode(true)">Array</button>
-    </div>
+    <label class="loop-source-field"
+      >集合来源
+      <select aria-label="集合来源" :value="value?.source" :disabled="invalid" @change="mode">
+        <option value="LITERAL">固定集合</option>
+        <option value="INPUT">流程输入</option>
+        <option value="VARIABLE">流程变量</option>
+        <option value="TASK_OUTPUT">上游输出</option>
+      </select>
+    </label>
     <template v-if="arrayMode && validArray">
       <div v-for="(item, index) in value.value" :key="index" class="loop-value-item" :data-loop-item="index">
         <div class="loop-value-actions">
@@ -98,6 +113,7 @@ function move(index, delta) {
       :value="value"
       :path="path"
       :flow="flow"
+      hide-source
       :allowed-sources="['INPUT', 'VARIABLE', 'TASK_OUTPUT']"
       @patch="patch"
       @invalid="report"

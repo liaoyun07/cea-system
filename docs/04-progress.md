@@ -1,5 +1,7 @@
 # 当前进度
 
+最新完成：UI-02c任务表单按类型必填前置/其余纵向排列，Loop/Repeat配置展平，values来源改普通下拉，保留原YAML路径/Binding和保存执行链。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；2026-09-12 01:44仅更新CEA前端，01:45实际页面只读复核PASS，两Flow及四条历史执行不变，其余11个服务未重启。无Java/表/API变化，集合元素递归编辑仍保留。详见[验证记录](verification/VER-UI-002c-task-form-layout.md)。
+
 最新完成：UI-04 SELECT输入。固定字符串values、默认值/必填/成员校验、No-code选项编辑及执行下拉已接通，保留唯一Flow/Binding/Execution链。30项Node、36项真实浏览器、215项Maven及构建/格式/scaffold通过。用户确认后于2026-09-12 01:01同步更新CEA前后端，01:05部署只读复核PASS；现有两Flow的源码/修订及四条历史执行的输入/输出/状态未变，其他十个容器ID/StartedAt未变。无新增Java类、表/列、API或SPI；暂不支持动态选项和多选。详见[SELECT规格](features/UI-04-select-input.md)与[验证记录](verification/VER-UI-004-select-input.md)。
 
 最新完成：UI-02b Loop.values支持就地Array逐项/对象/嵌套数组编辑、类型与引用切换、增删排序；FedAvg/FedProx不再暴露clients启动输入。29项Node、34项真实浏览器、212项Maven及构建/格式/scaffold通过。2026-09-12 00:26只更新CEA前端，两个Flow经CAS分别保存为r4/r2，历史及其他配置保留；00:29实际页面与目录/历史执行只读复核PASS，其余11个容器ID/StartedAt未变。无生产Java、表、API或执行链变化，故障与验证详情见[记录](verification/VER-UI-002b-loop-values.md)。

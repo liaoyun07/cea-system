@@ -191,6 +191,39 @@ export function initialValue(schema, root) {
   if (s.enum) return s.enum[0];
   return { object: {}, array: [], boolean: false, integer: 0, number: 0, string: '' }[s.type] ?? '';
 }
+// Form order for existing task semantics, not a second validator or persisted schema.
+export function taskFormFields(task, root) {
+  const main =
+    {
+      'core.Log': ['message'],
+      'core.Sleep': ['duration'],
+      'core.If': ['condition'],
+      'core.Loop': ['loop.values'],
+      'core.Repeat': ['repeat.iterations'],
+      'core.Http': ['http.connection', 'http.method', 'http.path', 'timeout'],
+      'core.Sql': ['sql.connection', 'sql.query', 'timeout'],
+      'platform.Application': ['timeout'],
+    }[task.type] || [];
+  const optional =
+    {
+      'core.Loop': ['loop.concurrency', 'loop.outputs'],
+      'core.Repeat': ['repeat.initial', 'repeat.feedback'],
+      'core.Http': task.http?.method === 'POST' || task.http?.body != null ? ['http.body'] : [],
+      'core.Sql': ['sql.parameters'],
+    }[task.type] || [];
+  if (['core.Log', 'core.Sleep'].includes(task.type)) optional.push('timeout');
+  if (
+    ['core.Log', 'core.Sleep', 'core.Sql', 'platform.Application'].includes(task.type) ||
+    (task.type === 'core.Http' && task.http?.method !== 'POST')
+  )
+    optional.push('retry');
+  return [...main, ...optional].map((name) => {
+    const path = name.split('.');
+    let schema = { $ref: '#/$defs/Task' };
+    for (const key of path) schema = shape(schema, root).properties?.[key];
+    return { path, schema, required: main.includes(name) };
+  });
+}
 export function outputPorts(task) {
   if (task.container) return task.container.outputFiles || [];
   if (task.loop) return Object.keys(task.loop.outputs || {});

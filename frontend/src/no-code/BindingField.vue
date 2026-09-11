@@ -7,6 +7,7 @@ const props = defineProps({
   flow: Object,
   options: Array,
   allowedSources: Array,
+  hideSource: Boolean,
 });
 const emit = defineEmits(['patch', 'invalid']);
 const scope = computed(() => bindingScope(props.flow, props.path));
@@ -46,8 +47,9 @@ function literal(event) {
 </script>
 <template>
   <div class="binding-field">
-    <label class="sr-only">参数来源</label>
+    <label v-if="!hideSource" class="sr-only">参数来源</label>
     <select
+      v-if="!hideSource"
       aria-label="参数来源"
       :value="value?.source || 'LITERAL'"
       @change="changeSource($event.target.value)"

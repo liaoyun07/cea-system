@@ -4,6 +4,8 @@
 
 ## 设计与当前消费者
 
+UI-02c增量：任务字段按类型必填前置、其余纵向排列，Loop/Repeat等配置不另套对象编辑层；values来源使用普通下拉，保留原Binding和确认取消语义。详见[排版规格](UI-02c-task-form-layout.md)。
+
 UI-04增量：Flow Inputs可选SELECT，values逐项配置，defaultValue从选项中选择；删除默认值对应选项时保留原值供修正，不静默换值。非SELECT不显示空values，但保留误填的现有values供删除并交服务端校验。执行表单保持原默认值/提供开关，SELECT提供下拉，不隐式选首项；边界与验收见[SELECT规格](UI-04-select-input.md)。
 
 - FlowEditor.source是唯一编辑源。No-code使用yaml库的Document节点按路径修改，不从表单重建整份Flow；保留未知/未覆盖字段及未修改节点的注释。序列化可能调整空白/折行，不承诺逐字节不变。无效文档不允许表单写入，保留原文供修正。

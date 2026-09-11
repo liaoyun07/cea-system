@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-02c已完成并发布：WF-016既有No-code的必填字段前置、任务配置展平和来源下拉展示。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；只更新CEA前端，实际页面复核PASS，两Flow及四条历史执行未变，其余11个服务未重启。不新增领域能力、Java、表、API或执行链。[功能规格](features/UI-02c-task-form-layout.md)，[验证记录](verification/VER-UI-002c-task-form-layout.md)。
+
 UI-04已完成并发布：WF-002/WF-016增加固定字符串SELECT、values、默认值/必填和端到端成员校验；30项Node、36项浏览器、215项Maven及构建/格式/scaffold通过。已按用户确认同步更新CEA前后端并只读复核，不改两Flow及四条历史执行，其他十个容器未重启。不新增功能编号、API、表或执行链。[语义与边界](features/UI-04-select-input.md)，[验证记录](verification/VER-UI-004-select-input.md)。
 
 UI-02b已完成并发布：Loop.values的Array/引用及逐项集合编辑，FedAvg/FedProx移除clients启动输入，实际CEA修订为r4/r2。29项Node、34项浏览器、212项Maven及构建/格式/scaffold通过，实际页面和历史保留复核PASS，其余11个服务未重启。无新领域功能编号或后端执行能力，见[记录](verification/VER-UI-002b-loop-values.md)。

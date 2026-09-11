@@ -12,10 +12,55 @@ import {
   outputPorts,
   readCatalog,
   parseJsonValue,
+  taskFormFields,
 } from '../../src/no-code/document.js';
 
 const source =
   '# keep header\nschemaVersion: 1\nnamespace: lab\nid: edit\nlabels: {owner: lab} # retain\ninputs:\n  n: {type: INTEGER, defaultValue: 0}\ntasks:\n  - id: first\n    type: core.Log\n    message: first # keep message comment\n  - id: second\n    type: core.Log\n    message: second\noutputs:\n  result: {source: TASK_OUTPUT, taskId: second, port: message}\n';
+test('task form order follows required fields and omits unsupported control reliability fields', () => {
+  const root = {
+    $defs: {
+      Task: { properties: { loop: { $ref: '#/$defs/Loop' } } },
+      Loop: {
+        properties: { values: { oneOf: [] }, concurrency: { type: 'integer' }, outputs: { type: 'object' } },
+      },
+    },
+  };
+  const loop = taskFormFields({ type: 'core.Loop' }, root);
+  assert.deepEqual(
+    loop.map((f) => [f.path.join('.'), f.required]),
+    [
+      ['loop.values', true],
+      ['loop.concurrency', false],
+      ['loop.outputs', false],
+    ],
+  );
+  assert.equal(loop[0].schema, root.$defs.Loop.properties.values);
+  assert.deepEqual(
+    taskFormFields({ type: 'core.Repeat' }, root).map((f) => [f.path.join('.'), f.required]),
+    [
+      ['repeat.iterations', true],
+      ['repeat.initial', false],
+      ['repeat.feedback', false],
+    ],
+  );
+  for (const type of ['core.Sequential', 'core.Parallel', 'core.Dag'])
+    assert.deepEqual(taskFormFields({ type }, root), []);
+  const http = taskFormFields({ type: 'core.Http', http: { method: 'POST' } }, root);
+  assert.deepEqual(
+    http.map((f) => [f.path.join('.'), f.required]),
+    [
+      ['http.connection', true],
+      ['http.method', true],
+      ['http.path', true],
+      ['timeout', true],
+      ['http.body', false],
+    ],
+  );
+  assert.ok(
+    taskFormFields({ type: 'core.Http', http: { method: 'GET' } }, root).some((f) => f.path[0] === 'retry'),
+  );
+});
 test('field edits retain non-edited fields and comments, including false/0/empty', () => {
   let next = changeSource(source, ['tasks', 0, 'message'], 'changed');
   next = changeSource(next, ['inputs', 'n', 'required'], false);

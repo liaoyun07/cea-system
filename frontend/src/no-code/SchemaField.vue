@@ -12,6 +12,7 @@ const props = defineProps({
   label: String,
   options: Array,
   disabled: Boolean,
+  required: Boolean,
 });
 const emit = defineEmits(['patch', 'invalid']);
 const inputSpec = computed(() =>
@@ -129,7 +130,10 @@ function json(event) {
 <template>
   <div class="schema-field" :data-field="path.join('.')">
     <div class="field-heading">
-      <label :for="fieldId">{{ label || labels[path.at(-1)] || path.at(-1) }}</label>
+      <label :for="fieldId"
+        ><span v-if="required" class="required" aria-hidden="true">* </span
+        >{{ label || labels[path.at(-1)] || path.at(-1) }}</label
+      >
       <button
         v-if="!disabled && value !== undefined && value !== null"
         class="field-clear"

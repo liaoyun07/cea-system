@@ -97,7 +97,13 @@ try {
     const savedSource = await page.getByLabel('Flow YAML').inputValue();
     await page.locator('[data-task="clients"] > .task-card-header .task-select').click();
     const loopValues = page.locator('.loop-values-field');
-    await expect(loopValues.getByRole('button', {name: 'Array', exact: true})).toHaveAttribute('aria-pressed', 'true');
+    const loopValuesField = loopValues.locator('..');
+    await expect(loopValuesField.locator(':scope > .field-heading .required')).toBeVisible();
+    await expect(loopValuesField.locator('..')).toHaveJSProperty('tagName', 'FIELDSET');
+    await expect(page.locator('.task-inspector [data-task-identity="type"] input')).toHaveValue('core.Loop');
+    await expect(page.locator('.task-inspector [data-task-identity="id"] input')).toHaveValue('clients');
+    await expect(loopValues.getByRole('button', {name: 'Array', exact: true})).toHaveCount(0);
+    await expect(loopValues.getByLabel('集合来源')).toHaveValue('LITERAL');
     await expect(loopValues.locator('[data-loop-item]')).toHaveCount(3);
     await expect(loopValues.locator('[data-loop-item="0"]').getByLabel('id', {exact: true})).toHaveValue('edge-a');
     await page.screenshot({path: fileURLToPath(new URL(flow + '-loop-values.png', evidence))});

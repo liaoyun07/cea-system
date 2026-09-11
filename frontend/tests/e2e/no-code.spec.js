@@ -320,10 +320,7 @@ test('FedAvg/FedProx no-code round-trip keeps executable DSL and scoped item ref
     await open(page, id, text);
     await page.locator('[data-task="clients"] > .task-card-header .task-select').click();
     const values = page.locator('.loop-values-field');
-    await expect(values.getByRole('button', { name: 'Array', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(values.getByLabel('集合来源')).toHaveValue('LITERAL');
     await expect(values.locator('[data-loop-item]')).toHaveCount(3);
     await expect(values.locator('[data-loop-item="0"]').getByLabel('id', { exact: true })).toHaveValue(
       'edge-a',
@@ -407,7 +404,7 @@ test('Loop values edit objects in place, reorder, preserve scalar types and exec
   expect(result.outputs.items).toEqual(expected);
 });
 
-test('Loop Array/reference modes keep existing Binding sources and require confirmation', async ({
+test('Loop source dropdown keeps existing Binding sources and requires confirmation', async ({
   page,
   request,
 }) => {
@@ -421,17 +418,18 @@ test('Loop Array/reference modes keep existing Binding sources and require confi
   const values = page.locator('.loop-values-field');
   await expect(values.getByLabel('流程输入引用')).toHaveValue('items');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await values.getByRole('button', { name: 'Array', exact: true }).click();
+  await values.getByLabel('集合来源').selectOption('LITERAL');
+  await expect(values.getByLabel('集合来源')).toHaveValue('INPUT');
   await expect(values.getByLabel('流程输入引用')).toHaveValue('items');
   page.once('dialog', (dialog) => dialog.accept());
-  await values.getByRole('button', { name: 'Array', exact: true }).click();
+  await values.getByLabel('集合来源').selectOption('LITERAL');
   await expect(values.locator('[data-loop-item]')).toHaveCount(2);
   await expect(values.getByLabel('第 1 项', { exact: true })).toHaveValue('1');
   page.once('dialog', (dialog) => dialog.accept());
-  await values.getByRole('button', { name: '引用', exact: true }).click();
-  await values.getByLabel('参数来源').selectOption('VARIABLE');
+  await values.getByLabel('集合来源').selectOption('VARIABLE');
   await values.getByLabel('流程变量引用').selectOption('other');
-  await values.getByLabel('参数来源').selectOption('TASK_OUTPUT');
+  page.once('dialog', (dialog) => dialog.accept());
+  await values.getByLabel('集合来源').selectOption('TASK_OUTPUT');
   await values.getByLabel('上游任务').selectOption('seed');
   await values.getByLabel('输出端口').selectOption('numbers');
   await page.getByRole('button', { name: '保存修订', exact: true }).click();
@@ -479,10 +477,7 @@ test('Loop creates an object element and nested array without source editing', a
   await page.getByRole('button', { name: '移除 values', exact: true }).click();
   await page.getByRole('button', { name: '＋ 设置 values', exact: true }).click();
   const values = page.locator('.loop-values-field');
-  await expect(values.getByRole('button', { name: 'Array', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(values.getByLabel('集合来源')).toHaveValue('LITERAL');
   await expect(values.locator('[data-loop-item]')).toHaveCount(0);
   await values.getByRole('button', { name: '＋ 添加到 values', exact: true }).click();
   await values.getByLabel('第 1 项 类型', { exact: true }).selectOption('object');
@@ -510,6 +505,44 @@ test('Loop creates an object element and nested array without source editing', a
     source: 'LITERAL',
     value: [{ name: 'client', locations: ['edge-a'] }],
   });
+});
+
+test('task required fields lead a single vertical form without an outer loop wrapper', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  const source = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ninputs:\n  items: {type: ARRAY, defaultValue: [edge-a, edge-b]}\ntasks:\n  - id: each\n    type: core.Loop\n    loop:\n      values: {source: INPUT, name: items}\n    tasks: [{id: log, type: core.Log, message: '{{ item.value }}'}]\n`;
+  await open(page, id, source);
+  await page.locator('[data-task="each"] > .task-card-header .task-select').click();
+  const inspector = page.locator('.task-inspector');
+  const fields = inspector.locator('fieldset > .schema-field');
+  expect(
+    await fields.evaluateAll((nodes) => nodes.map((node) => node.dataset.taskIdentity || node.dataset.field)),
+  ).toEqual(['type', 'id', 'tasks.0.loop.values', 'tasks.0.loop.concurrency', 'tasks.0.loop.outputs']);
+  await expect(
+    inspector.locator('[data-field="tasks.0.loop.values"] > .field-heading .required'),
+  ).toBeVisible();
+  await expect(inspector.locator('[data-field="tasks.0.loop"]')).toHaveCount(0);
+  await expect(inspector.locator('[data-field="tasks.0.timeout"], [data-field="tasks.0.retry"]')).toHaveCount(
+    0,
+  );
+  await expect(inspector.getByRole('button', { name: 'Array', exact: true })).toHaveCount(0);
+  await expect(inspector.getByRole('button', { name: '引用', exact: true })).toHaveCount(0);
+  await expect(inspector.getByLabel('集合来源')).toHaveValue('INPUT');
+  await expect(inspector.getByLabel('流程输入引用')).toHaveValue('items');
+  await inspector.screenshot({ path: '.local/evidence/task-form-order.png' });
+  await page.setViewportSize({ width: 650, height: 900 });
+  await inspector.screenshot({ path: '.local/evidence/task-form-order-narrow.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  const saved = await (await request.get(`${base}/flows/${id}`, { headers })).json();
+  expect(parse(saved.source)).toEqual(parse(source));
+  await page.locator('[data-task="log"] > .task-card-header .task-select').click();
+  expect(
+    await fields.evaluateAll((nodes) => nodes.map((node) => node.dataset.taskIdentity || node.dataset.field)),
+  ).toEqual(['type', 'id', 'tasks.0.tasks.0.message', 'tasks.0.tasks.0.timeout', 'tasks.0.tasks.0.retry']);
 });
 
 test('SELECT is authored in no-code, saved with values, previewed and executed as a string', async ({

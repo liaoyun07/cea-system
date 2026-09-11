@@ -15,6 +15,7 @@ import {
   moveTask,
   removeTask,
   readCatalog,
+  taskFormFields,
 } from './document.js';
 
 const props = defineProps({
@@ -61,23 +62,13 @@ const flow = computed(() => parsed.value.value);
 const entries = computed(() => (flow.value ? taskEntries(flow.value) : []));
 const current = computed(() => at(flow.value, selected.value));
 const entry = computed(() => entries.value.find((e) => pathKey(e.path) === pathKey(selected.value)));
+const taskFields = computed(() =>
+  selected.value.length && current.value && schema.value ? taskFormFields(current.value, schema.value) : [],
+);
 const properties = computed(() => {
-  const fields = schema.value?.$defs[selected.value.length ? 'Task' : 'FlowDefinition']?.properties || {};
-  const type = current.value?.type;
+  const fields = schema.value?.$defs.FlowDefinition?.properties || {};
   const visible = selected.value.length
-    ? ['message', 'duration', 'condition', 'repeat', 'loop', 'http', 'sql', 'timeout', 'retry'].filter(
-        (key) =>
-          !['message', 'duration', 'condition', 'repeat', 'loop', 'http', 'sql'].includes(key) ||
-          {
-            message: 'core.Log',
-            duration: 'core.Sleep',
-            condition: 'core.If',
-            repeat: 'core.Repeat',
-            loop: 'core.Loop',
-            http: 'core.Http',
-            sql: 'core.Sql',
-          }[key] === type,
-      )
+    ? []
     : [
         'description',
         'labels',
@@ -322,9 +313,26 @@ onMounted(() => {
         </header>
         <fieldset :key="externalEdit" :disabled="disabled">
           <template v-if="current">
-            <p v-if="selected.length" class="inspector-description">
-              {{ taskLabels[current.type] }} <code>{{ current.type }}</code>
-            </p>
+            <template v-if="selected.length">
+              <div v-for="name in ['type', 'id']" :key="name" class="schema-field" :data-task-identity="name">
+                <label class="field-heading" :for="`current-task-${name}`"
+                  ><span class="required" aria-hidden="true">*</span> {{ name }}</label
+                >
+                <input :id="`current-task-${name}`" :value="current[name]" readonly :aria-required="true" />
+              </div>
+              <SchemaField
+                v-for="field in taskFields.filter((f) => f.required)"
+                :key="`${pathKey(selected)}-${field.path.join('.')}`"
+                :schema="field.schema"
+                :root="schema"
+                :value="at(current, field.path)"
+                :path="[...selected, ...field.path]"
+                :flow="flow"
+                :required="true"
+                @patch="patch"
+                @invalid="invalid"
+              />
+            </template>
             <template v-if="entry?.parent?.task.type === 'core.Dag'">
               <label class="field-heading">依赖任务</label>
               <div class="dependency-options">
@@ -350,7 +358,9 @@ onMounted(() => {
               <div v-if="catalogError" class="notice warning">
                 目录读取失败：{{ catalogError }}<button @click="loadCatalogs">重试目录</button>
               </div>
-              <label class="field-heading" for="application-version">应用与版本</label>
+              <label class="field-heading" for="application-version"
+                ><span class="required" aria-hidden="true">*</span> 应用与版本</label
+              >
               <select id="application-version" :value="appKey" @change="selectApp">
                 <option :value="JSON.stringify(['', ''])" disabled>选择已登记的应用版本</option>
                 <option v-if="current.container?.applicationId && !app" :value="appKey">
@@ -473,6 +483,18 @@ onMounted(() => {
                 </div>
               </details>
             </template>
+            <SchemaField
+              v-for="field in taskFields.filter((f) => !f.required)"
+              :key="`${pathKey(selected)}-${field.path.join('.')}`"
+              :schema="field.schema"
+              :root="schema"
+              :value="at(current, field.path)"
+              :path="[...selected, ...field.path]"
+              :label="field.path.join('.') === 'loop.outputs' ? '循环输出' : undefined"
+              :flow="flow"
+              @patch="patch"
+              @invalid="invalid"
+            />
             <SchemaField
               v-for="(field, name) in properties"
               :key="`${pathKey(selected)}-${name}`"

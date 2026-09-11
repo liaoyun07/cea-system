@@ -377,10 +377,13 @@
   margin: 0;
   min-width: 0;
 }
-.inspector-description {
-  font-size: 11px;
-  color: #8c7b9b;
-  margin-bottom: 16px;
+.task-inspector > fieldset > .schema-field {
+  border-bottom: 1px solid #eee9f4;
+  padding-bottom: 16px;
+}
+.task-inspector label.field-heading {
+  justify-content: flex-start;
+  gap: 4px;
 }
 .schema-field {
   margin: 0 0 16px;
@@ -1507,22 +1510,9 @@ dd {
   gap: 10px;
   min-width: 0;
 }
-.loop-value-modes {
-  display: flex;
+.loop-source-field {
+  display: grid;
   gap: 6px;
-  margin-bottom: 6px;
-}
-.loop-value-modes button {
-  border: 0;
-  padding: 4px 10px;
-  background: transparent;
-}
-.loop-value-modes button[aria-pressed='true'] {
-  background: #7141cf;
-  color: white;
-}
-.loop-value-modes button[aria-pressed='true']:hover {
-  background: #6436bb;
 }
 .loop-value-item {
   border: 1px solid #e5ddef;
