@@ -1,16 +1,20 @@
 # 当前进度
 
-最新完成：UI-02同源No-code已实现并更新CEA的18080前端。任务块/单表单、显式Binding与目录选择、YAML联动、修订比较回退复用原API；最终23项Node单测、19项真实JAR浏览器回归、构建/格式检查和实际CEA只读复核PASS。后端完整verify首轮两项超时，未改代码或测试阈值，13:39:37第二轮212项Maven及容器内12项Python通过，失败经过保留在[UI-02验收](verification/VER-UI-002-no-code.md)。只替换frontend，其余11个CEA容器ID/StartedAt均不变，未改业务模板、执行数据、Java、表或API。不是完整Kestra、管理台全迁移或S7完成。
+最新完成：UI-03已有管理能力迁移并更新CEA的18080前端。应用契约版本与真实镜像准备、Deployment创建/状态/版本前置删除、集群/数据集、网关/终端登记启停、同源策略No-code/YAML/CAS及卸载观测只读均已接通。最终29项Node、28项真实JAR/Registry/K3s浏览器回归、212项Maven及12项Python通过；首轮测试定位/断言问题如实保留在[UI-03验收](verification/VER-UI-003-management.md)。14:31:01实际CEA只读复核PASS：应用5、集群4、数据集2，空网关/终端/策略/观测和部署列表与API一致。只替换frontend，其他11个容器ID及StartedAt均未变；生产Java、表、API和执行主链未改。仍缺后端接口的功能见[迁移矩阵](features/UI-03-management.md)，不是全部旧页面或S7完成。
+
+上一批：UI-02同源No-code已实现并更新CEA的18080前端。任务块/单表单、显式Binding与目录选择、YAML联动、修订比较回退复用原API；最终23项Node单测、19项真实JAR浏览器回归、构建/格式检查和实际CEA只读复核PASS。后端完整verify首轮两项超时，未改代码或测试阈值，13:39:37第二轮212项Maven及容器内12项Python通过，失败经过保留在[UI-02验收](verification/VER-UI-002-no-code.md)。只替换frontend，其余11个CEA容器ID/StartedAt均不变，未改业务模板、执行数据、Java、表或API。不是完整Kestra、管理台全迁移或S7完成。
 
 部署基线：DEPLOY-01独立D盘cea部署。Docker数据路径迁移、12个专用服务、四集群、外部连接配置已落地；FedAvg/FedProx各全量MNIST两轮/11个Job及独立数值复核PASS。整组stop/start后两Flow、四条含排错历史的Execution、全部成功产物与Job保留，再次数值/浏览器复核PASS。修正KubernetesJobRunner传文件时带宿主归属导致的权限失败；04:20:01完整212项Maven/12项Python回归PASS，无新Java类/表/API/SPI。见[实测记录](verification/VER-DEPLOY-001-cea.md)。不将S7切换标为完成，不改旧业务数据。
 
-最新增量：2026-09-11用户授权UI-01独立前端最小闭环并要求参考Kestra风格/操作。[frontend](../frontend/README.md)已接通现有API，11项实际JAR浏览器联调通过，包含日志分页/动态实例检查；9项Node单测、构建及格式检查通过。Java主链未改，本次重新执行完整verify，212项Maven/12项Python于00:45:59通过。最终证据见[UI验收](verification/VER-UI-001-console.md)。S7、完整No-code、其他管理页、计量和长期DQN不在本批范围。
+UI-01基线：2026-09-11用户授权UI-01独立前端最小闭环并要求参考Kestra风格/操作。[frontend](../frontend/README.md)已接通现有API，11项实际JAR浏览器联调通过，包含日志分页/动态实例检查；9项Node单测、构建及格式检查通过。Java主链未改，本次重新执行完整verify，212项Maven/12项Python于00:45:59通过。最终证据见[UI验收](verification/VER-UI-001-console.md)。S7、完整No-code、其他管理页、计量和长期DQN不在本批范围。
 
 S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过212项Maven与12项Python测试，见[S6验收](verification/VER-S6-002-files-lifecycle.md)。S6按已授权的最小后端范围DONE；S5的DQN研究和数据处理速率仍后置。
 
 更新时间：2026-09-11。S6-01至04全部验收通过；S5已实现的核心链继续通过回归，长期DQN、计量和物理多云性能尚未完成，不因后置而标为达标。
 
 ## 当前事实
+
+- UI-03：已有API管理页与真实部署验收完成。策略复用单一Flow编辑源和原执行器，目录版本/归属/CAS约束保持。应用注册不是镜像tar上传；Deployment更新回读不足，暂不提供编辑/启停/缩放；账号、Node/Service/Namespace、对象浏览及分发历史仍缺接口。
 
 - UI-01：内存Basic认证、命名空间；真实Flow列表/搜索/分页、YAML源校验/Schema参考、修订CAS和未保存提示；显式Flow.inputs类型表单/预览、固定修订及未决请求同键重试；Execution/TaskRun/Attempt、增量日志、取消、主结果与afterExecution展示。前端独立npm工程，不增Java、表、API或第二套绑定。原先“前端未实现”的记录指此批之前或完整前端范围。
 
@@ -36,7 +40,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
 - FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
-- 仍未实现：其他流任务、完整Kestra工作台及资源/应用/网关/账号注册管理前端、网关代理部署/终端卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。联邦学习测试不是物理多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
+- 仍未实现：其他流任务、完整Kestra工作台、账号及完整Node/Service/Namespace管理前端、网关代理部署/终端卸载DQN、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows镜像、强删Job后的exactly-once恢复。联邦学习测试不是物理多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
 - 详细语义：[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)、[最小部署](operations/s4-minimal-deployment.md)。设计取舍见ADR-0009/0010；完整源码索引见架构文档。
 
 ## 阶段看板
@@ -59,6 +63,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 | DEPLOY-01 | DONE（独立单机部署） | D盘Compose、独立配置/凭据、四集群两算法、22个成功Job、全量数据数值/浏览器/重启复核PASS；Pod stdout汇入日志、物理多云、旧切换不在范围 |
 | UI-01 | DONE（最小前端） | 原API源编辑/保存/固定修订执行/详情，9项Node及11项真实浏览器联调PASS；不是完整No-code或全管理台 |
 | UI-02 | DONE（当前DSL范围） | 23项Node/19项真实JAR浏览器及212项Maven/12项Python完整回归PASS，CEA前端更新/只读复核PASS；首轮失败保留在VER-UI-002 |
+| UI-03 | DONE（已有API范围） | 29项Node/28项真实浏览器、212项Maven/12项Python PASS；只更新CEA前端并只读复核，缺口见VER-UI-003 |
 | S4-01 | DONE | 目录、本地性、7个API、11项新增测试与75项回归通过；文档/索引/协议同步，见VER-S4-001 |
 | S4-02 | DONE | a纯契约目录保留，b真实镜像分发/c常驻部署完成；103项统一verify PASS，见VER-S4-004 |
 | S4-03 | DONE | 真实Job/产物/同Attempt接管/取消/平台槽及全量回归PASS |

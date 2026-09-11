@@ -22,12 +22,18 @@ UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文�
 | `frontend/src/ExecutionDetail.vue` | 实际Execution/TaskRun/Attempt、增量日志、结果与后处理、取消/轮询释放 |
 | `frontend/src/api.js` | Basic、同源请求、超时和结构化错误，无新服务状态 |
 | `frontend/src/model.js` | 六种输入转换、提交快照、日志去重/窗口、显式插入的Log草稿 |
+| `frontend/src/management/catalogs.js` | 新API路径、目录表列与表单值到既有请求体转换；无后端模型或第二套Binding |
+| `frontend/src/management/CatalogPage.vue` | 七类目录的分页/详情/登记/启停、应用镜像准备、策略CAS保存、取消过期读取 |
+| `frontend/src/management/CatalogForm.vue` | 集群/数据集位置/应用契约/网关/终端字段，策略复用同源NoCodeEditor |
+| `frontend/src/management/DeploymentsPage.vue` | 按集群创建/查询/删除实际Deployment；不猜测旧参数执行更新 |
 | `frontend/src/style.css` | Kestra参考方向的工作台、编辑区、执行标签、响应式样式 |
 | `frontend/vite.config.js` | 独立构建、开发/本地预览同源代理 |
 
 测试：`frontend/tests/unit/model.test.js`（转换/请求/错误）和`frontend/tests/e2e/console.spec.js`（实际JAR浏览器闭环）；`frontend/tests/run-e2e.mjs`管理仅本次临时MySQL/JAR/预览生命周期。无Java/表/字段/API/SPI变更。
 
 UI-02新增`frontend/tests/unit/no-code.test.js`（文档往返/引用/分组）与`frontend/tests/e2e/no-code.spec.js`（无代码创建/执行、动态作用域、目录、修订和大任务树）。新增yaml依赖用于真实AST编辑保留注释，不参与后端执行。`deploy/cea/verify-browser.mjs`只读复核实际部署页面；所有证据见[UI-02验收](verification/VER-UI-002-no-code.md)。生产Java仍为86份。
+
+UI-03新增management单测/浏览器测试与`frontend/tests/runtime-fixture.mjs`真实临时Registry/K3s夹具，由既有run-e2e统一启动清理。目录请求分别到Resource/Application/Edge/Offloading Controller；常驻部署直接复用DeploymentController，策略只用EdgeController保存单一Flow。没有新增生产Java、HTTP操作、表、字段、SPI或跨模块依赖。
 
 根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共86份（含8份包声明），测试类另列。
 

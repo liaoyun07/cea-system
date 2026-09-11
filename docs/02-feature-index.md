@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-03是RES-001、DEP-001/002、EDGE-001/002及OFF-002的前端消费者，沿用现有编号/API；只读卸载页不扩展模型研究。已有管理功能与真实分发/部署/策略事件验收通过，29项Node、28项浏览器及212项Maven/12项Python PASS。已更新CEA前端，详细已迁移/缺接口列表及失败经过见[UI-03规格](features/UI-03-management.md)和[验收](verification/VER-UI-003-management.md)。MIG-001旧数据/模板转换与切换仍未实施。
+
 UI-02是WF-016/WF-002/WF-003的前端消费者，不增加功能编号或后端模型；任务块、单表单、原Binding/目录、同源YAML和修订比较回退已实现，测试与部署状态见[UI-02验收](verification/VER-UI-002-no-code.md)。[功能边界](features/UI-02-no-code.md)不含完整Kestra、资源注册管理、Pod日志、指标或旧数据迁移。下方UI-01/S6描述保留对应历史批次边界。
 
 DEPLOY-01是OPS-001/FL-001的独立部署工作包，当前DONE/PASS，不是新增领域能力。[范围](features/DEPLOY-01-independent.md)与[实测记录](verification/VER-DEPLOY-001-cea.md)覆盖D盘Compose、显式配置、四集群联邦算法、浏览器和重启复核；FL-001本批已扩至真实MNIST训练60000/测试10000。算法Pod stdout未汇入Execution日志；不包含MIG-001旧数据转换/切换，OPS汇总仍保留最终上线未验收的边界。
@@ -30,7 +32,7 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | WF-014 | Webhook/Checks/SLA/afterExecution | S6 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-015 | Namespace Files、导入导出、搜索过滤 | S6 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-017 | 通用动态Loop、item作用域、有序集合输出 | S5 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-016 | 统一编辑 Schema、No-code 前端对接 | S6/UI-01 | platform-dataflow/frontend | IMPLEMENTED（协议＋最小源编辑前端；No-code未实现） | PASS（当前范围） |
+| WF-016 | 统一编辑 Schema、No-code 前端对接 | S6/UI-01/02/03 | platform-dataflow/frontend | IMPLEMENTED（当前DSL的同源No-code/源码；含策略入口） | PASS（当前范围） |
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
 | RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IMPLEMENTED | PASS |
 | DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IMPLEMENTED | PASS |

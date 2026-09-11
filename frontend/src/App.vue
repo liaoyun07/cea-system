@@ -4,12 +4,46 @@ import { basicAuthorization, createApi, errorText } from './api.js';
 import { time } from './model.js';
 import FlowEditor from './FlowEditor.vue';
 import ExecutionDetail from './ExecutionDetail.vue';
+import CatalogPage from './management/CatalogPage.vue';
+import DeploymentsPage from './management/DeploymentsPage.vue';
+import { catalogs } from './management/catalogs.js';
+
+const navigation = [
+  {
+    label: '工作空间',
+    items: [
+      ['flows', '流程', '◇'],
+      ['executions', '执行', '▷'],
+    ],
+  },
+  {
+    label: '应用与资源',
+    items: [
+      ['applications', '应用与镜像', '▣'],
+      ['deployments', '应用部署', '▤'],
+      ['clusters', '集群资源', '⬡'],
+      ['datasets', '数据集', '▥'],
+    ],
+  },
+  {
+    label: '边缘与终端',
+    items: [
+      ['gateways', '边缘网关', '⌁'],
+      ['terminals', '终端设备', '▱'],
+      ['policies', '边缘处理策略', '⋈'],
+      ['observations', '卸载观测', '↗'],
+    ],
+  },
+];
+const titleFor = (key) =>
+  catalogs[key]?.title || { flows: '流程', executions: '执行', deployments: '应用部署' }[key];
 
 const namespace = ref('lab'),
   username = ref('developer'),
   password = ref('');
 const session = ref(null),
   page = ref('flows'),
+  pageEpoch = ref(0),
   selectedFlow = ref(null),
   selectedExecution = ref(null);
 const editorTitle = ref('');
@@ -27,7 +61,7 @@ const pageTitle = computed(() =>
     ? selectedFlow.value !== null
       ? editorTitle.value || selectedFlow.value || '新建流程'
       : '流程'
-    : selectedExecution.value || '执行',
+    : selectedExecution.value || titleFor(page.value),
 );
 let requestGeneration = 0;
 
@@ -36,8 +70,8 @@ function mayLeave() {
     !(dirty.value || pending.value) ||
     window.confirm(
       pending.value
-        ? '有提交结果尚未确认。离开将丢失原请求的重试信息，请先核对执行列表。仍然离开？'
-        : '有未保存的 YAML 修改，确定离开并放弃这些修改？',
+        ? '有请求结果尚未确认。离开将丢失当前请求的重试信息，请先核对服务端状态。仍然离开？'
+        : '有未保存的修改，确定离开并放弃这些修改？',
     )
   );
 }
@@ -104,12 +138,15 @@ async function loadList() {
 function navigate(target) {
   if (busy.value || !mayLeave()) return;
   page.value = target;
+  pageEpoch.value++;
   selectedFlow.value = null;
   selectedExecution.value = null;
   dirty.value = false;
   pending.value = false;
   offset.value = 0;
-  loadList();
+  requestGeneration++;
+  error.value = '';
+  if (['flows', 'executions'].includes(target)) loadList();
 }
 function edit(id) {
   if (!mayLeave()) return;
@@ -163,24 +200,21 @@ function paginate(delta) {
       <div class="workspace-name">
         <span class="tiny-dot"></span>{{ session.namespace }}<small>命名空间</small>
       </div>
-      <div class="nav-caption">工作空间</div>
       <nav aria-label="主导航">
-        <button
-          aria-label="流程"
-          :class="{ active: page === 'flows' }"
-          :disabled="busy"
-          @click="navigate('flows')"
-        >
-          <span class="nav-icon" aria-hidden="true">◇</span>流程
-        </button>
-        <button
-          aria-label="执行"
-          :class="{ active: page === 'executions' }"
-          :disabled="busy"
-          @click="navigate('executions')"
-        >
-          <span class="nav-icon" aria-hidden="true">▷</span>执行
-        </button>
+        <template v-for="group in navigation" :key="group.label">
+          <div class="nav-caption">{{ group.label }}</div>
+          <button
+            v-for="[key, title, icon] in group.items"
+            :key="key"
+            :aria-label="title"
+            :class="{ active: page === key }"
+            :disabled="busy"
+            @click="navigate(key)"
+          >
+            <span class="nav-icon" aria-hidden="true">{{ icon }}</span
+            >{{ title }}
+          </button>
+        </template>
       </nav>
       <div class="sidebar-bottom">
         <div class="avatar">{{ session.username.slice(0, 1).toUpperCase() }}</div>
@@ -191,8 +225,7 @@ function paginate(delta) {
     <main>
       <header class="breadcrumb">
         <span>{{ session.namespace }}</span
-        ><span>/</span
-        ><button @click="navigate(page)" :disabled="busy">{{ page === 'flows' ? '流程' : '执行' }}</button
+        ><span>/</span><button @click="navigate(page)" :disabled="busy">{{ titleFor(page) }}</button
         ><template v-if="selectedFlow !== null || selectedExecution"
           ><span>/</span><span class="crumb-current">{{ pageTitle }}</span></template
         >
@@ -214,6 +247,23 @@ function paginate(delta) {
         :key="selectedExecution"
         :api="session.api"
         :execution-id="selectedExecution"
+      />
+      <CatalogPage
+        v-else-if="catalogs[page]"
+        :key="`${session.namespace}/${page}/${pageEpoch}`"
+        :kind="page"
+        :api="session.api"
+        :namespace="session.namespace"
+        @dirty="dirty = $event"
+        @pending="pending = $event"
+        @execution="showExecution"
+      />
+      <DeploymentsPage
+        v-else-if="page === 'deployments'"
+        :key="pageEpoch"
+        :api="session.api"
+        @dirty="dirty = $event"
+        @pending="pending = $event"
       />
       <section v-else class="list-page">
         <div class="page-heading">

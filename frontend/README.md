@@ -26,6 +26,16 @@ npm run dev
 
 已登记的FedAvg/FedProx也能从列表编辑/运行，不需要专用前端接口。镜像、集群、存储、数据集和应用契约仍须按[算法运行说明](../algorithms/federated/README.md)准备。本批浏览器测试运行Log/Sleep，不是从页面完成物理多云训练的验收。
 
+## 应用与边缘管理（UI-03）
+
+侧栏增加应用与镜像、应用部署、集群资源、数据集、边缘网关、终端设备、边缘处理策略和卸载观测。全部使用新后端现有API，不导入旧数据。
+
+推荐登记顺序：集群 → 数据集版本/位置 → 应用版本/契约 → 流程或常驻部署。应用参数声明包括类型、必填、默认值、允许值或DatasetRule；原版本只能查看，“基于此版本新建”用于修改。镜像准备操作返回实际目标digest镜像，不代表容器已运行，也不是持久分发历史。
+
+网关需先配置专用CONNECT账号，再登记边缘集群/账号归属，之后登记终端。页面展示真实lastSeenAt，不推断在线。策略使用同一No-code/YAML编辑器，保存到edge策略API，expectedRevision冲突保留草稿；事件路由不可改派。策略Flow不出现在普通流程列表。
+
+应用部署只创建新名称、查询实际副本/条件及带resourceVersion删除。当前后端GET不回传原parameters/command，因此暂不提供可能清空这些配置的编辑、启停或缩放。目录enabled只控制准入，不是健康状态；登记集群不自动创建连接配置。完整迁移矩阵见[UI-03范围](../docs/features/UI-03-management.md)。
+
 ## 重要语义
 
 - YAML是唯一编辑源；No-code按Document节点路径修改，表单结构来自后端Schema。保留未改字段和注释，但序列化可能调整空白/折行。非法YAML、重复键、别名、超大整数不会被表单静默替换；修正源码后恢复。不是完整Kestra/Monaco，不提供任意画线或第二份画布定义。
@@ -70,6 +80,6 @@ $env:CEA_JAVA_HOME='你的 JDK 21 目录'
 npm run test:e2e
 ```
 
-E2E要求Docker可用、已构建后端JAR。自动创建临时MySQL、随机账号/端口、新JAR进程和静态预览，结束删除本次临时数据库容器并停止本次进程。不接业务库、不启动/停止IDEA服务。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
+E2E要求Docker可用、已构建后端JAR，以及本地测试镜像mysql:8.0、registry:2、quay.io/skopeo/stable:v1.20.0、rancher/k3s:v1.30.6-k3s1、rancher/mirrored-pause:3.6和alpine:latest。自动创建临时MySQL、Registry、Skopeo、K3s、随机账号/端口、新JAR进程和静态预览；测试结束清理本次容器、网络和临时配置。不接业务库、不启动/停止IDEA或CEA服务。临时K3s仅用于浏览器实际分发/创建/就绪/删除验收。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
 
-尚无资源/应用/网关/账号注册管理页面、完整Kestra插件编辑能力、指标曲线、数据处理速率、产物下载或旧数据迁移。目录在No-code中只读选择；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)和[UI-02验收](../docs/verification/VER-UI-002-no-code.md)。
+尚无账号管理、Node/Service/Namespace完整管理、镜像tar上传/构建、持久分发历史、指标曲线、数据处理速率、产物浏览下载或旧数据迁移。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)。

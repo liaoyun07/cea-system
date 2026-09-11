@@ -2,7 +2,9 @@
 
 DEPLOY-01独立部署已验证：D盘Docker数据、`cea` Compose分组、前后端/MySQL/MinIO/四个Registry/四个K3s；[部署与配置入口](deploy/cea/README.md)。访问 `http://127.0.0.1:18080`，账号developer，随机密码在本地`deploy/cea/.env`的BACKEND_PASSWORD。FedAvg/FedProx已各完成全量MNIST两轮、11个Job及数值复核；整组重启后数据保留。不是旧系统切换或物理多云/吞吐验收，详见[验证记录](docs/verification/VER-DEPLOY-001-cea.md)。
 
-UI-02在[独立前端](frontend/README.md)中增加Kestra方向的任务块/配置面板、同源YAML并排编辑、显式参数/文件绑定、应用与资源目录选择、修订比较/回退。保存和执行仍使用原API/CAS及唯一Execution链；不是完整Kestra或旧管理台迁移。开发使用`cd frontend; npm ci; npm run dev`，访问`http://127.0.0.1:18100`；CEA部署入口仍为18080。验收状态见[UI-02记录](docs/verification/VER-UI-002-no-code.md)。
+UI-03已将老页面中有现成新API的能力接入[独立前端](frontend/README.md)：应用/镜像分发、部署创建查询删除、集群/数据集、网关/终端、同源边缘策略和卸载观测。CEA的18080前端已更新；其他11个服务未重启、旧数据未导入。29项Node、28项真实浏览器及212项Maven/12项Python回归通过，范围与后端缺口见[UI-03验收](docs/verification/VER-UI-003-management.md)。
+
+UI-02提供Kestra方向的任务块/配置面板、同源YAML并排编辑、显式参数/文件绑定、目录选择和修订比较/回退。保存和执行仍使用原API/CAS及唯一Execution链，不是完整Kestra。开发使用`cd frontend; npm ci; npm run dev`，访问`http://127.0.0.1:18100`；CEA入口为18080。历史验收见[UI-02记录](docs/verification/VER-UI-002-no-code.md)。
 
 S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing.md)，本轮补充[Namespace Files、Webhook/Checks、SLA和afterExecution](docs/contracts/s6-files-lifecycle.md)，212项Maven及12项Python完整回归通过，见[当前进度](docs/04-progress.md)。沿用唯一Flow和执行链；完整前端未实现，DQN研究与S5计量按用户决定后置。
 
@@ -125,7 +127,7 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:18085/api/namespaces/lab/e
 
 [应用目录API](docs/contracts/s4-application-catalog.md)支持版本登记、查询及参数类型、默认值、choices、数据集允许范围校验。[契约示例](examples/s4-application-contract.json)引用mnist/v1，登记前需通过资源API注册对应pt数据版本；不会拉取或执行示例镜像。
 
-Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。未来YAML与No-code编辑同一份Flow定义；No-code尚未实现。Application Task使用同一份Flow及既有Binding。
+Flow作者显式定义Inputs和Task参数来源；不从Application契约派生Flow Input，不维护别名绑定模型。已有Log/Sleep及Flow绑定保持原语义。UI-02的YAML与No-code编辑同一份Flow定义。Application Task使用同一份Flow及既有Binding。
 
 S4-02b/c已接入真实Registry复制与Kubernetes常驻部署，配置/API见[部署协议](docs/contracts/s4-image-deployment.md)。一次性Job另见[执行协议](docs/contracts/s4-job-execution.md)及[Flow示例](examples/s4-application-flow.yaml)，示例须先登记实际shell-tools应用并配置资源/存储，不是内置模板。S4已完成，当前S5验收状态见进度。
 ## S5-01 Repeat

@@ -5,6 +5,7 @@ import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { preview } from 'vite';
+import { startRuntime } from './runtime-fixture.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 process.chdir(root);
@@ -24,7 +25,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const token = randomUUID().slice(0, 8),
   dbPass = randomUUID(),
   apiPass = randomUUID();
-let container, backend, web, child;
+let container, backend, web, child, runtime;
 mkdirSync(resolve(root, '.local/evidence'), { recursive: true });
 const log = createWriteStream(resolve(root, '.local/evidence/backend.log'));
 const command = (bin, args) =>
@@ -70,11 +71,12 @@ try {
     }
   }
   if (!ready) throw new Error('Ephemeral MySQL did not become ready.');
+  runtime = await startRuntime(token);
   const backendPort = await port(),
     webPort = await port();
   backend = spawn(
     resolve(java, 'bin', process.platform === 'win32' ? 'java.exe' : 'java'),
-    ['-jar', jar, `--server.port=${backendPort}`, '--logging.level.root=WARN'],
+    ['-jar', jar, `--server.port=${backendPort}`, '--logging.level.root=WARN', ...runtime.args],
     {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -86,6 +88,22 @@ try {
         BACKEND_USER: 'owner',
         BACKEND_PASSWORD: apiPass,
         BACKEND_NAMESPACES: 'lab',
+        SPRING_APPLICATION_JSON: JSON.stringify({
+          platform: {
+            security: {
+              users: [
+                {
+                  name: 'owner',
+                  password: apiPass,
+                  namespaces: ['lab'],
+                  actions: ['READ', 'WRITE', 'EXECUTE'],
+                },
+                { name: 'viewer', password: apiPass, namespaces: ['lab'], actions: ['READ'] },
+                { name: 'gateway-test', password: apiPass, namespaces: ['lab'], actions: ['CONNECT'] },
+              ],
+            },
+          },
+        }),
       },
     },
   );
@@ -129,5 +147,6 @@ try {
     if (backend.exitCode === null) backend.kill('SIGKILL');
   }
   log.end();
+  if (runtime) runtime.cleanup();
   if (container) command('docker', ['rm', '-f', container]);
 }

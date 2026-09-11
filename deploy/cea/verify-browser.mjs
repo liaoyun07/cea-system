@@ -14,6 +14,7 @@ await mkdir(evidence, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 const logCounts = {};
+const catalogCounts = {};
 const page = await browser.newPage({ baseURL: 'http://127.0.0.1:' + settings.CEA_HTTP_PORT, viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', error => errors.push(error.message));
 try {
@@ -26,6 +27,44 @@ try {
     await expect(page.getByRole('button', { name: flow, exact: true })).toBeVisible();
   }
   await page.screenshot({ path: fileURLToPath(new URL('flows.png', evidence)), fullPage: true });
+  const authHeaders = { Authorization: 'Basic ' + Buffer.from(settings.BACKEND_USER + ':' + settings.BACKEND_PASSWORD).toString('base64') };
+  const catalogPages = [
+    ['应用与镜像', '/applications', 'applications'], ['集群资源', '/resources/clusters', 'clusters'],
+    ['数据集', '/resources/datasets', 'datasets'], ['边缘网关', '/edge/gateways', 'gateways'],
+    ['终端设备', '/edge/terminals', 'terminals'], ['边缘处理策略', '/edge/policies', 'policies'],
+    ['卸载观测', '/offloading/samples', 'observations'],
+  ];
+  for (const [title, path, key] of catalogPages) {
+    const response = await page.request.get('/api/namespaces/lab' + path + '?limit=20&offset=0', { headers: authHeaders });
+    expect(response.status()).toBe(200);
+    const rows = await response.json(); catalogCounts[key] = rows.length;
+    await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: title, exact: true }).click();
+    await expect(page.locator('h1')).toHaveText(title);
+    await expect(page.locator('.table-wrap tbody tr')).toHaveCount(rows.length);
+    if (!rows.length) await expect(page.locator('.empty h2')).toHaveText('暂无记录');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.screenshot({path: fileURLToPath(new URL('management-' + key + '.png', evidence)), fullPage: true});
+    if (rows.length && ['applications', 'datasets'].includes(key)) {
+      await page.locator('.table-wrap tbody tr').first().getByRole('button', {name: '详情 →', exact: true}).click();
+      await expect(page.getByLabel(key === 'applications' ? '应用 ID' : '数据集 ID', {exact: true})).toBeDisabled();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+      await page.screenshot({path: fileURLToPath(new URL('management-' + key + '-detail.png', evidence)), fullPage: true});
+    }
+  }
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '应用部署', exact: true }).click();
+  const clustersResponse = await page.request.get('/api/namespaces/lab/resources/clusters?limit=100', { headers: authHeaders });
+  expect(clustersResponse.status()).toBe(200);
+  for (const cluster of await clustersResponse.json()) {
+    const response = await page.request.get('/api/namespaces/lab/clusters/' + encodeURIComponent(cluster.id) + '/deployments', { headers: authHeaders });
+    expect(response.status()).toBe(200);
+    const rows = await response.json(); catalogCounts['deployments/' + cluster.id] = rows.length;
+    await page.getByLabel('执行集群', {exact: true}).selectOption(cluster.id);
+    await expect(page.getByRole('button', {name: '↻ 刷新状态', exact: true})).toBeEnabled();
+    await expect(page.locator('.table-wrap tbody tr')).toHaveCount(rows.length);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  }
+  await page.screenshot({path: fileURLToPath(new URL('management-deployments.png', evidence)), fullPage: true});
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
   for (const flow of ['fedavg', 'fedprox']) {
     await page.getByRole('button', { name: flow, exact: true }).click();
     await expect(page.getByLabel('Flow YAML')).toHaveValue(/core\.Loop/);
@@ -71,7 +110,7 @@ try {
     await page.getByRole('button', { name: '执行', exact: true }).first().click();
   }
   expect(errors).toEqual([]);
-  const result = { result: 'PASS', scope: 'real deployed frontend: login, both saved Flows, Loop YAML, both successful executions, six training instances each, outputs and log empty-state consistent with API; read-only', logCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime', checkedAt: new Date().toISOString() };
+  const result = { result: 'PASS', scope: 'real deployed frontend: read-only management catalogs/details and four-cluster deployment lists, both saved Flows, Loop YAML, both successful executions, six training instances each, outputs and log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {
