@@ -1,7 +1,13 @@
 <script setup>
 import { computed } from 'vue';
 import { bindingScope, outputPorts, parseJsonValue } from './document.js';
-const props = defineProps({ value: Object, path: Array, flow: Object, options: Array });
+const props = defineProps({
+  value: Object,
+  path: Array,
+  flow: Object,
+  options: Array,
+  allowedSources: Array,
+});
 const emit = defineEmits(['patch', 'invalid']);
 const scope = computed(() => bindingScope(props.flow, props.path));
 const selected = computed(() => scope.value.entries.find((e) => e.task.id === props.value?.taskId)?.task);
@@ -47,7 +53,9 @@ function literal(event) {
       @change="changeSource($event.target.value)"
     >
       <option
-        v-for="(label, key) in sources"
+        v-for="(label, key) in Object.fromEntries(
+          Object.entries(sources).filter(([key]) => !allowedSources || allowedSources.includes(key)),
+        )"
         :key="key"
         :value="key"
         :disabled="key === 'ITEM' && !scope.item"

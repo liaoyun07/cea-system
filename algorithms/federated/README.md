@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File scripts/register-federated.ps1 -Image '
 
 脚本读取JSON契约和YAML，依次登记两个数据集版本、五个应用版本、两个Flow首版，不触碰已有集群配置、不自动执行任务。已存在的Flow会因expectedRevision=0拒绝覆盖；编辑使用既有revision API，不通过脚本强制重置。应用/数据集已有版本按后端不可变版本语义处理，修改内容须使用新版本并同步Flow。
 
-通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖clients、rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。契约仅允许mnist-train/v1、mnist-test/v1，不能输入任意名称绕过。
+通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。客户端集合在Loop.values中编辑并保存新修订，不再提供clients启动参数。契约仅允许mnist-train/v1、mnist-test/v1，不能输入任意名称绕过。
 
 每轮evaluate的TaskRun outputs.metrics.json是该轮全局损失/准确率产物，最终Flow输出global_model和completed_rounds。执行历史保留全部轮次，没有新增图表、指标数据库或吞吐计算。
 
@@ -53,4 +53,4 @@ powershell -ExecutionPolicy Bypass -File scripts/register-federated.ps1 -Image '
 
 输出默认/cea-work/out/model.pt；evaluate显式--output /cea-work/out/metrics.json。aggregate通过--clients-manifest /cea-work/in/client_models.json读取平台准备的有序本地路径数组，禁止扫描产物目录。state_dict文件只使用weights_only=True读取；应仅登记受信任的数据和镜像。
 
-客户端由clients数组显式给出，默认三项，如`[{"id":"edge-a","clusters":["edge-a"]},{"id":"edge-c","clusters":["edge-c"]}]`。Loop内只有一份train，增加客户端不再增加Task和aggregate argv。并发上限由Flow的loop.concurrency控制（示例6），实际还受Worker和平台Job槽约束。每项CLIENT_ID必须唯一；算法拒绝重复客户端，不由Loop去重。集合不得为空用于联邦聚合；通用Loop本身允许空集合。没有自动客户端发现/抽样或无限循环。
+客户端由clients任务的loop.values显式给出，使用LITERAL.value数组，默认三项，如`[{"id":"edge-a","clusters":["edge-a"]},{"id":"edge-c","clusters":["edge-c"]}]`。可在Loop的Array表单中逐项编辑。Loop内只有一份train，增加客户端不再增加Task和aggregate argv。并发上限由Flow的loop.concurrency控制（示例6），实际还受Worker和平台Job槽约束。每项CLIENT_ID必须唯一；算法拒绝重复客户端，不由Loop去重。集合不得为空用于联邦聚合；通用Loop本身允许空集合。没有自动客户端发现/抽样或无限循环。

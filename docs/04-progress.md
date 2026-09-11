@@ -1,5 +1,7 @@
 # 当前进度
 
+最新完成：UI-02b Loop.values支持就地Array逐项/对象/嵌套数组编辑、类型与引用切换、增删排序；FedAvg/FedProx不再暴露clients启动输入。29项Node、34项真实浏览器、212项Maven及构建/格式/scaffold通过。2026-09-12 00:26只更新CEA前端，两个Flow经CAS分别保存为r4/r2，历史及其他配置保留；00:29实际页面与目录/历史执行只读复核PASS，其余11个容器ID/StartedAt未变。无生产Java、表、API或执行链变化，故障与验证详情见[记录](verification/VER-UI-002b-loop-values.md)。
+
 最新调整：UI-02a候选集群选择已增加高亮/勾选和取消，按钮紧邻列表，状态与YAML双向同步。29项Node、30项真实浏览器回归、212项Maven（17:20:21完成）、构建/格式/scaffold通过；首次模板漏timeout及上线截图发现hover冲突均已修正并重测。用户确认后17:13发布最终前端，实际CEA的1440px/650px选中/取消和查询复核PASS，其他11个容器ID及StartedAt未变。无Java/表/API/调度语义变更。见[记录](verification/VER-UI-002a-cluster-selection.md)。
 
 最新调整：UI-03a页面说明直接删除，未改成展开帮助或悬浮提示；必要字段、数据及错误/确认/结果保留。29项Node、29项真实浏览器、212项Maven完整回归及构建/格式/结构检查通过；十页真实CEA只读数据预览与1440px/650px截图检查通过。用户确认后于15:03更新18080前端，只读部署复核PASS，其余11个容器ID和StartedAt均未变。无Java、表、API或执行链变更；见[记录](verification/VER-UI-003a-copy-cleanup.md)。

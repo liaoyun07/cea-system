@@ -3,12 +3,6 @@ namespace: lab
 id: fedprox
 description: Dynamic edge clients, weighted aggregation and global evaluation in every round.
 inputs:
-  clients:
-    type: ARRAY
-    defaultValue:
-      - {id: edge-a, clusters: [edge-a]}
-      - {id: edge-b, clusters: [edge-b]}
-      - {id: edge-c, clusters: [edge-c]}
   rounds: {type: INTEGER, defaultValue: 2}
   model: {type: STRING, defaultValue: mlp}
   training_dataset: {type: STRING, defaultValue: mnist-train/v1}
@@ -42,7 +36,12 @@ tasks:
       - id: clients
         type: core.Loop
         loop:
-          values: {source: INPUT, name: clients}
+          values:
+            source: LITERAL
+            value:
+              - {id: edge-a, clusters: [edge-a]}
+              - {id: edge-b, clusters: [edge-b]}
+              - {id: edge-c, clusters: [edge-c]}
           concurrency: 6
           outputs:
             models: {source: TASK_OUTPUT, taskId: train, port: model.pt}

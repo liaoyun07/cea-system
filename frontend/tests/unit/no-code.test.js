@@ -153,6 +153,12 @@ for (const algorithm of ['fedavg', 'fedprox']) {
     assert(train);
     assert.equal(bindingScope(next, [...train.path, 'container', 'parameters', 'DATASET']).item, true);
     const loop = list.find((e) => e.task.loop);
+    assert.equal(next.inputs.clients, undefined);
+    assert.equal(loop.task.loop.values.source, 'LITERAL');
+    assert.deepEqual(
+      loop.task.loop.values.value.map((item) => item.id),
+      ['edge-a', 'edge-b', 'edge-c'],
+    );
     assert(!bindingScope(next, ['outputs', 'result']).entries.some((e) => e.task.id === train.task.id));
     assert(outputPorts(loop.task).length > 0);
     assert(

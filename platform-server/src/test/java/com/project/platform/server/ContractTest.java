@@ -139,6 +139,9 @@ class ContractTest {
             assertEquals("evaluate",federation.tasks().get(1).tasks().getLast().id());
             assertEquals("core.Loop",federation.tasks().get(1).tasks().getFirst().type());
             assertEquals(1,federation.tasks().get(1).tasks().getFirst().tasks().size());
+            assertFalse(federation.inputs().containsKey("clients"));
+            var values=assertInstanceOf(FlowDefinition.Literal.class,federation.tasks().get(1).tasks().getFirst().loop().values());
+            assertEquals(3,((List<?>)values.value()).size());
         }
         var repeat=parser.parse(Files.readString(Path.of("..","examples","s5-repeat-flow.yaml")));
         assertEquals("core.Repeat",repeat.tasks().getFirst().type());

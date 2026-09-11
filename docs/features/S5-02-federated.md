@@ -21,7 +21,7 @@
 | 全局测试集地址硬编码镜像内 | TEST_DATASET契约声明允许版本，resource目录定位，注入TEST_DATASET_PATH本地文件 |
 | 旧遥测SDK/速率 | 不迁移；S5-05计量口径仍待确认，当前只有真实评估JSON产物 |
 
-cloud是示例的固定聚合/评估位置；客户端从显式clients输入的id/clusters读取，默认edge-a/b/c，可更换列表而不复制Task。训练数据是同一MNIST训练版本在三个站点的分片；全局测试版本只在cloud登记。数据本地性检查沿用S4；当前S4通过后端存储/文件API转运，不代表新增了边缘直读或传输优化。
+cloud是示例的固定聚合/评估位置；客户端从Loop.values的固定集合元素id/clusters读取，默认edge-a/b/c，可在Loop面板更换列表并保存新修订，不复制Task，也不声明inputs.clients。训练数据是同一MNIST训练版本在三个站点的分片；全局测试版本只在cloud登记。数据本地性检查沿用S4；当前S4通过后端存储/文件API转运，不代表新增了边缘直读或传输优化。
 
 ## 验收要求
 

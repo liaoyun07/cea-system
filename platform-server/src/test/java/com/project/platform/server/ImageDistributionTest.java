@@ -950,8 +950,17 @@ class ImageDistributionTest {
     private void verifyFederation(String algorithm) throws Exception {
         prepareFederation();
         var letters=algorithm.equals("fedavg")?List.of("a","b","c"):List.of("a","c");
-        var clientValues=letters.stream().map(letter->Map.of("id","edge-"+letter,"clusters",List.of("edge-"+letter))).toList();
-        String id=executions().submit(actor,"lab",UUID.randomUUID().toString(),new FlowExecutionService.Request(algorithm,null,Map.of("clients",clientValues)));
+        var flows=context.getBean(FlowService.class);
+        var saved=flows.get(actor,"lab",algorithm,null);
+        assertFalse(saved.definition().inputs().containsKey("clients"));
+        assertInstanceOf(com.project.platform.runtime.model.FlowDefinition.Literal.class,saved.definition().tasks().get(1).tasks().getFirst().loop().values());
+        if(algorithm.equals("fedprox")) {
+            // Client membership is edited in the Loop definition, not passed as an execution input.
+            String source=saved.source().replace("\r\n","\n").replace("              - {id: edge-b, clusters: [edge-b]}\n", "");
+            assertNotEquals(saved.source().replace("\r\n","\n"),source);
+            flows.save(actor,"lab",algorithm,saved.revision(),source);
+        }
+        String id=executions().submit(actor,"lab",UUID.randomUUID().toString(),new FlowExecutionService.Request(algorithm,null,Map.of()));
         driveFederation(id);
         var execution=executions().get(actor,"lab",id);
         assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());

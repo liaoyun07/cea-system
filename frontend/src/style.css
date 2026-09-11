@@ -1501,6 +1501,100 @@ dd {
 .log-level.INFO {
   color: #a5dbbd;
 }
+.loop-values-field,
+.json-value-field {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.loop-value-modes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.loop-value-modes button {
+  border: 0;
+  padding: 4px 10px;
+  background: transparent;
+}
+.loop-value-modes button[aria-pressed='true'] {
+  background: #7141cf;
+  color: white;
+}
+.loop-value-modes button[aria-pressed='true']:hover {
+  background: #6436bb;
+}
+.loop-value-item {
+  border: 1px solid #e5ddef;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+.loop-value-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.loop-value-actions button {
+  border: 0;
+  padding: 2px 7px;
+  background: transparent;
+}
+.json-value-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.json-value-heading label {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+}
+.json-value-heading select {
+  width: auto;
+  max-width: 110px;
+  padding: 3px 6px;
+  font-size: 14px;
+}
+.json-value-children {
+  display: grid;
+  gap: 12px;
+  padding-left: 10px;
+  border-left: 2px solid #eee7f7;
+  min-width: 0;
+}
+.json-value-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px;
+}
+.json-value-row > .field-clear {
+  padding: 4px;
+}
+.json-key-add {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.json-key-add input {
+  min-width: 0;
+  flex: 1;
+}
+.json-key-add button {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.loop-add-value {
+  width: 100%;
+  border: 1px dashed #d5c8e8;
+  padding: 12px;
+  background: transparent;
+  color: #705b91;
+}
 @media (max-width: 1100px) {
   .sidebar {
     width: 174px;

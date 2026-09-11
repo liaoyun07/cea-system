@@ -14,6 +14,10 @@
 
 ## Kestra参考
 
+UI-02b的Loop.values使用Array/引用切换、逐项添加/删除/排序以及对象字段和嵌套数组编辑。Array回写原LITERAL.value；引用仍是原INPUT/VARIABLE/TASK_OUTPUT，切换来源/非空值类型需确认，引用转Array可显式复制已引用Input的数组默认值，但不自动删除Input或创建别名。错误数字阻止保存/排序，零、false、空字符串、重复元素及输入次序保留。FedAvg/FedProx的clients不再放在Flow Inputs，训练ITEM和其余配置不变。
+
+参考同一Kestra提交的TaskAnyOf.vue（类型切换）、TaskArray.vue（逐项编辑/排序）、Loop.java（values属于任务自身）。本项目不支持通用字符串表达式/URI集合，因此用“引用”而非假装支持String；不新增Binding类型、Java/API/表/SPI。新增LoopValuesField.vue和JsonValueField.vue的真实消费者仅是现有SchemaField中的Loop.values。Sites技能用于保持现有Vue/Docker工程及交互/窄屏验证，不注册或迁移为其他托管站点。
+
 本地D:/Project/Kestra/kestra提交0354ddf8cb：ui/src/components/flows/MultiPanelFlowEditorView.vue的flowYaml共享源、TaskEditPanes.vue的Form/Source、useNoCodePanels.ts的按路径编辑。官方：https://kestra.io/docs/ui/flows 。沿用职责和操作方式，不复制组件或协议；当前仅支持本系统任务，采用单配置面板而不是完整任意多面板工作台。不新增插件市场/表达式调试器/局部重跑。
 
 ## 验收
@@ -24,5 +28,6 @@
 4. 真实API校验、修订冲突和回退；通过No-code创建流程并执行成功，不用mock Execution结果。
 5. 浏览器可用性、目录失败与大任务树切换，构建/单测/既有E2E和scaffold检查。
 6. 候选集群初始回显、多选与重复点击取消、源码反向同步、固定/LITERAL切换、保存回读、禁用限制和窄屏样式，见[UI-02a验证](../verification/VER-UI-002a-cluster-selection.md)。
+7. Loop.values就地创建对象/嵌套数组、增删排序、类型及来源切换确认、移除后重新设置空Array、保存回读与真实Loop执行；FedAvg/FedProx不再要求clients启动输入，见[UI-02b验证](../verification/VER-UI-002b-loop-values.md)。
 
 验证结果见[VER-UI-002](../verification/VER-UI-002-no-code.md)。当前覆盖11种任务的既有Schema字段；任务ID改名、offload研究配置等仍通过YAML编辑，未展示字段保留不删除。121节点/30次切换检查不等于长期内存压力/OOM验收。

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import BindingField from './BindingField.vue';
+import LoopValuesField from './LoopValuesField.vue';
 import { shape, initialValue, pathKey, parseJsonValue } from './document.js';
 const props = defineProps({
   schema: Object,
@@ -16,6 +17,7 @@ const emit = defineEmits(['patch', 'invalid']);
 const s = computed(() => shape(props.schema, props.root, props.value));
 const newKey = ref('');
 const fieldId = computed(() => `field-${pathKey(props.path)}`);
+const loopValues = computed(() => props.path.at(-2) === 'loop' && props.path.at(-1) === 'values');
 const patch = (value, remove = false) => emit('patch', { path: props.path, value, remove });
 const labels = {
   description: '说明',
@@ -36,7 +38,7 @@ const labels = {
   iterations: '轮数来源',
   initial: '首次状态输入',
   feedback: '每轮状态反馈',
-  values: '集合来源',
+  values: 'values',
   concurrency: '并发限制',
   limit: '并发上限',
   behavior: '超限行为',
@@ -119,11 +121,19 @@ function json(event) {
         type="button"
         class="field-enable"
         :disabled="disabled"
-        @click="patch(initialValue(schema, root))"
+        @click="patch(loopValues ? { source: 'LITERAL', value: [] } : initialValue(schema, root))"
       >
         ＋ 设置 {{ label || labels[path.at(-1)] || path.at(-1) }}
       </button>
     </template>
+    <LoopValuesField
+      v-else-if="loopValues"
+      :value="value"
+      :path="path"
+      :flow="flow"
+      @patch="emit('patch', $event)"
+      @invalid="emit('invalid', $event)"
+    />
     <template v-else-if="s.oneOf">
       <BindingField
         :value="value"

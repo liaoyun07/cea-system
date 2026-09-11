@@ -5,17 +5,15 @@
 ## 定义与调用链
 
 ```yaml
-inputs:
-  clients:
-    type: ARRAY
-    defaultValue:
-      - {id: edge-a, clusters: [edge-a]}
-      - {id: edge-b, clusters: [edge-b]}
 tasks:
   - id: clients
     type: core.Loop
     loop:
-      values: {source: INPUT, name: clients}
+      values:
+        source: LITERAL
+        value:
+          - {id: edge-a, clusters: [edge-a]}
+          - {id: edge-b, clusters: [edge-b]}
       concurrency: 6
       outputs:
         models: {source: TASK_OUTPUT, taskId: train, port: model.pt}
@@ -36,6 +34,8 @@ tasks:
 ```
 
 此片段展示Loop结构，train依赖外层rounds模型及应用数据参数；完整可运行定义见[FedAvg](../../examples/federated/fedavg.yaml)/[FedProx](../../examples/federated/fedprox.yaml)。完整顺序为init → Repeat(rounds){Loop(clients){train} → aggregate → evaluate → feedback}。
+
+UI-02b将上述两个算法的客户端集合内联到Loop.values，不再声明inputs.clients；更换客户端要编辑流程并保存新修订，不作为启动参数覆盖。通用Loop仍支持INPUT/VARIABLE/TASK_OUTPUT引用，前端的Array模式只是编辑LITERAL.value，不增加裸数组解析分支、String表达式或第二套集合定义。
 
 values使用既有INPUT/VARIABLE/TASK_OUTPUT/LITERAL Binding，运行时必须是0..1000项JSON数组，不接受字符串JSON、Map或URI数据流。首次启动冻结集合，恢复不重新取值。重复值保留为不同item；空集合成功，各声明输出为[]。算法自身可以要求非空或不允许重复客户端，不属于Loop通用校验。
 
