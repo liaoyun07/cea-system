@@ -13,6 +13,12 @@ UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文�
 | `frontend/src/main.js` | 挂载Vue及全局样式 |
 | `frontend/src/App.vue` | 内存认证、命名空间、列表/搜索/分页、页面切换和未保存提示 |
 | `frontend/src/FlowEditor.vue` | YAML源、服务端校验/Schema、CAS修订、输入预览、固定请求幂等提交 |
+| `frontend/src/no-code/document.js` | 唯一YAML的Document路径编辑、任务分组操作、引用删除保护和作用域选项；无执行状态 |
+| `frontend/src/no-code/NoCodeEditor.vue` | 任务选择、Schema与实际目录读取、原source修改事件、表单错误状态 |
+| `frontend/src/no-code/TaskTree.vue` | 递归分组任务块、折叠、添加/移动/删除事件 |
+| `frontend/src/no-code/SchemaField.vue` | 原Schema字段编辑，不建立第二套Flow模型 |
+| `frontend/src/no-code/BindingField.vue` | 原五种Binding显式编辑、作用域/契约选项 |
+| `frontend/src/no-code/FlowRevisions.vue` | 分页历史、源码并排比较、原CAS回退接口 |
 | `frontend/src/ExecutionDetail.vue` | 实际Execution/TaskRun/Attempt、增量日志、结果与后处理、取消/轮询释放 |
 | `frontend/src/api.js` | Basic、同源请求、超时和结构化错误，无新服务状态 |
 | `frontend/src/model.js` | 六种输入转换、提交快照、日志去重/窗口、显式插入的Log草稿 |
@@ -20,6 +26,8 @@ UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文�
 | `frontend/vite.config.js` | 独立构建、开发/本地预览同源代理 |
 
 测试：`frontend/tests/unit/model.test.js`（转换/请求/错误）和`frontend/tests/e2e/console.spec.js`（实际JAR浏览器闭环）；`frontend/tests/run-e2e.mjs`管理仅本次临时MySQL/JAR/预览生命周期。无Java/表/字段/API/SPI变更。
+
+UI-02新增`frontend/tests/unit/no-code.test.js`（文档往返/引用/分组）与`frontend/tests/e2e/no-code.spec.js`（无代码创建/执行、动态作用域、目录、修订和大任务树）。新增yaml依赖用于真实AST编辑保留注释，不参与后端执行。`deploy/cea/verify-browser.mjs`只读复核实际部署页面；所有证据见[UI-02验收](verification/VER-UI-002-no-code.md)。生产Java仍为86份。
 
 根 `pom.xml` 是独立父工程，聚合八个模块。server 是 Spring Boot 可执行 JAR，其余模块为普通 JAR。生产Java共86份（含8份包声明），测试类另列。
 

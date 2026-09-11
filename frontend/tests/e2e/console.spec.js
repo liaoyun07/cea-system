@@ -17,6 +17,7 @@ async function login(page) {
 async function save(page, id, yaml = source(id)) {
   await page.getByRole('button', { name: '＋ 新建流程', exact: true }).click();
   await page.getByLabel('流程 ID', { exact: true }).fill(id);
+  await page.getByRole('tab', { name: '源代码', exact: true }).click();
   await page.getByLabel('Flow YAML').fill(yaml);
   await page.getByRole('button', { name: '保存修订', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('已保存修订 r1');

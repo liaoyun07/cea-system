@@ -1,3 +1,457 @@
+/* UI-02: shared-source task canvas and a single bounded inspector. */
+.editor-workbench {
+  min-width: 0;
+}
+.editor-workbench.split-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.no-code-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 420px);
+  border: 1px solid #e5e1ed;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.task-canvas {
+  min-width: 0;
+  padding: 20px;
+  background:
+    radial-gradient(#dcd6e6 0.8px, transparent 0.8px) 0 0 / 18px 18px,
+    #f8f7fb;
+  max-height: 76vh;
+  overflow: auto;
+}
+.canvas-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.canvas-heading strong {
+  overflow-wrap: anywhere;
+}
+.canvas-heading small {
+  display: block;
+  color: #81778e;
+  font-size: 11px;
+  margin-top: 3px;
+}
+.group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #6a5f7c;
+}
+.group-heading small {
+  color: #a49bac;
+  padding-left: 7px;
+}
+.group-heading button {
+  padding: 4px 7px;
+  font-size: 11px;
+  border-style: dashed;
+  background: #ffffffb0;
+}
+.task-group {
+  margin-bottom: 22px;
+}
+.task-card {
+  border: 1px solid #e2dbe9;
+  border-radius: 7px;
+  background: #fff;
+  margin: 10px 0;
+  box-shadow: 0 2px 5px #29203905;
+}
+.task-card.selected {
+  border-color: #9c78da;
+  box-shadow: 0 0 0 2px #7445cd15;
+}
+.task-card-header {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  min-width: 0;
+  padding: 7px;
+}
+.task-card-header button {
+  border: 0;
+  background: transparent;
+}
+.task-card-header .task-select {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  min-width: 0;
+  flex: 1;
+  padding: 5px;
+  white-space: normal;
+}
+.task-select strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.task-select small {
+  display: block;
+  color: #93869f;
+  font-size: 10px;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.task-symbol {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e5daf6;
+  border-radius: 6px;
+  background: #f5efff;
+  color: #8153bf;
+  font-size: 18px;
+}
+.task-tools {
+  display: flex;
+  flex: 0 0 auto;
+}
+.task-tools button,
+.task-card-header .collapse-task {
+  padding: 4px;
+  font-size: 12px;
+}
+.child-groups {
+  padding: 0 10px;
+}
+.child-groups:empty {
+  display: none;
+}
+.child-groups > .task-group {
+  padding: 12px 0 0 9px;
+  border-left: 2px solid #eee6f7;
+  margin: 3px 0 12px;
+}
+.dependency-line {
+  margin: 0 12px 8px;
+  color: #8b779e;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.group-empty {
+  padding: 18px;
+  text-align: center;
+  border: 1px dashed #ddd5e8;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #a49aaa;
+  background: #ffffff99;
+}
+.canvas-footnote {
+  font-size: 11px;
+  color: #9689a1;
+  margin: 10px 0 0;
+}
+.task-inspector {
+  border-left: 1px solid #e5e1ed;
+  min-width: 0;
+  padding: 18px;
+  max-height: 76vh;
+  overflow: auto;
+}
+.task-inspector > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eee9f4;
+  margin-bottom: 16px;
+}
+.task-inspector h2 {
+  margin: 3px 0 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.task-inspector header button {
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.task-inspector fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.task-inspector footer {
+  font-size: 10px;
+  color: #9a8aa7;
+  border-top: 1px solid #ede7f4;
+  padding-top: 14px;
+  margin-top: 16px;
+}
+.inspector-description {
+  font-size: 11px;
+  color: #8c7b9b;
+  margin-bottom: 16px;
+}
+.schema-field {
+  margin: 0 0 16px;
+  min-width: 0;
+}
+.field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.field-heading label,
+label.field-heading {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.field-heading .field-clear {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #9e8fac;
+  font-size: 10px;
+  font-weight: 400;
+}
+.schema-field .field-enable {
+  font-size: 11px;
+  color: #8c7a9d;
+  padding: 4px 8px;
+  border-style: dashed;
+}
+.schema-field input,
+.schema-field select,
+.schema-field textarea,
+.task-inspector select {
+  font-size: 12px;
+  padding: 7px 8px;
+  min-width: 0;
+}
+.schema-field input[type='checkbox'],
+.dependency-options input {
+  width: auto;
+}
+.binding-field {
+  display: grid;
+  gap: 6px;
+}
+.binding-field > small {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #9d8bad;
+}
+.binding-field > select:first-of-type {
+  background: #f8f5fd;
+  color: #805cad;
+}
+.map-fields,
+.nested-fields,
+.array-fields {
+  padding: 12px 0 3px 12px;
+  border-left: 2px solid #f0eaf6;
+}
+.map-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.map-add button,
+.array-fields > button {
+  font-size: 11px;
+  padding: 5px 8px;
+}
+.form-section {
+  border-top: 1px solid #ede7f4;
+  padding-top: 12px;
+  margin: 16px 0;
+}
+.form-section summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.form-section summary small {
+  float: right;
+  font-size: 10px;
+  color: #a291af;
+  font-weight: 400;
+}
+.contract-parameter {
+  margin-bottom: 18px;
+}
+.contract-parameter .schema-field {
+  margin-bottom: 4px;
+}
+.contract-parameter > small {
+  font-size: 10px;
+  color: #9b8aa6;
+}
+.catalog-image {
+  font:
+    10px Consolas,
+    monospace;
+  color: #9b8ca6;
+  overflow-wrap: anywhere;
+  margin: 8px 0 14px;
+}
+.cluster-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 10px 0;
+}
+.cluster-picker span {
+  width: 100%;
+  font-size: 10px;
+  color: #9a8caa;
+}
+.cluster-picker button {
+  font-size: 10px;
+  padding: 4px 6px;
+}
+.dependency-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+.dependency-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.no-code-empty {
+  min-height: 430px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e5e1ed;
+  border-radius: 8px;
+  color: #8f819f;
+}
+.no-code-empty h2 {
+  color: #574462;
+}
+.no-code-empty p {
+  font-size: 13px;
+}
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #21172b66;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.task-add-dialog {
+  width: min(440px, 100%);
+  border-radius: 10px;
+  background: #fff;
+  padding: 26px;
+  box-shadow: 0 15px 70px #1a0c3040;
+}
+.task-add-dialog label {
+  margin: 16px 0;
+}
+.task-add-dialog select {
+  margin-top: 6px;
+}
+.task-add-dialog .actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.revision-view {
+  padding: 22px;
+  border: 1px solid #e5e1ed;
+  border-radius: 8px;
+  background: #fff;
+}
+.revision-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.revision-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 24px;
+}
+.revision-compare > div {
+  min-width: 0;
+}
+.revision-compare pre {
+  max-height: 65vh;
+  overflow: auto;
+  background: #f8f6fb;
+  padding: 16px;
+  font-size: 11px;
+}
+.split-editor .no-code-layout {
+  grid-template-columns: minmax(230px, 1fr) minmax(275px, 1fr);
+}
+.split-editor .task-canvas {
+  padding: 12px;
+}
+.split-editor .task-inspector {
+  padding: 12px;
+}
+.split-editor .code-editor {
+  min-height: 74vh;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+@media (max-width: 1500px) {
+  .editor-workbench.split-editor {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 950px) {
+  .no-code-layout,
+  .split-editor .no-code-layout {
+    grid-template-columns: 1fr;
+  }
+  .task-canvas {
+    max-height: 45vh;
+  }
+  .task-inspector {
+    max-height: none;
+    border-left: 0;
+    border-top: 1px solid #e5e1ed;
+  }
+  .revision-compare {
+    grid-template-columns: 1fr;
+  }
+}
 :root {
   font-family: Inter, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   color: #292637;

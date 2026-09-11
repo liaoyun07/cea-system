@@ -1,0 +1,272 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { parse } from 'yaml';
+const auth =
+  'Basic ' + Buffer.from(`${process.env.CEA_E2E_USER}:${process.env.CEA_E2E_PASSWORD}`).toString('base64');
+const headers = { Authorization: auth };
+const base = '/api/namespaces/lab';
+const unique = () => `nc-${randomUUID().slice(0, 8)}`;
+async function open(page, id, source) {
+  await page.goto('/');
+  await page.getByLabel('账号', { exact: true }).fill(process.env.CEA_E2E_USER);
+  await page.getByLabel('密码', { exact: true }).fill(process.env.CEA_E2E_PASSWORD);
+  await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
+  await page.getByRole('button', { name: '＋ 新建流程', exact: true }).click();
+  await page.getByLabel('流程 ID', { exact: true }).fill(id);
+  if (source) {
+    await page.getByRole('tab', { name: '源代码', exact: true }).click();
+    await page.getByLabel('Flow YAML').fill(source);
+    await page.getByRole('tab', { name: '可视化编排', exact: true }).click();
+  } else await page.getByRole('button', { name: '创建空流程', exact: true }).click();
+  await expect(page.locator('.task-canvas')).toBeVisible();
+}
+async function add(page, group, type, id) {
+  await page.getByRole('button', { name: `添加到 ${group}`, exact: true }).click();
+  await page.getByLabel('任务类型', { exact: true }).selectOption(type);
+  await page.getByLabel('任务 ID', { exact: true }).fill(id);
+  await page.getByRole('button', { name: '添加到流程', exact: true }).click();
+  await expect(page.locator('.task-inspector h2')).toHaveText(id);
+}
+async function field(page, path, value) {
+  const control = page.locator(`[data-field="${path}"]`).locator(':scope > input, :scope > textarea');
+  await control.fill(value);
+  await control.blur();
+}
+test.beforeEach(async ({ page }) => {
+  page.uiErrors = [];
+  page.on('pageerror', (e) => page.uiErrors.push(e.message));
+});
+test.afterEach(async ({ page }) => {
+  expect(page.uiErrors).toEqual([]);
+});
+
+test('build, configure, save and execute a workflow through no-code only', async ({ page }) => {
+  const id = unique();
+  await open(page, id);
+  await add(page, '任务', 'core.Log', 'hello');
+  await field(page, 'tasks.0.message', 'Created with no-code');
+  await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('校验通过');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  await page.screenshot({ path: '.local/evidence/no-code-log.png', fullPage: true });
+  await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
+  await page.getByRole('button', { name: '启动执行', exact: true }).click();
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+  await page.getByRole('tab', { name: '日志', exact: true }).click();
+  await expect(page.locator('.log-entry pre')).toContainText('Created with no-code');
+});
+test('Loop form executes every item and excludes invalid nested controls', async ({ page }) => {
+  const id = unique();
+  await open(page, id);
+  await add(page, '任务', 'core.Loop', 'clients');
+  const values = page.locator('[data-field="tasks.0.loop.values"]');
+  await values.getByLabel('固定值 JSON').fill('[1, 2, 3]');
+  await values.getByLabel('固定值 JSON').blur();
+  await field(page, 'tasks.0.loop.concurrency', '2');
+  await page.getByRole('button', { name: '添加到 clients / 内部任务', exact: true }).click();
+  await expect(page.getByLabel('任务类型').locator('option[value="core.Repeat"]')).toHaveCount(0);
+  await expect(page.getByLabel('任务类型').locator('option[value="core.Loop"]')).toHaveCount(0);
+  await page.getByLabel('任务 ID', { exact: true }).fill('train');
+  await page.getByRole('button', { name: '添加到流程', exact: true }).click();
+  await field(page, 'tasks.0.tasks.0.message', 'item={{ item.value }}');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
+  await page.getByRole('button', { name: '启动执行', exact: true }).click();
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+  await page.getByRole('tab', { name: '日志', exact: true }).click();
+  await expect(page.locator('.log-entry')).toHaveCount(3);
+});
+test('invalid YAML and task structure keep source; switching and field edit preserve comments', async ({
+  page,
+}) => {
+  const id = unique(),
+    source = `# preserved\nschemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: hello\n    type: core.Log\n    message: start # keep\nlabels: {owner: lab}\n`;
+  await open(page, id, source);
+  await page.locator('[data-task="hello"] > .task-card-header .task-select').click();
+  await field(page, 'tasks.0.message', 'updated');
+  await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
+  await expect(page.getByLabel('Flow YAML')).toHaveValue(/# preserved/);
+  const value = await page.getByLabel('Flow YAML').inputValue();
+  expect(value).toContain('# keep');
+  expect(parse(value).labels).toEqual({ owner: 'lab' });
+  for (const invalid of [
+    'tasks: [',
+    'tasks: [null]',
+    'tasks: [{id: bad, type: core.Log, dependsOn: not-an-array}]',
+    'inputs: not-an-object',
+  ]) {
+    await page.getByLabel('Flow YAML').fill(invalid);
+    await expect(page.getByText('暂时无法显示 No-code', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Flow YAML')).toHaveValue(invalid);
+  }
+  await page.getByLabel('Flow YAML').fill(value);
+  await expect(page.locator('.task-canvas')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+test('dependency-based upstream options include later task; deletion protects references', async ({
+  page,
+}) => {
+  const id = unique(),
+    source = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: dag\n    type: core.Dag\n    tasks:\n      - id: target\n        type: platform.Application\n        dependsOn: [init]\n        container:\n          applicationId: shell\n          version: v1\n          candidateClusters: [cloud]\n          inputFiles:\n            model: {source: TASK_OUTPUT, taskId: init, port: message}\n      - id: init\n        type: core.Log\n        message: hello\n`;
+  await open(page, id, source);
+  await page.locator('[data-task="target"] > .task-card-header .task-select').click();
+  await expect(page.getByLabel('上游任务').locator('option[value="init"]')).toHaveCount(1);
+  await expect(page.getByLabel('上游任务')).toHaveValue('init');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '删除任务 init', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('仍被引用');
+  await expect(page.locator('[data-task="init"]')).toHaveCount(1);
+});
+test('application contract, dataset restrictions, bindings and resource catalog use real APIs', async ({
+  page,
+  request,
+}) => {
+  const token = unique();
+  for (const [path, data] of [
+    [`/resources/clusters/${token}`, { id: token, kind: 'EDGE', enabled: true }],
+    [
+      `/resources/datasets/${token}/versions/v1`,
+      {
+        datasetId: token,
+        version: 'v1',
+        format: 'pt',
+        locations: [{ clusterId: token, uri: `s3://datasets/${token}/data.pt` }],
+      },
+    ],
+    [
+      `/applications/${token}/versions/v1`,
+      {
+        applicationId: token,
+        version: 'v1',
+        image: 'registry.example/test:v1',
+        parameters: {
+          DATASET: {
+            type: 'STRING',
+            required: true,
+            dataset: { format: 'pt', allowed: [{ datasetId: token, version: 'v1' }] },
+          },
+          RATE: { type: 'NUMBER', defaultValue: 0.25 },
+        },
+      },
+    ],
+  ]) {
+    const response = await request.put(base + path, { headers, data });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  const id = unique();
+  await open(page, id);
+  await add(page, '任务', 'platform.Application', 'train');
+  await page.getByLabel('应用与版本').selectOption(JSON.stringify([token, 'v1']));
+  await page
+    .locator('[data-field="tasks.0.container.command"]')
+    .getByRole('button', { name: '＋ 添加一项', exact: true })
+    .click();
+  await field(page, 'tasks.0.container.command.0', 'python');
+  const param = page.locator('[data-field="tasks.0.container.parameters.DATASET"]');
+  await param.getByRole('button', { name: '＋ 设置 DATASET' }).click();
+  await param.getByLabel('契约允许值').selectOption(JSON.stringify(`${token}/v1`));
+  await page.getByRole('button', { name: `＋ ${token} · EDGE`, exact: true }).click();
+  await page.getByRole('tab', { name: '源代码', exact: true }).click();
+  const flow = parse(await page.getByLabel('Flow YAML').inputValue());
+  expect(flow.inputs).toBeUndefined();
+  expect(flow.tasks[0].container.parameters.DATASET).toEqual({ source: 'LITERAL', value: `${token}/v1` });
+  expect(flow.tasks[0].container.candidateClusters).toEqual([token]);
+  expect(flow.tasks[0].container.parameters.RATE).toBeUndefined();
+  await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('校验通过');
+});
+test('large task tree switches use one inspector, and catalog failure can be retried', async ({ page }) => {
+  let reads = 0;
+  page.on('request', (request) => {
+    if (/\/applications\?/.test(request.url())) reads++;
+  });
+  await page.route('**/applications?**', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{"message":"catalog unavailable"}',
+    }),
+  );
+  const id = unique();
+  const source =
+    `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n` +
+    Array.from({ length: 120 }, (_, i) => `  - id: t${i}\n    type: core.Log\n    message: m${i}\n`).join(
+      '',
+    ) +
+    '  - id: app\n    type: platform.Application\n    timeout: PT5M\n    container: {applicationId: missing, version: v1, candidateClusters: [], command: []}\n';
+  await open(page, id, source);
+  await expect(page.locator('.task-card')).toHaveCount(121);
+  for (let i = 0; i < 30; i++) {
+    await page.locator(`[data-task="t${i * 4}"] > .task-card-header .task-select`).click();
+    await expect(page.locator('.task-inspector h2')).toHaveText(`t${i * 4}`);
+  }
+  await expect(page.locator('.task-inspector')).toHaveCount(1);
+  await page.locator('[data-task="app"] > .task-card-header .task-select').click();
+  await expect(page.getByText(/目录读取失败/)).toBeVisible();
+  expect(reads).toBe(1);
+  await page.unroute('**/applications?**');
+  await page.getByRole('button', { name: '重试目录', exact: true }).click();
+  await expect(page.getByText(/目录读取失败/)).toHaveCount(0);
+  expect(reads).toBe(2);
+});
+test('FedAvg/FedProx no-code round-trip keeps executable DSL and scoped item references', async ({
+  page,
+}) => {
+  for (const algorithm of ['fedavg', 'fedprox']) {
+    const id = unique(),
+      original = parse(
+        readFileSync(new URL(`../../../examples/federated/${algorithm}.yaml`, import.meta.url), 'utf8'),
+      );
+    const text = readFileSync(
+      new URL(`../../../examples/federated/${algorithm}.yaml`, import.meta.url),
+      'utf8',
+    ).replace(`id: ${algorithm}`, `id: ${id}`);
+    await open(page, id, text);
+    const train = page
+      .locator('.task-card')
+      .filter({ has: page.locator(':scope > .task-card-header .task-select strong', { hasText: 'train' }) });
+    await train.locator(':scope > .task-card-header .task-select').click();
+    await expect(
+      page
+        .getByLabel('参数来源')
+        .filter({ has: page.locator('option[value="ITEM"]:not([disabled])') })
+        .first(),
+    ).toBeVisible();
+    await page.getByRole('button', { name: '流程设置', exact: true }).click();
+    await field(page, 'description', 'Edited in No-code');
+    await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
+    const next = parse(await page.getByLabel('Flow YAML').inputValue());
+    expect(next.tasks).toEqual(original.tasks);
+    expect(next.inputs).toEqual(original.inputs);
+    await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('校验通过');
+    await page.screenshot({ path: `.local/evidence/no-code-${algorithm}.png`, fullPage: true });
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: '断开连接', exact: true }).click();
+  }
+});
+test('revision comparison and rollback create a new revision without overwriting history', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  await open(page, id);
+  await add(page, '任务', 'core.Log', 'hello');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('r1');
+  await field(page, 'tasks.0.message', 'revision two');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('r2');
+  await page.getByRole('tab', { name: '修订历史', exact: true }).click();
+  await page.getByRole('button', { name: /^r1 ·/ }).click();
+  await expect(page.getByRole('heading', { name: '选中版本 r1' })).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '回退为新修订' }).click();
+  await expect(page.getByRole('status')).toContainText('修订 r3');
+  const response = await request.get(`${base}/flows/${id}`, { headers });
+  expect((await response.json()).definition.tasks[0].message).toBe('Hello');
+});

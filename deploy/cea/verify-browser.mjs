@@ -29,6 +29,17 @@ try {
   for (const flow of ['fedavg', 'fedprox']) {
     await page.getByRole('button', { name: flow, exact: true }).click();
     await expect(page.getByLabel('Flow YAML')).toHaveValue(/core\.Loop/);
+    await expect(page.getByRole('tab', { name: '可视化编排', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.locator('[data-task="train"] > .task-card-header .task-select').click();
+    await expect(page.locator('.task-inspector h2')).toHaveText('train');
+    await expect(page.getByLabel('应用与版本')).toBeVisible();
+    await expect(page.getByText(/目录读取失败/)).toHaveCount(0);
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-no-code.png', evidence))});
+    const original = await page.getByLabel('Flow YAML').inputValue();
+    await page.getByRole('tab', {name: '并排编辑', exact: true}).click();
+    await expect(page.getByLabel('Flow YAML')).toHaveValue(original);
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-split.png', evidence))});
+    console.log(JSON.stringify({flow, layout: await page.evaluate(() => ({width: innerWidth, height: innerHeight, documentHeight: document.documentElement.scrollHeight, documentWidth: document.documentElement.scrollWidth}))}));
     await page.getByRole('button', { name: '流程', exact: true }).first().click();
   }
   await page.getByRole('button', { name: '执行', exact: true }).first().click();

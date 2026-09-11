@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-02是WF-016/WF-002/WF-003的前端消费者，不增加功能编号或后端模型；任务块、单表单、原Binding/目录、同源YAML和修订比较回退已实现，测试与部署状态见[UI-02验收](verification/VER-UI-002-no-code.md)。[功能边界](features/UI-02-no-code.md)不含完整Kestra、资源注册管理、Pod日志、指标或旧数据迁移。下方UI-01/S6描述保留对应历史批次边界。
+
 DEPLOY-01是OPS-001/FL-001的独立部署工作包，当前DONE/PASS，不是新增领域能力。[范围](features/DEPLOY-01-independent.md)与[实测记录](verification/VER-DEPLOY-001-cea.md)覆盖D盘Compose、显式配置、四集群联邦算法、浏览器和重启复核；FL-001本批已扩至真实MNIST训练60000/测试10000。算法Pod stdout未汇入Execution日志；不包含MIG-001旧数据转换/切换，OPS汇总仍保留最终上线未验收的边界。
 
 UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；[工作包](features/UI-01-console.md)、[验证记录](verification/VER-UI-001-console.md)。只覆盖源编辑与基本执行管理，不把完整No-code或全部旧管理页面标为完成。

@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ApiError, errorText } from './api.js';
 import { inputValues, makeFields, pretty, sample, submission, time } from './model.js';
+import NoCodeEditor from './no-code/NoCodeEditor.vue';
+import FlowRevisions from './no-code/FlowRevisions.vue';
 
 const props = defineProps({ api: Function, namespace: String, flowId: String });
 const emit = defineEmits(['dirty', 'pending', 'started', 'saved-title']);
@@ -16,16 +18,21 @@ const runOpen = ref(false),
   preview = ref(null),
   pending = ref(null),
   schema = ref(null),
-  tab = ref('source');
+  tab = ref('nocode');
+const invalidForm = ref(false);
 const dirty = computed(() => source.value !== (saved.value?.source || ''));
 let alive = true;
 watch(dirty, (value) => emit('dirty', value));
 watch(pending, (value) => emit('pending', !!value));
-watch(source, () => {
-  success.value = '';
-  preview.value = null;
-  if (!pending.value) runOpen.value = false;
-});
+watch(
+  source,
+  () => {
+    success.value = '';
+    preview.value = null;
+    if (!pending.value) runOpen.value = false;
+  },
+  { flush: 'sync' },
+);
 watch(
   fields,
   () => {
@@ -80,7 +87,7 @@ async function validate() {
   });
 }
 async function save() {
-  if (pending.value) return;
+  if (pending.value || invalidForm.value) return;
   await action(async () => {
     requireId();
     const result = await props.api(`${path()}/revisions`, {
@@ -161,6 +168,12 @@ function exportDraft() {
   link.click();
   URL.revokeObjectURL(url);
 }
+function applyRevision(result) {
+  saved.value = result;
+  source.value = result.source;
+  success.value = `已回退并保存为修订 r${result.revision}`;
+  tab.value = 'nocode';
+}
 onMounted(load);
 </script>
 
@@ -177,9 +190,13 @@ onMounted(load);
         </p>
       </div>
       <div class="actions">
-        <button :disabled="busy || !source || !!pending" @click="validate">✓ 校验</button
-        ><button :disabled="busy || !source || !!pending" @click="save">保存修订</button
-        ><button class="primary" :disabled="busy || !saved || dirty || !!pending" @click="openRun">
+        <button :disabled="busy || !source || !!pending || invalidForm" @click="validate">✓ 校验</button
+        ><button :disabled="busy || !source || !!pending || invalidForm" @click="save">保存修订</button
+        ><button
+          class="primary"
+          :disabled="busy || !saved || dirty || !!pending || invalidForm"
+          @click="openRun"
+        >
           ▷ 执行
         </button>
       </div>
@@ -216,6 +233,22 @@ onMounted(load);
     <div class="tabs" role="tablist" aria-label="编辑视图">
       <button
         role="tab"
+        :aria-selected="tab === 'nocode'"
+        :class="{ active: tab === 'nocode' }"
+        @click="tab = 'nocode'"
+      >
+        可视化编排
+      </button>
+      <button
+        role="tab"
+        :aria-selected="tab === 'split'"
+        :class="{ active: tab === 'split' }"
+        @click="tab = 'split'"
+      >
+        并排编辑
+      </button>
+      <button
+        role="tab"
         :aria-selected="tab === 'source'"
         :class="{ active: tab === 'source' }"
         @click="tab = 'source'"
@@ -230,27 +263,58 @@ onMounted(load);
       >
         结构参考
       </button>
+      <button
+        v-if="saved"
+        role="tab"
+        :aria-selected="tab === 'revisions'"
+        :class="{ active: tab === 'revisions' }"
+        :disabled="busy || !!pending || invalidForm"
+        @click="tab = 'revisions'"
+      >
+        修订历史
+      </button>
     </div>
     <div class="editor-grid" :class="{ 'with-run': runOpen }">
-      <div class="code-panel">
-        <div class="code-title">
-          <span>{{ tab === 'source' ? `${id || 'flow'}.yaml` : 'FlowDefinition · JSON Schema' }}</span
-          ><span>{{ tab === 'source' ? 'Ctrl / ⌘ + S 保存' : '由后端运行模型生成' }}</span>
-        </div>
-        <textarea
-          v-if="tab === 'source'"
-          v-model="source"
-          class="code-editor"
-          aria-label="Flow YAML"
-          spellcheck="false"
+      <div class="editor-workbench" :class="{ 'split-editor': tab === 'split' }">
+        <NoCodeEditor
+          v-show="tab === 'nocode' || tab === 'split'"
+          :source="source"
+          :api="api"
+          :namespace="namespace"
+          :flow-id="id"
           :disabled="busy || !!pending"
-          placeholder="粘贴 Flow YAML，或插入最小示例…"
-          @keydown.ctrl.s.prevent="save"
-          @keydown.meta.s.prevent="save"
-        ></textarea>
-        <pre v-else class="schema-code">{{ schema ? pretty(schema) : '正在读取结构…' }}</pre>
-        <div class="code-footer">
-          <span>{{ source.split('\n').length }} 行 · UTF-8</span><span>YAML → FlowDefinition</span>
+          @update:source="source = $event"
+          @invalid="invalidForm = $event"
+          @show-source="tab = 'split'"
+        />
+        <FlowRevisions
+          v-if="tab === 'revisions'"
+          :api="api"
+          :flow-id="saved.flowId"
+          :current="saved"
+          :dirty="dirty"
+          @applied="applyRevision"
+        />
+        <div v-show="['source', 'split', 'schema'].includes(tab)" class="code-panel">
+          <div class="code-title">
+            <span>{{ tab !== 'schema' ? `${id || 'flow'}.yaml` : 'FlowDefinition · JSON Schema' }}</span
+            ><span>{{ tab !== 'schema' ? 'Ctrl / ⌘ + S 保存' : '由后端运行模型生成' }}</span>
+          </div>
+          <textarea
+            v-if="tab !== 'schema'"
+            v-model="source"
+            class="code-editor"
+            aria-label="Flow YAML"
+            spellcheck="false"
+            :disabled="busy || !!pending"
+            placeholder="粘贴 Flow YAML，或插入最小示例…"
+            @keydown.ctrl.s.prevent="save"
+            @keydown.meta.s.prevent="save"
+          ></textarea>
+          <pre v-else class="schema-code">{{ schema ? pretty(schema) : '正在读取结构…' }}</pre>
+          <div class="code-footer">
+            <span>{{ source.split('\n').length }} 行 · UTF-8</span><span>YAML → FlowDefinition</span>
+          </div>
         </div>
       </div>
       <section v-if="runOpen" class="run-panel" aria-label="执行参数">

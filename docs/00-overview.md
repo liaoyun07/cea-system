@@ -2,7 +2,7 @@
 
 DEPLOY-01提供当前可运行的[独立CEA部署](../deploy/cea/README.md)：同一台Windows/Docker Desktop上12个常驻容器，D盘Linux命名卷，独立前后端、数据库、存储、四仓库和四集群。FedAvg/FedProx真实两轮及重启持久性通过；不导入旧业务数据，不等于S7切换、物理多云或吞吐验收。仅修正既有Kubernetes文件上传为字节流，没有新模型/表/执行链。算法Pod stdout尚未汇入工作台Execution日志。
 
-UI-01提供[独立最小工作台](../frontend/README.md)：Vue客户端 → 同源/api代理 → 现有Flow/Execution API。列表、YAML校验/保存、固定修订执行、任务/日志/结果已实现；没有改变八模块、后端状态所有权或数据库。完整可视化编排和资源/账号/网关管理界面仍未实现，旧前端及S7未迁移。
+UI-01/02提供[独立工作台](../frontend/README.md)：Vue客户端 → 同源/api代理 → 现有Flow/Execution API。UI-02增加任务分组/单配置面板、显式绑定/目录选择、同源YAML编辑和修订比较回退。没有改变八模块、后端状态所有权或数据库；未实现完整Kestra工作台及资源/账号/网关注册管理页，旧前端及S7未迁移。实际验收见[UI-02记录](verification/VER-UI-002-no-code.md)。
 
 S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出/搜索；本轮补充固定版本Namespace文件及真实Task消费、认证Webhook/统一Checks、SLA告警和终态后处理。执行状态仍由同一个Executor/Worker推进，详细边界见[编辑协议](contracts/s6-flow-editing.md)与[文件/生命周期](contracts/s6-files-lifecycle.md)。S6后端最小范围及完整回归已通过；S5计量、长期DQN和完整前端仍未实现。
 
@@ -68,7 +68,7 @@ S5-03新增入口：受信网关CONNECT身份 → edge终端归属/策略事件�
 
 S4已接入应用目录、真实Registry复制、常驻Deployment和一次性Application Job。一次性Job与常驻部署分开；同Attempt固定镜像digest、位置、参数和Job，Worker重连接管原Job。后端暂存输入、收集输出并发布S3产物；取消须等Pod停止。普通选址检查节点健康和数据本地性、预约平台作业槽，不走终端卸载DQN。
 
-Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与未来No-code共用Flow，当前No-code未实现。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
+Flow作者显式定义inputs及参数Binding，不由应用契约派生；YAML与UI-02 No-code共用唯一源文件，不存在alias/plan/resolve。HTTP GET/POST、参数化只读SQL与容器Shell/Python沿用同一Worker链。POST未知结果不自动重发；不声称通用外部副作用exactly-once。
 
 凭据由管理员外部配置；当前鉴权与隔离集群故障验证不等于完整生产IAM、多地域容灾或性能指标验收。S4及S5-01 Repeat已验收；S5-02将FedAvg/FedProx实现为普通Application与显式Flow数据，初始化后按轮并行训练、加权聚合和全局评估，无执行器算法特例。S5-02b增加通用Loop，客户端集合动态展开为独立TaskRun；仍沿用单一Binding/Executor/Worker链，没有专用联邦状态表。150项Maven验证及7项Python测试通过，见[验收记录](verification/VER-S5-003-loop.md)。S5-03已完成后端网关/终端接入和策略入口；完整166项回归通过，收尾权限变更另复测107项通过，详见[接入验收](verification/VER-S5-004-edge-access.md)。上述为S5-03历史验收；当前S5核心执行已完成、长期DQN及计量后置，S6后端已完成，S7未进入。
 
