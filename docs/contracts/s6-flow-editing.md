@@ -19,6 +19,8 @@
 
 单份源长度1..262144字符；未知字段、重复键、尾随第二份JSON/YAML文档拒绝。原有所有结构/引用/嵌套约束继续由FlowValidator执行。Schema只表达结构与字段类型，不能代替服务端跨字段/引用/资源校验，也不保证schema通过就能执行。保存接口仍为POST /{flowId}/revisions，不增加第二份No-code保存数据。
 
+UI-04增加Input.type=SELECT和Input.values。values仅用于SELECT，必须是非空数组且元素为不重复、非空白字符串；默认值和本次提供的非null值必须属于values。Schema暴露SELECT枚举和字符串数组，FlowValidator负责类型关联及成员校验；preview和所有正常提交路径继续消费原BindingResolver.prepare。现有defaultValue/required/省略与null语义不变，schemaVersion仍为1，无新API或DB迁移。见[完整语义和示例](../features/UI-04-select-input.md)。
+
 422为定义/输入/批次约束错误，409为修订或管理范围冲突，404为缺少目标修订，401/403为认证/权限失败。无有效JSON请求体或类型错误使用既有400。重复导入旧expectedRevision返回409，不产生第二个修订；成功修订号由原FlowRevision返回，无新增幂等表。
 
 ## 数据与执行边界

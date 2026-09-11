@@ -27,7 +27,7 @@ public final class BindingResolver {
         flow.inputs().forEach((name, spec) -> {
             Object value = values.containsKey(name) ? values.get(name) : spec.defaultValue();
             if (value == null && spec.required()) throw WorkflowException.invalid("inputs." + name, "required");
-            validateType(name, spec.type(), value);
+            validateInput(name, spec, value);
             inputs.put(name, value);
         });
         Map<String, Object> variables = new LinkedHashMap<>();
@@ -95,11 +95,17 @@ public final class BindingResolver {
         return values.get(key);
     }
 
+    public static void validateInput(String name, Input spec, Object value) {
+        validateType(name, spec.type(), value);
+        if (value != null && spec.type() == InputType.SELECT && (spec.values() == null || !spec.values().contains(value)))
+            throw WorkflowException.invalid("inputs." + name, "must match one of values");
+    }
+
     public static void validateType(String name, InputType type, Object value) {
         if (type == null) throw WorkflowException.invalid("inputs." + name, "type is required");
         if (value == null) return;
         boolean valid = switch (type) {
-            case STRING -> value instanceof String;
+            case STRING, SELECT -> value instanceof String;
             case INTEGER -> value instanceof Byte || value instanceof Short || value instanceof Integer
                     || value instanceof Long || value instanceof java.math.BigInteger;
             case NUMBER -> value instanceof Number n && Double.isFinite(n.doubleValue());

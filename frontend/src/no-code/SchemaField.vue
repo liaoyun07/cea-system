@@ -14,7 +14,31 @@ const props = defineProps({
   disabled: Boolean,
 });
 const emit = defineEmits(['patch', 'invalid']);
-const s = computed(() => shape(props.schema, props.root, props.value));
+const inputSpec = computed(() =>
+  props.path.length === 3 && props.path[0] === 'inputs' ? props.flow.inputs?.[props.path[1]] : null,
+);
+const selectDefault = computed(
+  () => inputSpec.value?.type === 'SELECT' && props.path.at(-1) === 'defaultValue',
+);
+const s = computed(() =>
+  selectDefault.value
+    ? { type: 'string', enum: Array.isArray(inputSpec.value.values) ? inputSpec.value.values : [] }
+    : shape(props.schema, props.root, props.value),
+);
+const properties = computed(() =>
+  Object.fromEntries(
+    Object.entries(s.value.properties || {}).filter(
+      ([key]) =>
+        !(
+          props.path.length === 2 &&
+          props.path[0] === 'inputs' &&
+          key === 'values' &&
+          props.value?.type !== 'SELECT' &&
+          props.value?.values == null
+        ),
+    ),
+  ),
+);
 const newKey = ref('');
 const fieldId = computed(() => `field-${pathKey(props.path)}`);
 const loopValues = computed(() => props.path.at(-2) === 'loop' && props.path.at(-1) === 'values');
@@ -120,8 +144,8 @@ function json(event) {
       <button
         type="button"
         class="field-enable"
-        :disabled="disabled"
-        @click="patch(loopValues ? { source: 'LITERAL', value: [] } : initialValue(schema, root))"
+        :disabled="disabled || (selectDefault && !s.enum.length)"
+        @click="patch(loopValues ? { source: 'LITERAL', value: [] } : initialValue(s, root))"
       >
         ＋ 设置 {{ label || labels[path.at(-1)] || path.at(-1) }}
       </button>
@@ -146,13 +170,16 @@ function json(event) {
     </template>
     <template v-else-if="s.enum">
       <select :id="fieldId" :value="value" :disabled="disabled" @change="patch($event.target.value)">
+        <option v-if="selectDefault && !s.enum.includes(value)" :value="value" disabled>
+          {{ value }}（不在选项中）
+        </option>
         <option v-for="option in s.enum" :key="option">{{ option }}</option>
       </select>
     </template>
     <template v-else-if="s.type === 'object' && s.properties">
       <div class="nested-fields">
         <SchemaField
-          v-for="(child, key) in s.properties"
+          v-for="(child, key) in properties"
           :key="key"
           :schema="child"
           :root="root"

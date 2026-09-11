@@ -36,9 +36,13 @@ public record FlowDefinition(
     public record Check(String when,String message) {}
     public record Sla(String maxDuration) {}
     public record NamespaceFile(String path,int revision) {}
-    public enum InputType { STRING, INTEGER, NUMBER, BOOLEAN, OBJECT, ARRAY }
-    public record Input(InputType type, Boolean required, Object defaultValue) {
-        public Input { required = Boolean.TRUE.equals(required); }
+    public enum InputType { STRING, INTEGER, NUMBER, BOOLEAN, OBJECT, ARRAY, SELECT }
+    public record Input(InputType type, Boolean required, Object defaultValue, List<Object> values) {
+        public Input {
+            required = Boolean.TRUE.equals(required);
+            // Keep raw JSON element types so validation cannot silently coerce numbers into strings.
+            values = values == null ? null : Collections.unmodifiableList(new ArrayList<>(values));
+        }
     }
     public record Retry(String type, Integer maxAttempts, String interval) {}
     public record Concurrency(Integer limit, Behavior behavior) {

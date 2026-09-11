@@ -331,7 +331,11 @@ onMounted(load);
             </div>
             <label class="provide"><input type="checkbox" v-model="field.provided" />提供本次值</label>
             <template v-if="field.provided">
-              <select v-if="field.type === 'BOOLEAN'" :id="`input-${field.name}`" v-model="field.value">
+              <select v-if="field.type === 'SELECT'" :id="`input-${field.name}`" v-model="field.value">
+                <option value="" disabled>请选择</option>
+                <option v-for="option in field.values" :key="option" :value="option">{{ option }}</option>
+              </select>
+              <select v-else-if="field.type === 'BOOLEAN'" :id="`input-${field.name}`" v-model="field.value">
                 <option value="" disabled>请选择</option>
                 <option value="true">true</option>
                 <option value="false">false</option>

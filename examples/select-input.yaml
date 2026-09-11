@@ -1,0 +1,15 @@
+schemaVersion: 1
+namespace: lab
+id: select-input
+inputs:
+  region:
+    type: SELECT
+    values: [edge-a, edge-b, cloud]
+    defaultValue: edge-a
+    required: true
+tasks:
+  - id: show
+    type: core.Log
+    message: "Selected {{ inputs.region }}"
+outputs:
+  selected: {source: INPUT, name: region}

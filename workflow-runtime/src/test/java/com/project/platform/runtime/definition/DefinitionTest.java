@@ -115,14 +115,14 @@ class DefinitionTest {
     }
 
     @Test void invalidOutputAndVariableReferencesAreRejected() {
-        var inputs = Map.of("name", new Input(InputType.STRING,true,null));
+        var inputs = Map.of("name", new Input(InputType.STRING,true,null,null));
         assertThrows(WorkflowException.class, () -> validator.validate(flow(inputs,Map.of(),Map.of("bad",new TaskOutputRef("missing","message")))));
         assertThrows(WorkflowException.class, () -> validator.validate(flow(inputs,Map.of("bad",new InputRef("missing")),Map.of())));
         assertThrows(WorkflowException.class, () -> validator.validate(flow(inputs,Map.of("bad",new TaskOutputRef("one","message")),Map.of())));
     }
 
     @Test void variableCyclesAreRejectedAndDefinitionOrderDoesNotMatter() {
-        var inputs = Map.of("name",new Input(InputType.STRING,true,null));
+        var inputs = Map.of("name",new Input(InputType.STRING,true,null,null));
         assertThrows(WorkflowException.class, () -> validator.validate(flow(inputs,
                 Map.of("a",new VariableRef("b"),"b",new VariableRef("a")),Map.of())));
         var good = flow(inputs,Map.of("a",new VariableRef("b"),"b",new InputRef("name")),Map.of());
@@ -134,18 +134,44 @@ class DefinitionTest {
         var parsed = parser.parse("schemaVersion: 1\nnamespace: lab\nid: defaults\ninputs:\n  count: {type: INTEGER, defaultValue: 2}\ntasks: [{id: one, type: core.Log, message: hi}]");
         assertFalse(parsed.inputs().get("count").required());
         assertEquals(2, resolver.prepare(parsed, Map.of()).inputs().get("count"));
-        var flow = flow(Map.of("name",new Input(InputType.STRING,true,null),"count",new Input(InputType.INTEGER,false,2)),
+        var flow = flow(Map.of("name",new Input(InputType.STRING,true,null,null),"count",new Input(InputType.INTEGER,false,2,null)),
                 Map.of(),Map.of());
         assertEquals(2,resolver.prepare(flow,Map.of("name","Ada")).inputs().get("count"));
         assertThrows(WorkflowException.class, () -> resolver.prepare(flow,Map.of()));
         assertThrows(WorkflowException.class, () -> resolver.prepare(flow,Map.of("name","Ada","count","2")));
         assertThrows(WorkflowException.class, () -> resolver.prepare(flow,Map.of("name","Ada","extra",true)));
         assertThrows(WorkflowException.class, () -> validator.validate(flow(
-                Map.of("name",new Input(InputType.INTEGER,false,"wrong")),Map.of(),Map.of())));
+                Map.of("name",new Input(InputType.INTEGER,false,"wrong",null)),Map.of(),Map.of())));
+    }
+
+    @Test void selectDefinitionsValidateValuesAndDefaultsWithoutCoercion() {
+        String source="schemaVersion: 1\nnamespace: lab\nid: select\ninputs:\n  region: %s\ntasks: [{id: log, type: core.Log, message: hi}]";
+        var definition=parser.parse(source.formatted("{type: SELECT, values: [edge-a, cloud], defaultValue: cloud}"));
+        assertEquals(List.of("edge-a","cloud"),definition.inputs().get("region").values());
+        assertEquals(definition,parser.parse(json.write(definition)));
+        for(String spec:List.of("{type: SELECT}","{type: SELECT, values: []}",
+                "{type: SELECT, values: [a, a]}","{type: SELECT, values: [' ' , a]}",
+                "{type: SELECT, values: [null]}","{type: SELECT, values: [1]}",
+                "{type: SELECT, values: [true]}","{type: SELECT, values: [{value: a}]}",
+                "{type: SELECT, values: [a], defaultValue: b}","{type: SELECT, values: ['1'], defaultValue: 1}",
+                "{type: STRING, values: [a]}","{type: SELECT, values: [a], allowCustomValue: true}"))
+            assertThrows(WorkflowException.class,()->parser.parse(source.formatted(spec)),spec);
+    }
+
+    @Test void selectPreparationKeepsStringMembershipRequiredAndNullSemantics() {
+        var required=flow(Map.of("region",new Input(InputType.SELECT,true,null,List.of("edge-a","cloud","true","0"))),Map.of(),Map.of());
+        validator.validate(required);
+        assertEquals("true",resolver.prepare(required,Map.of("region","true")).inputs().get("region"));
+        for(Object bad:List.of("EDGE-A","outside",1,true,List.of("cloud")))
+            assertThrows(WorkflowException.class,()->resolver.prepare(required,Map.of("region",bad)));
+        assertThrows(WorkflowException.class,()->resolver.prepare(required,Map.of()));
+        var optional=flow(Map.of("region",new Input(InputType.SELECT,false,"cloud",List.of("edge-a","cloud"))),Map.of(),Map.of());
+        assertEquals("cloud",resolver.prepare(optional,Map.of()).inputs().get("region"));
+        assertNull(resolver.prepare(optional,java.util.Collections.singletonMap("region",null)).inputs().get("region"));
     }
 
     @Test void optionalNullIsPreservedAndBindingOutputsStayTyped() {
-        var definition = flow(Map.of("name",new Input(InputType.STRING,false,null)),Map.of(),Map.of());
+        var definition = flow(Map.of("name",new Input(InputType.STRING,false,null,null)),Map.of(),Map.of());
         assertTrue(resolver.prepare(definition,Map.of()).inputs().containsKey("name"));
         Map<String,Object> output = resolver.outputs(Map.of("count",new Literal(2),"flag",new Literal(true)),
                 Map.of(),Map.of(),Map.of());

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-04已完成并发布：WF-002/WF-016增加固定字符串SELECT、values、默认值/必填和端到端成员校验；30项Node、36项浏览器、215项Maven及构建/格式/scaffold通过。已按用户确认同步更新CEA前后端并只读复核，不改两Flow及四条历史执行，其他十个容器未重启。不新增功能编号、API、表或执行链。[语义与边界](features/UI-04-select-input.md)，[验证记录](verification/VER-UI-004-select-input.md)。
+
 UI-02b已完成并发布：Loop.values的Array/引用及逐项集合编辑，FedAvg/FedProx移除clients启动输入，实际CEA修订为r4/r2。29项Node、34项浏览器、212项Maven及构建/格式/scaffold通过，实际页面和历史保留复核PASS，其余11个服务未重启。无新领域功能编号或后端执行能力，见[记录](verification/VER-UI-002b-loop-values.md)。
 
 UI-02a修复候选集群选中反馈：高亮/勾选、点击取消、YAML同源回显和固定列表/LITERAL切换保留。29项Node、30项浏览器、212项Maven及构建/格式/结构检查通过，已按确认更新18080并只读复核，其他11个服务未重启；见[验证记录](verification/VER-UI-002a-cluster-selection.md)。无新后端模型或执行链。

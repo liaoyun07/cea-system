@@ -15,16 +15,33 @@ test('defaults preserve false, zero, empty strings, objects and omitted values',
   fields[0].provided = false;
   assert.ok(!('zero' in inputValues(fields)));
 });
-test('all six input types round-trip without string coercion', () => {
+test('all seven input types round-trip without string coercion', () => {
   const value = inputValues([
     { name: 's', type: 'STRING', value: 'true', provided: true },
+    { name: 'choice', type: 'SELECT', values: ['true', '0'], value: 'true', provided: true },
     { name: 'i', type: 'INTEGER', value: '12', provided: true },
     { name: 'n', type: 'NUMBER', value: '1.25', provided: true },
     { name: 'b', type: 'BOOLEAN', value: 'false', provided: true },
     { name: 'a', type: 'ARRAY', value: '[1,"a"]', provided: true },
     { name: 'o', type: 'OBJECT', value: '{"x":1}', provided: true },
   ]);
-  assert.deepEqual(value, { s: 'true', i: 12, n: 1.25, b: false, a: [1, 'a'], o: { x: 1 } });
+  assert.deepEqual(value, { s: 'true', choice: 'true', i: 12, n: 1.25, b: false, a: [1, 'a'], o: { x: 1 } });
+});
+test('SELECT preserves defaults and omission but rejects nonmembers and nonstrings', () => {
+  const fields = makeFields({
+    region: { type: 'SELECT', values: ['edge-a', 'cloud'], defaultValue: 'cloud' },
+  });
+  assert.deepEqual(inputValues(fields), { region: 'cloud' });
+  fields[0].provided = false;
+  assert.deepEqual(inputValues(fields), {});
+  fields[0].provided = true;
+  for (const value of ['', 'other', 1, ['cloud']]) {
+    fields[0].value = value;
+    assert.throws(() => inputValues(fields), /请选择/);
+  }
+  const absent = makeFields({ region: { type: 'SELECT', values: ['edge-a'], required: true } });
+  assert.equal(absent[0].provided, false);
+  assert.equal(absent[0].value, '');
 });
 test('wrong type, nonfinite and unsafe integers are rejected', () => {
   for (const [type, value] of [

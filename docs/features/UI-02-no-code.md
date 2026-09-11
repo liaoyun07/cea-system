@@ -4,6 +4,8 @@
 
 ## 设计与当前消费者
 
+UI-04增量：Flow Inputs可选SELECT，values逐项配置，defaultValue从选项中选择；删除默认值对应选项时保留原值供修正，不静默换值。非SELECT不显示空values，但保留误填的现有values供删除并交服务端校验。执行表单保持原默认值/提供开关，SELECT提供下拉，不隐式选首项；边界与验收见[SELECT规格](UI-04-select-input.md)。
+
 - FlowEditor.source是唯一编辑源。No-code使用yaml库的Document节点按路径修改，不从表单重建整份Flow；保留未知/未覆盖字段及未修改节点的注释。序列化可能调整空白/折行，不承诺逐字节不变。无效文档不允许表单写入，保留原文供修正。
 - 中间分组任务块与右侧表单，支持主任务、Errors、Finally、After Execution、Sequential/Parallel/Dag/If/Repeat/Loop；新增、删除、排序和移组只修改既有tasks结构。删除仍被引用的任务时拒绝，不自动删除绑定。跨组移动由服务端校验作用域，不改写执行语义。
 - 表单结构来自GET /flows/editor/schema，字段标签/显示条件是前端表现，不是第二套DSL。INPUT/VARIABLE/TASK_OUTPUT/LITERAL/ITEM均使用原Binding；Loop当前item和Repeat反馈采用当前模型。

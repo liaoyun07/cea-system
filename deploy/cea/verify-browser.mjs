@@ -28,6 +28,31 @@ try {
   }
   await page.screenshot({ path: fileURLToPath(new URL('flows.png', evidence)), fullPage: true });
   const authHeaders = { Authorization: 'Basic ' + Buffer.from(settings.BACKEND_USER + ':' + settings.BACKEND_PASSWORD).toString('base64') };
+  // SELECT deployment probe: edit/validate/preview a draft only; never save or execute it in CEA.
+  const selectId = 'ui-select-readonly';
+  const selectSource = (await readFile(new URL('../../examples/select-input.yaml', import.meta.url), 'utf8'))
+    .replace('id: select-input', 'id: ' + selectId);
+  await page.getByRole('button', {name: '＋ 新建流程', exact: true}).click();
+  await page.getByLabel('流程 ID', {exact: true}).fill(selectId);
+  await page.getByRole('tab', {name: '源代码', exact: true}).click();
+  await page.getByLabel('Flow YAML').fill(selectSource);
+  await page.getByRole('tab', {name: '可视化编排', exact: true}).click();
+  await page.getByRole('button', {name: '流程设置', exact: true}).click();
+  await expect(page.locator('[data-field="inputs.region.type"] > select')).toHaveValue('SELECT');
+  await expect(page.locator('[data-field="inputs.region.defaultValue"] > select')).toHaveValue('edge-a');
+  await expect(page.locator('[data-field="inputs.region.values"] > .array-fields > .schema-field')).toHaveCount(3);
+  await page.getByRole('button', {name: '✓ 校验', exact: true}).click();
+  await expect(page.getByRole('status')).toContainText('校验通过');
+  await page.screenshot({path: fileURLToPath(new URL('select-definition.png', evidence))});
+  for (const [region, status] of [['cloud', 200], ['outside-options', 422]]) {
+    const preview = await page.request.post('/api/namespaces/lab/flows/' + selectId + '/preview', {
+      headers: authHeaders, data: {source: selectSource, inputs: {region}}
+    });
+    expect(preview.status()).toBe(status);
+    if (status === 200) expect((await preview.json()).inputs.region).toBe('cloud');
+  }
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
   const catalogPages = [
     ['应用与镜像', '/applications', 'applications'], ['集群资源', '/resources/clusters', 'clusters'],
     ['数据集', '/resources/datasets', 'datasets'], ['边缘网关', '/edge/gateways', 'gateways'],
@@ -146,7 +171,7 @@ try {
     await page.getByRole('button', { name: '执行', exact: true }).first().click();
   }
   expect(errors).toEqual([]);
-  const result = { result: 'PASS', scope: 'real deployed frontend: read-only management catalogs/details and four-cluster deployment lists, both saved Flows, Loop YAML, both successful executions, six training instances each, outputs and log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
+  const result = { result: 'PASS', scope: 'real deployed frontend: unsaved SELECT draft schema/default/options and validation/preview membership; read-only management catalogs/details and four-cluster deployment lists, both saved Flows, Loop YAML, both successful executions, six training instances each, outputs and log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {

@@ -22,7 +22,10 @@ export function inputValues(fields) {
       .filter((f) => f.provided)
       .map((f) => {
         let value = f.value;
-        if (f.type !== 'STRING') {
+        if (f.type === 'SELECT') {
+          if (typeof value !== 'string' || !f.values?.includes(value))
+            throw new Error(`${f.name}：请选择列表中的值`);
+        } else if (f.type !== 'STRING') {
           if (!value.trim()) throw new Error(`${f.name}：请填写 ${f.type} 值，或取消“提供”以省略字段`);
           try {
             value = JSON.parse(value);

@@ -512,6 +512,89 @@ test('Loop creates an object element and nested array without source editing', a
   });
 });
 
+test('SELECT is authored in no-code, saved with values, previewed and executed as a string', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  await open(page, id);
+  await add(page, '任务', 'core.Log', 'show');
+  await field(page, 'tasks.0.message', 'Selected {{ inputs.region }}');
+  await page.getByRole('button', { name: '流程设置', exact: true }).click();
+  await page.getByRole('button', { name: '＋ 设置 流程输入', exact: true }).click();
+  const inputs = page.locator('[data-field="inputs"]');
+  await inputs.getByLabel('新增字段名称', { exact: true }).fill('region');
+  await inputs.getByRole('button', { name: '添加', exact: true }).click();
+  await page.locator('[data-field="inputs.region.type"]').getByRole('button', { name: /设置/ }).click();
+  await expect(page.locator('[data-field="inputs.region.values"]')).toHaveCount(0);
+  await page.locator('[data-field="inputs.region.type"] > select').selectOption('SELECT');
+  const values = page.locator('[data-field="inputs.region.values"]');
+  await values.getByRole('button', { name: '＋ 设置 values', exact: true }).click();
+  for (const [index, option] of ['edge-a', 'cloud', '0'].entries()) {
+    await values.getByRole('button', { name: '＋ 添加一项', exact: true }).click();
+    await field(page, `inputs.region.values.${index}`, option);
+  }
+  const defaults = page.locator('[data-field="inputs.region.defaultValue"]');
+  await defaults.getByRole('button', { name: /设置/ }).click();
+  await defaults.locator('select').selectOption('cloud');
+  await page.locator('[data-field="inputs.region.required"]').getByRole('button', { name: /设置/ }).click();
+  await page.locator('[data-field="inputs.region.required"] > input').check();
+  // Removing an option must not silently replace an existing default.
+  await page.locator('[data-field="inputs.region.values.1"]').getByRole('button', { name: /移除/ }).click();
+  await expect(defaults.locator('select')).toHaveValue('cloud');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('must match');
+  await values.getByRole('button', { name: '＋ 添加一项', exact: true }).click();
+  await field(page, 'inputs.region.values.2', 'cloud');
+  await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).inputs.region).toEqual({
+    type: 'SELECT',
+    values: ['edge-a', '0', 'cloud'],
+    defaultValue: 'cloud',
+    required: true,
+  });
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  const stored = await request.get(`${base}/flows/${id}`, { headers });
+  expect((await stored.json()).definition.inputs.region.values).toEqual(['edge-a', '0', 'cloud']);
+  await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
+  await expect(page.locator('#input-region')).toHaveValue('cloud');
+  await page.locator('#input-region').selectOption('0');
+  await page.getByRole('button', { name: '预览输入', exact: true }).click();
+  await expect(page.locator('.preview-result')).toContainText('"region": "0"');
+  await page.locator('.run-panel').screenshot({ path: '.local/evidence/select-input.png' });
+  await page.setViewportSize({ width: 650, height: 900 });
+  await page.locator('.run-panel').screenshot({ path: '.local/evidence/select-input-narrow.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: '启动执行', exact: true }).click();
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+  await page.getByRole('tab', { name: '日志', exact: true }).click();
+  await expect(page.locator('.log-entry')).toContainText('Selected 0');
+});
+
+test('SELECT without a default stays unselected and enforces required input', async ({ page }) => {
+  const id = unique();
+  await open(
+    page,
+    id,
+    `schemaVersion: 1\nnamespace: lab\nid: ${id}\ninputs:\n  model: {type: SELECT, values: [mlp, cnn], required: true}\ntasks: [{id: show, type: core.Log, message: '{{ inputs.model }}'}]\n`,
+  );
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
+  const provide = page.locator('.input-field').getByRole('checkbox');
+  await expect(provide).not.toBeChecked();
+  await page.getByRole('button', { name: '启动执行', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('required');
+  await provide.check();
+  await expect(page.locator('#input-model')).toHaveValue('');
+  await page.getByRole('button', { name: '预览输入', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('请选择列表中的值');
+  await page.locator('#input-model').selectOption('cnn');
+  await page.getByRole('button', { name: '启动执行', exact: true }).click();
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+});
+
 test('revision comparison and rollback create a new revision without overwriting history', async ({
   page,
   request,

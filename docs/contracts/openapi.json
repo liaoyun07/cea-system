@@ -4604,7 +4604,8 @@
               "NUMBER",
               "BOOLEAN",
               "OBJECT",
-              "ARRAY"
+              "ARRAY",
+              "SELECT"
             ]
           },
           "required": {
@@ -4614,7 +4615,14 @@
             ],
             "default": false
           },
-          "defaultValue": {}
+          "defaultValue": {},
+          "values": {
+            "type": ["array", "null"],
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "SELECT only: ordered nonblank string options. SELECT requires values; defaultValue and supplied non-null values must be members."
+          }
         },
         "required": [
           "type"

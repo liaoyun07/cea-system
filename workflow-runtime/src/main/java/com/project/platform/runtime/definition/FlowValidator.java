@@ -41,7 +41,15 @@ public final class FlowValidator {
         flow.inputs().forEach((name, input) -> {
             identifier(name, "inputs");
             if (input == null) throw WorkflowException.invalid("inputs." + name, "definition required");
-            BindingResolver.validateType(name, input.type(), input.defaultValue());
+            if (input.type() == InputType.SELECT) {
+                if (input.values() == null || input.values().isEmpty()
+                        || input.values().stream().anyMatch(value -> !(value instanceof String text) || text.isBlank())
+                        || new HashSet<>(input.values()).size() != input.values().size())
+                    throw WorkflowException.invalid("inputs." + name + ".values", "SELECT requires nonempty, unique, nonblank strings");
+            } else if (input.values() != null) {
+                throw WorkflowException.invalid("inputs." + name + ".values", "only SELECT supports values");
+            }
+            BindingResolver.validateInput(name, input, input.defaultValue());
         });
         if(flow.concurrency()!=null && (flow.concurrency().limit()==null || flow.concurrency().limit()<1 || flow.concurrency().limit()>1000))
             throw WorkflowException.invalid("concurrency.limit","1..1000 required");

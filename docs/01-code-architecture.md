@@ -2,6 +2,8 @@
 
 这是当前代码结构的权威索引。状态与计划见[实施计划](03-implementation-plan.md)和[进度](04-progress.md)。包根为 `com.project.platform`，不沿用旧 DTO/包依赖。
 
+UI-04 SELECT增量（2026-09-12）：只修改既有FlowDefinition.Input（增加values及SELECT枚举）、FlowValidator（选项定义/默认值约束）、BindingResolver（运行输入类型/成员校验）、FlowSchema（选项字符串数组编辑结构）。Input.values以List<Object>保留原始JSON元素类型，避免数字/布尔被反序列化为字符串而绕过校验；合法定义只允许非空白、不重复的字符串。消费者为保存校验、预览、统一prepare及No-code/执行表单。无新增/删除Java文件、表/列、SPI或模块依赖；仍使用原Flow修订与Execution快照JSON，无DB migration。完整语义见[SELECT输入](features/UI-04-select-input.md)。
+
 ## 工程结构
 
 DEPLOY-01新增`deploy/cea/`：Dockerfile/Compose负责12个CEA常驻容器与独立卷；application.yaml/.env.example负责显式连接；initialize/start/seed-federated/verify-federated脚本分别负责本地配置、服务启动、首次业务登记、真实算法验收，verify-browser.mjs读取实际工作台。详细范围见[部署文档](../deploy/cea/README.md)。未新增Java文件/表/API/SPI；现有`KubernetesJobRunner.upload`改为InputStream文件内容上传，避免非root Linux后端的tar归属信息与受限Pod权限冲突，执行主链不变。

@@ -388,6 +388,37 @@ class FlowManagementTest {
             assertEquals(1,winners);assertEquals(1,flows().get(actor,"lab",a,null).revision());assertEquals(1,flows().get(actor,"lab",b,null).revision());
         }
     }
+    @Test void selectInputPersistsPreviewsAndExecutesPinnedRevisionWithServerMembershipChecks() throws Exception {
+        String name=id(),source="schemaVersion: 1\nnamespace: lab\nid: "+name+"\nwebhook: true\n"+
+                "inputs:\n  region: {type: SELECT, values: [edge-a, cloud], defaultValue: edge-a, required: true}\n"+
+                "tasks: [{id: log, type: core.Log, message: '{{ inputs.region }}'}]\n"+
+                "outputs: {selected: {source: INPUT, name: region}}\n";
+        var saved=flows().save(actor,"lab",name,0,source);
+        assertEquals(List.of("edge-a","cloud"),flows().get(actor,"lab",name,1).definition().inputs().get("region").values());
+        int before=count("wf_execution");
+        var preview=call("POST",base+"/"+name+"/preview","writer",Map.of("source",source));
+        assertEquals(200,preview.statusCode(),preview.body());
+        assertEquals("edge-a",((Map<?,?>)json.map(preview.body()).get("inputs")).get("region"));
+        for(Object bad:List.of("other",1,true,List.of("cloud"))) {
+            var inputs=Map.of("region",bad);
+            assertEquals(422,call("POST",base+"/"+name+"/preview","writer",Map.of("source",source,"inputs",inputs)).statusCode());
+            assertEquals(422,call("POST","/api/namespaces/lab/executions","writer",Map.of("flowId",name,"inputs",inputs),id()).statusCode());
+            assertEquals(422,call("POST","/api/namespaces/lab/webhooks/"+name,"writer",inputs,id()).statusCode());
+        }
+        assertEquals(before,count("wf_execution"));
+        assertThrows(WorkflowException.class,()->flows().save(actor,"lab",name,1,source.replace("defaultValue: edge-a","defaultValue: other")));
+        assertThrows(WorkflowException.class,()->flows().validate(actor,"lab",name,source+"schedule: {cron: '0 * * * * *', inputs: {region: other}}\n"));
+        String policy=id();flows().savePolicy(actor,"lab",policy,0,source.replace("id: "+name,"id: "+policy).replace("webhook: true\n",""));
+        assertThrows(WorkflowException.class,()->executions().submitPolicy(actor,"lab",id(),new FlowExecutionService.Request(policy,null,Map.of("region","other"))));
+        String run=executions().submit(actor,"lab",id(),new FlowExecutionService.Request(name,saved.revision(),Map.of("region","cloud")));
+        flows().save(actor,"lab",name,1,source.replace("values: [edge-a, cloud]","values: [edge-a]"));
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab",id(),new FlowExecutionService.Request(name,null,Map.of("region","cloud"))));
+        drain(run);
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",run).state());
+        assertEquals("cloud",executions().get(actor,"lab",run).outputs().get("selected"));
+        assertEquals(List.of("edge-a","cloud"),executions().get(actor,"lab",run).definition().inputs().get("region").values());
+    }
+
     @Test void everyCheckedInFlowCanRoundTripThroughTheEditorFormats() throws Exception {
         try(var paths=Files.walk(Path.of("..","examples"))) {
             for(var path:paths.filter(p->p.toString().endsWith(".yaml")).toList()) {
