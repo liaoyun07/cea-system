@@ -170,6 +170,10 @@ test('application contract, dataset restrictions, bindings and resource catalog 
   await param.getByRole('button', { name: '＋ 设置 DATASET' }).click();
   await param.getByLabel('契约允许值').selectOption(JSON.stringify(`${token}/v1`));
   await page.getByRole('button', { name: `＋ ${token} · EDGE`, exact: true }).click();
+  await expect(page.getByRole('button', { name: new RegExp(`${token} · EDGE`) })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.getByRole('tab', { name: '源代码', exact: true }).click();
   const flow = parse(await page.getByLabel('Flow YAML').inputValue());
   expect(flow.inputs).toBeUndefined();
@@ -178,6 +182,89 @@ test('application contract, dataset restrictions, bindings and resource catalog 
   expect(flow.tasks[0].container.parameters.RATE).toBeUndefined();
   await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('校验通过');
+});
+
+test('candidate cluster buttons reflect YAML, toggle selection and survive save and reload', async ({
+  page,
+  request,
+}) => {
+  const first = unique(),
+    second = unique(),
+    disabled = unique();
+  for (const [id, enabled] of [
+    [first, true],
+    [second, true],
+    [disabled, false],
+  ]) {
+    const response = await request.put(`${base}/resources/clusters/${id}`, {
+      headers,
+      data: { id, kind: 'EDGE', enabled },
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  const id = unique();
+  await open(
+    page,
+    id,
+    `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: train\n    type: platform.Application\n    timeout: PT5M\n    container:\n      applicationId: shell\n      version: v1\n      candidateClusters: [${first}]\n      command: [sh, -c, "echo hello"]\n`,
+  );
+  await page.locator('[data-task="train"] > .task-card-header .task-select').click();
+  const firstButton = page.getByRole('button', { name: new RegExp(`${first} · EDGE`) });
+  const secondButton = page.getByRole('button', { name: new RegExp(`${second} · EDGE`) });
+  const disabledButton = page.getByRole('button', { name: new RegExp(`${disabled} · EDGE`) });
+  await expect(firstButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(secondButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(disabledButton).toBeDisabled();
+  expect(await firstButton.evaluate((button) => getComputedStyle(button).backgroundColor)).not.toBe(
+    await secondButton.evaluate((button) => getComputedStyle(button).backgroundColor),
+  );
+  await secondButton.click();
+  await expect(secondButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(secondButton).toContainText('✓');
+  await expect(secondButton).toHaveCSS('background-color', 'rgb(100, 54, 187)');
+  await expect(secondButton).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await firstButton.click();
+  await expect(firstButton).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.candidateClusters).toEqual(
+    [second],
+  );
+  await page
+    .getByLabel('Flow YAML')
+    .fill((await page.getByLabel('Flow YAML').inputValue()).replace(second, first));
+  await expect(firstButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(secondButton).toHaveAttribute('aria-pressed', 'false');
+  await secondButton.click();
+  await secondButton.click();
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.candidateClusters).toEqual(
+    [first],
+  );
+  await page.getByRole('button', { name: '改为参数引用', exact: true }).click();
+  await expect(page.getByRole('group', { name: '候选集群选择' })).toHaveCount(0);
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.candidateClusters).toEqual(
+    { source: 'LITERAL', value: [first] },
+  );
+  await page.getByRole('button', { name: '改为固定列表', exact: true }).click();
+  await expect(firstButton).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '保存修订', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已保存修订 r1');
+  await page.getByRole('button', { name: '重新读取', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已读取最新修订 r1');
+  await expect(firstButton).toHaveAttribute('aria-pressed', 'true');
+  const response = await request.get(`${base}/flows/${id}`, { headers });
+  const saved = await response.json();
+  expect(parse(saved.source).tasks[0].container.candidateClusters).toEqual([first]);
+  expect(saved.definition.tasks[0].container.candidateClusters).toEqual({
+    source: 'LITERAL',
+    value: [first],
+  });
+  await page.getByRole('tab', { name: '可视化编排', exact: true }).click();
+  await page.locator('.cluster-picker').last().screenshot({ path: '.local/evidence/cluster-selection.png' });
+  await page.setViewportSize({ width: 650, height: 900 });
+  await secondButton.click();
+  await expect(secondButton).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('.task-inspector').screenshot({ path: '.local/evidence/cluster-selection-narrow.png' });
 });
 test('large task tree switches use one inspector, and catalog failure can be retried', async ({ page }) => {
   let reads = 0;

@@ -1,5 +1,7 @@
 # 当前进度
 
+最新调整：UI-02a候选集群选择已增加高亮/勾选和取消，按钮紧邻列表，状态与YAML双向同步。29项Node、30项真实浏览器回归、212项Maven（17:20:21完成）、构建/格式/scaffold通过；首次模板漏timeout及上线截图发现hover冲突均已修正并重测。用户确认后17:13发布最终前端，实际CEA的1440px/650px选中/取消和查询复核PASS，其他11个容器ID及StartedAt未变。无Java/表/API/调度语义变更。见[记录](verification/VER-UI-002a-cluster-selection.md)。
+
 最新调整：UI-03a页面说明直接删除，未改成展开帮助或悬浮提示；必要字段、数据及错误/确认/结果保留。29项Node、29项真实浏览器、212项Maven完整回归及构建/格式/结构检查通过；十页真实CEA只读数据预览与1440px/650px截图检查通过。用户确认后于15:03更新18080前端，只读部署复核PASS，其余11个容器ID和StartedAt均未变。无Java、表、API或执行链变更；见[记录](verification/VER-UI-003a-copy-cleanup.md)。
 
 最新完成：UI-03已有管理能力迁移并更新CEA的18080前端。应用契约版本与真实镜像准备、Deployment创建/状态/版本前置删除、集群/数据集、网关/终端登记启停、同源策略No-code/YAML/CAS及卸载观测只读均已接通。最终29项Node、28项真实JAR/Registry/K3s浏览器回归、212项Maven及12项Python通过；首轮测试定位/断言问题如实保留在[UI-03验收](verification/VER-UI-003-management.md)。14:31:01实际CEA只读复核PASS：应用5、集群4、数据集2，空网关/终端/策略/观测和部署列表与API一致。只替换frontend，其他11个容器ID及StartedAt均未变；生产Java、表、API和执行主链未改。仍缺后端接口的功能见[迁移矩阵](features/UI-03-management.md)，不是全部旧页面或S7完成。

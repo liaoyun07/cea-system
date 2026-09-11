@@ -239,6 +239,13 @@ function selectApp(event) {
     return changeSource(source, [...selected.value, 'container', 'version'], version);
   });
 }
+function toggleCluster(id) {
+  const ids = current.value.container.candidateClusters;
+  patch({
+    path: [...selected.value, 'container', 'candidateClusters'],
+    value: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+  });
+}
 function options(parameter) {
   if (parameter?.dataset)
     return parameter.dataset.allowed.map((ref) => ({
@@ -389,7 +396,7 @@ onMounted(() => {
               </details>
               <details open class="form-section">
                 <summary>位置与文件</summary>
-                <SchemaField
+                <div
                   v-for="field in [
                     'execution',
                     'candidateClusters',
@@ -399,48 +406,70 @@ onMounted(() => {
                     'namespaceFiles',
                   ]"
                   :key="field"
-                  :schema="appFields[field]"
-                  :root="schema"
-                  :value="current.container?.[field]"
-                  :path="[...selected, 'container', field]"
-                  :flow="flow"
-                  @patch="patch"
-                  @invalid="invalid"
-                />
-                <div class="cluster-picker">
-                  <span class="small">候选集群模式</span
-                  ><button
-                    v-if="Array.isArray(current.container?.candidateClusters)"
-                    @click="
-                      patch({
-                        path: [...selected, 'container', 'candidateClusters'],
-                        value: { source: 'LITERAL', value: current.container.candidateClusters },
-                      })
-                    "
-                  >
-                    改为参数引用</button
-                  ><button
-                    v-else
-                    @click="patch({ path: [...selected, 'container', 'candidateClusters'], value: [] })"
-                  >
-                    改为固定列表
-                  </button>
-                </div>
-                <div v-if="Array.isArray(current.container?.candidateClusters)" class="cluster-picker">
-                  <span class="small">登记集群（添加到固定候选列表）</span
-                  ><button
-                    v-for="cluster in clusters"
-                    :key="cluster.id"
-                    :disabled="!cluster.enabled"
-                    @click="
-                      patch({
-                        path: [...selected, 'container', 'candidateClusters'],
-                        value: [...new Set([...current.container.candidateClusters, cluster.id])],
-                      })
-                    "
-                  >
-                    ＋ {{ cluster.id }} · {{ cluster.kind }}
-                  </button>
+                >
+                  <template v-if="field === 'candidateClusters'">
+                    <div class="cluster-picker">
+                      <span class="small">候选集群模式</span>
+                      <button
+                        v-if="Array.isArray(current.container?.candidateClusters)"
+                        type="button"
+                        @click="
+                          patch({
+                            path: [...selected, 'container', 'candidateClusters'],
+                            value: { source: 'LITERAL', value: current.container.candidateClusters },
+                          })
+                        "
+                      >
+                        改为参数引用
+                      </button>
+                      <button
+                        v-else
+                        type="button"
+                        @click="
+                          patch({
+                            path: [...selected, 'container', 'candidateClusters'],
+                            value:
+                              current.container?.candidateClusters?.source === 'LITERAL' &&
+                              Array.isArray(current.container.candidateClusters.value)
+                                ? current.container.candidateClusters.value
+                                : [],
+                          })
+                        "
+                      >
+                        改为固定列表
+                      </button>
+                    </div>
+                    <div
+                      v-if="Array.isArray(current.container?.candidateClusters)"
+                      class="cluster-picker"
+                      role="group"
+                      aria-label="候选集群选择"
+                    >
+                      <span class="small">已选 {{ current.container.candidateClusters.length }} 个</span>
+                      <button
+                        v-for="cluster in clusters"
+                        :key="cluster.id"
+                        type="button"
+                        :aria-pressed="current.container.candidateClusters.includes(cluster.id)"
+                        :disabled="
+                          !cluster.enabled && !current.container.candidateClusters.includes(cluster.id)
+                        "
+                        @click="toggleCluster(cluster.id)"
+                      >
+                        {{ current.container.candidateClusters.includes(cluster.id) ? '✓' : '＋' }}
+                        {{ cluster.id }} · {{ cluster.kind }}
+                      </button>
+                    </div>
+                  </template>
+                  <SchemaField
+                    :schema="appFields[field]"
+                    :root="schema"
+                    :value="current.container?.[field]"
+                    :path="[...selected, 'container', field]"
+                    :flow="flow"
+                    @patch="patch"
+                    @invalid="invalid"
+                  />
                 </div>
               </details>
             </template>

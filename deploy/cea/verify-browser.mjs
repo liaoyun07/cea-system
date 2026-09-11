@@ -69,6 +69,26 @@ try {
     await page.getByRole('button', { name: flow, exact: true }).click();
     await expect(page.getByLabel('Flow YAML')).toHaveValue(/core\.Loop/);
     await expect(page.getByRole('tab', { name: '可视化编排', exact: true })).toHaveAttribute('aria-selected', 'true');
+    const savedSource = await page.getByLabel('Flow YAML').inputValue();
+    await page.locator('[data-task="init"] > .task-card-header .task-select').click();
+    const cloudChoice = page.getByRole('button', {name: /cloud · CLOUD/});
+    const edgeChoice = page.getByRole('button', {name: /edge-a · EDGE/});
+    await expect(cloudChoice).toHaveAttribute('aria-pressed', 'true');
+    await expect(edgeChoice).toHaveAttribute('aria-pressed', 'false');
+    await edgeChoice.click();
+    await expect(edgeChoice).toHaveAttribute('aria-pressed', 'true');
+    await expect(edgeChoice).toHaveCSS('background-color', 'rgb(100, 54, 187)');
+    await page.getByRole('group', {name: '候选集群选择'}).screenshot({path: fileURLToPath(new URL(flow + '-cluster-selection.png', evidence))});
+    await page.setViewportSize({width: 650, height: 900});
+    await page.getByRole('group', {name: '候选集群选择'}).screenshot({path: fileURLToPath(new URL(flow + '-cluster-selection-narrow.png', evidence))});
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await edgeChoice.click();
+    await expect(edgeChoice).toHaveAttribute('aria-pressed', 'false');
+    // Discard only this test's local draft; never save or submit against CEA.
+    await page.getByRole('tab', {name: '源代码', exact: true}).click();
+    await page.getByLabel('Flow YAML').fill(savedSource);
+    await page.getByRole('tab', {name: '可视化编排', exact: true}).click();
+    await page.setViewportSize({width: 1440, height: 1000});
     await page.locator('[data-task="train"] > .task-card-header .task-select').click();
     await expect(page.locator('.task-inspector h2')).toHaveText('train');
     await expect(page.getByLabel('应用与版本')).toBeVisible();

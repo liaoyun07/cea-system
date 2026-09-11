@@ -8,6 +8,7 @@
 - 中间分组任务块与右侧表单，支持主任务、Errors、Finally、After Execution、Sequential/Parallel/Dag/If/Repeat/Loop；新增、删除、排序和移组只修改既有tasks结构。删除仍被引用的任务时拒绝，不自动删除绑定。跨组移动由服务端校验作用域，不改写执行语义。
 - 表单结构来自GET /flows/editor/schema，字段标签/显示条件是前端表现，不是第二套DSL。INPUT/VARIABLE/TASK_OUTPUT/LITERAL/ITEM均使用原Binding；Loop当前item和Repeat反馈采用当前模型。
 - Application选择读取应用目录、版本、参数契约；集群/数据集使用资源目录。没有自动生成Flow Input，不自动求choices交集，不根据DATASET名字猜含义。不存在命名端口自动发现：可选输出来自当前Flow显式声明。
+- UI-02a候选集群按钮紧邻对应字段：已选高亮/勾选、再次点击取消，计数与按钮状态直接读取当前YAML的candidateClusters，不保存第二份选择状态。固定列表与等价LITERAL引用切换保留列表；动态ITEM等绑定仍按原语义编辑。未选的禁用集群不能添加，已选后停用的集群允许移除，目录不可见的既有ID仍在原列表中可编辑。不改变“一实例选择一个集群”的Placement语义。
 - 保存和执行仍用现有校验、expectedRevision和固定修订提交。Schema不能替代引用/跨字段/资源校验；目录不可用不返回假选项。
 - 无新增Java/表/HTTP/SPI，无Execution主链变化。yaml依赖实际用于注释保留的文档修改。表单不支持安全表示的超大整数等文档保留源码编辑，不静默截断值。
 
@@ -22,5 +23,6 @@
 3. FedAvg/FedProx的Repeat/Loop/ITEM/文件/参数原语义往返；未显示字段不丢失。
 4. 真实API校验、修订冲突和回退；通过No-code创建流程并执行成功，不用mock Execution结果。
 5. 浏览器可用性、目录失败与大任务树切换，构建/单测/既有E2E和scaffold检查。
+6. 候选集群初始回显、多选与重复点击取消、源码反向同步、固定/LITERAL切换、保存回读、禁用限制和窄屏样式，见[UI-02a验证](../verification/VER-UI-002a-cluster-selection.md)。
 
 验证结果见[VER-UI-002](../verification/VER-UI-002-no-code.md)。当前覆盖11种任务的既有Schema字段；任务ID改名、offload研究配置等仍通过YAML编辑，未展示字段保留不删除。121节点/30次切换检查不等于长期内存压力/OOM验收。
