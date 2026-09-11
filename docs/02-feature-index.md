@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-02d已完成并发布：WF-016既有Loop集合每项JSON编辑，保留数组增删排序与原Binding；不新增领域能力。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；只更新CEA前端，实际页面复核PASS，两Flow及四条历史执行未变，其余11个服务未重启。[功能规格](features/UI-02d-loop-json-items.md)，[验证记录](verification/VER-UI-002d-loop-json-items.md)。
+
 UI-02c已完成并发布：WF-016既有No-code的必填字段前置、任务配置展平和来源下拉展示。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；只更新CEA前端，实际页面复核PASS，两Flow及四条历史执行未变，其余11个服务未重启。不新增领域能力、Java、表、API或执行链。[功能规格](features/UI-02c-task-form-layout.md)，[验证记录](verification/VER-UI-002c-task-form-layout.md)。
 
 UI-04已完成并发布：WF-002/WF-016增加固定字符串SELECT、values、默认值/必填和端到端成员校验；30项Node、36项浏览器、215项Maven及构建/格式/scaffold通过。已按用户确认同步更新CEA前后端并只读复核，不改两Flow及四条历史执行，其他十个容器未重启。不新增功能编号、API、表或执行链。[语义与边界](features/UI-04-select-input.md)，[验证记录](verification/VER-UI-004-select-input.md)。

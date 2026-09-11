@@ -105,7 +105,9 @@ try {
     await expect(loopValues.getByRole('button', {name: 'Array', exact: true})).toHaveCount(0);
     await expect(loopValues.getByLabel('集合来源')).toHaveValue('LITERAL');
     await expect(loopValues.locator('[data-loop-item]')).toHaveCount(3);
-    await expect(loopValues.locator('[data-loop-item="0"]').getByLabel('id', {exact: true})).toHaveValue('edge-a');
+    expect(JSON.parse(await loopValues.getByLabel('第 1 项', {exact: true}).inputValue())).toEqual({id: 'edge-a', clusters: ['edge-a']});
+    await expect(loopValues.locator('[data-loop-item] textarea')).toHaveCount(3);
+    await expect(loopValues.locator('[data-loop-item] select')).toHaveCount(0);
     await page.screenshot({path: fileURLToPath(new URL(flow + '-loop-values.png', evidence))});
     await page.setViewportSize({width: 650, height: 900});
     await loopValues.screenshot({path: fileURLToPath(new URL(flow + '-loop-values-narrow.png', evidence))});

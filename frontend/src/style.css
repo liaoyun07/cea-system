@@ -1543,40 +1543,10 @@ dd {
   font-size: 14px;
   font-weight: 600;
 }
-.json-value-heading select {
-  width: auto;
-  max-width: 110px;
-  padding: 3px 6px;
+.json-value-field textarea {
+  font-family: ui-monospace, Consolas, monospace;
   font-size: 14px;
-}
-.json-value-children {
-  display: grid;
-  gap: 12px;
-  padding-left: 10px;
-  border-left: 2px solid #eee7f7;
-  min-width: 0;
-}
-.json-value-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 6px;
-}
-.json-value-row > .field-clear {
-  padding: 4px;
-}
-.json-key-add {
-  display: flex;
-  gap: 6px;
-  min-width: 0;
-}
-.json-key-add input {
-  min-width: 0;
-  flex: 1;
-}
-.json-key-add button {
-  flex-shrink: 0;
-  font-size: 14px;
+  line-height: 1.5;
 }
 .loop-add-value {
   width: 100%;

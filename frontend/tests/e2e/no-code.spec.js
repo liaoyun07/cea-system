@@ -65,7 +65,6 @@ test('Loop form executes every item and excludes invalid nested controls', async
   for (let i = 1; i <= 3; i++) {
     await values.getByRole('button', { name: '＋ 添加到 values', exact: true }).click();
     const row = values.locator(`[data-loop-item="${i - 1}"]`);
-    await row.getByLabel(`第 ${i} 项 类型`, { exact: true }).selectOption('number');
     await row.getByLabel(`第 ${i} 项`, { exact: true }).fill(String(i));
     await row.getByLabel(`第 ${i} 项`, { exact: true }).blur();
   }
@@ -322,9 +321,12 @@ test('FedAvg/FedProx no-code round-trip keeps executable DSL and scoped item ref
     const values = page.locator('.loop-values-field');
     await expect(values.getByLabel('集合来源')).toHaveValue('LITERAL');
     await expect(values.locator('[data-loop-item]')).toHaveCount(3);
-    await expect(values.locator('[data-loop-item="0"]').getByLabel('id', { exact: true })).toHaveValue(
-      'edge-a',
-    );
+    expect(JSON.parse(await values.getByLabel('第 1 项', { exact: true }).inputValue())).toEqual({
+      id: 'edge-a',
+      clusters: ['edge-a'],
+    });
+    await expect(values.locator('[data-loop-item] textarea')).toHaveCount(3);
+    await expect(values.locator('[data-loop-item] select')).toHaveCount(0);
     const train = page
       .locator('.task-card')
       .filter({ has: page.locator(':scope > .task-card-header .task-select strong', { hasText: 'train' }) });
@@ -362,30 +364,23 @@ test('Loop values edit objects in place, reorder, preserve scalar types and exec
   await page.locator('[data-task="each"] > .task-card-header .task-select').click();
   const values = page.locator('.loop-values-field');
   const first = values.locator('[data-loop-item="0"]');
-  await first.getByLabel('id', { exact: true }).fill('updated');
-  await first.getByLabel('id', { exact: true }).blur();
-  const clusters = first.locator('[data-value-path="tasks.0.loop.values.value.0.clusters"]');
-  await clusters.getByLabel('第 1 项', { exact: true }).fill('edge-c');
-  await clusters.getByLabel('第 1 项', { exact: true }).blur();
-  await first.getByLabel('第 1 项 新字段名', { exact: true }).fill('weight');
-  await first
-    .locator(':scope > .json-value-field > .json-value-children > .json-key-add')
-    .getByRole('button', { name: '添加字段' })
-    .click();
-  await first.getByLabel('weight 类型', { exact: true }).selectOption('number');
-  await first.getByLabel('weight', { exact: true }).fill('0.25');
-  await first.getByLabel('weight', { exact: true }).blur();
+  const updated = { id: 'updated', clusters: ['edge-c'], epochs: 1, weight: 0.25, options: [true, null, ''] };
+  await expect(first.locator('textarea')).toHaveCount(1);
+  await expect(first.locator('select')).toHaveCount(0);
+  await first.getByLabel('第 1 项', { exact: true }).fill(JSON.stringify(updated));
   await values.getByRole('button', { name: '下移 values 第 1 项', exact: true }).click();
+  await expect(first.getByLabel('第 1 项', { exact: true })).toHaveValue('false');
+  expect(JSON.parse(await values.getByLabel('第 2 项', { exact: true }).inputValue())).toEqual(updated);
   await values.getByRole('button', { name: '＋ 添加到 values', exact: true }).click();
   const fifth = values.locator('[data-loop-item="4"]');
-  await fifth.getByLabel('第 5 项', { exact: true }).fill('removed');
+  await fifth.getByLabel('第 5 项', { exact: true }).fill('"removed"');
   await fifth.getByLabel('第 5 项', { exact: true }).blur();
   await values.getByRole('button', { name: '删除 values 第 5 项', exact: true }).click();
   await page.getByRole('button', { name: '保存修订', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('已保存修订 r1');
   const saved = await (await request.get(`${base}/flows/${id}`, { headers })).json();
   expect(saved.definition.inputs).not.toHaveProperty('clients');
-  const expected = [false, { id: 'updated', clusters: ['edge-c'], epochs: 1, weight: 0.25 }, 0, ''];
+  const expected = [false, updated, 0, ''];
   expect(saved.definition.tasks[0].loop.values).toEqual({ source: 'LITERAL', value: expected });
   expect(saved.source).toContain('# Loop owns its collection');
   await values.screenshot({ path: '.local/evidence/loop-values.png' });
@@ -446,7 +441,7 @@ test('Loop source dropdown keeps existing Binding sources and requires confirmat
   await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
 });
 
-test('Loop invalid numeric edits block saving and leave YAML intact until corrected', async ({ page }) => {
+test('Loop invalid JSON stays visible and blocks saving without modifying YAML', async ({ page }) => {
   const id = unique();
   await open(
     page,
@@ -454,21 +449,28 @@ test('Loop invalid numeric edits block saving and leave YAML intact until correc
     `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: each\n    type: core.Loop\n    loop:\n      values: {source: LITERAL, value: [1, 2]}\n    tasks: [{id: log, type: core.Log, message: hello}]\n`,
   );
   await page.locator('[data-task="each"] > .task-card-header .task-select').click();
-  const values = page.locator('.loop-values-field');
-  await values.getByLabel('第 1 项', { exact: true }).fill('9007199254740993');
-  await values.getByLabel('第 1 项', { exact: true }).blur();
-  await expect(page.getByRole('alert')).toContainText('有效数字');
-  await expect(page.getByRole('button', { name: '保存修订', exact: true })).toBeDisabled();
-  await expect(values.getByRole('button', { name: '下移 values 第 1 项', exact: true })).toBeDisabled();
-  await values.getByLabel('第 1 项', { exact: true }).fill('0');
-  await values.getByLabel('第 1 项', { exact: true }).blur();
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  page.once('dialog', (dialog) => dialog.dismiss());
-  await values.getByLabel('第 1 项 类型', { exact: true }).selectOption('string');
-  await expect(values.getByLabel('第 1 项 类型', { exact: true })).toHaveValue('number');
-  await expect(values.getByLabel('第 1 项', { exact: true })).toHaveValue('0');
   await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
-  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].loop.values.value).toEqual([0, 2]);
+  const values = page.locator('.loop-values-field');
+  const source = await page.getByLabel('Flow YAML').inputValue();
+  for (const invalid of ['{', '', '9007199254740993']) {
+    await values.getByLabel('第 1 项', { exact: true }).fill(invalid);
+    await expect(page.getByRole('alert')).toContainText('JSON 格式错误');
+    await expect(values.getByLabel('第 1 项', { exact: true })).toHaveValue(invalid);
+    await expect(page.getByLabel('Flow YAML')).toHaveValue(source);
+    await expect(page.getByRole('button', { name: '保存修订', exact: true })).toBeDisabled();
+    await expect(values.getByRole('button', { name: '下移 values 第 1 项', exact: true })).toBeDisabled();
+    await expect(values.getByLabel('集合来源')).toBeDisabled();
+  }
+  await values.getByLabel('第 2 项', { exact: true }).fill('3');
+  await expect(values.getByLabel('第 1 项', { exact: true })).toHaveValue('9007199254740993');
+  await expect(page.getByRole('button', { name: '保存修订', exact: true })).toBeDisabled();
+  await values.getByLabel('第 1 项', { exact: true }).fill('"0"');
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].loop.values.value).toEqual(['0', 3]);
+  await values.getByLabel('第 1 项', { exact: true }).fill('0');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存修订', exact: true })).toBeEnabled();
+  await expect(values.getByLabel('第 1 项', { exact: true })).toHaveValue('0');
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].loop.values.value).toEqual([0, 3]);
 });
 
 test('Loop creates an object element and nested array without source editing', async ({ page }) => {
@@ -480,25 +482,13 @@ test('Loop creates an object element and nested array without source editing', a
   await expect(values.getByLabel('集合来源')).toHaveValue('LITERAL');
   await expect(values.locator('[data-loop-item]')).toHaveCount(0);
   await values.getByRole('button', { name: '＋ 添加到 values', exact: true }).click();
-  await values.getByLabel('第 1 项 类型', { exact: true }).selectOption('object');
-  const root = values.locator('[data-value-path="tasks.0.loop.values.value.0"]');
-  await root.getByLabel('第 1 项 新字段名', { exact: true }).fill('name');
-  await root
-    .locator(':scope > .json-value-children > .json-key-add')
-    .getByRole('button', { name: '添加字段' })
-    .click();
-  await root.getByLabel('name', { exact: true }).fill('client');
-  await root.getByLabel('name', { exact: true }).blur();
-  await root.getByLabel('第 1 项 新字段名', { exact: true }).fill('locations');
-  await root
-    .locator(':scope > .json-value-children > .json-key-add')
-    .getByRole('button', { name: '添加字段' })
-    .click();
-  await root.getByLabel('locations 类型', { exact: true }).selectOption('array');
-  const list = root.locator('[data-value-path="tasks.0.loop.values.value.0.locations"]');
-  await list.getByRole('button', { name: '添加到 locations', exact: true }).click();
-  await list.getByLabel('第 1 项', { exact: true }).fill('edge-a');
-  await list.getByLabel('第 1 项', { exact: true }).blur();
+  const item = values.getByLabel('第 1 项', { exact: true });
+  await item.fill('');
+  const json = '{"name": "client", "locations": ["edge-a"]}';
+  await item.pressSequentially(json);
+  await expect(item).toHaveValue(json);
+  await expect(values.locator('[data-loop-item] textarea')).toHaveCount(1);
+  await expect(values.locator('[data-loop-item] select, .json-value-children')).toHaveCount(0);
   await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
   const source = await page.getByLabel('Flow YAML').inputValue();
   expect(parse(source).tasks[0].loop.values).toEqual({
