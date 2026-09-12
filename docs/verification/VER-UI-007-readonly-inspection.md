@@ -1,6 +1,6 @@
 # VER-UI-007 只读查看增量
 
-日期：2026-09-12。状态：PASS（实现与隔离验收）；CEA未发布。源码基线cd5db9c加本批UI-07提交；环境Windows、Microsoft JDK21.0.12、Node24、Docker Desktop及独立MySQL/K3s/Registry/MinIO。
+日期：2026-09-12。状态：PASS（实现、隔离验收与CEA上线）。源码基线cd5db9c加UI-07提交53ff620；环境Windows、Microsoft JDK21.0.12、Node24、Docker Desktop及独立MySQL/K3s/Registry/MinIO。
 
 ## 最终结果
 
@@ -8,7 +8,7 @@
 - `npm test`41项通过；`npm run build`、`npm run format:check`通过。构建资产为`index-DbvYwXXc.js`、`index-DMAQk_D4.css`。
 - 完整verify之后串行执行`npm run test:e2e`，44项真实浏览器测试通过（2.2分钟），隔离测试脚本正常退出0并清理自身环境。19:40核对桌面及390px截图：总览、资源、逐轮产物预览均可操作，无页面横向溢出；长资源表可在表内横向滚动。
 - `scripts/check-scaffold.ps1`通过：8模块、89个Java文件、32个功能编号；接口契约为57个HTTP操作、67个显式record映射。23张业务表不变，无DB migration。
-- `git diff --check`与部署浏览器脚本语法检查通过。CEA上线脚本本批只更新，未对真实CEA执行。
+- `git diff --check`与部署浏览器脚本语法检查通过；用户后续授权后执行了实际CEA上线验证，见下文。
 
 ## 直接验证的行为
 
@@ -29,4 +29,14 @@
 
 原始日志位于忽略目录`.local/ui07-verify-acceptance.log`、`.local/ui07-e2e-acceptance.log`；截图在`frontend/.local/evidence/`的overview/resources/artifacts desktop/narrow文件。不提交运行配置、凭据或临时数据。
 
-开发预览曾使用18120及已有CEA代理，但正式验收使用全新隔离环境；18080/18085未更新，CEA RBAC未应用，已有Flow/Execution及旧系统未修改。发布时需要用户另行确认前后端更新与四个CEA集群的受限只读RBAC。Pod日志、CPU/内存利用率、二进制下载和全局对象存储管理仍未实现；不扩展DQN或数据处理速率口径。
+开发预览曾使用18120及已有CEA代理，隔离验收结束后已关闭该临时预览；随后用户单独授权“部署”。Pod日志、CPU/内存利用率、二进制下载和全局对象存储管理仍未实现；不扩展DQN或数据处理速率口径。
+
+## CEA发布（2026-09-12，用户已授权）
+
+- 复用53ff620对应的已验收JAR/静态资源，构建`cea/backend:local`和`cea/frontend:local`，未重跑或改写算法镜像。部署前无活动Execution/TaskRun（含afterExecution）。保存业务/容器/RBAC快照及`cea/backend:before-ui07`、`cea/frontend:before-ui07`，确认回退镜像与原运行镜像相同。
+- 四集群原Role/ClusterRole与上一版规则一致后，使用带resourceVersion/rules检查的JSON Patch只替换规则；没有重建Namespace、SA、Secret或Binding。`can-i`验证节点list、cea-lab Service get/list及该Namespace get允许；Namespace list/default读取、default Service读取、Service create/update/delete均拒绝。
+- `compose up -d --no-deps --wait backend frontend`仅替换这两个容器，19:50健康检查通过。后端镜像`sha256:c68272ece8c2677b28571df1a83fc2d8415ccdae855e733cabb1faaac59d1192`；前端镜像`sha256:5d8359ffb6a3ba925b6ba5c272a4c0faf21b0c1db3285aa6e46d31cb3b3e92c4`。实际18080提供`index-DbvYwXXc.js`。
+- 19:51:23 `deploy/cea/verify-browser.mjs`在实际18080返回PASS：总览与API一致；cloud/edge-a/b/c的Node/Service/配置Namespace查询正常；FedAvg/FedProx历史JSON与Metrics正常；既有编排/管理只读检查、桌面/390px通过，无pageerror。未提交新训练或保存草稿。
+- 发布前后深比较PASS：FedAvg r5/FedProx r3及全部修订、4条Execution、38个TaskRun与Attempt不变；其余10容器的ID/StartedAt/镜像ID完全一致。未迁移数据库、清理卷或修改旧系统。
+- 本次不重复声明前述220/41/44回归为新一轮测试；本次执行的是同一已验收产物的Docker构建、受限RBAC验证、上线健康检查及真实CEA浏览器/API复核。
+- 本地证据：`.local/UI07-deploy-baseline.json`、`UI07-deploy-after.json`、`UI07-rbac-before.json`与`ui07-deploy-*.log`；最新页面结果/截图在`.local/cea/browser/`，上一版截图已保存在`.local/cea/browser-before-ui07/`。这些运行数据及配置不提交Git。

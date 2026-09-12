@@ -1,6 +1,6 @@
 # 功能与验证索引
 
-UI-07已完成：WF-006/RES-001的只读展示增量——任务声明产物及JSON预览、执行全窗口SQL总览、Kubernetes资源查询。220项Maven、41项Node、44项浏览器测试通过；CEA尚未发布。无新功能编号/表/计量口径/执行链。范围见[规格](features/UI-07-readonly-inspection.md)，实际测试与发布见[验证](verification/VER-UI-007-readonly-inspection.md)。
+UI-07已完成并发布CEA：WF-006/RES-001的只读展示增量——任务声明产物及JSON预览、执行全窗口SQL总览、Kubernetes资源查询。220项Maven、41项Node、44项浏览器测试通过；2026-09-12 19:51实际18080复核通过。无新功能编号/表/计量口径/执行链，原流程/历史不变。范围见[规格](features/UI-07-readonly-inspection.md)，实际测试与发布见[验证](verification/VER-UI-007-readonly-inspection.md)。
 
 UI-06已完成并发布：基于已有JSON产物展示实例指标，新增受READ授权的有界读取；216项Maven、40项Node、42项浏览器及构建/格式/scaffold通过。2026-09-12 17:15仅更新CEA前后端，实际两算法历史指标图/表与API一致、桌面/390px复核PASS；两Flow/历史及4条执行不变，其余10服务未重启。无新计量领域功能，MET-001仍后置。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
 

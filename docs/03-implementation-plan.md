@@ -4,6 +4,8 @@
 
 ## 当前授权与实施原则
 
+2026-09-12 UI-07发布授权：用户确认“部署”；仅更新CEA前后端及四个集群中既有Role/ClusterRole的受限只读规则，不重启其余10个容器，不修改Flow/Execution历史，不重新seed或训练。发布前检查无活动执行/afterExecution并保存回退镜像、业务和容器快照；发布后以实际18080页面及API复核，并比较历史与其余容器不变。
+
 UI-07实施审查补充：普通Flow读取API限定USER管理范围，不能用来查询EDGE_POLICY执行的产物声明。增加只读output-files，从已有Execution.definition取任务ID/端口；产物页和Metrics共享此真实消费者。原有两种管理范围保持隔离，无“先查Flow、失败再查策略”的兼容回退。当前批次共5个新增GET，无新Java文件或表（相对UI-07既定2个类）。增加两种管理范围、旧快照与新Flow修订的回归。
 
 2026-09-12 UI-07：用户选择优先迁移第1/2/4项：任务产物JSON查看、执行总览、Node/Service/Kubernetes Namespace只读资源。依赖UI-06成功产物读取、runtime Execution持久化、resource目录和显式Kubernetes连接。总览按数据库时间界定UTC日窗口、全量聚合状态及日计数，不以列表分页代替总数；资源仅授权目录集群，Service/Namespace限制到配置的Kubernetes命名空间。验收身份/作用域/时间边界/分页、真实MySQL与K3s及S3、浏览器桌面/窄屏和回归。不新增状态表/字段、调度动作或执行链；不实施Pod日志、资源利用率、任意对象存储浏览或DQN/计量。实现范围见[规格](features/UI-07-readonly-inspection.md)；CEA更新和只读RBAC应用须另获当次授权。

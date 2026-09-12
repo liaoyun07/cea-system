@@ -43,7 +43,7 @@ verify-federated 会真实提交一次两轮执行，保留失败记录；验证
 - MinIO API：127.0.0.1:18900；控制台：http://127.0.0.1:18901，使用 `MINIO_ROOT_USER/PASSWORD`。
 - Registry 与 Kubernetes API 不映射宿主端口，只在 cea 网络中被后端访问。管理集群可使用 `docker compose -p cea -f deploy/cea/compose.yaml exec cloud kubectl get pods -n cea-lab`。
 - 所有对宿主发布的端口仅绑定127.0.0.1；旧前端开发端口18100不在此部署中。
-- 当前工作台可查看任务实例和产物URI，但不会把算法Pod stdout汇入Execution日志，纯Application联邦Flow的日志页为空。排查容器输出使用对应集群的 `kubectl logs -n cea-lab job/cea-<taskRunId>-a1`，不是把空日志当成采集成功。
+- 当前工作台可查看任务实例、产物URI及成功JSON预览，另有执行总览与只读集群资源；仍不会把算法Pod stdout汇入Execution日志，纯Application联邦Flow的日志页为空。排查容器输出使用对应集群的 `kubectl logs -n cea-lab job/cea-<taskRunId>-a1`，不是把空日志当成采集成功。
 
 ```powershell
 # 查看
@@ -63,7 +63,7 @@ docker compose -p cea --env-file deploy/cea/.env -f deploy/cea/compose.yaml stop
 12个常驻容器：frontend、backend、mysql、minio、四个Registry、四个K3s。两个 tools profile 服务仅在初始化/导出时临时运行。所有容器/网络/命名卷属于 cea。
 
 - backend 组合Java21与Skopeo1.20，与测试依赖一致；构建时检查 `--no-tags`/`--preserve-digests`。非root运行，只读挂载应用配置及最小凭据，**不挂宿主Docker socket**。API/Executor/Scheduler/Worker同进程，主调用链不变。
-- Kubernetes连接是cea-lab ServiceAccount，不给后端admin kubeconfig；仅增加nodes list用于选址。应用Pod不自动挂ServiceAccount token。当前使用显式长期SA token文件，未做自动轮换。
+- Kubernetes连接是cea-lab ServiceAccount，不给后端admin kubeconfig；nodes list用于选址与只读展示，UI-07另增加cea-lab中Service get/list及仅名为cea-lab的Namespace get，不授予其他Namespace读取或Service写权限。应用Pod不自动挂ServiceAccount token。当前使用显式长期SA token文件，未做自动轮换。
 - 存储账号只可读datasets并读写cea-artifacts，不使用MinIO root；root仅供初始化/运维。Registry需要Basic认证；HTTP仅用于本机隔离网络，不是公网TLS方案。
 - K3s容器需要privileged用于嵌套集群；不是给业务镜像额外权限，不构成敌对多租户沙箱。
 - 本批只需文件型联邦算法；K3s未部署Traefik、ServiceLB、metrics-server、CoreDNS和local-storage。Pod内部服务DNS/Ingress/动态PVC不在当前部署验收范围，不能拿它当完整生产Kubernetes平台。

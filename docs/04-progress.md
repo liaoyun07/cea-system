@@ -1,6 +1,6 @@
 # 当前进度
 
-最新完成UI-07：产物JSON查看、运行总览、Kubernetes只读资源。2个新Java文件、5个GET查询，不新增表/列/调度动作；89个生产Java、57个HTTP操作。2026-09-12 19:37:20完整verify 220项通过；41项Node、44项真实浏览器、构建/格式/scaffold及桌面/390px视觉验收通过。产物声明与Metrics共用Execution快照，不跨USER/EDGE_POLICY管理入口读Flow。CEA尚未发布，RBAC未应用，原Flow/历史及旧系统未改；下一步须经用户确认再更新CEA前后端与受限只读RBAC。详见[规格](features/UI-07-readonly-inspection.md)与[验证](verification/VER-UI-007-readonly-inspection.md)。
+最新完成UI-07：产物JSON查看、运行总览、Kubernetes只读资源。2个新Java文件、5个GET查询，不新增表/列/调度动作；89个生产Java、57个HTTP操作。2026-09-12 19:37:20完整verify 220项通过；41项Node、44项真实浏览器、构建/格式/scaffold及桌面/390px视觉验收通过。产物声明与Metrics共用Execution快照，不跨USER/EDGE_POLICY管理入口读Flow。用户确认部署后，19:50仅替换CEA前后端并对四集群的既有Role/ClusterRole增加受限只读权限；19:51:23实际18080总览、四集群查询及FedAvg/FedProx历史产物/Metrics复核PASS。FedAvg r5/FedProx r3、4条Execution、38个TaskRun及其Attempt不变，其余10个容器ID/StartedAt/镜像ID不变。没有重跑训练、迁移数据库或修改旧系统，保留before-ui07回退镜像。详见[规格](features/UI-07-readonly-inspection.md)与[验证](verification/VER-UI-007-readonly-inspection.md)。
 
 最新完成：UI-06执行Metrics已发布CEA，新增已有JSON产物的受权只读接口及前端指标选择/实例明细/图表；不改执行链、表或算法镜像。2026-09-12 17:00:24完整verify 216项通过；40项Node、42项浏览器、构建/格式/scaffold通过，真实FedAvg/FedProx两轮原值与文件一致。用户确认后17:15仅替换前后端，17:16:52实际18080的两算法历史指标图/表、刷新、桌面/390px复核PASS；FedAvg r5/FedProx r3及其历史、4条Execution、38个TaskRun及Attempt未变，其余10容器ID/StartedAt/镜像ID未变。没有重跑生产训练。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
 
