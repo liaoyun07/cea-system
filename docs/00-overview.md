@@ -1,6 +1,8 @@
 # 系统总览
 
-UI-08核心运维增量（已验证，未发布CEA）：deployment负责镜像归档导入、不可变应用登记、按需分发历史和常驻部署配置/CAS/计时；resource负责Metrics API近期用量，server只装配与鉴权适配。新增两张业务表保存分发和部署操作证据，Kubernetes仍唯一拥有Deployment期望/实际状态，执行主链不变。227项Maven、45项Node、47项浏览器通过，具体见[协议](contracts/ui08-deployment-operations.md)与[验收](verification/VER-UI-008-core-deployment-operations.md)。
+UI-09已验证并发布CEA：deployment实时读取Registry库存并执行引用保护删除manifest，resource管理工作空间内Kubernetes Namespace/Service，dataflow负责应用目录删除前的Flow引用检查。目录删除与仓库删除分开；V20保留已删除应用版本身份，避免复用改变历史含义。契约tag经已授权源Registry解析为候选摘要，和已有摘要一样必须现场核验目标副本。Kubernetes是资源事实源，不增加管理状态表，不改变Execution/Worker/Runner/Placement。范围、权限代价与验证状态见[UI-09](features/UI-09-registry-kubernetes-management.md)及[进度](04-progress.md)。
+
+UI-08核心运维增量（已验证、已发布CEA）：deployment负责镜像归档导入、不可变应用登记、按需分发历史和常驻部署配置/CAS/计时；resource负责Metrics API近期用量，server只装配与鉴权适配。新增两张业务表保存分发和部署操作证据，Kubernetes仍唯一拥有Deployment期望/实际状态，执行主链不变。227项Maven、45项Node、47项浏览器通过，具体见[协议](contracts/ui08-deployment-operations.md)与[验收](verification/VER-UI-008-core-deployment-operations.md)。
 
 UI-07：执行总览读取runtime拥有的执行窗口聚合；产物声明读取不可变Execution.definition，内容按实际TaskRun读取已有成功JSON；Kubernetes只读页通过resource目录与显式连接访问Node、该连接Namespace及其中的Service。无新状态所有权、数据库表/列、Runner或调度路径。验证/发布状态见[进度](04-progress.md)，不是完整Kubernetes管理台。
 

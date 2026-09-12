@@ -4,7 +4,15 @@ import { errorText } from '../api.js';
 import { time } from '../model.js';
 import { readCatalog } from '../no-code/document.js';
 import { percentText, coresText, memoryText, usageState } from './operations.js';
-const props = defineProps({ api: Function });
+import KubernetesManagement from './KubernetesManagement.vue';
+const props = defineProps({ api: Function, workspace: String });
+const emit = defineEmits(['pending']);
+const managementPending = ref(false);
+function pending(value) {
+  managementPending.value = value;
+  emit('pending', value);
+}
+const refresh = ref(0);
 const clusters = ref([]),
   cluster = ref(''),
   tab = ref('nodes'),
@@ -35,6 +43,7 @@ async function loadClusters() {
   }
 }
 async function load(reset = false) {
+  refresh.value++;
   if (reset) tokens.value = [''];
   const current = ++generation;
   controller?.abort();
@@ -45,13 +54,15 @@ async function load(reset = false) {
   error.value = '';
   loading.value = !!cluster.value;
   if (!cluster.value) return;
+  if (tab.value !== 'nodes') {
+    loading.value = false;
+    return;
+  }
   try {
-    const query =
-      tab.value === 'namespace' ? '' : `?limit=50&continueToken=${encodeURIComponent(tokens.value.at(-1))}`;
-    const value = await props.api(
-      `/clusters/${encodeURIComponent(cluster.value)}/kubernetes/${tab.value}${query}`,
-      { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) },
-    );
+    const query = `?limit=50&continueToken=${encodeURIComponent(tokens.value.at(-1))}`;
+    const value = await props.api(`/clusters/${encodeURIComponent(cluster.value)}/kubernetes/nodes${query}`, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
+    });
     if (alive && current === generation) data.value = value;
     if (tab.value === 'nodes' && current === generation) {
       try {
@@ -94,7 +105,7 @@ onBeforeUnmount(() => {
         <h1>运行资源</h1>
       </div>
       <button
-        :disabled="loading || catalogLoading"
+        :disabled="loading || catalogLoading || managementPending"
         @click="catalogError || !cluster ? loadClusters() : load(true)"
       >
         刷新资源
@@ -103,7 +114,7 @@ onBeforeUnmount(() => {
     <p v-if="catalogError" role="alert" class="error">{{ catalogError }}</p>
     <div class="inspection-controls resource-selector">
       <label
-        >集群<select v-model="cluster" aria-label="资源集群" :disabled="catalogLoading">
+        >集群<select v-model="cluster" aria-label="资源集群" :disabled="catalogLoading || managementPending">
           <option v-for="row in clusters" :key="row.id" :value="row.id">
             {{ row.id }} · {{ row.kind }}{{ row.enabled ? '' : ' · 已禁用' }}
           </option>
@@ -120,6 +131,7 @@ onBeforeUnmount(() => {
         ]"
         :key="entry[0]"
         role="tab"
+        :disabled="managementPending"
         :aria-selected="tab === entry[0]"
         :class="{ active: tab === entry[0] }"
         @click="tab = entry[0]"
@@ -127,6 +139,15 @@ onBeforeUnmount(() => {
         {{ entry[1] }}
       </button>
     </div>
+    <KubernetesManagement
+      v-if="cluster && tab !== 'nodes'"
+      :api="api"
+      :cluster="cluster"
+      :tab="tab"
+      :workspace="workspace"
+      :refresh="refresh"
+      @pending="pending"
+    />
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="usageError" role="alert" class="error">用量不可用：{{ usageError }}</p>
     <div v-if="usage && tab === 'nodes'" class="inspection-controls">
@@ -180,44 +201,6 @@ onBeforeUnmount(() => {
                 <div>{{ nodeUsage(node.name)?.timestamp ? time(nodeUsage(node.name).timestamp) : '—' }}</div>
                 <div>{{ nodeUsage(node.name)?.window || '—' }}</div>
               </td>
-            </tr>
-          </tbody>
-        </table>
-        <table v-else-if="tab === 'services'" aria-label="Service">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>类型</th>
-              <th>Cluster IP</th>
-              <th>端口 → 目标端口</th>
-              <th>创建时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="service in data.items" :key="service.name">
-              <td>{{ service.name }}</td>
-              <td>{{ service.type || '—' }}</td>
-              <td>{{ service.clusterIP || '—' }}</td>
-              <td>
-                <div v-for="port in service.ports" :key="port">{{ port }}</div>
-              </td>
-              <td>{{ time(service.createdAt) }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <table v-else aria-label="Kubernetes Namespace">
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>状态</th>
-              <th>创建时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{{ data.name }}</td>
-              <td>{{ data.phase || '—' }}</td>
-              <td>{{ time(data.createdAt) }}</td>
             </tr>
           </tbody>
         </table>

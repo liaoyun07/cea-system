@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+UI-09发布准备：启用Registry manifest删除开关（不运行GC），ClusterRole增加Namespace/Service管理和引用检查所需读取；V20给应用版本加deleted列，保留旧版本身份。管理Namespace不会改变算法默认`cea-lab`。现有安装只更新已授权的前后端、4个Registry及ClusterRole规则，不重新运行initialize/start或覆盖SA/Secret。发布状态见[VER-UI-009](../../docs/verification/VER-UI-009-registry-kubernetes.md)。RBAC扩大后的工作空间隔离由管理API强制执行，不等同于Kubernetes原生按标签授权。
+
 固定 Compose 项目名 `cea`。源码与配置在 D 盘 backend 仓库，Docker Desktop 数据盘必须先切到 D 盘；命名卷实际存于该 Linux VHDX，不把 MySQL/K3s 数据库直接绑定到 NTFS。启动脚本检查路径，不负责再次迁移 Docker 数据。
 
 这是**单机上的四个独立 K3s 集群**：cloud、edge-a/b/c 各有自己的 API、状态库、containerd 和 Registry，不是四个目录项映射到同一个集群，也不是跨地域物理多云。对象存储当前为独立中央 MinIO，三个训练分片按位置登记，不宣称数据已存放在三台物理边缘设备。

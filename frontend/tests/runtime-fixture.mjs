@@ -39,9 +39,15 @@ export async function startRuntime(token) {
       network,
       '--network-alias',
       'ui-registry',
+      '-p',
+      '127.0.0.1::5000',
+      '-e',
+      'REGISTRY_STORAGE_DELETE_ENABLED=true',
       'registry:2',
     );
     owned.push(registry);
+    const registryPort = JSON.parse(docker('inspect', registry))[0].NetworkSettings.Ports['5000/tcp'][0]
+      .HostPort;
     const tool = docker(
       'run',
       '-d',
@@ -188,7 +194,7 @@ export async function startRuntime(token) {
         '--platform.jobs.slots.lab.runtime-edge=2',
         '--platform.distribution.registries.ui.address=ui-registry:5000',
         '--platform.distribution.registries.ui.tls-verify=false',
-        '--platform.distribution.registries.ui.auth-file=/tmp/auth.json',
+        `--platform.distribution.registries.ui.api-url=http://127.0.0.1:${registryPort}`,
         '--platform.distribution.targets.lab.runtime-edge=ui',
         '--platform.distribution.timeout=PT60S',
         '--platform.image-upload.centers.lab=ui',

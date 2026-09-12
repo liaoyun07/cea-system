@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-09（DEP-001/DEP-002/RES-001管理补齐，DONE/PASS，已发布CEA）：Registry实际库存/详情/引用保护删除、应用目录删除、Service创建/删除/访问详情及多Namespace管理；不新造功能域ID。包含源tag与digest契约的无标签副本核验，不以历史记录代替库存。验证/发布结果见[验证记录](verification/VER-UI-009-registry-kubernetes.md)。
+
 UI-08a：用户裁剪独立“容器用量”页面，当前前端只保留节点用量，不新增其他入口或平台能力。后端API和采集器不变；验证/发布状态见[进度](04-progress.md)。
 
 UI-08-demo：DEP-001/002现成能力的常驻HTTP示例镜像、上传契约与部署参数已提供；8项HTTP及容器/归档检查PASS，没有新增平台能力或功能编号，未自动登记/部署到CEA。见[示例](../examples/deployment-demo/README.md)与[验证](verification/VER-UI-008-demo-image.md)。

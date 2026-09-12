@@ -27,7 +27,7 @@ public class DistributionConfiguration {
             registries=registries==null?Map.of():Map.copyOf(registries);targets=targets==null?Map.of():Map.copyOf(targets);
         }
     }
-    public record RegistrySettings(String address,Boolean tlsVerify,String authFile) {
+    public record RegistrySettings(String address,Boolean tlsVerify,String authFile,String apiUrl) {
         public RegistrySettings { tlsVerify=tlsVerify==null || tlsVerify; }
     }
     @ConfigurationProperties("platform.image-upload")
@@ -48,6 +48,16 @@ public class DistributionConfiguration {
         return new ImageUploadService(access,applications,images,centers,uploads.directory(),uploads.maxBytes(),uploads.concurrency());
     }
     @Bean SkopeoImageClient skopeoImageClient(Settings settings) { return new SkopeoImageClient(settings.command(),settings.timeout()); }
+    @Bean RegistryHttpClient registryHttpClient() { return new RegistryHttpClient(); }
+    @Bean RegistryManagementService registryManagementService(Settings settings,UploadSettings uploads,AccessPolicy access,ApplicationCatalogService applications,
+            com.project.platform.resource.kubernetes.KubernetesManagementService kubernetes,JdbcImageDistributionRepository history,RegistryHttpClient client) {
+        var registries=new java.util.HashMap<String,RegistryHttpClient.Connection>();
+        settings.registries().forEach((id,r)->registries.put(id,new RegistryHttpClient.Connection(r.address(),r.apiUrl()==null?(r.tlsVerify()?"https://":"http://")+r.address():r.apiUrl(),r.authFile())));
+        var scopes=new java.util.HashMap<String,java.util.Set<String>>();
+        settings.targets().forEach((namespace,targets)->scopes.put(namespace,new java.util.HashSet<>(targets.values())));
+        uploads.centers().forEach((namespace,id)->scopes.computeIfAbsent(namespace,ignored->new java.util.HashSet<>()).add(id));
+        return new RegistryManagementService(access,applications,kubernetes,history,client,registries,scopes);
+    }
     @Bean JdbcImageDistributionRepository imageDistributionRepository(JdbcTemplate jdbc) { return new JdbcImageDistributionRepository(jdbc); }
     @Bean ImageDistributionService imageDistributionService(Settings settings,ApplicationCatalogService applications,
                                                            ResourceCatalogService resources,AccessPolicy access,SkopeoImageClient images,JdbcImageDistributionRepository history,Clock clock) {

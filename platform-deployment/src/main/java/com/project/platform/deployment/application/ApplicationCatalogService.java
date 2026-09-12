@@ -43,4 +43,12 @@ public final class ApplicationCatalogService {
         if(limit<1 || limit>100 || offset<0 || offset>1_000_000) throw ApplicationException.invalid("limit 1..100, offset 0..1000000 required");
         return repository.list(namespace,limit,offset);
     }
+    /** Called by the dataflow removal service only after checking Flow and workload references. Does not delete Registry content. */
+    public void removeUnreferenced(Actor actor,String namespace,String id,String version) {
+        access.require(actor,namespace,Action.WRITE);identifier(namespace);identifier(id);token(version,100);repository.delete(namespace,id,version);
+    }
+    /** Registry discovery only; includes retained deleted versions but cannot resolve or execute them. */
+    public java.util.Map<String,java.util.Set<String>> knownImages(Actor actor,String namespace) {
+        access.require(actor,namespace,Action.READ);identifier(namespace);return repository.knownImages(namespace);
+    }
 }

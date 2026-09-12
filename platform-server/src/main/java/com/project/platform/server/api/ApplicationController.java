@@ -14,7 +14,12 @@ public final class ApplicationController {
     private final ApplicationCatalogService applications;
     private final IdentityDirectory identities;
     private final ImageUploadService uploads;
-    public ApplicationController(ApplicationCatalogService applications,IdentityDirectory identities,ImageUploadService uploads) { this.applications=applications;this.identities=identities;this.uploads=uploads; }
+    private final com.project.platform.dataflow.definition.ApplicationRemovalService removals;
+    public ApplicationController(ApplicationCatalogService applications,IdentityDirectory identities,ImageUploadService uploads,com.project.platform.dataflow.definition.ApplicationRemovalService removals) { this.applications=applications;this.identities=identities;this.uploads=uploads;this.removals=removals; }
+    @DeleteMapping("/{applicationId}/versions/{version}")
+    public void remove(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,@PathVariable String version) {
+        removals.remove(identities.actor(principal.getName()),namespace,applicationId,version);
+    }
     @PostMapping(value="/{applicationId}/versions/{version}/upload",consumes="multipart/form-data")
     public ApplicationVersion upload(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,@PathVariable String version,
                                      @RequestPart("contract") ImageUploadService.Request request,@RequestPart("file") MultipartFile file) throws java.io.IOException {

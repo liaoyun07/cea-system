@@ -27,4 +27,5 @@ public final class KubernetesConnections {
             return new KubernetesClientBuilder().withConfig(config).build();
         } catch(IOException ex) { throw new IllegalStateException("Cannot read configured Kubernetes credentials"); }
     }
+    public java.util.Set<String> clusterIds(String namespace) { return connections.getOrDefault(namespace,Map.of()).keySet(); }
 }

@@ -7,6 +7,7 @@ import ExecutionDetail from './ExecutionDetail.vue';
 import CatalogPage from './management/CatalogPage.vue';
 import DeploymentsPage from './management/DeploymentsPage.vue';
 import KubernetesResourcesPage from './management/KubernetesResourcesPage.vue';
+import RegistryPage from './management/RegistryPage.vue';
 import OverviewPage from './OverviewPage.vue';
 import { catalogs } from './management/catalogs.js';
 
@@ -23,6 +24,7 @@ const navigation = [
     label: '应用与资源',
     items: [
       ['applications', '应用与镜像', '▣'],
+      ['registries', '镜像仓库', '▧'],
       ['deployments', '应用部署', '▤'],
       ['clusters', '集群资源', '⬡'],
       ['kubernetes', '运行资源', '▦'],
@@ -44,6 +46,7 @@ const titleFor = (key) =>
   {
     overview: '运行总览',
     kubernetes: '运行资源',
+    registries: '镜像仓库',
     flows: '流程',
     executions: '执行',
     deployments: '应用部署',
@@ -272,7 +275,19 @@ function paginate(delta) {
         :api="session.api"
         @execution="showExecution"
       />
-      <KubernetesResourcesPage v-else-if="page === 'kubernetes'" :key="pageEpoch" :api="session.api" />
+      <KubernetesResourcesPage
+        v-else-if="page === 'kubernetes'"
+        :key="pageEpoch"
+        :api="session.api"
+        :workspace="session.namespace"
+        @pending="pending = $event"
+      />
+      <RegistryPage
+        v-else-if="page === 'registries'"
+        :key="pageEpoch"
+        :api="session.api"
+        @pending="pending = $event"
+      />
       <DeploymentsPage
         v-else-if="page === 'deployments'"
         :key="pageEpoch"

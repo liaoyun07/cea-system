@@ -69,7 +69,7 @@ test('read-only Kubernetes inventory uses live configured namespace and exposes 
   await expect(page.getByRole('table', { name: '节点', exact: true })).toContainText(nodes.items[0].name);
   await page.screenshot({ path: '.local/evidence/resources-desktop.png', fullPage: true });
   await page.getByRole('tab', { name: 'Service', exact: true }).click();
-  await expect(page.getByText('Kubernetes Namespace：ui-test', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Service Namespace', { exact: true })).toHaveValue('ui-test');
   await expect(page.getByRole('table', { name: 'Service', exact: true })).toContainText('inspection-service');
   await expect(page.getByRole('table', { name: 'Service', exact: true })).toContainText('80/TCP → 8080');
   await page.getByRole('tab', { name: 'Kubernetes Namespace', exact: true }).click();

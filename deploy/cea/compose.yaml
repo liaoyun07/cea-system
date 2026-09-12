@@ -12,7 +12,7 @@ x-registry: &registry
     REGISTRY_AUTH: htpasswd
     REGISTRY_AUTH_HTPASSWD_REALM: cea
     REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
-    REGISTRY_STORAGE_DELETE_ENABLED: "false"
+    REGISTRY_STORAGE_DELETE_ENABLED: "true"
 x-k3s: &k3s
   image: rancher/k3s:v1.30.6-k3s1
   privileged: true

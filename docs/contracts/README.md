@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [UI-09镜像与Kubernetes管理](ui09-registry-kubernetes.md)：13个新增操作、工作空间范围、引用保护、V20目录删除及明确的Registry/RBAC限制。
+
 - [UI-08核心运维](ui08-deployment-operations.md)：增加7个HTTP操作，总数64；77个显式公开record映射，V18/V19后25张业务表。当前验证状态见进度，不代表已部署。
 
 - [UI-07只读查询](ui07-readonly-inspection.md)：增加5个GET，当前57个HTTP操作。OpenAPI增加9个查询record映射（Page分别映射Node/Service响应），共67个显式record映射；23张业务表不变。

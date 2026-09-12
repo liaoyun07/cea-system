@@ -1,5 +1,18 @@
 # 项目结构与 Java 文件索引
 
+UI-09（验证/发布状态见进度）：新增6个生产Java文件，共99个；新增13个HTTP操作，共77个；新增11个公开record映射，共88个。V20只给dep_application_version增加deleted列，删除目录后禁止版本号复用；已保留契约的image仍经ApplicationCatalogService.knownImages提供给Registry作为现场查询候选，不恢复执行契约或活动目录。无新表、模块依赖、执行状态或SPI。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesManagementService.java` | Namespace/Service实时CRUD、默认范围及所有权保护、CAS删除、地址/Pod详情和工作负载引用检查；不修改Runner默认Namespace |
+| `platform-server/src/main/java/com/project/platform/server/api/KubernetesManagementController.java` | 7个管理HTTP操作，身份适配后调用resource |
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryHttpClient.java` | 管理员配置的Distribution v2目录、标签、manifest/config和删除；有界响应、匿名/htpasswd、禁止重定向凭据；传输仍由Skopeo执行 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryManagementService.java` | 实际库存与详情；已知无标签候选必须现场核验；删除前检查目录、工作负载、分发和索引引用；不GC |
+| `platform-server/src/main/java/com/project/platform/server/api/RegistryController.java` | 5个Registry查询/删除HTTP操作，禁止请求指定任意地址 |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/ApplicationRemovalService.java` | 通过公开Flow/资源/应用服务检查所有已存Flow修订及工作负载，单独移除目录；保留版本身份，不删除Registry文件 |
+
+前端新增RegistryPage.vue、KubernetesManagement.vue；现有CatalogPage增加目录删除，KubernetesResourcesPage保留节点展示并接入按Namespace管理。协议见[UI-09](contracts/ui09-registry-kubernetes.md)。
+
 这是当前代码结构的权威索引。状态与计划见[实施计划](03-implementation-plan.md)和[进度](04-progress.md)。包根为 `com.project.platform`，不沿用旧 DTO/包依赖。
 
 UI-06增量（2026-09-12）：新增ExecutionOutputService（下表列出）和1个GET output-json操作；ObjectStorage增加精确成功产物的有界读取，既有Controller/异常映射/装配新增当前消费者。执行链、依赖边界及表/列不变。该批完成时为87个生产Java文件、52个HTTP操作、58个显式公开record映射和23张业务表；后续UI-07增量见下文。前端ExecutionMetrics/execution-metrics为按需读取/图表/明细消费者，详见[边界](features/UI-06-execution-metrics.md)。

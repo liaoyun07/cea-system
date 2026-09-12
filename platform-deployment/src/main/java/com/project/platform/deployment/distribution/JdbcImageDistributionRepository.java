@@ -30,4 +30,10 @@ public final class JdbcImageDistributionRepository {
                         rs.getTimestamp("started_at").toInstant(),rs.getTimestamp("finished_at")==null?null:rs.getTimestamp("finished_at").toInstant(),rs.getString("error")),
                 namespace,application,version,limit,offset);
     }
+    public List<String> knownTargets(String namespace) {
+        return jdbc.queryForList("SELECT DISTINCT target_image FROM dep_image_distribution WHERE namespace=? AND target_image IS NOT NULL",String.class,namespace);
+    }
+    public List<String> unfinishedImages(String namespace) {
+        return jdbc.queryForList("SELECT source_image FROM dep_image_distribution WHERE namespace=? AND state='RUNNING' UNION SELECT target_image FROM dep_image_distribution WHERE namespace=? AND state='RUNNING' AND target_image IS NOT NULL",String.class,namespace,namespace);
+    }
 }

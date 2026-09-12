@@ -1,0 +1,33 @@
+# Replace the Authorization placeholder using your local credentials; never commit a real token.
+# Read-only inventory (workspace lab).
+GET http://127.0.0.1:18080/api/namespaces/lab/registries
+Authorization: Basic <local-credentials>
+
+###
+GET http://127.0.0.1:18080/api/namespaces/lab/registries/center/repositories
+Authorization: Basic <local-credentials>
+
+###
+GET http://127.0.0.1:18080/api/namespaces/lab/clusters/cloud/kubernetes/namespaces
+Authorization: Basic <local-credentials>
+
+### Create a namespace for management, not a new Runner execution namespace.
+POST http://127.0.0.1:18080/api/namespaces/lab/clusters/cloud/kubernetes/namespaces
+Authorization: Basic <local-credentials>
+Content-Type: application/json
+
+{"name":"cea-lab-demo"}
+
+### Expose the already-deployed demo application in the default execution namespace.
+POST http://127.0.0.1:18080/api/namespaces/lab/clusters/cloud/kubernetes/namespaces/cea-lab/services
+Authorization: Basic <local-credentials>
+Content-Type: application/json
+
+{"name":"http-server","type":"NodePort","selector":{"cea-system/deployment":"http-server"},"ports":[{"name":"http","port":80,"targetPort":"8080","protocol":"TCP","nodePort":null}]}
+
+### Query real addresses and associated Pods. NodePort is not automatically published through Docker to Windows.
+GET http://127.0.0.1:18080/api/namespaces/lab/clusters/cloud/kubernetes/namespaces/cea-lab/services/http-server
+Authorization: Basic <local-credentials>
+
+# Delete only after reading the current uid/resourceVersion and confirming the exact object in the UI.
+# Application catalog removal and Registry manifest removal are deliberately separate operations.

@@ -236,6 +236,23 @@ async function prepare() {
   }, true);
   if (alive) await loadHistory();
 }
+async function removeApplication() {
+  const id = `${draft.value.applicationId}/${draft.value.version}`;
+  if (
+    window.prompt(`从应用目录移除 ${id}？不会删除仓库镜像；此版本号不能再次使用。请输入应用 ID 确认：`) !==
+    draft.value.applicationId
+  )
+    return;
+  await action(async () => {
+    await api(itemPath('applications', draft.value), { method: 'DELETE', long: true });
+    if (alive) {
+      draft.value = null;
+      raw.value = null;
+      await loadRows();
+      success.value = '已从目录移除；仓库镜像保留。';
+    }
+  }, true);
+}
 async function loadHistory() {
   historyError.value = '';
   const selected = itemPath('applications', draft.value),
@@ -314,7 +331,16 @@ onMounted(() => action(loadRows));
               基于此版本新建
             </button>
             <button
-              v-else
+              v-if="readonly && kind === 'applications'"
+              type="button"
+              class="danger"
+              :disabled="busy"
+              @click="removeApplication"
+            >
+              删除应用版本
+            </button>
+            <button
+              v-if="!readonly"
               type="button"
               class="primary"
               :disabled="busy || invalid || !!catalogError"

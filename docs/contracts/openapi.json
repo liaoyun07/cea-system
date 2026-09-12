@@ -3409,6 +3409,49 @@
       }
     },
     "/api/namespaces/{namespace}/applications/{applicationId}/versions/{version}": {
+      "delete": {
+        "summary": "Remove unreferenced catalog version; retain immutable identity, never delete Registry files",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed from catalog"
+          },
+          "403": {
+            "description": "Not authorized"
+          },
+          "409": {
+            "description": "Referenced by saved Flow or workload"
+          },
+          "502": {
+            "description": "Unable to verify workload references"
+          }
+        }
+      },
       "parameters": [
         {
           "name": "namespace",
@@ -4109,6 +4152,709 @@
           },
           "422": {
             "description": "Invalid definition, file path/size, gate or disabled webhook"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces": {
+      "get": {
+        "summary": "List execution default and workspace-owned Kubernetes namespaces",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedNamespace"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create workspace-prefixed Kubernetes namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedNamespace"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NamespaceCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces/{kubeNamespace}": {
+      "delete": {
+        "summary": "Request cascading namespace deletion; default/workload/storage protection",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubeNamespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removal accepted; refresh Kubernetes until termination completes"
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces/{kubeNamespace}/services": {
+      "get": {
+        "summary": "List Services in permitted Kubernetes namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubeNamespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedService"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create selector-based Service",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubeNamespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedService"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces/{kubeNamespace}/services/{name}": {
+      "get": {
+        "summary": "Get actual ports, node/external addresses and matching Pods",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubeNamespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedService"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete platform-owned Service with identity preconditions",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kubeNamespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removal accepted; refresh Kubernetes until termination completes"
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/registries": {
+      "get": {
+        "summary": "List configured workspace Registries",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryInfo"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/registries/{registry}/repositories": {
+      "get": {
+        "summary": "Query live repository catalog (workspace filter)",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "last",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryRepositoryPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/registries/{registry}/images": {
+      "get": {
+        "summary": "Verify tagged and known untagged manifests in Registry",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryImage"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/registries/{registry}/image": {
+      "get": {
+        "summary": "Inspect image metadata and deletion blockers",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "digest",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryImageDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete exact unreferenced manifest; no blob garbage collection",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registry",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repository",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "digest",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirmation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removal accepted; refresh Kubernetes until termination completes"
+          },
+          "403": {
+            "description": "Workspace/action or resource scope denied"
+          },
+          "409": {
+            "description": "Reference, ownership or identity conflict"
+          },
+          "422": {
+            "description": "Invalid request"
+          },
+          "502": {
+            "description": "Infrastructure could not be verified; no fabricated empty success"
           }
         }
       }
@@ -6350,6 +7096,371 @@
         },
         "required": [
           "maxDuration"
+        ]
+      },
+      "ManagedNamespace": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "string"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string"
+          },
+          "executionDefault": {
+            "type": "boolean"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "uid",
+          "resourceVersion",
+          "phase",
+          "executionDefault",
+          "managed",
+          "createdAt"
+        ]
+      },
+      "NamespaceCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ServicePortConfiguration": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "targetPort": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "TCP",
+              "UDP",
+              "SCTP"
+            ]
+          },
+          "nodePort": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "port",
+          "targetPort",
+          "protocol",
+          "nodePort"
+        ]
+      },
+      "ServiceCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ClusterIP",
+              "NodePort",
+              "LoadBalancer"
+            ]
+          },
+          "selector": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePortConfiguration"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "selector",
+          "ports"
+        ]
+      },
+      "ServicePod": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "ip",
+          "phase",
+          "ready",
+          "node"
+        ]
+      },
+      "ManagedService": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "string"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "clusterIP": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "selector": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePortConfiguration"
+            }
+          },
+          "externalAddresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nodeAddresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePod"
+            }
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "namespace",
+          "uid",
+          "resourceVersion",
+          "type",
+          "clusterIP",
+          "selector",
+          "ports",
+          "externalAddresses",
+          "nodeAddresses",
+          "pods",
+          "managed",
+          "createdAt"
+        ]
+      },
+      "RegistryInfo": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "address"
+        ]
+      },
+      "RegistryRepositoryPage": {
+        "type": "object",
+        "properties": {
+          "repositories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "repositories",
+          "next"
+        ]
+      },
+      "RegistryImage": {
+        "type": "object",
+        "properties": {
+          "digest": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "digest",
+          "tags"
+        ]
+      },
+      "RegistryPlatform": {
+        "type": "object",
+        "properties": {
+          "digest": {
+            "type": "string"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "architecture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variant": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "digest",
+          "os",
+          "architecture",
+          "variant"
+        ]
+      },
+      "RegistryImageDetail": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "layerBytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistryPlatform"
+            }
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "repository",
+          "digest",
+          "tags",
+          "mediaType",
+          "layerBytes",
+          "created",
+          "platforms",
+          "blockers"
         ]
       }
     }

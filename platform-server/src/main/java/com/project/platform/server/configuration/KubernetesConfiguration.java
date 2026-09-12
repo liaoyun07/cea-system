@@ -29,6 +29,10 @@ public class KubernetesConfiguration {
         return new DeploymentRolloutTracker(records,connections,clock);
     }
     @Bean KubernetesConnections kubernetesConnections(Settings settings) { return new KubernetesConnections(settings.connections()); }
+    @Bean com.project.platform.resource.kubernetes.KubernetesManagementService kubernetesManagementService(
+            com.project.platform.foundation.identity.AccessPolicy access,com.project.platform.resource.catalog.ResourceCatalogService resources,KubernetesConnections connections) {
+        return new com.project.platform.resource.kubernetes.KubernetesManagementService(access,resources,connections);
+    }
     @Bean com.project.platform.resource.kubernetes.KubernetesResourceService kubernetesResourceService(
             com.project.platform.resource.catalog.ResourceCatalogService resources,KubernetesConnections connections,Clock clock) {
         return new com.project.platform.resource.kubernetes.KubernetesResourceService(resources,connections,clock);

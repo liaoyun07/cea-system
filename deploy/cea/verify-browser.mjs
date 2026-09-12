@@ -55,14 +55,15 @@ try {
     await page.getByLabel('资源集群').selectOption(cluster);
     const rows = {};
     for (const [endpoint, title] of [['nodes', '节点'], ['services', 'Service'], ['namespace', 'Kubernetes Namespace']]) {
-      const response = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/' + endpoint, {headers: authHeaders});
+      const suffix = endpoint === 'namespace' ? 'namespaces' : endpoint === 'services' ? 'namespaces/cea-lab/services' : endpoint;
+      const response = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/' + suffix, {headers: authHeaders});
       expect(response.status()).toBe(200);
       const value = await response.json(); rows[endpoint] = value;
       await page.getByRole('tab', {name: title, exact: true}).click();
-      await expect(page.getByRole('table', {name: title, exact: true}).locator('tbody tr')).toHaveCount(endpoint === 'namespace' ? 1 : value.items.length);
+      await expect(page.getByRole('table', {name: title, exact: true}).locator('tbody tr')).toHaveCount(endpoint === 'nodes' ? value.items.length : value.length);
       if (endpoint === 'namespace') {
-        expect(value.name).toBe('cea-lab');
-        await expect(page.getByRole('table', {name: title, exact: true})).toContainText(value.name);
+        expect(value.find(row => row.executionDefault).name).toBe('cea-lab');
+        await expect(page.getByRole('table', {name: title, exact: true})).toContainText('cea-lab');
       } else if (endpoint === 'nodes') {
         expect(value.items.length).toBeGreaterThan(0);
         await expect(page.getByRole('table', {name: title, exact: true})).toContainText(value.items[0].name);
@@ -339,6 +340,52 @@ try {
   const result = { result: 'PASS', scope: 'real deployed frontend: federated metrics accuracy/loss/samples/round chart and table match authorized artifact API, round identity, refresh selection, desktop/390px; explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', metricsEvidence, logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   result.inspectionEvidence = inspectionEvidence;
   result.operationsEvidence = operationsEvidence;
+  result.registryInventory = {};
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '镜像仓库', exact: true}).click();
+  const registryList = await (await page.request.get('/api/namespaces/lab/registries', {headers: authHeaders})).json();
+  expect(registryList).toHaveLength(4);
+  const applicationDigests = new Map();
+  for (const app of applications) {
+    let digest = app.image.includes('@sha256:') ? app.image.split('@')[1] : null;
+    if (!digest) {
+      const source = registryList.find(registry => app.image.startsWith(registry.address + '/'));
+      expect(source).toBeDefined();
+      const separator = app.image.lastIndexOf(':'), repository = app.image.slice(source.address.length + 1, separator), tag = app.image.slice(separator + 1);
+      const response = await page.request.get('/api/namespaces/lab/registries/' + source.id + '/images?repository=' + encodeURIComponent(repository), {headers: authHeaders});
+      expect(response.status()).toBe(200);
+      digest = (await response.json()).find(image => image.tags.includes(tag))?.digest;
+      expect(digest).toMatch(/^sha256:[a-f0-9]{64}$/);
+    }
+    applicationDigests.set(app.applicationId, [...(applicationDigests.get(app.applicationId) || []), digest]);
+  }
+  for (const registry of registryList) {
+    await page.getByRole('combobox', {name: '镜像仓库', exact: true}).selectOption(registry.id);
+    await expect(page.getByLabel('镜像仓库路径', {exact: true})).toBeEnabled();
+    const paths = await (await page.request.get('/api/namespaces/lab/registries/' + registry.id + '/repositories', {headers: authHeaders})).json();
+    const inventory = {};
+    for (const repository of paths.repositories) {
+      const response = await page.request.get('/api/namespaces/lab/registries/' + registry.id + '/images?repository=' + encodeURIComponent(repository), {headers: authHeaders});
+      expect(response.status()).toBe(200); inventory[repository] = await response.json();
+      // Inventory must not omit real digest-only copies merely because no preparation history exists.
+      const candidates = new Set(applicationDigests.get(repository.slice('lab/'.length)) || []);
+      for (const digest of candidates) {
+        const direct = await page.request.get('/api/namespaces/lab/registries/' + registry.id + '/image?repository=' + encodeURIComponent(repository) + '&digest=' + digest, {headers: authHeaders});
+        expect([200, 404]).toContain(direct.status());
+        if (direct.status() === 200) expect(inventory[repository].map(image => image.digest)).toContain(digest);
+      }
+    }
+    const example = paths.repositories.find(name => inventory[name].length > 0);
+    if (example) {
+      await page.getByLabel('镜像仓库路径', {exact: true}).selectOption(example);
+      await expect(page.getByRole('table', {name: '实际镜像库存'})).toContainText(inventory[example][0].digest);
+      await page.getByRole('button', {name: '镜像详情', exact: true}).first().click();
+      await expect(page.getByRole('region', {name: '镜像详情'})).toContainText(inventory[example][0].digest);
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    }
+    result.registryInventory[registry.id] = inventory;
+    await page.screenshot({path: fileURLToPath(new URL('registry-' + registry.id + '.png', evidence)), fullPage: true});
+  }
+  expect(errors).toEqual([]);
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {

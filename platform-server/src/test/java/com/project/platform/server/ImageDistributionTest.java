@@ -80,6 +80,7 @@ class ImageDistributionTest {
 
     private GenericContainer<?> registry(String alias) {
         return new GenericContainer<>("registry:2").withNetwork(network).withNetworkAliases(alias).withExposedPorts(5000)
+                .withEnv("REGISTRY_STORAGE_DELETE_ENABLED","true")
                 .withEnv("REGISTRY_AUTH","htpasswd").withEnv("REGISTRY_AUTH_HTPASSWD_REALM","s4-test")
                 .withEnv("REGISTRY_AUTH_HTPASSWD_PATH","/auth/htpasswd")
                 .withCopyToContainer(Transferable.of("test:"+new BCryptPasswordEncoder().encode(password)+"\n"),"/auth/htpasswd");
@@ -166,8 +167,19 @@ class ImageDistributionTest {
                         verbs: [get, list]
                       - apiGroups: [""]
                         resources: [namespaces]
-                        resourceNames: [s4-test]
-                        verbs: [get]
+                        verbs: [get, list, create, delete]
+                      - apiGroups: [""]
+                        resources: [services]
+                        verbs: [get, list, create, delete]
+                      - apiGroups: [""]
+                        resources: [pods, persistentvolumeclaims, replicationcontrollers]
+                        verbs: [get, list]
+                      - apiGroups: [apps]
+                        resources: [deployments, statefulsets, daemonsets, replicasets]
+                        verbs: [get, list]
+                      - apiGroups: [batch]
+                        resources: [jobs, cronjobs]
+                        verbs: [get, list]
                       - apiGroups: [""]
                         resources: [nodes]
                         verbs: [list]
@@ -546,11 +558,129 @@ class ImageDistributionTest {
                 .build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         try(var restricted=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class).open("lab","edge")) {
             assertFalse(restricted.nodes().list().getItems().isEmpty());
-            assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.namespaces().list()).getCode());
-            assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.apps().deployments().inNamespace("default").list()).getCode());
+            assertFalse(restricted.namespaces().list().getItems().isEmpty());
+            assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.secrets().inNamespace("default").list()).getCode());
         }
     }
     private FlowExecutionService executions(){return context.getBean(FlowExecutionService.class);}
+    @Test void managedNamespacesAndServicesUseRealKubernetesAndProtectScopeOwnershipAndIdentity() throws Exception {
+        var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
+        var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
+        var initial=management.namespaces(viewer,"lab","edge").stream().filter(n->n.executionDefault()).findFirst().orElseThrow();
+        assertEquals("s4-test",initial.name());
+        assertThrows(ResourceException.class,()->management.deleteNamespace(actor,"lab","edge",initial.name(),initial.uid(),initial.resourceVersion()));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.createNamespace(viewer,"lab","edge",new com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest("cea-lab-denied")));
+        assertThrows(ResourceException.class,()->management.createNamespace(actor,"lab","edge",new com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest("kube-system")));
+        String name="cea-lab-management";
+        var created=management.createNamespace(actor,"lab","edge",new com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest(name));
+        assertFalse(created.executionDefault());assertTrue(created.managed());
+        try {
+            assertThrows(ResourceException.class,()->management.createNamespace(actor,"lab","edge",new com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest(name)));
+            var request=new com.project.platform.resource.kubernetes.KubernetesManagementService.ServiceRequest("http","NodePort",Map.of("app","ui9"),List.of(new com.project.platform.resource.kubernetes.KubernetesManagementService.Port("http",80,"web","TCP",null)));
+            var service=management.createService(actor,"lab","edge",name,request);
+            assertNotNull(service.ports().getFirst().nodePort());assertEquals("web",service.ports().getFirst().targetPort());
+            admin.pods().inNamespace(name).resource(new io.fabric8.kubernetes.api.model.PodBuilder().withNewMetadata().withName("selected").withLabels(Map.of("app","ui9")).endMetadata().withNewSpec().withNodeName("deliberately-unscheduled")
+                    .addNewContainer().withName("web").withImage("example.invalid/not-started:v1").endContainer().endSpec().build()).create();
+            var detail=management.service(viewer,"lab","edge",name,"http");
+            assertEquals("selected",detail.pods().getFirst().name());assertFalse(detail.nodeAddresses().isEmpty());
+            assertThrows(ResourceException.class,()->management.deleteNamespace(actor,"lab","edge",name,created.uid(),created.resourceVersion()));
+            assertThrows(ResourceException.class,()->management.deleteService(actor,"lab","edge",name,"http","other-uid",service.resourceVersion()));
+            assertNotNull(admin.services().inNamespace(name).withName("http").get());
+            management.deleteService(actor,"lab","edge",name,"http",service.uid(),service.resourceVersion());
+            assertNull(admin.services().inNamespace(name).withName("http").get());
+            admin.pods().inNamespace(name).withName("selected").withGracePeriod(0).delete();
+            await().atMost(Duration.ofSeconds(20)).until(()->admin.pods().inNamespace(name).list().getItems().isEmpty());
+            var latest=management.namespaces(actor,"lab","edge").stream().filter(n->n.name().equals(name)).findFirst().orElseThrow();
+            management.deleteNamespace(actor,"lab","edge",name,latest.uid(),latest.resourceVersion());
+            await().atMost(Duration.ofSeconds(30)).until(()->admin.namespaces().withName(name).get()==null);
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.services(actor,"lab","edge","kube-system"));
+        } finally { admin.namespaces().withName(name).delete(); }
+        String url="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/clusters/edge/kubernetes/namespaces";
+        String authHeader="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));
+        assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization",authHeader).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        assertEquals(403,http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization",authHeader).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"cea-lab-denied\"}")).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+    }
+    @Test void registryInventoryVerifiesUntaggedCopiesMetadataAndActualDeletionWithoutDeletingCatalog() throws Exception {
+        Path authFile=Files.createTempFile("cea-ui9-registry-",".json");
+        try {
+            Files.writeString(authFile,json.write(Map.of("auths",Map.of("target:5000",Map.of("auth",auth),"source:5000",Map.of("auth",auth)))));
+            var connection=new RegistryHttpClient.Connection("target:5000",endpoint(target),authFile.toString());
+            var sourceConnection=new RegistryHttpClient.Connection("source:5000",endpoint(source),authFile.toString());
+            var client=new RegistryHttpClient();
+            var management=new RegistryManagementService(new com.project.platform.foundation.identity.AccessPolicy(),applications(),context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class),
+                    context.getBean(JdbcImageDistributionRepository.class),client,Map.of("target",connection,"source",sourceConnection),Map.of("lab",Set.of("target","source")));
+            applications().register(actor,"lab","ui9-copy","v1",new ApplicationVersion("ui9-copy","v1","source:5000/fixture:v1",Map.of()));
+            distribution().prepare(actor,"lab","ui9-copy","v1","edge");
+            assertTrue(management.repositories(actor,"lab","target",null).repositories().contains("lab/ui9-copy"));
+            var inventory=management.images(actor,"lab","target","lab/ui9-copy");
+            assertEquals(fixtureDigest,inventory.getFirst().digest());assertTrue(inventory.getFirst().tags().isEmpty());
+            // Model an existing digest-only copy without a preparation record, as occurs before history was enabled.
+            context.getBean(JdbcTemplate.class).update("DELETE FROM dep_image_distribution WHERE namespace=? AND application_id=?","lab","ui9-copy");
+            assertEquals(fixtureDigest,management.images(actor,"lab","target","lab/ui9-copy").getFirst().digest());
+            context.getBean(com.project.platform.dataflow.definition.ApplicationRemovalService.class).remove(actor,"lab","ui9-copy","v1");
+            assertThrows(ApplicationException.class,()->applications().get(actor,"lab","ui9-copy","v1"));
+            assertEquals(fixtureDigest,management.images(actor,"lab","target","lab/ui9-copy").getFirst().digest());
+            var detail=management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest);
+            assertEquals("amd64",detail.platforms().getFirst().architecture());assertTrue(detail.layerBytes()>0);assertTrue(detail.blockers().isEmpty(),detail.blockers().toString());
+            var workload=new io.fabric8.kubernetes.api.model.apps.DeploymentBuilder().withNewMetadata().withName("ui9-reference-only").endMetadata().withNewSpec().withReplicas(0)
+                    .withNewSelector().addToMatchLabels("app","ui9-reference-only").endSelector().withNewTemplate().withNewMetadata().addToLabels("app","ui9-reference-only").endMetadata()
+                    .withNewSpec().addNewContainer().withName("app").withImage("target:5000/lab/ui9-copy@"+fixtureDigest).endContainer().endSpec().endTemplate().endSpec().build();
+            admin.apps().deployments().inNamespace("s4-test").resource(workload).create();
+            try {
+                assertTrue(management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).blockers().stream().anyMatch(b->b.contains("Kubernetes")));
+                assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
+            } finally {admin.apps().deployments().inNamespace("s4-test").withName("ui9-reference-only").delete();}
+            await().atMost(Duration.ofSeconds(20)).until(()->admin.apps().replicaSets().inNamespace("s4-test").withLabel("app","ui9-reference-only").list().getItems().isEmpty());
+            var child=registryCall("GET",endpoint(target)+"/v2/lab/ui9-copy/manifests/"+fixtureDigest,new byte[0],"application/json");
+            byte[] index=json.write(Map.of("schemaVersion",2,"mediaType","application/vnd.oci.image.index.v1+json","manifests",List.of(Map.of("mediaType","application/vnd.oci.image.manifest.v1+json","size",child.body().length,"digest",fixtureDigest,"platform",Map.of("os","linux","architecture","amd64"))))).getBytes(StandardCharsets.UTF_8);
+            assertEquals(201,registryCall("PUT",endpoint(target)+"/v2/lab/ui9-copy/manifests/multi",index,"application/vnd.oci.image.index.v1+json").statusCode());
+            assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
+            management.delete(actor,"lab","target","lab/ui9-copy",hash(index),"lab/ui9-copy@"+hash(index));
+            assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"wrong"));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.delete(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
+            assertThrows(ApplicationException.class,()->management.images(actor,"lab","target","other/private"));
+            management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest);
+            assertNull(client.manifest(connection,"lab/ui9-copy",fixtureDigest));
+            assertTrue(management.images(actor,"lab","target","lab/ui9-copy").isEmpty());
+            assertThrows(ApplicationException.class,()->applications().get(actor,"lab","ui9-copy","v1"));
+            applications().register(actor,"lab","ui9-copy","v2",new ApplicationVersion("ui9-copy","v2","source:5000/fixture@"+fixtureDigest,Map.of()));
+            distribution().prepare(actor,"lab","ui9-copy","v2","edge");
+            applications().register(actor,"lab","ui9-reference","v1",new ApplicationVersion("ui9-reference","v1","target:5000/lab/ui9-copy@"+fixtureDigest,Map.of()));
+            assertFalse(management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).blockers().isEmpty());
+            assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
+            assertNotNull(client.manifest(connection,"lab/ui9-copy",fixtureDigest));
+        } finally { Files.deleteIfExists(authFile); }
+    }
+    @Test void catalogRemovalRetainsVersionIdentityAndProtectsAllSavedFlowRevisions() {
+        var removal=context.getBean(com.project.platform.dataflow.definition.ApplicationRemovalService.class);
+        var app=new ApplicationVersion("ui9-unused","v1","source:5000/lab/ui9-unused@"+fixtureDigest,Map.of());
+        applications().register(actor,"lab",app.applicationId(),app.version(),app);
+        removal.remove(actor,"lab",app.applicationId(),app.version());
+        assertThrows(ApplicationException.class,()->applications().get(actor,"lab",app.applicationId(),app.version()));
+        assertThrows(ApplicationException.class,()->applications().register(actor,"lab",app.applicationId(),app.version(),app));
+        applications().register(actor,"lab","ui9-flow-app","v1",new ApplicationVersion("ui9-flow-app","v1","source:5000/lab/ui9-flow@"+fixtureDigest,Map.of()));
+        var flows=context.getBean(FlowService.class);
+        flows.save(actor,"lab","ui9-reference",0,"""
+                schemaVersion: 1
+                namespace: lab
+                id: ui9-reference
+                tasks:
+                  - id: group
+                    type: core.Sequential
+                    tasks:
+                      - id: app
+                        type: platform.Application
+                        timeout: PT30S
+                        container:
+                          applicationId: ui9-flow-app
+                          version: v1
+                          candidateClusters: [edge]
+                          command: [echo, unused]
+                """);
+        flows.save(actor,"lab","ui9-reference",1,"schemaVersion: 1\nnamespace: lab\nid: ui9-reference\ntasks:\n  - {id: log, type: core.Log, message: removed}\n");
+        assertThrows(ApplicationException.class,()->removal.remove(actor,"lab","ui9-flow-app","v1"));
+        assertNotNull(applications().get(actor,"lab","ui9-flow-app","v1"));
+    }
     @Test void resourceInventoryDoesNotTurnUnreachableKubernetesIntoEmptySuccess() throws Exception {
         int port;
         try(var socket=new java.net.ServerSocket(0)) { port=socket.getLocalPort(); }
@@ -587,9 +717,10 @@ class ImageDistributionTest {
             assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.nodes(viewer,"other","edge",10,null));
             assertThrows(ResourceException.class,()->service.services(viewer,"lab","missing",10,null));
             try(var restricted=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class).open("lab","edge")) {
-                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.namespaces().withName("default").get()).getCode());
-                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.services().inNamespace("default").list()).getCode());
-                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.services().inNamespace("s4-test").withName("inventory-a").delete()).getCode());
+                assertNotNull(restricted.namespaces().withName("default").get());
+                var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
+                assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.services(viewer,"lab","edge","default"));
+                assertThrows(ResourceException.class,()->management.deleteService(actor,"lab","edge","s4-test","inventory-a","wrong","wrong"));
             }
             String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/clusters/edge/kubernetes/";
             String auth="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));

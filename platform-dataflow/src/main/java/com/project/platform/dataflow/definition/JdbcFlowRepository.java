@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.List;
+import java.util.ArrayList;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -81,5 +82,14 @@ public final class JdbcFlowRepository {
     private FlowRevision revision(ResultSet rs, int row) throws SQLException {
         return new FlowRevision(rs.getString("namespace"), rs.getString("flow_id"), rs.getInt("revision"),
                 rs.getString("source_text"), json.flow(rs.getString("definition_json")), rs.getString("created_by"), rs.getTimestamp("created_at").toInstant());
+    }
+    public List<String> applicationReferences(String namespace,String applicationId,String version) {
+        var references=new ArrayList<String>();
+        jdbc.query("SELECT flow_id,revision,definition_json FROM wf_flow_revision WHERE namespace=?",rs->{
+            var definition=json.read(rs.getString("definition_json"),FlowDefinition.class);
+            if(definition.allTasks().stream().anyMatch(t->t.container()!=null && applicationId.equals(t.container().applicationId()) && version.equals(t.container().version())))
+                references.add(rs.getString("flow_id")+" r"+rs.getInt("revision"));
+        },namespace);
+        return references;
     }
 }

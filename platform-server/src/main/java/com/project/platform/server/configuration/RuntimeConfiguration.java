@@ -32,6 +32,10 @@ public class RuntimeConfiguration {
         return new com.project.platform.deployment.application.ApplicationCatalogService(repository,resources,access);
     }
     @Bean Clock clock() { return Clock.systemUTC(); }
+    @Bean com.project.platform.dataflow.definition.ApplicationRemovalService applicationRemovalService(AccessPolicy access,FlowService flows,
+            com.project.platform.deployment.application.ApplicationCatalogService applications,com.project.platform.resource.kubernetes.KubernetesManagementService kubernetes) {
+        return new com.project.platform.dataflow.definition.ApplicationRemovalService(access,flows,applications,kubernetes);
+    }
     @Bean JsonCodec jsonCodec() { return new JsonCodec(); }
     @Bean TemplateRenderer templateRenderer() { return new TemplateRenderer(); }
     @Bean FlowValidator flowValidator(TemplateRenderer renderer) { return new FlowValidator(renderer); }

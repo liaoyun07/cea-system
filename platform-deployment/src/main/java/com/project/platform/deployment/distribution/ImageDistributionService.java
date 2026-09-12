@@ -49,7 +49,7 @@ public final class ImageDistributionService {
         return copy(actor,namespace,applicationId,version,clusterId);
     }
     public List<Distribution> history(Actor actor,String namespace,String applicationId,String version,int limit,int offset) {
-        applications.get(actor,namespace,applicationId,version);
+        access.require(actor,namespace,Action.READ);
         if(limit<1 || limit>100 || offset<0 || offset>1_000_000)throw ApplicationException.invalid("limit 1..100, offset 0..1000000 required");
         return history.list(namespace,applicationId,version,limit,offset,clock.instant());
     }

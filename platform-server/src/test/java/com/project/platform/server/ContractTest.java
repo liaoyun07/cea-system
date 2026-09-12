@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(KubernetesResourceController.class,FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
+        for (Class<?> controller : List.of(KubernetesManagementController.class,RegistryController.class,KubernetesResourceController.class,FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -49,6 +49,17 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("ManagedNamespace",com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceInfo.class),
+                Map.entry("NamespaceCreate",com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest.class),
+                Map.entry("ServicePortConfiguration",com.project.platform.resource.kubernetes.KubernetesManagementService.Port.class),
+                Map.entry("ServiceCreate",com.project.platform.resource.kubernetes.KubernetesManagementService.ServiceRequest.class),
+                Map.entry("ServicePod",com.project.platform.resource.kubernetes.KubernetesManagementService.PodInfo.class),
+                Map.entry("ManagedService",com.project.platform.resource.kubernetes.KubernetesManagementService.ServiceInfo.class),
+                Map.entry("RegistryInfo",com.project.platform.deployment.distribution.RegistryManagementService.RegistryInfo.class),
+                Map.entry("RegistryRepositoryPage",com.project.platform.deployment.distribution.RegistryManagementService.RepositoryPage.class),
+                Map.entry("RegistryImage",com.project.platform.deployment.distribution.RegistryManagementService.ImageInfo.class),
+                Map.entry("RegistryPlatform",com.project.platform.deployment.distribution.RegistryManagementService.PlatformInfo.class),
+                Map.entry("RegistryImageDetail",com.project.platform.deployment.distribution.RegistryManagementService.ImageDetail.class),
                 Map.entry("ImageUploadRequest",com.project.platform.deployment.upload.ImageUploadService.Request.class),
                 Map.entry("ImageDistribution",com.project.platform.deployment.distribution.ImageDistributionService.Distribution.class),
                 Map.entry("DeploymentReadiness",com.project.platform.deployment.service.DeploymentService.Readiness.class),

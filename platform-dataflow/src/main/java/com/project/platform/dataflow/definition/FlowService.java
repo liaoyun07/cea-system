@@ -123,4 +123,7 @@ public final class FlowService {
             return List.copyOf(saved);
         });
     }
+    public List<String> applicationReferences(Actor actor,String namespace,String applicationId,String version) {
+        access.require(actor,namespace,Action.READ);return repository.applicationReferences(namespace,applicationId,version);
+    }
 }
