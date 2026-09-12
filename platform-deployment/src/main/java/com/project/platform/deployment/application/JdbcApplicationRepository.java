@@ -13,6 +13,9 @@ public final class JdbcApplicationRepository {
     private final JsonMapper json=JsonMapper.builder().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
             .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
     public JdbcApplicationRepository(JdbcTemplate jdbc) { this.jdbc=jdbc; }
+    public boolean exists(String namespace,String id,String version) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM dep_application_version WHERE namespace=? AND application_id=? AND version=?",Integer.class,namespace,id,version)>0;
+    }
     public ApplicationVersion register(String namespace,ApplicationVersion value) {
         String document=json.writeValueAsString(value);
         try {

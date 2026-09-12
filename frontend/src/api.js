@@ -19,6 +19,7 @@ export function basicAuthorization(username, password) {
 export function createApi(namespace, authorization, fetcher = fetch) {
   const prefix = `/api/namespaces/${encodeURIComponent(namespace)}`;
   return async (path, { method = 'GET', body, key, signal } = {}) => {
+    const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
     const response = await fetcher(prefix + path, {
       method,
       signal: signal || AbortSignal.timeout(20000),
@@ -27,10 +28,10 @@ export function createApi(namespace, authorization, fetcher = fetch) {
       redirect: 'error',
       headers: {
         Authorization: authorization,
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !multipart ? { 'Content-Type': 'application/json' } : {}),
         ...(key ? { 'Idempotency-Key': key } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: multipart ? body : JSON.stringify(body) } : {}),
     });
     const raw = await response.text();
     let data;
@@ -56,6 +57,7 @@ export function errorText(error) {
         401: '认证失效或账号密码错误。',
         403: '账号没有此命名空间或操作的权限。',
         409: '发生冲突；请核对当前版本，不会覆盖你的编辑。',
+        413: '上传文件超过服务端大小限制。',
         422: '定义或输入不符合约束。',
       }[error.status] || '';
     return `${advice} ${error.message} (${error.code} / ${error.status})`.trim();

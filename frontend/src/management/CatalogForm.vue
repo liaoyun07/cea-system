@@ -6,6 +6,7 @@ const props = defineProps({
   draft: Object,
   existing: Boolean,
   readonly: Boolean,
+  upload: Boolean,
   busy: Boolean,
   api: Function,
   namespace: String,
@@ -37,7 +38,7 @@ function addParameter() {
           >应用 ID<input v-model="draft.applicationId" required maxlength="100" :disabled="existing"
         /></label>
         <label>版本<input v-model="draft.version" required maxlength="100" :disabled="existing" /></label>
-        <label class="span-2"
+        <label v-if="!upload" class="span-2"
           >镜像引用<input
             v-model="draft.image"
             required

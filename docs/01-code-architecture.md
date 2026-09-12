@@ -8,12 +8,23 @@ UI-04 SELECT增量（2026-09-12）：只修改既有FlowDefinition.Input（增�
 
 ## 工程结构
 
+UI-08增量（已验证，未发布CEA）：4个新生产Java文件，总数93；7个新增HTTP操作，总数64；77个显式公开record映射；V18/V19增加2张业务表，总数25。无新增模块依赖、工作流状态机或SPI。现有DeploymentService改为读回配置、CAS保留非托管字段并支持仅副本修改；KubernetesResourceService增加近期Metrics API查询（不存储时序数据）。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/JdbcImageDistributionRepository.java` | 保存按需分发尝试，授权服务查询历史时将超期未确认操作投影为UNKNOWN |
+| `platform-deployment/src/main/java/com/project/platform/deployment/upload/ImageUploadService.java` | 限制归档大小/导入并发，受控中心仓库导入与digest核验后登记应用，清理本次临时文件 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/JdbcDeploymentRecordRepository.java` | 操作计量证据：起点、UID/generation、目标副本、观测连续性、结果；不存储期望Pod配置 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentRolloutTracker.java` | 后台仅观察已接受的Deployment变更，确认同版本就绪及计时，不apply、不重试、不调度 |
+
+前端现有CatalogPage/CatalogForm增加镜像上传和按需分发历史，DeploymentsPage增加配置回读/编辑/副本调整/操作计时，KubernetesResourcesPage增加节点和命名空间容器用量；operations.js只格式化有效值，api.js保留浏览器FormData边界。所有执行仍走原Execution/Worker/Runner。
+
 UI-07增量：2个新Java文件（89个总数），5个只读GET（57个总数），无新增表/列/SPI或执行链。ExecutionService中的Overview/DayCount/Recent由JdbcExecutionStore聚合、FlowExecutionService鉴权透出，消费方是总览；资源查询DTO仅传输实时展示字段。ExecutionOutputService.OutputSource从执行快照返回任务ID/声明端口，避免跨USER/EDGE_POLICY管理入口查Flow。
 
 | Java 文件 | 当前职责 |
 |---|---|
-| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesResourceService.java` | READ授权后查询真实Node/Service及配置Namespace，Kubernetes分页与受限DTO；不调度或写资源 |
-| `platform-server/src/main/java/com/project/platform/server/api/KubernetesResourceController.java` | 3个只读GET的身份、参数与响应适配 |
+| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesResourceService.java` | READ授权后查询Node/Service/配置Namespace及近期Metrics API用量；节点按capacity、容器按明确limit，缺样不补零；不调度或写资源 |
+| `platform-server/src/main/java/com/project/platform/server/api/KubernetesResourceController.java` | 5个只读GET的身份、参数与响应适配（UI-08增加节点/容器用量） |
 
 前端新增OverviewPage.vue/overview.js为窗口汇总展示，ExecutionArtifacts.vue为声明产物与按需JSON预览，management/KubernetesResourcesPage.vue为资源目录选择、只读分页。Metrics和产物页共同读取output-files，不再从Flow管理入口解析源码；数值读取和统计语义不变。
 
@@ -38,7 +49,7 @@ UI-01新增仓库内`frontend/`独立npm工程，不增加Maven模块或Java文�
 | `frontend/src/management/catalogs.js` | 新API路径、目录表列与表单值到既有请求体转换；无后端模型或第二套Binding |
 | `frontend/src/management/CatalogPage.vue` | 七类目录的分页/详情/登记/启停、应用镜像准备、策略CAS保存、取消过期读取 |
 | `frontend/src/management/CatalogForm.vue` | 集群/数据集位置/应用契约/网关/终端字段，策略复用同源NoCodeEditor |
-| `frontend/src/management/DeploymentsPage.vue` | 按集群创建/查询/删除实际Deployment；不猜测旧参数执行更新 |
+| `frontend/src/management/DeploymentsPage.vue` | 按集群创建/查询/配置回读/CAS编辑/手动扩缩容/删除Deployment；展示操作历史和有效就绪耗时 |
 | `frontend/src/style.css` | Kestra参考方向的工作台、编辑区、执行标签、响应式样式 |
 | `frontend/vite.config.js` | 独立构建、开发/本地预览同源代理 |
 
@@ -211,7 +222,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | 实际生产文件（S4-02c新增） | 职责与消费者 | 状态所有权 | 测试 |
 |---|---|---|---|
 | `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesConnections.java` | 按平台namespace/cluster显式打开配置的Kubernetes连接 | 外部kubeconfig，不读取默认开发者context | ImageDistributionTest |
-| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentService.java` | 契约参数校验、真实创建/查询/版本更新/删除常驻Deployment | Kubernetes为唯一期望/实际状态源，无部署表 | ImageDistributionTest |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentService.java` | 契约参数校验、配置回读、CAS创建/更新/缩放/删除；保留非托管配置，记录操作身份及计时起点 | Kubernetes为唯一期望/实际状态源；数据库只存操作证据 | ImageDistributionTest |
 | `platform-server/src/main/java/com/project/platform/server/configuration/KubernetesConfiguration.java` | 外部连接配置与部署装配 | 不增加业务状态 | ImageDistributionTest |
 | `platform-server/src/main/java/com/project/platform/server/api/DeploymentController.java` | 4个常驻部署HTTP操作 | 身份→deployment门面；不写运行表 | ImageDistributionTest/C |
 
@@ -235,6 +246,8 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/CommonTaskRunner.java` | HTTP GET/POST和只读SQL、限时/限量/连接边界 | run；HttpConnection/SqlConnection | Worker结果，POST开始标记用既有prepared_json；不新建表 | WF-012 | CommonTaskTest/C |
 
 ## 测试入口
+
+- UI-08：[KubernetesUsageTest](../platform-server/src/test/java/com/project/platform/server/KubernetesUsageTest.java)验证真实单位、分母、有效期和缺样语义；ImageDistributionTest增加镜像导入/历史/部署观察/近期Metrics API。测试辅助SkopeoTestBridge仅负责Windows测试归档转发到隔离Linux Skopeo，不进入生产类路径或Runner。
 
 - [FlowManagementTest](../platform-server/src/test/java/com/project/platform/server/FlowManagementTest.java)：11项真实MySQL/HTTP编辑Schema、无副作用预览、导出再导入运行、原子批次、反序并发CAS、权限/范围/搜索及全部示例格式往返。
 

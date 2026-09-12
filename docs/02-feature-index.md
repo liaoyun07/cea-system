@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-08已实现并验证，未发布CEA：DEP-001/002、RES-001增加按需镜像分发历史、单镜像归档上传、常驻部署配置回读/CAS/手动扩缩容与就绪计时、Metrics API近期CPU/内存。4个新生产Java类，7个HTTP操作，V18/V19两张记录表；执行链和RES-002选址不变。227项Maven、45项Node、47项浏览器及构建/格式/scaffold通过；不是30秒或系统开销的正式性能验收。详见[规格](features/UI-08-core-deployment-operations.md)、[协议](contracts/ui08-deployment-operations.md)与[验证](verification/VER-UI-008-core-deployment-operations.md)。
+
 UI-07已完成并发布CEA：WF-006/RES-001的只读展示增量——任务声明产物及JSON预览、执行全窗口SQL总览、Kubernetes资源查询。220项Maven、41项Node、44项浏览器测试通过；2026-09-12 19:51实际18080复核通过。无新功能编号/表/计量口径/执行链，原流程/历史不变。范围见[规格](features/UI-07-readonly-inspection.md)，实际测试与发布见[验证](verification/VER-UI-007-readonly-inspection.md)。
 
 UI-06已完成并发布：基于已有JSON产物展示实例指标，新增受READ授权的有界读取；216项Maven、40项Node、42项浏览器及构建/格式/scaffold通过。2026-09-12 17:15仅更新CEA前后端，实际两算法历史指标图/表与API一致、桌面/390px复核PASS；两Flow/历史及4条执行不变，其余10服务未重启。无新计量领域功能，MET-001仍后置。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
@@ -73,7 +75,7 @@ WF-009至WF-011见[S3规格](features/WF-009-011-s3.md)、[协议](contracts/s3-
 
 S4工作包见[S4规格](features/S4-resource-runtime.md)。S4-01/02历史验收保留；本批增加真实节点健康/本地性/平台Job槽预约、Application Job及命名文件、GET/POST与只读SQL、隔离Shell/Python。123项统一验证与实际JAR部署验收通过，见[VER-S4-005](verification/VER-S4-005-external-task-runtime.md)。
 
-RES-001只观测节点健康，不提供Prometheus利用率体系；RES-002预约平台槽，不冒充CPU物理独占。DEP-001仍为纯契约目录，显式Flow绑定在真实执行消费者解析。命名文件由Flow声明，不新增自动alias/映射表。DEP-002常驻Deployment不等于Job。
+RES-001包含节点健康与UI-08近期Metrics API用量查询，不提供Prometheus历史监控体系；RES-002预约平台槽，不使用这些采样决定Placement、不冒充CPU物理独占。DEP-001仍为纯契约目录，镜像上传经DEP-002受控导入后调用原目录登记；显式Flow绑定在真实执行消费者解析。命名文件由Flow声明，不新增自动alias/映射表。DEP-002常驻Deployment不等于Job。
 
 详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、完整No-code前端仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S6后端范围已完成并通过完整回归；S7未进入。
 

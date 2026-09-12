@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+UI-08已实现并验证，尚未发布CEA：单镜像tar上传、持久按需分发历史、Deployment配置编辑/手动扩缩容/就绪耗时与30秒目标对比、近期CPU/内存用量。227项Maven、45项Node、47项浏览器及独立Docker构建/上传目录权限检查通过；新增4个Java类、7个HTTP操作、V18/V19两张记录表，执行链不变。[功能与边界](docs/features/UI-08-core-deployment-operations.md)、[实测记录](docs/verification/VER-UI-008-core-deployment-operations.md)。当前18080仍运行下述UI-07版本。
+
 UI-07已完成并发布CEA：任务产物JSON查看、运行总览与Node/Service/Kubernetes Namespace只读页面；220项Maven、41项Node和44项浏览器测试通过。2026-09-12仅更新前后端及受限只读RBAC，实际18080验收通过，原流程/历史和其余10个容器不变。详情见[进度](docs/04-progress.md)与[功能边界](docs/features/UI-07-readonly-inspection.md)。
 
 DEPLOY-01独立部署已验证：D盘Docker数据、`cea` Compose分组、前后端/MySQL/MinIO/四个Registry/四个K3s；[部署与配置入口](deploy/cea/README.md)。访问 `http://127.0.0.1:18080`，账号developer，随机密码在本地`deploy/cea/.env`的BACKEND_PASSWORD。FedAvg/FedProx已各完成全量MNIST两轮、11个Job及数值复核；整组重启后数据保留。不是旧系统切换或物理多云/吞吐验收，详见[验证记录](docs/verification/VER-DEPLOY-001-cea.md)。

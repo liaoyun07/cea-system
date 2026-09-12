@@ -85,6 +85,9 @@ class ImageDistributionTest {
                 .withCopyToContainer(Transferable.of("test:"+new BCryptPasswordEncoder().encode(password)+"\n"),"/auth/htpasswd");
     }
     @BeforeAll void start() throws Exception {
+        // Match CEA: install one explicitly managed Metrics Server, not the bundled competing addon.
+        var kubernetesCommand=new ArrayList<>(Arrays.asList(kubernetes.getCommandParts()));
+        kubernetesCommand.add("--disable=metrics-server");kubernetes.withCommand(kubernetesCommand.toArray(String[]::new));
         try {
             mysql.start();source.start();target.start();tool.start();storage.start();
             terminalEngine.start();
@@ -144,6 +147,9 @@ class ImageDistributionTest {
                       - apiGroups: [""]
                         resources: [pods/exec]
                         verbs: [get, create]
+                      - apiGroups: [metrics.k8s.io]
+                        resources: [pods]
+                        verbs: [get, list]
                     ---
                     apiVersion: rbac.authorization.k8s.io/v1
                     kind: RoleBinding
@@ -155,6 +161,9 @@ class ImageDistributionTest {
                     kind: ClusterRole
                     metadata: {name: cea-observe-nodes}
                     rules:
+                      - apiGroups: [metrics.k8s.io]
+                        resources: [nodes]
+                        verbs: [get, list]
                       - apiGroups: [""]
                         resources: [namespaces]
                         resourceNames: [s4-test]
@@ -201,12 +210,13 @@ class ImageDistributionTest {
                     "--platform.distribution.registries.source.auth-file=/tmp/auth.json","--platform.distribution.registries.target.address=target:5000",
                     "--platform.distribution.registries.target.tls-verify=false","--platform.distribution.registries.target.auth-file=/tmp/auth.json",
                     "--platform.distribution.targets.lab.edge=target","--platform.distribution.timeout=PT30S"));
+            args.add("--platform.image-upload.centers.lab=source");
             args.addAll(List.of("--platform.kubernetes.connections.lab.edge.kubeconfig="+kubeconfig,
                     "--platform.kubernetes.connections.lab.edge.context=default","--platform.kubernetes.connections.lab.edge.namespace=s4-test"));
             args.addAll(List.of("--platform.jobs.slots.lab.edge=1","--platform.jobs.storage.lab.endpoint="+storageEndpoint(),
                     "--platform.jobs.storage.lab.access-key-file="+accessKey,"--platform.jobs.storage.lab.secret-key-file="+secretKey,
                     "--platform.jobs.storage.lab.artifact-bucket=artifacts","--platform.jobs.storage.lab.readable-buckets=datasets"));
-            var command=List.of("docker","exec",tool.getContainerId(),"skopeo");
+            var command=List.of(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-cp",Path.of("target","test-classes").toAbsolutePath().toString(),SkopeoTestBridge.class.getName(),tool.getContainerId());
             for(int i=0;i<command.size();i++) args.add("--platform.distribution.command["+i+"]="+command.get(i));
             applicationArguments=List.copyOf(args);context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
             resources().putCluster(actor,"lab","edge",new Cluster("edge",Kind.EDGE,true));
@@ -326,8 +336,160 @@ class ImageDistributionTest {
         }
     }
     private DeploymentService deployments(){return context.getBean(DeploymentService.class);}
+    @Test void imageUploadImportsRealArchivePinsDigestRejectsOverwriteAndCleansFailedUploads() throws Exception {
+        Path archive=Files.createTempFile("cea-upload-fixture-",".tar");
+        try {
+            tool.copyFileFromContainer("/tmp/alpine.tar",archive.toString());
+            var uploaded=uploadHttp("upload-core","v1",Files.readAllBytes(archive),"writer");
+            assertEquals(200,uploaded.statusCode(),uploaded.body());
+            var value=applications().get(actor,"lab","upload-core","v1");
+            assertTrue(value.image().matches("source:5000/lab/upload-core@sha256:[a-f0-9]{64}"));
+            assertEquals(200,registryCall("GET",endpoint(source)+"/v2/lab/upload-core/manifests/"+value.image().split("@")[1],new byte[0],"application/json").statusCode());
+            assertEquals(409,uploadHttp("upload-core","v1",Files.readAllBytes(archive),"writer").statusCode());
+            assertEquals(value,applications().get(actor,"lab","upload-core","v1"));
+            assertEquals(403,uploadHttp("upload-denied","v1",new byte[]{1},"viewer").statusCode());
+            assertEquals(502,uploadHttp("upload-invalid","v1","not a tar".getBytes(StandardCharsets.UTF_8),"writer").statusCode());
+            assertThrows(ApplicationException.class,()->applications().get(actor,"lab","upload-invalid","v1"));
+            var dir=context.getBean(com.project.platform.server.configuration.DistributionConfiguration.UploadSettings.class).directory();
+            try(var files=Files.list(dir)) { assertEquals(0,files.filter(p->p.getFileName().toString().startsWith("cea-image-")).count()); }
+        } finally { Files.deleteIfExists(archive); }
+    }
+    private HttpResponse<String> uploadHttp(String app,String version,byte[] data,String user) throws Exception {
+        String boundary="cea-"+UUID.randomUUID();var body=new java.io.ByteArrayOutputStream();
+        body.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"contract\"\r\nContent-Type: application/json\r\n\r\n{\"parameters\":{}}\r\n"
+                +"--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"archive.tar\"\r\nContent-Type: application/x-tar\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        body.write(data);body.write(("\r\n--"+boundary+"--\r\n").getBytes(StandardCharsets.UTF_8));
+        String url="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/applications/"+app+"/versions/"+version+"/upload";
+        return http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization","Basic "+Base64.getEncoder().encodeToString((user+":test-api").getBytes(StandardCharsets.UTF_8)))
+                .header("Content-Type","multipart/form-data; boundary="+boundary).POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void distributionHistoryRecordsSuccessFailurePaginationAndNamespaceBoundary() {
+        applications().register(actor,"lab","history-ok","v1",new ApplicationVersion("history-ok","v1","source:5000/alpine:v1",Map.of()));
+        distribution().prepare(actor,"lab","history-ok","v1","edge");
+        distribution().prepare(actor,"lab","history-ok","v1","edge");
+        var result=distribution().history(actor,"lab","history-ok","v1",1,0);
+        assertEquals(1,result.size());assertEquals("SUCCEEDED",result.getFirst().state());assertEquals("writer",result.getFirst().requestedBy());
+        assertNotNull(result.getFirst().finishedAt());assertTrue(result.getFirst().targetImage().matches("target:5000/lab/history-ok@sha256:[a-f0-9]{64}"));
+        assertNotEquals(result.getFirst().id(),distribution().history(actor,"lab","history-ok","v1",1,1).getFirst().id());
+        applications().register(actor,"lab","history-missing","v1",new ApplicationVersion("history-missing","v1","source:5000/no-image:v1",Map.of()));
+        assertThrows(SkopeoImageClient.Failure.class,()->distribution().prepare(actor,"lab","history-missing","v1","edge"));
+        var failed=distribution().history(actor,"lab","history-missing","v1",20,0).getFirst();
+        assertEquals("FAILED",failed.state());assertFalse(failed.error().contains(password));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->distribution().history(actor,"other","history-ok","v1",20,0));
+    }
+    @Test void deploymentEditAndScalePreserveUnmanagedConfigurationAndMeasureActualReadiness() {
+        applications().register(actor,"lab","ops-http","v1",new ApplicationVersion("ops-http","v1","source:5000/python:v1",Map.of("COUNT",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.INTEGER,true,0,List.of(),null))));
+        var command=List.of("python","-m","http.server","8080","--directory","/tmp");
+        var initial=new DeploymentService.Request("ops-http","v1",1,Map.of(),command,null,new DeploymentService.Readiness("/",8080));
+        deployments().put(actor,"lab","edge","ops-http",initial);
+        try {
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
+            var creation=deployments().get(actor,"lab","edge","ops-http").latestOperation();
+            assertNotNull(creation.durationMs());assertTrue(creation.durationMs()>0);assertEquals("CREATE",creation.operation());
+            // Simulate an operator-added limit/annotation/environment. A UI edit must retain them.
+            var actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
+            actual.getMetadata().getAnnotations().put("operator-note","keep");
+            var container=actual.getSpec().getTemplate().getSpec().getContainers().getFirst();
+            container.getEnv().add(new io.fabric8.kubernetes.api.model.EnvVar("UNMANAGED","keep",null));
+            container.setResources(new io.fabric8.kubernetes.api.model.ResourceRequirementsBuilder().addToLimits("memory",new io.fabric8.kubernetes.api.model.Quantity("128Mi")).build());
+            admin.apps().deployments().inNamespace("s4-test").resource(actual).replace();
+            await().atMost(Duration.ofSeconds(60)).untilAsserted(()->{
+                var observed=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
+                assertEquals(observed.getMetadata().getGeneration(),observed.getStatus().getObservedGeneration());
+                assertEquals(1,observed.getStatus().getUpdatedReplicas());assertEquals(1,observed.getStatus().getReadyReplicas());assertEquals(1,observed.getStatus().getReplicas());
+            });
+            var config=deployments().configuration(actor,"lab","edge","ops-http");assertEquals(0L,config.parameters().get("COUNT"));
+            var edited=deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness()));
+            assertEquals("UPDATE",edited.latestOperation().operation());
+            actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
+            assertEquals("keep",actual.getMetadata().getAnnotations().get("operator-note"));
+            assertEquals("128Mi",actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getResources().getLimits().get("memory").toString());
+            assertTrue(actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getEnv().stream().anyMatch(e->"UNMANAGED".equals(e.getName()) && "keep".equals(e.getValue())));
+            String staleRevision=config.resourceVersion();
+            assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","ops-http",new DeploymentService.ScaleRequest(0,staleRevision)));
+            int preparations=distribution().history(actor,"lab","ops-http","v1",100,0).size();
+            config=deployments().configuration(actor,"lab","edge","ops-http");
+            int count=deployments().history(actor,"lab","edge","ops-http",100,0).size();
+            deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),config.parameters(),config.command(),config.resourceVersion(),config.readiness()));
+            assertEquals(count,deployments().history(actor,"lab","edge","ops-http",100,0).size());
+            await().atMost(Duration.ofSeconds(20)).ignoreExceptionsMatching(ex->ex instanceof KubernetesClientException k && k.getCode()==409).untilAsserted(()->
+                    assertEquals(0,deployments().scale(actor,"lab","edge","ops-http",new DeploymentService.ScaleRequest(0,deployments().get(actor,"lab","edge","ops-http").resourceVersion())).replicas()));
+            assertEquals(preparations,distribution().history(actor,"lab","ops-http","v1",100,0).size());
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
+            assertNull(deployments().get(actor,"lab","edge","ops-http").latestOperation().durationMs());
+        } finally { admin.apps().deployments().inNamespace("s4-test").withName("ops-http").delete(); }
+    }
+    @Test void metadataOnlyApplicationVersionChangeIsNotADeploymentTimingSample() {
+        var contract=Map.<String,ApplicationVersion.Parameter>of();
+        for(String version:List.of("v1","v2"))applications().register(actor,"lab","metadata-only",version,
+                new ApplicationVersion("metadata-only",version,"source:5000/alpine:v1",contract));
+        var command=List.of("/bin/sh","-c","exec sleep 300");
+        deployments().put(actor,"lab","edge","metadata-only",new DeploymentService.Request("metadata-only","v1",1,Map.of(),command,null,null));
+        try {
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","metadata-only").latestOperation().state()));
+            var before=admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").get();
+            deployments().put(actor,"lab","edge","metadata-only",new DeploymentService.Request("metadata-only","v2",1,Map.of(),command,before.getMetadata().getResourceVersion(),null));
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","metadata-only").latestOperation().state()));
+            var after=admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").get();
+            assertEquals(before.getSpec(),after.getSpec());
+            assertTrue(after.getMetadata().getGeneration()>before.getMetadata().getGeneration());
+            assertEquals("v2",deployments().get(actor,"lab","edge","metadata-only").version());
+            assertNull(deployments().get(actor,"lab","edge","metadata-only").latestOperation().durationMs());
+        } finally { admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").delete(); }
+    }
+    @Test void deploymentObservationRejectsStaleIdentityGapsAndUnconfirmedSubmission() {
+        var observer=context.getBean(com.project.platform.deployment.service.DeploymentRolloutTracker.class);observer.close();
+        var records=context.getBean(com.project.platform.deployment.service.JdbcDeploymentRecordRepository.class);
+        var now=java.time.Instant.now();
+        try {
+            String pending=records.begin("lab","edge","observe-missing","service","v1","CREATE",1,now.minusSeconds(30),now.minusSeconds(1));
+            String replaced=records.begin("lab","edge","observe-replaced","service","v1","UPDATE",1,now,now.plusSeconds(30));
+            records.submitted(replaced,"no-such-uid",1,now,true);
+            observer.tick();
+            assertEquals("UNKNOWN",records.list("lab","edge","observe-missing",1,0).getFirst().state());
+            assertEquals("SUPERSEDED",records.list("lab","edge","observe-replaced",1,0).getFirst().state());
+            assertNull(records.list("lab","edge","observe-missing",1,0).getFirst().durationMs());
+            String gap=records.begin("lab","edge","observe-gap","service","v1","CREATE",1,now,now.plusSeconds(30));
+            records.submitted(gap,"uid",1,now,true);records.observed(gap,now.plusSeconds(8),false);records.finish(gap,"SUCCEEDED",null,now.plusSeconds(9),true);
+            assertNull(records.list("lab","edge","observe-gap",1,0).getFirst().durationMs());
+        } finally { observer.start(); }
+    }
+    @Test void actualMetricsApiReturnsRecentUsageWithNamespaceIsolationAndRejectsStaleSamples() throws Exception {
+        String image=new org.testcontainers.images.RemoteDockerImage(DockerImageName.parse("rancher/mirrored-metrics-server:v0.7.2")).get();
+        Path archive=Files.createTempFile("cea-metrics-fixture-",".tar");
+        try(var content=DockerClientFactory.instance().client().saveImageCmd(image).exec()) {
+            Files.copy(content,archive,StandardCopyOption.REPLACE_EXISTING);
+            kubernetes.copyFileToContainer(MountableFile.forHostPath(archive),"/tmp/cea-metrics.tar");
+            assertEquals(0,kubernetes.execInContainer("ctr","images","import","/tmp/cea-metrics.tar").getExitCode());
+        } finally { Files.deleteIfExists(archive); }
+        try(var manifest=Files.newInputStream(Path.of("..","deploy","cea","metrics-server.yaml"))) { admin.load(manifest).serverSideApply(); }
+        var service=context.getBean(com.project.platform.resource.kubernetes.KubernetesResourceService.class);
+        var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
+        deployments().put(actor,"lab","edge","usage-fixture",request(1,null,List.of("/bin/sh","-c","exec sleep 300")));
+        try {
+            await().atMost(Duration.ofSeconds(150)).ignoreExceptions().untilAsserted(()->{
+                var usage=service.nodeUsage(viewer,"lab","edge");
+                assertFalse(usage.nodes().isEmpty());assertNotNull(usage.cpuPercent());assertNotNull(usage.memoryPercent());
+                assertTrue(usage.nodes().stream().allMatch(n->"AVAILABLE".equals(n.usage().status())));
+                var containers=service.podUsage(viewer,"lab","edge");
+                assertTrue(containers.stream().anyMatch(c->c.pod().startsWith("usage-fixture-") && c.usage().cpuCores()!=null));
+                assertTrue(containers.stream().noneMatch(c->c.pod().startsWith("metrics-server")));
+                var row=containers.stream().filter(c->c.pod().startsWith("usage-fixture-")).findFirst().orElseThrow();
+                assertNull(row.usage().cpuPercent());assertNull(row.usage().memoryPercent());assertTrue(row.usage().memoryBytes()>0);
+            });
+            var connections=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class);
+            var future=new com.project.platform.resource.kubernetes.KubernetesResourceService(resources(),connections,
+                    java.time.Clock.fixed(java.time.Instant.now().plusSeconds(300),java.time.ZoneOffset.UTC));
+            var stale=future.nodeUsage(viewer,"lab","edge");assertNull(stale.cpuPercent());assertNull(stale.memoryPercent());
+            assertTrue(stale.nodes().stream().allMatch(n->"STALE".equals(n.usage().status()) && n.usage().cpuCores()==null));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.nodeUsage(viewer,"other","edge"));
+            try(var client=connections.open("lab","edge")) {
+                assertEquals(403,assertThrows(KubernetesClientException.class,()->client.top().pods().inNamespace("default").metrics()).getCode());
+            }
+        } finally { admin.apps().deployments().inNamespace("s4-test").withName("usage-fixture").delete(); }
+    }
     private DeploymentService.Request request(int replicas,String revision,List<String> command){
-        return new DeploymentService.Request("service","v1",replicas,Map.of(),command,revision);
+        return new DeploymentService.Request("service","v1",replicas,Map.of(),command,revision,null);
     }
     @Test void deploymentRunsUpdatesStopsAndDeletesWithOptimisticConcurrency() {
         var command=List.of("/bin/sh","-c","test \"$GREETING\" = hello && exec sleep 300");
@@ -361,8 +523,10 @@ class ImageDistributionTest {
         admin.apps().deployments().inNamespace("s4-test").withName("broken").delete();
     }
     @Test void deploymentRejectsBadParametersUnconfiguredClusterAndReadOnlyActor() {
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("UNKNOWN",1),List.of(),null)));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("GREETING",1),List.of(),null)));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",null,Map.of(),List.of(),null,null)));
+        assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","invalid",new DeploymentService.ScaleRequest(null,"1")));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("UNKNOWN",1),List.of(),null,null)));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("GREETING",1),List.of(),null,null)));
         assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().put(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","denied",request(1,null,List.of())));
         resources().putCluster(actor,"lab","not-connected",new Cluster("not-connected",Kind.EDGE,true));
         assertThrows(ResourceException.class,()->deployments().list(actor,"lab","not-connected"));
@@ -375,6 +539,11 @@ class ImageDistributionTest {
         assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         assertEquals(403,http.send(HttpRequest.newBuilder(URI.create(base+"/denied")).header("Authorization",viewer).header("Content-Type","application/json")
                 .PUT(HttpRequest.BodyPublishers.ofString(json.write(request(0,null,List.of())))).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        String writer="Basic "+Base64.getEncoder().encodeToString("writer:test-api".getBytes(StandardCharsets.UTF_8));
+        for(String method:List.of("PUT","PATCH"))assertEquals(422,http.send(HttpRequest.newBuilder(URI.create(base+"/missing-replicas"+(method.equals("PATCH")?"/scale":"")))
+                .header("Authorization",writer).header("Content-Type","application/json")
+                .method(method,HttpRequest.BodyPublishers.ofString(method.equals("PATCH")?"{\"resourceVersion\":\"1\"}":"{\"applicationId\":\"service\",\"version\":\"v1\"}"))
+                .build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         try(var restricted=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class).open("lab","edge")) {
             assertFalse(restricted.nodes().list().getItems().isEmpty());
             assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.namespaces().list()).getCode());
@@ -393,7 +562,7 @@ class ImageDistributionTest {
             Files.writeString(path,json.write(config));
             var connections=new com.project.platform.resource.kubernetes.KubernetesConnections(Map.of("lab",Map.of("edge",
                     new com.project.platform.resource.kubernetes.KubernetesConnections.Connection(path.toString(),"default","s4-test"))));
-            var inventory=new com.project.platform.resource.kubernetes.KubernetesResourceService(resources(),connections);
+            var inventory=new com.project.platform.resource.kubernetes.KubernetesResourceService(resources(),connections,java.time.Clock.systemUTC());
             var failure=assertThrows(com.project.platform.resource.kubernetes.KubernetesResourceService.Unavailable.class,()->inventory.nodes(actor,"lab","edge",10,null));
             assertEquals("Kubernetes resource query failed; check cluster connection",failure.getMessage());
         } finally { Files.deleteIfExists(path); }

@@ -12,6 +12,11 @@ public final class ImageDistributionController {
     private final ImageDistributionService distribution;
     private final IdentityDirectory identities;
     public ImageDistributionController(ImageDistributionService distribution,IdentityDirectory identities) { this.distribution=distribution;this.identities=identities; }
+    @GetMapping
+    public java.util.List<ImageDistributionService.Distribution> history(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,
+                                                                        @PathVariable String version,@RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
+        return distribution.history(identities.actor(principal.getName()),namespace,applicationId,version,limit,offset);
+    }
     @PostMapping("/{clusterId}")
     public PreparedImage prepare(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,
                                  @PathVariable String version,@PathVariable String clusterId) {

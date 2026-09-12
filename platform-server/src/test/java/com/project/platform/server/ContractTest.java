@@ -30,6 +30,8 @@ class ContractTest {
                 var post = method.getAnnotation(PostMapping.class);
                 var put = method.getAnnotation(PutMapping.class);
                 var delete = method.getAnnotation(DeleteMapping.class);
+                var patch = method.getAnnotation(PatchMapping.class);
+                if (patch != null) actual.add("patch " + base + (patch.value().length == 0 ? "" : patch.value()[0]));
                 if (delete != null) actual.add("delete " + base + (delete.value().length == 0 ? "" : delete.value()[0]));
                 if (get != null) actual.add("get " + base + (get.value().length == 0 ? "" : get.value()[0]));
                 if (post != null) actual.add("post " + base + (post.value().length == 0 ? "" : post.value()[0]));
@@ -47,6 +49,16 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("ImageUploadRequest",com.project.platform.deployment.upload.ImageUploadService.Request.class),
+                Map.entry("ImageDistribution",com.project.platform.deployment.distribution.ImageDistributionService.Distribution.class),
+                Map.entry("DeploymentReadiness",com.project.platform.deployment.service.DeploymentService.Readiness.class),
+                Map.entry("DeploymentScale",com.project.platform.deployment.service.DeploymentService.ScaleRequest.class),
+                Map.entry("DeploymentConfiguration",com.project.platform.deployment.service.DeploymentService.Configuration.class),
+                Map.entry("DeploymentRecord",com.project.platform.deployment.service.DeploymentService.DeploymentRecord.class),
+                Map.entry("KubernetesUsage",com.project.platform.resource.kubernetes.KubernetesResourceService.Usage.class),
+                Map.entry("KubernetesNodeUsage",com.project.platform.resource.kubernetes.KubernetesResourceService.NodeUsage.class),
+                Map.entry("KubernetesClusterUsage",com.project.platform.resource.kubernetes.KubernetesResourceService.ClusterUsage.class),
+                Map.entry("KubernetesContainerUsage",com.project.platform.resource.kubernetes.KubernetesResourceService.ContainerUsage.class),
                 Map.entry("ExecutionOutputSource",com.project.platform.dataflow.execution.ExecutionOutputService.OutputSource.class),
                 Map.entry("ExecutionOverview",com.project.platform.runtime.execution.ExecutionService.Overview.class),
                 Map.entry("ExecutionDayCount",com.project.platform.runtime.execution.ExecutionService.DayCount.class),

@@ -15,6 +15,15 @@ public final class ApplicationCatalogService {
         this.repository=repository;this.resources=resources;this.access=access;
     }
     public ApplicationVersion register(Actor actor,String namespace,String id,String version,ApplicationVersion value) {
+        return repository.register(namespace,validate(actor,namespace,id,version,value));
+    }
+    /** Upload preflight: validate before importing bytes and reject an already registered version. */
+    public ApplicationVersion validateNew(Actor actor,String namespace,String id,String version,ApplicationVersion value) {
+        var normalized=validate(actor,namespace,id,version,value);
+        if(repository.exists(namespace,id,version))throw ApplicationException.conflict("application version already exists; use a new version");
+        return normalized;
+    }
+    private ApplicationVersion validate(Actor actor,String namespace,String id,String version,ApplicationVersion value) {
         access.require(actor,namespace,Action.WRITE);identifier(namespace);identifier(id);token(version,100);
         var normalized=normalize(value);
         if(!id.equals(normalized.applicationId()) || !version.equals(normalized.version())) throw ApplicationException.invalid("application id/version must match route");
@@ -24,7 +33,7 @@ public final class ApplicationCatalogService {
                 if(!dataset.format().equals(parameter.dataset().format())) throw ApplicationException.invalid("dataset format mismatch: "+ref.key());
             }
         }
-        return repository.register(namespace,normalized);
+        return normalized;
     }
     public ApplicationVersion get(Actor actor,String namespace,String id,String version) {
         access.require(actor,namespace,Action.READ);identifier(namespace);identifier(id);token(version,100);return repository.get(namespace,id,version);

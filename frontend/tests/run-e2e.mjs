@@ -132,6 +132,7 @@ try {
       CEA_E2E_URL: `http://127.0.0.1:${webPort}`,
       CEA_E2E_USER: 'owner',
       CEA_E2E_PASSWORD: apiPass,
+      CEA_E2E_ARCHIVE: runtime.archive,
     },
   });
   process.exitCode = await new Promise((r, j) => {

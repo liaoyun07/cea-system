@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.nio.file.Path;
 
 /** Registry protocol/authentication is delegated to Skopeo, not reimplemented here. */
 public final class SkopeoImageClient {
@@ -28,6 +29,19 @@ public final class SkopeoImageClient {
         String digest=run(args).trim();
         if(!digest.matches("sha256:[a-f0-9]{64}")) throw new Failure("Registry returned an unsupported image digest");
         return digest;
+    }
+    public Duration timeout() { return timeout; }
+    /** Skopeo validates the docker-save archive; Java never extracts or executes its contents. */
+    public String importArchive(Path archive,String target,Registry registry) {
+        String source="docker-archive:"+archive.toAbsolutePath();
+        String expected=run(List.of("inspect","--format","{{.Digest}}",source)).trim();
+        if(!expected.matches("sha256:[a-f0-9]{64}"))throw new Failure("Archive is not a supported single-image docker-save tar");
+        var args=new ArrayList<>(List.of("copy","--all","--preserve-digests","--quiet","--dest-tls-verify="+registry.tlsVerify()));
+        if(registry.authFile()!=null)args.addAll(List.of("--dest-authfile",registry.authFile()));
+        args.addAll(List.of(source,"docker://"+target));run(args);
+        String actual=digest(target,registry);
+        if(!expected.equals(actual))throw new Failure("Imported image digest does not match archive");
+        return actual;
     }
     public void copy(String source, Registry from, String target, Registry to) {
         var args=new ArrayList<>(List.of("copy","--all","--preserve-digests","--quiet",

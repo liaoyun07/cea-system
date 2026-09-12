@@ -12,6 +12,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public final class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String,String>> uploadSize() {
+        return ResponseEntity.status(413).body(Map.of("code","UPLOAD_TOO_LARGE","message","image archive exceeds configured upload limit"));
+    }
     @ExceptionHandler(com.project.platform.resource.kubernetes.KubernetesResourceService.Unavailable.class)
     public ResponseEntity<Map<String,String>> resourceQuery(com.project.platform.resource.kubernetes.KubernetesResourceService.Unavailable exception) {
         return ResponseEntity.status(502).body(Map.of("code","KUBERNETES_REQUEST_FAILED","message",exception.getMessage()));

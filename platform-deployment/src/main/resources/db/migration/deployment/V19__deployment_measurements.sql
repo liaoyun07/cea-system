@@ -1,0 +1,21 @@
+CREATE TABLE dep_deployment_record (
+ id VARCHAR(36) NOT NULL PRIMARY KEY,
+ namespace VARCHAR(100) NOT NULL,
+ cluster_id VARCHAR(100) NOT NULL,
+ deployment_name VARCHAR(63) NOT NULL,
+ application_id VARCHAR(100) NOT NULL,
+ version VARCHAR(100) NOT NULL,
+ operation VARCHAR(12) NOT NULL,
+ target_replicas INT NOT NULL,
+ target_uid VARCHAR(100),
+ target_generation BIGINT,
+ state VARCHAR(16) NOT NULL,
+ started_at TIMESTAMP(6) NOT NULL,
+ finished_at TIMESTAMP(6),
+ last_observed_at TIMESTAMP(6) NOT NULL,
+ deadline_at TIMESTAMP(6) NOT NULL,
+ timing_valid BOOLEAN NOT NULL,
+ error VARCHAR(1024),
+ KEY ix_deployment_history(namespace,cluster_id,deployment_name,started_at,id),
+ KEY ix_deployment_observe(state,last_observed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

@@ -107,6 +107,21 @@ export async function startRuntime(token) {
     docker('save', '-o', join(directory, 'pause.tar'), 'rancher/mirrored-pause:3.6');
     docker('cp', join(directory, 'pause.tar'), `${k3s}:/tmp/pause.tar`);
     docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/pause.tar');
+    const metricsImage = 'rancher/mirrored-metrics-server:v0.7.2';
+    try {
+      docker('image', 'inspect', metricsImage);
+    } catch {
+      docker('pull', metricsImage);
+    }
+    docker('save', '-o', join(directory, 'metrics.tar'), metricsImage);
+    docker('cp', join(directory, 'metrics.tar'), `${k3s}:/tmp/metrics.tar`);
+    docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/metrics.tar');
+    docker(
+      'cp',
+      resolve(import.meta.dirname, '../../deploy/cea/metrics-server.yaml'),
+      `${k3s}:/tmp/metrics.yaml`,
+    );
+    docker('exec', k3s, 'kubectl', 'apply', '-f', '/tmp/metrics.yaml');
     docker('exec', k3s, 'kubectl', 'create', 'namespace', 'ui-test');
     docker(
       'exec',
@@ -164,6 +179,7 @@ export async function startRuntime(token) {
     writeFileSync(join(directory, 's3-secret'), 'ui-test-secret');
     return {
       cleanup,
+      archive: join(directory, 'alpine.tar'),
       args: [
         `--platform.jobs.storage.lab.endpoint=http://127.0.0.1:${docker('port', minio, '9000/tcp').split(':').at(-1)}`,
         `--platform.jobs.storage.lab.access-key-file=${join(directory, 's3-key')}`,
@@ -175,10 +191,14 @@ export async function startRuntime(token) {
         '--platform.distribution.registries.ui.auth-file=/tmp/auth.json',
         '--platform.distribution.targets.lab.runtime-edge=ui',
         '--platform.distribution.timeout=PT60S',
+        '--platform.image-upload.centers.lab=ui',
+        `--platform.image-upload.directory=${join(directory, 'uploads')}`,
         `--platform.kubernetes.connections.lab.runtime-edge.kubeconfig=${kubeconfig}`,
         '--platform.kubernetes.connections.lab.runtime-edge.context=default',
         '--platform.kubernetes.connections.lab.runtime-edge.namespace=ui-test',
-        ...['docker', 'exec', tool, 'skopeo'].map((v, i) => `--platform.distribution.command[${i}]=${v}`),
+        ...[process.execPath, resolve(import.meta.dirname, 'skopeo-bridge.mjs'), tool].map(
+          (v, i) => `--platform.distribution.command[${i}]=${v}`,
+        ),
       ],
     };
   } catch (error) {

@@ -7,6 +7,8 @@ import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.client.*;
 import java.util.*;
 import java.util.function.Function;
+import java.time.Clock;
+import java.time.Instant;
 
 /** Live, read-only inventory. Does not reserve resources or reconcile workload state. */
 public final class KubernetesResourceService {
@@ -15,13 +17,19 @@ public final class KubernetesResourceService {
                            Map<String,String> capacity,Map<String,String> allocatable) {}
     public record ServiceView(String name,String type,String clusterIP,List<String> ports,String createdAt) {}
     public record NamespaceView(String name,String phase,String createdAt) {}
+    public record Usage(Double cpuCores,Long memoryBytes,Double cpuPercent,Double memoryPercent,
+                        String timestamp,String window,String status) {}
+    public record NodeUsage(String name,Usage usage) {}
+    public record ClusterUsage(String namespace,List<NodeUsage> nodes,Double cpuPercent,Double memoryPercent) {}
+    public record ContainerUsage(String pod,String container,Usage usage) {}
     public static final class Unavailable extends RuntimeException {
         public Unavailable(String message) { super(message); }
     }
     private final ResourceCatalogService resources;
     private final KubernetesConnections connections;
-    public KubernetesResourceService(ResourceCatalogService resources,KubernetesConnections connections) {
-        this.resources=resources;this.connections=connections;
+    private final Clock clock;
+    public KubernetesResourceService(ResourceCatalogService resources,KubernetesConnections connections,Clock clock) {
+        this.resources=resources;this.connections=connections;this.clock=clock;
     }
     private <T>T read(Actor actor,String namespace,String cluster,Function<KubernetesClient,T> query) {
         resources.cluster(actor,namespace,cluster);
@@ -71,4 +79,55 @@ public final class KubernetesResourceService {
             return new NamespaceView(value.getMetadata().getName(),value.getStatus()==null?null:value.getStatus().getPhase(),value.getMetadata().getCreationTimestamp());
         });
     }
+    public ClusterUsage nodeUsage(Actor actor,String namespace,String cluster) {
+        return read(actor,namespace,cluster,client->{
+            var metrics=client.top().nodes().metrics().getItems();
+            var result=new ArrayList<NodeUsage>();double cpu=0,memory=0,cpuCapacity=0,memoryCapacity=0;boolean complete=true;
+            for(var node:client.nodes().list().getItems()) {
+                var metric=metrics.stream().filter(m->m.getMetadata().getName().equals(node.getMetadata().getName())).findFirst().orElse(null);
+                var capacity=node.getStatus()==null?null:node.getStatus().getCapacity();
+                Usage usage=usage(metric==null?null:metric.getUsage(),capacity,metric==null?null:metric.getTimestamp(),metric==null?null:metric.getWindow());
+                result.add(new NodeUsage(node.getMetadata().getName(),usage));
+                Double c=amount(capacity,"cpu"),m=amount(capacity,"memory");
+                if(!"AVAILABLE".equals(usage.status()) || c==null || c<=0 || m==null || m<=0)complete=false;
+                else { cpu+=usage.cpuCores();memory+=usage.memoryBytes();cpuCapacity+=c;memoryCapacity+=m; }
+            }
+            return new ClusterUsage(client.getNamespace(),result,complete?percent(cpu,cpuCapacity):null,complete?percent(memory,memoryCapacity):null);
+        });
+    }
+    public List<ContainerUsage> podUsage(Actor actor,String namespace,String cluster) {
+        return read(actor,namespace,cluster,client->{
+            String kubeNamespace=client.getNamespace();
+            var metrics=client.top().pods().inNamespace(kubeNamespace).metrics().getItems();
+            var result=new ArrayList<ContainerUsage>();
+            for(var pod:client.pods().inNamespace(kubeNamespace).list().getItems()) {
+                var metric=metrics.stream().filter(m->kubeNamespace.equals(m.getMetadata().getNamespace()) && m.getMetadata().getName().equals(pod.getMetadata().getName())).findFirst().orElse(null);
+                for(var container:pod.getSpec().getContainers()) {
+                    var measured=metric==null || metric.getContainers()==null?null:metric.getContainers().stream().filter(c->c.getName().equals(container.getName())).findFirst().orElse(null);
+                    result.add(new ContainerUsage(pod.getMetadata().getName(),container.getName(),usage(measured==null?null:measured.getUsage(),
+                            container.getResources()==null?null:container.getResources().getLimits(),metric==null?null:metric.getTimestamp(),metric==null?null:metric.getWindow())));
+                }
+            }
+            return result;
+        });
+    }
+    private Usage usage(Map<String,Quantity> values,Map<String,Quantity> denominator,String timestamp,io.fabric8.kubernetes.api.model.Duration window) {
+        Double cpu=amount(values,"cpu"),memory=amount(values,"memory");String state="AVAILABLE";
+        try {
+            Instant at=Instant.parse(timestamp),now=clock.instant();
+            if(at.isBefore(now.minusSeconds(120)))state="STALE";
+            else if(at.isAfter(now.plusSeconds(10)) || window==null || window.getDuration().isZero() || window.getDuration().isNegative())state="INVALID";
+            else if(cpu==null || memory==null || memory>Long.MAX_VALUE)state="MISSING";
+        } catch(RuntimeException ex) { state="MISSING"; }
+        String interval=window==null || window.getDuration()==null?null:window.getDuration().toString();
+        if(!"AVAILABLE".equals(state))return new Usage(null,null,null,null,timestamp,interval,state);
+        return new Usage(cpu,memory.longValue(),percent(cpu,amount(denominator,"cpu")),percent(memory,amount(denominator,"memory")),timestamp,interval,state);
+    }
+    private static Double amount(Map<String,Quantity> quantities,String key) {
+        try {
+            double value=quantities.get(key).getNumericalAmount().doubleValue();
+            return Double.isFinite(value) && value>=0?value:null;
+        } catch(RuntimeException ex) { return null; }
+    }
+    private static Double percent(Double used,Double total) { return used==null || total==null || total<=0?null:used/total*100; }
 }

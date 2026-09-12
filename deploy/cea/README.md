@@ -8,6 +8,24 @@
 
 ## 第一次安装
 
+UI-08新增上传暂存卷`cea_upload-scratch`（D盘Docker数据盘）、namespace中心Registry映射及V18/V19记录表。只构建不会发布或修改数据库；更新后端时Flyway创建新增表，不回填历史。默认上传2 GiB、导入并发2，接收和导入可能双份占盘，至少预留8 GiB暂存余量并监视D盘容量。进程崩溃残留文件/未引用镜像tag不自动GC，确认没有活动上传后才做维护清理，不删除整组数据卷。
+
+资源用量需要显式安装[metrics-server.yaml](metrics-server.yaml)和更新[rbac.yaml](rbac.yaml)，不随后端启动安装。本地K3s1.30使用Rancher镜像的metrics-server v0.7.2，官方镜像映射见[Rancher配置](https://github.com/rancher/artifact-mirror/blob/master/config.yaml)。清单中的Kubelet insecure-tls只适用于当前本地自签环境，外部生产集群应提供受信任证书并移除此参数。不接入历史监控/HPA。
+
+获得部署授权后，在backend根目录执行以下命令（当前代码任务未执行这些命令）：
+
+```powershell
+. .\deploy\cea\common.ps1
+foreach ($taskCluster in @('cloud','edge-a','edge-b','edge-c')) {
+    Get-Content -Raw .\deploy\cea\rbac.yaml | Invoke-CeaCompose exec -T $taskCluster kubectl apply -f -
+    Get-Content -Raw .\deploy\cea\metrics-server.yaml | Invoke-CeaCompose exec -T $taskCluster kubectl apply -f -
+    Invoke-CeaCompose exec -T $taskCluster kubectl rollout status deployment/metrics-server -n kube-system --timeout=180s
+    Invoke-CeaCompose exec -T $taskCluster kubectl top nodes
+}
+```
+
+这会在每个集群增加一个采集Pod，但不改变已有算法Flow；四个同宿主集群的容量/用量不可相加充当四台物理机器。页面30秒部署目标只展示有有效观测的创建/更新结果，不因安装采集器或代码测试通过就宣布达标。
+
 UI-07只读资源页需要更新后的`rbac.yaml`：原cea-lab Role新增Service get/list，原节点观察ClusterRole新增仅名为cea-lab的Namespace get。没有Namespace list或Service写权限；既有部署须在获批发布时更新这两项授权，不需要重启K3s或执行数据库迁移。
 
 在 backend 根目录、Docker Desktop 已运行时执行：

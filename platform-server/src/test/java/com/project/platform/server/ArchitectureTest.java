@@ -34,6 +34,9 @@ class ArchitectureTest {
                 .dependOnClassesThat().resideInAnyPackage("com.project.platform.runtime..","com.project.platform.dataflow..").check(classes);
         noClasses().that().resideInAnyPackage("com.project.platform.server.api..","com.project.platform.dataflow..").should()
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.deployment.application.JdbcApplicationRepository").check(classes);
+        for(String repository:java.util.List.of("distribution.JdbcImageDistributionRepository","service.JdbcDeploymentRecordRepository"))
+            noClasses().that().resideInAnyPackage("com.project.platform.server.api..","com.project.platform.dataflow..","com.project.platform.edge..","com.project.platform.resource..").should()
+                    .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.deployment."+repository).check(classes);
         noClasses().that().resideInAPackage("com.project.platform.deployment..").should()
                 .dependOnClassesThat().haveFullyQualifiedName("com.project.platform.resource.catalog.JdbcResourceRepository").check(classes);
         noClasses().that().resideInAPackage("com.project.platform.runtime.worker..").should()

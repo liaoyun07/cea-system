@@ -2,6 +2,8 @@
 
 状态：DONE（已有API范围）。验证与CEA前端更新见[VER-UI-003](../verification/VER-UI-003-management.md)。未迁移能力仍按下表记录，不将缺接口功能标为完成。
 
+后续镜像上传/分发历史、部署编辑/缩放/计时与CPU/内存增量见[UI-08](UI-08-core-deployment-operations.md)；其代码验证与CEA发布状态独立于本页历史验收。
+
 ## 范围与边界
 
 来源是旧 `amis/pages/user/site.json` 及对应页面能力，不复制旧路由协议、DTO、数据库或数据。UI沿用Kestra式左导航、列表/详情、主操作栏；参考本地Kestra `0354ddf8cb` 的 `ui/src/components/namespaces/Namespace.vue` 的列表/详情组织，不迁移其store/插件体系。
@@ -11,10 +13,10 @@
 | 模板/创建/执行监控 | 已有流程及执行工作台继续使用 | 不复制第二份Flow或执行链；模板/执行记录删除暂无API |
 | DAG状态图/子任务输出与时间 | UI-05追加只读固定修订拓扑、动态轮次/item选择、TaskRun输出/开始结束/耗时/尝试 | 不新增后端数据；不是Pod日志、产物内容或指标曲线；进度见[验证](../verification/VER-UI-005-execution-inspection.md) |
 | 算法评估指标 | UI-06增加既有JSON产物读取、实例明细和单指标图 | 非SDK/计量仓库；只读成功TaskRun/Attempt原值，验证/发布状态见[记录](../verification/VER-UI-006-execution-metrics.md) |
-| 应用与镜像/上传 | 应用版本列表、契约详情、注册新版本 | 登记已有Registry镜像；不上传tar、不构建镜像 |
-| 按需镜像分发 | 在应用版本上选集群并准备镜像，展示实际返回digest镜像 | 无分发历史接口；不伪造记录 |
-| 运行状态/工作负载 | 按集群查询、创建Deployment、查看就绪条件、带resourceVersion删除 | GET未回传parameters/command，暂不做编辑/快捷扩缩容/启停，避免清空配置；部署页不管理Service，Pod日志仍未接入 |
-| 集群资源 | Cluster登记、查询、启停目录准入；UI-07追加Node/Service/配置Namespace只读页 | enabled不是在线健康；不提供Kubernetes资源写操作或CPU/内存利用率 |
+| 应用与镜像/上传 | 应用版本列表、契约详情、注册新版本；UI-08补单镜像tar导入与digest登记 | 不构建镜像，不支持断点续传；UI-08验证/发布状态见其规格 |
+| 按需镜像分发 | 应用版本选集群准备镜像；UI-08补公共分发路径的持久分页历史 | 不回填旧历史，不把层复用换算成全量传输 |
+| 运行状态/工作负载 | 创建/查询/删除；UI-08补配置回读、CAS编辑、手动扩缩容及有效就绪耗时 | 不做HPA/Service管理/Pod日志；0副本及无有效观测不算部署达标 |
+| 集群资源 | Cluster目录；UI-07追加Node/Service/配置Namespace；UI-08追加Metrics API近期CPU/内存 | enabled不是在线健康；不做完整Kubernetes资源写操作或历史监控 |
 | 数据集 | 版本登记、格式与各集群S3位置管理、详情 | 不可变版本；不上传/探测对象 |
 | 终端接入 | 网关登记、终端归属、启停、最近活动时间 | 账号须先配置CONNECT；不造ONLINE、不代网关发送心跳 |
 | 边缘处理策略 | 策略列表、事件路由、启停、原Flow YAML/No-code编辑、CAS保存 | 只走edge策略API；路由不可改派；无物理删除，不能启用独立Schedule |

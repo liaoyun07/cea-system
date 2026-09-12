@@ -21,6 +21,19 @@ public final class DeploymentController {
     public DeploymentService.View get(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
         return deployments.get(identities.actor(principal.getName()),namespace,clusterId,name);
     }
+    @GetMapping("/{name}/configuration")
+    public DeploymentService.Configuration configuration(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
+        return deployments.configuration(identities.actor(principal.getName()),namespace,clusterId,name);
+    }
+    @PatchMapping("/{name}/scale")
+    public DeploymentService.View scale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,@RequestBody DeploymentService.ScaleRequest request) {
+        return deployments.scale(identities.actor(principal.getName()),namespace,clusterId,name,request);
+    }
+    @GetMapping("/{name}/history")
+    public List<DeploymentService.DeploymentRecord> history(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,
+            @RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
+        return deployments.history(identities.actor(principal.getName()),namespace,clusterId,name,limit,offset);
+    }
     @GetMapping
     public List<DeploymentService.View> list(Principal principal,@PathVariable String namespace,@PathVariable String clusterId) {
         return deployments.list(identities.actor(principal.getName()),namespace,clusterId);

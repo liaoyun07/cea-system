@@ -3,7 +3,17 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { errorText } from '../api.js';
 import { time } from '../model.js';
 import { readCatalog, readDocument } from '../no-code/document.js';
-import { catalogs, entryId, itemPath, newDraft, applicationDraft, requestBody, enc } from './catalogs.js';
+import {
+  catalogs,
+  entryId,
+  itemPath,
+  newDraft,
+  applicationDraft,
+  requestBody,
+  parameterContract,
+  enc,
+} from './catalogs.js';
+import { durationText, stateName } from './operations.js';
 import CatalogForm from './CatalogForm.vue';
 
 const props = defineProps({ kind: String, api: Function, namespace: String });
@@ -29,10 +39,16 @@ const clusters = ref([]),
 const targetCluster = ref(''),
   prepared = ref(null);
 const form = ref(null);
+const uploadMode = ref(false),
+  archive = ref(null),
+  history = ref([]),
+  historyOffset = ref(0),
+  historyError = ref('');
 const abort = new AbortController();
 let alive = true;
 const dirty = computed(
-  () => !!draft.value && !readonly.value && JSON.stringify(draft.value) !== baseline.value,
+  () =>
+    !!draft.value && !readonly.value && (JSON.stringify(draft.value) !== baseline.value || !!archive.value),
 );
 const readonly = computed(() => existing.value && immutable.value);
 watch(dirty, (v) => emit('dirty', v));
@@ -96,6 +112,11 @@ async function dependencies() {
   }
 }
 function begin(value, saved = false, record = null) {
+  uploadMode.value = false;
+  archive.value = null;
+  history.value = [];
+  historyOffset.value = 0;
+  historyError.value = '';
   draft.value = value;
   existing.value = saved;
   raw.value = record;
@@ -106,7 +127,7 @@ function begin(value, saved = false, record = null) {
   prepared.value = null;
   targetCluster.value = '';
 }
-async function open(row) {
+async function open(row, upload = false) {
   await action(async () => {
     await dependencies();
     if (!alive) return;
@@ -116,13 +137,16 @@ async function open(row) {
     }
     if (!row) {
       begin(newDraft(props.kind, props.namespace));
+      uploadMode.value = upload;
       return;
     }
     let data = row;
     if (immutable.value || props.kind === 'policies') data = await api(itemPath(props.kind, row));
     if (!alive) return;
-    if (props.kind === 'applications') begin(applicationDraft(data), true, data);
-    else if (props.kind === 'policies')
+    if (props.kind === 'applications') {
+      begin(applicationDraft(data), true, data);
+      await loadHistory();
+    } else if (props.kind === 'policies')
       begin({ ...data.policy, expectedRevision: data.flow.revision, source: data.flow.source }, true, data);
     else if (props.kind === 'gateways')
       begin(
@@ -153,8 +177,29 @@ function cloneVersion() {
 async function save() {
   if (readonly.value || invalid.value || !form.value.reportValidity()) return;
   await action(async () => {
-    const body = requestBody(props.kind, draft.value);
-    const result = await api(itemPath(props.kind, draft.value), { method: 'PUT', body });
+    let result;
+    if (uploadMode.value) {
+      if (!archive.value || archive.value.size === 0 || archive.value.size > 2 * 1024 ** 3)
+        throw new Error('请选择不超过 2 GiB 的非空 Docker save 镜像归档。');
+      const body = new FormData();
+      body.append('file', archive.value);
+      body.append(
+        'contract',
+        new Blob([JSON.stringify({ parameters: parameterContract(draft.value.parameterRows) })], {
+          type: 'application/json',
+        }),
+      );
+      result = await api(`${itemPath('applications', draft.value)}/upload`, {
+        method: 'POST',
+        body,
+        long: true,
+      });
+      if (!alive) return;
+      begin(applicationDraft(result), true, result);
+    } else {
+      const body = requestBody(props.kind, draft.value);
+      result = await api(itemPath(props.kind, draft.value), { method: 'PUT', body });
+    }
     if (!alive) return;
     if (props.kind === 'policies')
       draft.value = { ...result.policy, expectedRevision: result.flow.revision, source: result.flow.source };
@@ -189,6 +234,29 @@ async function prepare() {
       success.value = '镜像准备完成 · 未启动容器';
     }
   }, true);
+  if (alive) await loadHistory();
+}
+async function loadHistory() {
+  historyError.value = '';
+  const selected = itemPath('applications', draft.value),
+    offset = historyOffset.value;
+  const current = () =>
+    alive &&
+    draft.value &&
+    selected === itemPath('applications', draft.value) &&
+    offset === historyOffset.value;
+  try {
+    const result = await api(`${selected}/preparations?limit=20&offset=${offset}`);
+    if (current()) history.value = result;
+  } catch (e) {
+    if (current()) {
+      history.value = [];
+      historyError.value = errorText(e);
+    }
+  }
+}
+function distributionDuration(row) {
+  return row.finishedAt ? durationText(Date.parse(row.finishedAt) - Date.parse(row.startedAt)) : '—';
 }
 function cell(row, key) {
   const value = row[key];
@@ -211,6 +279,9 @@ onMounted(() => action(loadRows));
       <button v-if="!draft && !raw && config.create" class="primary" :disabled="busy" @click="open()">
         ＋ {{ config.create }}
       </button>
+      <button v-if="kind === 'applications' && !draft && !raw" :disabled="busy" @click="open(null, true)">
+        上传镜像
+      </button>
       <button v-if="draft || raw" :disabled="busy" @click="back">← 返回列表</button>
     </div>
     <div v-if="error" class="notice error" role="alert">{{ error }}</div>
@@ -223,7 +294,9 @@ onMounted(() => action(loadRows));
       <form ref="form" class="management-editor" @submit.prevent>
         <div class="editor-actions management-actions">
           <div>
-            <h2>{{ readonly ? '版本详情' : existing ? '编辑配置' : '新建登记' }}</h2>
+            <h2>
+              {{ readonly ? '版本详情' : uploadMode ? '上传镜像版本' : existing ? '编辑配置' : '新建登记' }}
+            </h2>
             <span class="muted small">{{
               dirty ? '有未保存修改' : readonly ? '不可变版本' : existing ? '已保存' : '未保存'
             }}</span>
@@ -247,15 +320,24 @@ onMounted(() => action(loadRows));
               :disabled="busy || invalid || !!catalogError"
               @click="save"
             >
-              {{ writing ? '正在提交…' : '保存配置' }}
+              {{ writing ? '正在提交…' : uploadMode ? '上传并登记' : '保存配置' }}
             </button>
           </div>
         </div>
+        <label v-if="uploadMode"
+          >镜像归档（Docker save，最大 2 GiB）<input
+            type="file"
+            accept=".tar"
+            required
+            :disabled="busy"
+            @change="archive = $event.target.files[0] || null"
+        /></label>
         <CatalogForm
           :kind="kind"
           :draft="draft"
           :existing="existing"
           :readonly="readonly"
+          :upload="uploadMode"
           :busy="busy"
           :api="api"
           :namespace="namespace"
@@ -282,6 +364,63 @@ onMounted(() => action(loadRows));
         <div v-if="prepared" class="prepared-result" role="status">
           <span class="tag">{{ prepared.clusterId }}</span
           ><code>{{ prepared.image }}</code>
+        </div>
+      </section>
+      <section v-if="kind === 'applications' && readonly" class="management-editor">
+        <div class="section-heading">
+          <h2>按需分发历史</h2>
+          <button :disabled="busy" @click="action(loadHistory)">刷新历史</button>
+        </div>
+        <p v-if="historyError" class="error" role="alert">{{ historyError }}</p>
+        <div class="table-wrap">
+          <table aria-label="按需分发历史">
+            <thead>
+              <tr>
+                <th>目标集群</th>
+                <th>状态</th>
+                <th>发起人</th>
+                <th>开始时间</th>
+                <th>耗时</th>
+                <th>源 / 目标镜像</th>
+                <th>错误</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in history" :key="r.id">
+                <td>{{ r.clusterId }}</td>
+                <td>{{ stateName(r.state) }}</td>
+                <td>{{ r.requestedBy }}</td>
+                <td>{{ time(r.startedAt) }}</td>
+                <td>{{ distributionDuration(r) }}</td>
+                <td class="mono">
+                  <div>{{ r.sourceImage }}</div>
+                  <div>{{ r.targetImage || '—' }}</div>
+                </td>
+                <td>{{ r.error || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="!history.length && !historyError" class="empty">暂无分发记录</p>
+        <div class="pagination">
+          <button
+            :disabled="busy || historyOffset === 0"
+            @click="
+              historyOffset -= 20;
+              action(loadHistory);
+            "
+          >
+            上一页</button
+          ><span>第 {{ historyOffset / 20 + 1 }} 页</span
+          ><button
+            :disabled="busy || history.length < 20"
+            @click="
+              historyOffset += 20;
+              action(loadHistory);
+            "
+          >
+            下一页
+          </button>
         </div>
       </section>
       <details v-if="raw" class="raw-detail">
@@ -351,3 +490,14 @@ onMounted(() => action(loadRows));
     </template>
   </section>
 </template>
+<style scoped>
+table[aria-label='按需分发历史'] {
+  min-width: 1050px;
+}
+table[aria-label='按需分发历史'] td:not(:nth-child(6)):not(:last-child) {
+  white-space: nowrap;
+}
+table[aria-label='按需分发历史'] td:nth-child(6) {
+  min-width: 380px;
+}
+</style>

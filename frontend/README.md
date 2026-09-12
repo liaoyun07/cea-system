@@ -1,5 +1,7 @@
 # CEA 流任务工作台
 
+UI-08已实现并验证：单镜像Docker save归档上传、按需分发历史、Deployment配置回读/CAS编辑/手动扩缩容/就绪耗时，以及Metrics API近期CPU/内存。45项Node、47项真实浏览器通过。需要配套后端、V18/V19及配置/RBAC/采集器；尚未发布CEA。日志、数据文件上传、HPA和历史监控不在本批。边界见[UI-08协议](../docs/contracts/ui08-deployment-operations.md)，结果见[验收记录](../docs/verification/VER-UI-008-core-deployment-operations.md)。
+
 UI-07增加运行总览、运行资源（Node/Service/配置的Kubernetes Namespace）和执行输出中的任务产物JSON预览。总览统计提交时间窗口内执行的当前状态；资源为只读查询，容量不代表利用率；JSON沿用256KiB上限，其它文件只显示URI。运行资源需要配套后端及受限RBAC。实测/发布状态见[UI-07验证](../docs/verification/VER-UI-007-readonly-inspection.md)。
 
 独立Vue 3/Vite前端，属于cea-system仓库但单独构建，不是Maven模块。参考Kestra的侧栏、列表、源代码编辑、保存/执行分离和执行标签页，中文界面，无模拟业务数据，不修改旧AMIS。
@@ -88,6 +90,6 @@ $env:CEA_JAVA_HOME='你的 JDK 21 目录'
 npm run test:e2e
 ```
 
-E2E要求Docker可用、已构建后端JAR，以及本地测试镜像mysql:8.0、registry:2、quay.io/skopeo/stable:v1.20.0、rancher/k3s:v1.30.6-k3s1、rancher/mirrored-pause:3.6、alpine:latest及quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z。自动创建临时MySQL、Registry、Skopeo、K3s、MinIO、随机账号/端口、新JAR进程和静态预览；测试结束清理本次容器、网络和临时配置。不接业务库、不启动/停止IDEA或CEA服务。临时K3s用于浏览器实际分发/创建/就绪/删除及JSON产物读取验收。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
+E2E要求Docker可用、已构建后端JAR，以及本地测试镜像mysql:8.0、registry:2、quay.io/skopeo/stable:v1.20.0、rancher/k3s:v1.30.6-k3s1、rancher/mirrored-pause:3.6、rancher/mirrored-metrics-server:v0.7.2、alpine:latest及quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z。自动创建临时MySQL、Registry、Skopeo、K3s、MinIO、随机账号/端口、新JAR进程和静态预览；测试结束清理本次容器、网络和临时配置。不接业务库、不启动/停止IDEA或CEA服务。临时K3s用于实际上传、分发、Deployment编辑/就绪/缩放/删除、近期用量及JSON产物读取验收。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
 
-尚无账号管理、Node/Service/Namespace完整管理、镜像tar上传/构建、持久分发历史、跨执行指标趋势、数据处理速率、全局产物浏览下载或旧数据迁移。UI-06仅增加已声明JSON产物的指标图和明细。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)。
+尚无账号管理、Node/Service/Namespace完整管理、镜像构建、数据文件上传、历史资源监控、跨执行指标趋势、数据处理速率、全局产物浏览下载或旧数据迁移。UI-08增加镜像tar上传和持久按需分发历史；UI-06提供已声明JSON产物的指标图和明细。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)及[UI-08](../docs/contracts/ui08-deployment-operations.md)。

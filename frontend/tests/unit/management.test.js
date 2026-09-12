@@ -87,6 +87,7 @@ test('deployment create is an explicit full request, not a guessed scale update'
     replicas: 0,
     parameters: { N: 0, FLAG: false },
     command: ['/bin/sh', '-c', 'sleep 60'],
+    readiness: null,
   });
   assert.equal(Object.hasOwn(deploymentBody(draft), 'resourceVersion'), false);
   assert.throws(() => deploymentBody({ ...draft, command: '[1]' }), /字符串/);

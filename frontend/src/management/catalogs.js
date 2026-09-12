@@ -184,5 +184,28 @@ export function deploymentBody(draft) {
     throw new Error('启动命令必须是字符串 JSON 数组。');
   const [applicationId, version] = draft.application.split('/');
   if (!applicationId || !version) throw new Error('请选择应用版本。');
-  return { applicationId, version, replicas: draft.replicas, parameters, command };
+  return {
+    applicationId,
+    version,
+    replicas: draft.replicas,
+    parameters,
+    command,
+    ...(draft.resourceVersion ? { resourceVersion: draft.resourceVersion } : {}),
+    ...(draft.readinessEnabled
+      ? { readiness: { path: draft.readinessPath, port: draft.readinessPort } }
+      : { readiness: null }),
+  };
+}
+export function deploymentDraft(name, value) {
+  return {
+    name,
+    application: `${value.applicationId}/${value.version}`,
+    replicas: value.replicas,
+    parameters: JSON.stringify(value.parameters, null, 2),
+    command: JSON.stringify(value.command, null, 2),
+    resourceVersion: value.resourceVersion,
+    readinessEnabled: !!value.readiness,
+    readinessPath: value.readiness?.path || '/',
+    readinessPort: value.readiness?.port || 8080,
+  };
 }

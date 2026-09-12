@@ -2,7 +2,20 @@
 server:
   address: 0.0.0.0
   port: 18085
+spring:
+  servlet:
+    multipart:
+      location: /var/lib/cea/uploads/multipart
+      max-file-size: 2GB
+      max-request-size: 2050MB
 platform:
+  image-upload:
+    centers: {lab: center}
+    directory: /var/lib/cea/uploads/import
+    max-bytes: 2147483648
+    concurrency: 2
+  deployment:
+    timeout: PT10M
   worker:
     concurrency: 4
   distribution:
