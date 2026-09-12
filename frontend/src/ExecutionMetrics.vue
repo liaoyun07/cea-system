@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { errorText } from './api.js';
-import { readDocument } from './no-code/document.js';
 import { time } from './model.js';
 import { chartScale, instanceLabel, metricSources, metricTags, numericMetrics } from './execution-metrics.js';
 
@@ -57,11 +56,9 @@ async function loadSources() {
   sourceError.value = '';
   loadingSource.value = true;
   try {
-    const saved = await props.api(
-      `/flows/${encodeURIComponent(props.run.flowId)}?revision=${props.run.flowRevision}`,
-    );
+    const declarations = await props.api(`/executions/${encodeURIComponent(props.run.id)}/output-files`);
     if (!alive) return;
-    sources.value = metricSources(readDocument(saved.source).value);
+    sources.value = metricSources(declarations);
     if (!sources.value.some((entry) => entry.id === taskId.value)) taskId.value = sources.value[0]?.id || '';
   } catch (error) {
     if (alive) sourceError.value = errorText(error);

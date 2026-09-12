@@ -8,13 +8,10 @@ import {
   numericMetrics,
 } from '../../src/execution-metrics.js';
 
-test('only declared JSON file ports, including nested tasks and lifecycle branches, are sources', () => {
-  const task = (id) => ({ id, container: { outputFiles: ['metrics.json', 'model.pt'] } });
+test('metrics filter JSON ports from authoritative execution declarations without looking up a current Flow', () => {
+  const task = (id) => ({ id, ports: ['metrics.json', 'model.pt'] });
   assert.deepEqual(
-    metricSources({
-      tasks: [{ id: 'rounds', tasks: [{ id: 'clients', tasks: [task('train')] }], then: [task('evaluate')] }],
-      finally: [task('cleanup')],
-    }),
+    metricSources([task('train'), task('evaluate'), task('cleanup'), { id: 'model', ports: ['model.pt'] }]),
     [
       { id: 'train', ports: ['metrics.json'] },
       { id: 'evaluate', ports: ['metrics.json'] },

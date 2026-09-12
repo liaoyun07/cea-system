@@ -60,6 +60,11 @@ test('real Job JSON artifacts display per-instance numeric metrics, errors, pinn
     },
   });
   expect(result.status()).toBe(201);
+  let flowSourceReads = 0;
+  await page.route(`**/flows/${id}?revision=*`, (route) => {
+    flowSourceReads++;
+    return route.abort();
+  });
   await page.getByRole('tab', { name: 'Metrics', exact: true }).click();
   await expect(page.getByLabel('指标名称')).toHaveValue('accuracy');
   await page.getByLabel('指标名称').selectOption('loss');
@@ -94,6 +99,38 @@ test('real Job JSON artifacts display per-instance numeric metrics, errors, pinn
   await expect(page.locator('.metric-bar')).toHaveCount(0);
   await page.getByLabel('指标产物').selectOption('text.json');
   await expect(page.getByRole('cell', { name: '无数值指标', exact: true })).toHaveCount(2);
+  expect(errors).toEqual([]);
+  await page.getByRole('tab', { name: '输出', exact: true }).click();
+  await expect(page.getByRole('table', { name: '任务产物', exact: true }).locator('tbody tr')).toHaveCount(8);
+  const outputRow = page
+    .getByRole('table', { name: '任务产物', exact: true })
+    .locator('tbody tr')
+    .filter({ hasText: 'rounds[1] / measure' })
+    .filter({ hasText: 'metrics.json' });
+  await outputRow.getByRole('button', { name: '预览 JSON', exact: true }).click();
+  await expect(page.getByTestId('artifact-json')).toContainText('"loss": 1');
+  await page
+    .getByRole('table', { name: '任务产物', exact: true })
+    .locator('tbody tr')
+    .filter({ hasText: 'rounds[2] / measure' })
+    .filter({ hasText: 'metrics.json' })
+    .getByRole('button', { name: '预览 JSON', exact: true })
+    .click();
+  await expect(page.getByTestId('artifact-json')).toContainText('"loss": 2');
+  await page.screenshot({ path: '.local/evidence/artifacts-narrow.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: '.local/evidence/artifacts-desktop.png', fullPage: true });
+  await page.getByRole('button', { name: '关闭预览', exact: true }).click();
+  const invalidRow = page
+    .getByRole('table', { name: '任务产物', exact: true })
+    .locator('tbody tr')
+    .filter({ hasText: 'rounds[1] / measure' })
+    .filter({ hasText: 'invalid.json' });
+  await invalidRow.getByRole('button', { name: '预览 JSON', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('JSON');
+  await expect(page.getByTestId('artifact-json')).toHaveCount(0);
+  expect(flowSourceReads).toBe(0);
   expect(errors).toEqual([]);
 });
 

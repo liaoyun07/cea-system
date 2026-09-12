@@ -31,6 +31,70 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DurableWorkflowTest {
+    @Test void outputDeclarationsUsePinnedExecutionAcrossUserAndPolicyScopes() throws Exception {
+        var outputs=context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class);
+        for(boolean policy:List.of(false,true)) {
+            String flowId=id();
+            String source="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\ntasks:\n  - id: items\n    type: core.Loop\n    loop: {values: {source: LITERAL, value: [1]}, concurrency: 1}\n    tasks:\n      - id: work\n        type: platform.Application\n        timeout: PT60S\n        container: {applicationId: fixture, version: v1, candidateClusters: [edge], command: [echo, fixture], outputFiles: [report.json, model.pt]}\n";
+            if(policy) flows().savePolicy(actor,"lab",flowId,0,source); else flows().save(actor,"lab",flowId,0,source);
+            var request=new Request(flowId,1,Map.of());
+            String executionId=policy?executions().submitPolicy(actor,"lab",id(),request):executions().submit(actor,"lab",id(),request);
+            try {
+                String changed="schemaVersion: 1\nnamespace: lab\nid: "+flowId+"\ntasks: [{id: other, type: core.Log, message: changed}]";
+                if(policy) flows().savePolicy(actor,"lab",flowId,1,changed); else flows().save(actor,"lab",flowId,1,changed);
+                if(policy) assertThrows(WorkflowException.class,()->flows().get(actor,"lab",flowId,1));
+                var declarations=outputs.declarations(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab",executionId);
+                assertEquals(List.of(new com.project.platform.dataflow.execution.ExecutionOutputService.OutputSource("work",List.of("report.json","model.pt"))),declarations);
+                String url="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/executions/"+executionId+"/output-files";
+                String auth="Basic "+Base64.getEncoder().encodeToString("viewer:test-password".getBytes(StandardCharsets.UTF_8));
+                assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(url)).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+                var response=http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization",auth).build(),HttpResponse.BodyHandlers.ofString());
+                assertEquals(200,response.statusCode());assertEquals(json.write(declarations),response.body());
+                assertEquals(403,http.send(HttpRequest.newBuilder(URI.create(url.replace("/lab/","/other/"))).header("Authorization",auth).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+            } finally {
+                jdbc().update("DELETE FROM wf_message WHERE execution_id=?",executionId);
+                jdbc().update("DELETE FROM wf_task_run WHERE execution_id=?",executionId);
+                jdbc().update("DELETE FROM wf_execution WHERE id=?",executionId);
+            }
+        }
+    }
+    @Test void overviewCountsEntireUtcWindowInsteadOfListPageAndEnforcesRead() throws Exception {
+        String namespace="overview"+UUID.randomUUID().toString().replace("-","");
+        var owner=new Actor("writer",Set.of(namespace),Set.of(Action.READ,Action.WRITE,Action.EXECUTE));
+        flows().save(owner,namespace,"summary",0,"schemaVersion: 1\nnamespace: "+namespace+"\nid: summary\ntasks: [{id: log, type: core.Log, message: fixture}]");
+        var ids=new ArrayList<String>();
+        try {
+        for(int i=0;i<125;i++) ids.add(executions().submit(owner,namespace,UUID.randomUUID().toString(),new Request("summary",null,Map.of())));
+        var before=executions().overview(owner,namespace,1);
+        jdbc().update("UPDATE wf_execution SET created_at=? WHERE id=?",java.sql.Timestamp.from(before.from().minusSeconds(1)),ids.get(0));
+        jdbc().update("UPDATE wf_execution SET created_at=? WHERE id=?",java.sql.Timestamp.from(before.to().plusSeconds(86400)),ids.get(1));
+        jdbc().update("UPDATE wf_execution SET created_at=? WHERE id=?",java.sql.Timestamp.from(before.from()),ids.get(2));
+        jdbc().update("UPDATE wf_execution SET state='SUCCESS' WHERE id=?",ids.get(3));
+        jdbc().update("UPDATE wf_execution SET state='FAILED' WHERE id=?",ids.get(4));
+        jdbc().update("UPDATE wf_execution SET state='KILLED' WHERE id=?",ids.get(5));
+        var result=executions().overview(owner,namespace,1);
+        assertEquals(123,result.days().stream().mapToLong(row->row.count()).sum());
+        assertEquals(10,result.recent().size());
+        assertTrue(result.recent().stream().noneMatch(row->row.id().equals(ids.get(0)) || row.id().equals(ids.get(1))));
+        assertEquals(1,result.days().stream().filter(row->row.state()==ExecutionState.FAILED).findFirst().orElseThrow().count());
+        assertEquals(1,result.days().stream().filter(row->row.state()==ExecutionState.KILLED).findFirst().orElseThrow().count());
+        assertTrue(result.days().stream().allMatch(row->row.date().equals(result.from().toString().substring(0,10))));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->executions().overview(actor,namespace,1));
+        assertThrows(WorkflowException.class,()->executions().overview(owner,namespace,32));
+        var empty=new Actor("reader",Set.of("emptyoverview"),Set.of(Action.READ));
+        assertTrue(executions().overview(empty,"emptyoverview",7).days().isEmpty());
+        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/executions/overview";
+        String auth="Basic "+Base64.getEncoder().encodeToString("viewer:test-password".getBytes(StandardCharsets.UTF_8));
+        assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(base)).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization",auth).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        assertEquals(422,http.send(HttpRequest.newBuilder(URI.create(base+"?days=0")).header("Authorization",auth).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        assertEquals(403,http.send(HttpRequest.newBuilder(URI.create(base.replace("/lab/","/other/"))).header("Authorization",auth).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        } finally {
+            jdbc().update("DELETE FROM wf_message WHERE execution_id IN (SELECT id FROM wf_execution WHERE namespace=?)",namespace);
+            jdbc().update("DELETE FROM wf_task_run WHERE execution_id IN (SELECT id FROM wf_execution WHERE namespace=?)",namespace);
+            jdbc().update("DELETE FROM wf_execution WHERE namespace=?",namespace);
+        }
+    }
     private final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.0")
             .withCommand("--log-bin-trust-function-creators=1")
             .withDatabaseName("backend_s1_test").withUsername("backend_test").withPassword("isolated-test-only")

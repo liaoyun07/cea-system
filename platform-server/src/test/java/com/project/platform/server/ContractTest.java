@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
+        for (Class<?> controller : List.of(KubernetesResourceController.class,FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -47,6 +47,15 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("ExecutionOutputSource",com.project.platform.dataflow.execution.ExecutionOutputService.OutputSource.class),
+                Map.entry("ExecutionOverview",com.project.platform.runtime.execution.ExecutionService.Overview.class),
+                Map.entry("ExecutionDayCount",com.project.platform.runtime.execution.ExecutionService.DayCount.class),
+                Map.entry("ExecutionRecent",com.project.platform.runtime.execution.ExecutionService.Recent.class),
+                Map.entry("KubernetesNodePage",com.project.platform.resource.kubernetes.KubernetesResourceService.Page.class),
+                Map.entry("KubernetesServicePage",com.project.platform.resource.kubernetes.KubernetesResourceService.Page.class),
+                Map.entry("KubernetesNode",com.project.platform.resource.kubernetes.KubernetesResourceService.NodeView.class),
+                Map.entry("KubernetesService",com.project.platform.resource.kubernetes.KubernetesResourceService.ServiceView.class),
+                Map.entry("KubernetesNamespace",com.project.platform.resource.kubernetes.KubernetesResourceService.NamespaceView.class),
                 Map.entry("NamespaceFileSave",NamespaceFileController.Save.class),
                 Map.entry("NamespaceFile",com.project.platform.dataflow.definition.NamespaceFileService.File.class),
                 Map.entry("NamespaceFileEntry",com.project.platform.dataflow.definition.NamespaceFileService.Entry.class),

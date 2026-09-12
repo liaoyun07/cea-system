@@ -16,6 +16,7 @@ const errors = [];
 const logCounts = {};
 const catalogCounts = {};
 const metricsEvidence = {};
+const inspectionEvidence = {};
 const page = await browser.newPage({ baseURL: 'http://127.0.0.1:' + settings.CEA_HTTP_PORT, viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', error => errors.push(error.message));
 try {
@@ -29,6 +30,43 @@ try {
   }
   await page.screenshot({ path: fileURLToPath(new URL('flows.png', evidence)), fullPage: true });
   const authHeaders = { Authorization: 'Basic ' + Buffer.from(settings.BACKEND_USER + ':' + settings.BACKEND_PASSWORD).toString('base64') };
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '运行总览', exact: true}).click();
+  const summaryResponse = await page.request.get('/api/namespaces/lab/executions/overview?days=7', {headers: authHeaders});
+  expect(summaryResponse.status()).toBe(200);
+  const summary = await summaryResponse.json();
+  inspectionEvidence.overview = summary;
+  await expect(page.locator('[data-count="执行总数"]')).toHaveText(String(summary.days.reduce((sum, row) => sum + row.count, 0)));
+  await page.screenshot({path: fileURLToPath(new URL('overview.png', evidence)), fullPage: true});
+  await page.setViewportSize({width: 390, height: 1000});
+  await page.getByLabel('总览时间范围').selectOption('30');
+  await expect(page.locator('.daily-column')).toHaveCount(30);
+  await expect(page.locator('.daily-column').last()).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path: fileURLToPath(new URL('overview-narrow.png', evidence)), fullPage: true});
+  await page.setViewportSize({width: 1440, height: 1000});
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '运行资源', exact: true}).click();
+  inspectionEvidence.clusters = {};
+  for (const cluster of ['cloud', 'edge-a', 'edge-b', 'edge-c']) {
+    await page.getByLabel('资源集群').selectOption(cluster);
+    const rows = {};
+    for (const [endpoint, title] of [['nodes', '节点'], ['services', 'Service'], ['namespace', 'Kubernetes Namespace']]) {
+      const response = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/' + endpoint, {headers: authHeaders});
+      expect(response.status()).toBe(200);
+      const value = await response.json(); rows[endpoint] = value;
+      await page.getByRole('tab', {name: title, exact: true}).click();
+      await expect(page.getByRole('table', {name: title, exact: true}).locator('tbody tr')).toHaveCount(endpoint === 'namespace' ? 1 : value.items.length);
+      if (endpoint === 'namespace') {
+        expect(value.name).toBe('cea-lab');
+        await expect(page.getByRole('table', {name: title, exact: true})).toContainText(value.name);
+      } else if (endpoint === 'nodes') {
+        expect(value.items.length).toBeGreaterThan(0);
+        await expect(page.getByRole('table', {name: title, exact: true})).toContainText(value.items[0].name);
+      }
+    }
+    inspectionEvidence.clusters[cluster] = rows;
+  }
+  await page.screenshot({path: fileURLToPath(new URL('kubernetes-resources.png', evidence)), fullPage: true});
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
   // SELECT deployment probe: edit/validate/preview a draft only; never save or execute it in CEA.
   const selectId = 'ui-select-readonly';
   const selectSource = (await readFile(new URL('../../examples/select-input.yaml', import.meta.url), 'utf8'))
@@ -224,6 +262,10 @@ try {
     metricsEvidence[flow] = {executionId: currentId, rows: actualMetrics};
     await page.getByRole('tab', { name: '输出', exact: true }).click();
     await expect(page.getByTestId('execution-outputs')).toContainText('completed_rounds');
+    const artifact = page.locator('[data-artifact="' + evaluations[0].id + '/metrics.json"]');
+    await artifact.getByRole('button', {name: '预览 JSON', exact: true}).click();
+    await expect(page.getByTestId('artifact-json')).toBeVisible();
+    expect(JSON.parse(await page.getByTestId('artifact-json').textContent())).toEqual(actualMetrics.find(row => row.taskRunId === evaluations[0].id).values);
     await page.screenshot({ path: fileURLToPath(new URL(flow + '-outputs.png', evidence)), fullPage: true });
     await page.getByRole('tab', { name: '日志', exact: true }).click();
     // These Application-only Flows do not emit core.Log entries. Compare with
@@ -244,6 +286,7 @@ try {
   }
   expect(errors).toEqual([]);
   const result = { result: 'PASS', scope: 'real deployed frontend: federated metrics accuracy/loss/samples/round chart and table match authorized artifact API, round identity, refresh selection, desktop/390px; explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', metricsEvidence, logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
+  result.inspectionEvidence = inspectionEvidence;
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {

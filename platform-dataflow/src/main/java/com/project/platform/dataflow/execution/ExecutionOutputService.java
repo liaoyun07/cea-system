@@ -13,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Bounded, authorized reads of existing output artifacts. Does not ingest or recompute metrics. */
 public final class ExecutionOutputService {
     public static final int MAX_JSON_BYTES=262144;
+    public record OutputSource(String id,java.util.List<String> ports) {}
     public static final class Unavailable extends RuntimeException {
         public Unavailable(Exception cause){super("output storage is unavailable; check the namespace storage configuration",cause);}
     }
@@ -49,5 +50,10 @@ public final class ExecutionOutputService {
             throw WorkflowException.invalid("output","file must contain one valid JSON object");
         }
         throw WorkflowException.invalid("output","file must contain one valid JSON object");
+    }
+    public java.util.List<OutputSource> declarations(Actor actor,String namespace,String executionId) {
+        return executions.get(actor,namespace,executionId).definition().allTasks().stream()
+                .filter(task->task.container()!=null && !task.container().outputFiles().isEmpty())
+                .map(task->new OutputSource(task.id(),task.container().outputFiles())).toList();
     }
 }

@@ -40,6 +40,11 @@ public final class ExecutionController {
     public View get(Principal principal, @PathVariable String namespace, @PathVariable String id) {
         return View.of(executions.get(identities.actor(principal.getName()), namespace, id));
     }
+    @GetMapping("/overview")
+    public com.project.platform.runtime.execution.ExecutionService.Overview overview(Principal principal,@PathVariable String namespace,
+                                                                                     @RequestParam(defaultValue="7") int days) {
+        return executions.overview(identities.actor(principal.getName()),namespace,days);
+    }
     @PostMapping("/{id}/cancel")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Accepted cancel(Principal principal,@PathVariable String namespace,@PathVariable String id) {
@@ -54,6 +59,10 @@ public final class ExecutionController {
     @GetMapping("/{id}/tasks")
     public List<ExecutionRecord.TaskRun> tasks(Principal principal, @PathVariable String namespace, @PathVariable String id) {
         return executions.tasks(identities.actor(principal.getName()), namespace, id);
+    }
+    @GetMapping("/{id}/output-files")
+    public List<com.project.platform.dataflow.execution.ExecutionOutputService.OutputSource> outputFiles(Principal principal,@PathVariable String namespace,@PathVariable String id) {
+        return outputs.declarations(identities.actor(principal.getName()),namespace,id);
     }
     @GetMapping("/{id}/tasks/{taskRunId}/attempts")
     public List<ExecutionRecord.Attempt> attempts(Principal principal, @PathVariable String namespace, @PathVariable String id,

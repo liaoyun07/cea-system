@@ -139,7 +139,7 @@ class ImageDistributionTest {
                         resources: [jobs]
                         verbs: [get, list, create, update, patch]
                       - apiGroups: [""]
-                        resources: [pods]
+                        resources: [pods, services]
                         verbs: [get, list]
                       - apiGroups: [""]
                         resources: [pods/exec]
@@ -155,6 +155,10 @@ class ImageDistributionTest {
                     kind: ClusterRole
                     metadata: {name: cea-observe-nodes}
                     rules:
+                      - apiGroups: [""]
+                        resources: [namespaces]
+                        resourceNames: [s4-test]
+                        verbs: [get]
                       - apiGroups: [""]
                         resources: [nodes]
                         verbs: [list]
@@ -378,6 +382,54 @@ class ImageDistributionTest {
         }
     }
     private FlowExecutionService executions(){return context.getBean(FlowExecutionService.class);}
+    @Test void resourceInventoryDoesNotTurnUnreachableKubernetesIntoEmptySuccess() throws Exception {
+        int port;
+        try(var socket=new java.net.ServerSocket(0)) { port=socket.getLocalPort(); }
+        var config=json.map(Files.readString(kubeconfig));
+        var first=(Map<String,Object>)((List<?>)config.get("clusters")).getFirst();
+        ((Map<String,Object>)first.get("cluster")).put("server","http://127.0.0.1:"+port);
+        var path=Files.createTempFile(kubeconfig.getParent(),"inventory-unreachable-",".json");
+        try {
+            Files.writeString(path,json.write(config));
+            var connections=new com.project.platform.resource.kubernetes.KubernetesConnections(Map.of("lab",Map.of("edge",
+                    new com.project.platform.resource.kubernetes.KubernetesConnections.Connection(path.toString(),"default","s4-test"))));
+            var inventory=new com.project.platform.resource.kubernetes.KubernetesResourceService(resources(),connections);
+            var failure=assertThrows(com.project.platform.resource.kubernetes.KubernetesResourceService.Unavailable.class,()->inventory.nodes(actor,"lab","edge",10,null));
+            assertEquals("Kubernetes resource query failed; check cluster connection",failure.getMessage());
+        } finally { Files.deleteIfExists(path); }
+    }
+    @Test void liveResourceInventoryUsesReadPermissionBoundedPagesAndConfiguredNamespace() throws Exception {
+        var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
+        var service=context.getBean(com.project.platform.resource.kubernetes.KubernetesResourceService.class);
+        var nodes=service.nodes(viewer,"lab","edge",1,null);
+        assertEquals("s4-test",nodes.namespace());assertEquals(1,nodes.items().size());
+        assertFalse(nodes.items().getFirst().capacity().isEmpty());
+        assertEquals("s4-test",service.namespace(viewer,"lab","edge").name());
+        for(String name:List.of("inventory-a","inventory-b")) admin.services().inNamespace("s4-test").resource(
+                new io.fabric8.kubernetes.api.model.ServiceBuilder().withNewMetadata().withName(name).endMetadata()
+                .withNewSpec().addNewPort().withPort(80).withNewTargetPort(8080).endPort().endSpec().build()).create();
+        try {
+            var first=service.services(viewer,"lab","edge",1,null);
+            assertEquals(1,first.items().size());assertNotNull(first.continueToken());assertFalse(first.continueToken().isBlank());
+            assertEquals(List.of("80/TCP → 8080"),first.items().getFirst().ports());
+            var second=service.services(viewer,"lab","edge",1,first.continueToken());
+            assertEquals(1,second.items().size());assertNotEquals(first.items().getFirst().name(),second.items().getFirst().name());
+            assertThrows(ResourceException.class,()->service.nodes(viewer,"lab","edge",0,null));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.nodes(viewer,"other","edge",10,null));
+            assertThrows(ResourceException.class,()->service.services(viewer,"lab","missing",10,null));
+            try(var restricted=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class).open("lab","edge")) {
+                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.namespaces().withName("default").get()).getCode());
+                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.services().inNamespace("default").list()).getCode());
+                assertEquals(403,assertThrows(KubernetesClientException.class,()->restricted.services().inNamespace("s4-test").withName("inventory-a").delete()).getCode());
+            }
+            String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/clusters/edge/kubernetes/";
+            String auth="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));
+            for(String endpoint:List.of("nodes","services","namespace")) {
+                assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(base+endpoint)).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+                assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(base+endpoint)).header("Authorization",auth).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+            }
+        } finally { for(String name:List.of("inventory-a","inventory-b")) admin.services().inNamespace("s4-test").withName(name).delete(); }
+    }
     private String submit(String tasks) {
         String id="job"+UUID.randomUUID().toString().replace("-","");
         String source="schemaVersion: 1\nnamespace: lab\nid: "+id+"\n"+tasks;

@@ -77,6 +77,27 @@ public final class JdbcExecutionStore {
     public List<ExecutionRecord> list(String namespace,int limit,int offset) {
         return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,namespace,limit,offset);
     }
+    public com.project.platform.runtime.execution.ExecutionService.Overview overview(String namespace,int days) {
+        return transaction(() -> {
+            var to=now();
+            var from=to.atZone(java.time.ZoneOffset.UTC).toLocalDate().minusDays(days-1)
+                    .atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+            var counts=jdbc.query("""
+                    SELECT DATE(created_at) AS day,state,COUNT(*) AS amount FROM wf_execution
+                    WHERE namespace=? AND created_at>=? AND created_at<? GROUP BY DATE(created_at),state ORDER BY day,state
+                    """,(rs,row)->new com.project.platform.runtime.execution.ExecutionService.DayCount(
+                            rs.getString("day"),ExecutionState.valueOf(rs.getString("state")),rs.getLong("amount")),
+                    namespace,Timestamp.from(from),Timestamp.from(to));
+            var recent=jdbc.query("""
+                    SELECT id,flow_id,state,created_at FROM wf_execution
+                    WHERE namespace=? AND created_at>=? AND created_at<? ORDER BY created_at DESC,id DESC LIMIT 10
+                    """,(rs,row)->new com.project.platform.runtime.execution.ExecutionService.Recent(
+                            rs.getString("id"),rs.getString("flow_id"),ExecutionState.valueOf(rs.getString("state")),
+                            instant(rs,"created_at")),
+                    namespace,Timestamp.from(from),Timestamp.from(to));
+            return new com.project.platform.runtime.execution.ExecutionService.Overview(from,to,counts,recent);
+        });
+    }
     public List<TaskRun> tasks(String id) { return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? ORDER BY task_index",this::task,id); }
     public List<TaskRun> scopedTasks(String id,String parent,int iteration) {
         return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? AND parent_task_run_id <=> ? AND iteration=? ORDER BY task_index",this::task,id,parent,iteration);

@@ -6,12 +6,15 @@ import FlowEditor from './FlowEditor.vue';
 import ExecutionDetail from './ExecutionDetail.vue';
 import CatalogPage from './management/CatalogPage.vue';
 import DeploymentsPage from './management/DeploymentsPage.vue';
+import KubernetesResourcesPage from './management/KubernetesResourcesPage.vue';
+import OverviewPage from './OverviewPage.vue';
 import { catalogs } from './management/catalogs.js';
 
 const navigation = [
   {
     label: '工作空间',
     items: [
+      ['overview', '运行总览', '◫'],
       ['flows', '流程', '◇'],
       ['executions', '执行', '▷'],
     ],
@@ -22,6 +25,7 @@ const navigation = [
       ['applications', '应用与镜像', '▣'],
       ['deployments', '应用部署', '▤'],
       ['clusters', '集群资源', '⬡'],
+      ['kubernetes', '运行资源', '▦'],
       ['datasets', '数据集', '▥'],
     ],
   },
@@ -36,7 +40,14 @@ const navigation = [
   },
 ];
 const titleFor = (key) =>
-  catalogs[key]?.title || { flows: '流程', executions: '执行', deployments: '应用部署' }[key];
+  catalogs[key]?.title ||
+  {
+    overview: '运行总览',
+    kubernetes: '运行资源',
+    flows: '流程',
+    executions: '执行',
+    deployments: '应用部署',
+  }[key];
 
 const namespace = ref('lab'),
   username = ref('developer'),
@@ -255,6 +266,13 @@ function paginate(delta) {
         @pending="pending = $event"
         @execution="showExecution"
       />
+      <OverviewPage
+        v-else-if="page === 'overview'"
+        :key="pageEpoch"
+        :api="session.api"
+        @execution="showExecution"
+      />
+      <KubernetesResourcesPage v-else-if="page === 'kubernetes'" :key="pageEpoch" :api="session.api" />
       <DeploymentsPage
         v-else-if="page === 'deployments'"
         :key="pageEpoch"

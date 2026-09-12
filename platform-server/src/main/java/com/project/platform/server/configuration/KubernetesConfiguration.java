@@ -16,6 +16,10 @@ public class KubernetesConfiguration {
         public Settings { connections=connections==null?Map.of():Map.copyOf(connections); }
     }
     @Bean KubernetesConnections kubernetesConnections(Settings settings) { return new KubernetesConnections(settings.connections()); }
+    @Bean com.project.platform.resource.kubernetes.KubernetesResourceService kubernetesResourceService(
+            com.project.platform.resource.catalog.ResourceCatalogService resources,KubernetesConnections connections) {
+        return new com.project.platform.resource.kubernetes.KubernetesResourceService(resources,connections);
+    }
     @Bean com.project.platform.deployment.service.DeploymentService deploymentService(com.project.platform.foundation.identity.AccessPolicy access,
             com.project.platform.deployment.application.ApplicationCatalogService applications,
             com.project.platform.resource.catalog.ResourceCatalogService resources,

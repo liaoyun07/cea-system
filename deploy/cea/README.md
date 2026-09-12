@@ -8,6 +8,8 @@
 
 ## 第一次安装
 
+UI-07只读资源页需要更新后的`rbac.yaml`：原cea-lab Role新增Service get/list，原节点观察ClusterRole新增仅名为cea-lab的Namespace get。没有Namespace list或Service写权限；既有部署须在获批发布时更新这两项授权，不需要重启K3s或执行数据库迁移。
+
 在 backend 根目录、Docker Desktop 已运行时执行：
 
 ```powershell

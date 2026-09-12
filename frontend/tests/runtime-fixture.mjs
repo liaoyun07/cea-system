@@ -108,6 +108,18 @@ export async function startRuntime(token) {
     docker('cp', join(directory, 'pause.tar'), `${k3s}:/tmp/pause.tar`);
     docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/pause.tar');
     docker('exec', k3s, 'kubectl', 'create', 'namespace', 'ui-test');
+    docker(
+      'exec',
+      k3s,
+      'kubectl',
+      'create',
+      'service',
+      'clusterip',
+      'inspection-service',
+      '--tcp=80:8080',
+      '--namespace',
+      'ui-test',
+    );
     docker('cp', `${k3s}:/etc/rancher/k3s/k3s.yaml`, kubeconfig);
     const config = parse(readFileSync(kubeconfig, 'utf8'));
     config.clusters[0].cluster.server = `https://127.0.0.1:${docker('port', k3s, '6443/tcp').split(':').at(-1)}`;

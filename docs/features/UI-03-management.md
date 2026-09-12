@@ -13,13 +13,14 @@
 | 算法评估指标 | UI-06增加既有JSON产物读取、实例明细和单指标图 | 非SDK/计量仓库；只读成功TaskRun/Attempt原值，验证/发布状态见[记录](../verification/VER-UI-006-execution-metrics.md) |
 | 应用与镜像/上传 | 应用版本列表、契约详情、注册新版本 | 登记已有Registry镜像；不上传tar、不构建镜像 |
 | 按需镜像分发 | 在应用版本上选集群并准备镜像，展示实际返回digest镜像 | 无分发历史接口；不伪造记录 |
-| 运行状态/工作负载 | 按集群查询、创建Deployment、查看就绪条件、带resourceVersion删除 | GET未回传parameters/command，暂不做编辑/快捷扩缩容/启停，避免清空配置；无Service/Pod日志 |
-| 集群资源 | Cluster登记、查询、启停目录准入 | enabled不是在线健康；节点/Service/Namespace管理缺接口 |
+| 运行状态/工作负载 | 按集群查询、创建Deployment、查看就绪条件、带resourceVersion删除 | GET未回传parameters/command，暂不做编辑/快捷扩缩容/启停，避免清空配置；部署页不管理Service，Pod日志仍未接入 |
+| 集群资源 | Cluster登记、查询、启停目录准入；UI-07追加Node/Service/配置Namespace只读页 | enabled不是在线健康；不提供Kubernetes资源写操作或CPU/内存利用率 |
 | 数据集 | 版本登记、格式与各集群S3位置管理、详情 | 不可变版本；不上传/探测对象 |
 | 终端接入 | 网关登记、终端归属、启停、最近活动时间 | 账号须先配置CONNECT；不造ONLINE、不代网关发送心跳 |
 | 边缘处理策略 | 策略列表、事件路由、启停、原Flow YAML/No-code编辑、CAS保存 | 只走edge策略API；路由不可改派；无物理删除，不能启用独立Schedule |
 | 卸载决策记录 | 既有samples只读及关联Execution | 不启动训练、不扩展DQN研究能力 |
-| 数据产物 | Execution及TaskRun输出引用 | 全局对象浏览/上传/下载缺接口 |
+| 数据产物 | Execution及TaskRun输出引用；UI-07按执行快照列声明产物，复用JSON按需预览 | 全局对象浏览/上传/二进制下载仍未做 |
+| 运行总览 | UI-07按执行提交时间窗口聚合当前状态、日计数及最近执行 | 不是任务计量、状态转移历史或系统资源监控 |
 | 用户/个人中心 | 本批不迁移 | 账号密码来自外部配置，无管理API |
 
 ## 实现和验收约束

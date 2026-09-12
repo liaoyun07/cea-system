@@ -1,5 +1,7 @@
 # 系统总览
 
+UI-07：执行总览读取runtime拥有的执行窗口聚合；产物声明读取不可变Execution.definition，内容按实际TaskRun读取已有成功JSON；Kubernetes只读页通过resource目录与显式连接访问Node、该连接Namespace及其中的Service。无新状态所有权、数据库表/列、Runner或调度路径。验证/发布状态见[进度](04-progress.md)，不是完整Kubernetes管理台。
+
 UI-06补执行Metrics：已有JSON产物→命名空间READ授权读取→真实TaskRun实例表与单指标图；不改变算法/执行/存储所有权，不新增计量表或速率口径。当前验证与发布状态见[进度](04-progress.md)。
 
 DEPLOY-01提供当前可运行的[独立CEA部署](../deploy/cea/README.md)：同一台Windows/Docker Desktop上12个常驻容器，D盘Linux命名卷，独立前后端、数据库、存储、四仓库和四集群。FedAvg/FedProx真实两轮及重启持久性通过；不导入旧业务数据，不等于S7切换、物理多云或吞吐验收。仅修正既有Kubernetes文件上传为字节流，没有新模型/表/执行链。算法Pod stdout尚未汇入工作台Execution日志。

@@ -64,6 +64,10 @@ public final class FlowExecutionService {
         access.require(actor, namespace, Action.READ);
         return executions.list(namespace, limit, offset);
     }
+    public com.project.platform.runtime.execution.ExecutionService.Overview overview(Actor actor,String namespace,int days) {
+        access.require(actor,namespace,Action.READ);
+        return executions.overview(namespace,days);
+    }
     public List<ExecutionRecord.TaskRun> tasks(Actor actor, String namespace, String id) {
         access.require(actor, namespace, Action.READ);
         return executions.tasks(namespace, id);

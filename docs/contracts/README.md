@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [UI-07只读查询](ui07-readonly-inspection.md)：增加5个GET，当前57个HTTP操作。OpenAPI增加9个查询record映射（Page分别映射Node/Service响应），共67个显式record映射；23张业务表不变。
+
 - [UI-06 JSON输出读取](../features/UI-06-execution-metrics.md)：新增GET tasks/{taskRunId}/output-json?port，仅成功实例的声明产物，READ授权/精确地址/256KiB/单JSON对象。当前HTTP操作总数52，record/表不变；OpenAPI同步。
 
 - [UI-01独立前端](ui-console.md)：通过现有API完成源编辑、固定修订执行、日志与结果；无新HTTP操作或旧DTO适配。
@@ -37,5 +39,7 @@ S4-02b/c增加真实镜像复制及常驻Deployment链，与Execution主链分�
 - [S5-02联邦学习文件契约与使用](../../algorithms/federated/README.md)：两个显式Flow、五个应用角色契约，复用上述API，没有新HTTP操作；后续Loop字段见下方。
 
 ## S5-03接入补充
+
+[UI-07只读查询](ui07-readonly-inspection.md)：执行窗口总览、快照输出声明、Node/Service/配置Namespace的分页及READ边界；复用成功JSON读取。新增5个GET，无表/列迁移。
 
 [网关/终端与策略协议](s5-edge-access.md)：CONNECT身份、管理范围隔离、统一提交与正常结果查询；不包含离线恢复。完整路由与record继续维护在[OpenAPI](openapi.json)。

@@ -26,7 +26,7 @@ rules:
     resources: [jobs]
     verbs: [get, list, create, update, patch]
   - apiGroups: [""]
-    resources: [pods]
+    resources: [pods, services]
     verbs: [get, list]
   - apiGroups: [""]
     resources: [pods/exec]
@@ -42,6 +42,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata: {name: cea-observe-nodes}
 rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [cea-lab]
+    verbs: [get]
   - apiGroups: [""]
     resources: [nodes]
     verbs: [list]

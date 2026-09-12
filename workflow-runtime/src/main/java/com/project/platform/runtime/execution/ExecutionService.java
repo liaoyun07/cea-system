@@ -46,6 +46,13 @@ public final class ExecutionService {
     public void configureConcurrency(FlowDefinition flow) { store.configureConcurrency(flow); }
 
     public ExecutionRecord get(String namespace, String id) { return store.get(namespace, id); }
+    public record DayCount(String date, ExecutionState state, long count) {}
+    public record Recent(String id, String flowId, ExecutionState state, java.time.Instant createdAt) {}
+    public record Overview(java.time.Instant from, java.time.Instant to, List<DayCount> days, List<Recent> recent) {}
+    public Overview overview(String namespace, int days) {
+        if (days < 1 || days > 31) throw WorkflowException.invalid("days", "must be 1..31");
+        return store.overview(namespace, days);
+    }
     public void cancel(String namespace, String id) { store.requestCancel(namespace,id); }
     public List<ExecutionRecord> list(String namespace, int limit, int offset) {
         page(limit, offset);

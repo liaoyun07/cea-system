@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+UI-07已完成任务产物JSON查看、运行总览与Node/Service/Kubernetes Namespace只读页面；220项Maven、41项Node和44项浏览器测试通过。不修改执行/调度链或已有数据，尚未发布CEA。详情见[进度](docs/04-progress.md)与[功能边界](docs/features/UI-07-readonly-inspection.md)。
+
 DEPLOY-01独立部署已验证：D盘Docker数据、`cea` Compose分组、前后端/MySQL/MinIO/四个Registry/四个K3s；[部署与配置入口](deploy/cea/README.md)。访问 `http://127.0.0.1:18080`，账号developer，随机密码在本地`deploy/cea/.env`的BACKEND_PASSWORD。FedAvg/FedProx已各完成全量MNIST两轮、11个Job及数值复核；整组重启后数据保留。不是旧系统切换或物理多云/吞吐验收，详见[验证记录](docs/verification/VER-DEPLOY-001-cea.md)。
 
 UI-03已将老页面中有现成新API的能力接入[独立前端](frontend/README.md)：应用/镜像分发、部署创建查询删除、集群/数据集、网关/终端、同源边缘策略和卸载观测。CEA的18080前端已更新；其他11个服务未重启、旧数据未导入。29项Node、28项真实浏览器及212项Maven/12项Python回归通过，范围与后端缺口见[UI-03验收](docs/verification/VER-UI-003-management.md)。

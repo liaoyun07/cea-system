@@ -1,17 +1,8 @@
 // Metrics are read from named artifacts, never guessed from logs or recomputed from task durations.
-export function metricSources(flow) {
-  const result = [];
-  function visit(tasks = []) {
-    for (const task of tasks) {
-      const ports = (task.container?.outputFiles || []).filter((port) => port.endsWith('.json'));
-      if (ports.length) result.push({ id: task.id, ports });
-      visit(task.tasks);
-      visit(task.then);
-      visit(task.else);
-    }
-  }
-  for (const group of ['tasks', 'errors', 'finally', 'afterExecution']) visit(flow?.[group]);
-  return result;
+export function metricSources(declarations) {
+  return declarations
+    .map((entry) => ({ ...entry, ports: entry.ports.filter((port) => port.endsWith('.json')) }))
+    .filter((entry) => entry.ports.length);
 }
 
 export function instanceLabel(task, tasks) {

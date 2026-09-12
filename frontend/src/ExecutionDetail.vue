@@ -6,6 +6,7 @@ import { duration } from './execution-graph.js';
 import ExecutionGraph from './ExecutionGraph.vue';
 import TaskRunDetail from './TaskRunDetail.vue';
 import ExecutionMetrics from './ExecutionMetrics.vue';
+import ExecutionArtifacts from './ExecutionArtifacts.vue';
 
 const props = defineProps({ api: Function, executionId: String });
 const run = ref(null),
@@ -259,10 +260,13 @@ onBeforeUnmount(() => {
         </div>
       </section>
       <ExecutionMetrics v-else-if="tab === 'metrics'" :api="api" :run="run" :tasks="tasks" />
-      <section v-else class="panel">
-        <h2>主执行输出</h2>
-        <pre class="output-code" data-testid="execution-outputs">{{ pretty(run.outputs) }}</pre>
-      </section>
+      <div v-else>
+        <section class="panel">
+          <h2>主执行输出</h2>
+          <pre class="output-code" data-testid="execution-outputs">{{ pretty(run.outputs) }}</pre>
+        </section>
+        <ExecutionArtifacts :api="api" :run="run" :tasks="tasks" />
+      </div>
     </template>
     <div v-else-if="loading" class="empty">正在读取执行…</div>
     <footer class="refresh-note">

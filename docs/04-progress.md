@@ -1,5 +1,7 @@
 # 当前进度
 
+最新完成UI-07：产物JSON查看、运行总览、Kubernetes只读资源。2个新Java文件、5个GET查询，不新增表/列/调度动作；89个生产Java、57个HTTP操作。2026-09-12 19:37:20完整verify 220项通过；41项Node、44项真实浏览器、构建/格式/scaffold及桌面/390px视觉验收通过。产物声明与Metrics共用Execution快照，不跨USER/EDGE_POLICY管理入口读Flow。CEA尚未发布，RBAC未应用，原Flow/历史及旧系统未改；下一步须经用户确认再更新CEA前后端与受限只读RBAC。详见[规格](features/UI-07-readonly-inspection.md)与[验证](verification/VER-UI-007-readonly-inspection.md)。
+
 最新完成：UI-06执行Metrics已发布CEA，新增已有JSON产物的受权只读接口及前端指标选择/实例明细/图表；不改执行链、表或算法镜像。2026-09-12 17:00:24完整verify 216项通过；40项Node、42项浏览器、构建/格式/scaffold通过，真实FedAvg/FedProx两轮原值与文件一致。用户确认后17:15仅替换前后端，17:16:52实际18080的两算法历史指标图/表、刷新、桌面/390px复核PASS；FedAvg r5/FedProx r3及其历史、4条Execution、38个TaskRun及Attempt未变，其余10容器ID/StartedAt/镜像ID未变。没有重跑生产训练。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
 
 最新完成：UI-05只读执行拓扑、轮次/item实例选择、TaskRun输出/时间/尝试，以及两个联邦Flow显式数据集SELECT。36项Node、40项真实浏览器、215项Maven及构建/格式/scaffold通过。2026-09-12 14:45只更新CEA前端，FedAvg r4→r5、FedProx r2→r3；14:46:19实际页面只读复核PASS，历史修订和四条执行未变，其余11个容器ID/StartedAt未变。无Java/API/表/执行主链变化，未增加Pod日志或产物内容/指标解析。见[验证记录](verification/VER-UI-005-execution-inspection.md)。
@@ -30,7 +32,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 
 ## 当前事实
 
-- UI-03：已有API管理页与真实部署验收完成。策略复用单一Flow编辑源和原执行器，目录版本/归属/CAS约束保持。应用注册不是镜像tar上传；Deployment更新回读不足，暂不提供编辑/启停/缩放；账号、Node/Service/Namespace、对象浏览及分发历史仍缺接口。
+- UI-03：已有API管理页与真实部署验收完成。策略复用单一Flow编辑源和原执行器，目录版本/归属/CAS约束保持。应用注册不是镜像tar上传；Deployment更新回读不足，暂不提供编辑/启停/缩放。UI-07补Kubernetes只读查询与成功JSON产物查看（状态见本页顶部）；账号管理、Kubernetes写操作、全局对象浏览和分发历史仍缺接口。
 
 - UI-01：内存Basic认证、命名空间；真实Flow列表/搜索/分页、YAML源校验/Schema参考、修订CAS和未保存提示；显式Flow.inputs类型表单/预览、固定修订及未决请求同键重试；Execution/TaskRun/Attempt、增量日志、取消、主结果与afterExecution展示。前端独立npm工程，不增Java、表、API或第二套绑定。原先“前端未实现”的记录指此批之前或完整前端范围。
 
@@ -44,15 +46,15 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 
 - S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
-- 独立8模块，86份生产Java（含8份包声明），12个测试类（含1个Failsafe部署测试）；本轮新增NamespaceFileService和两个Controller，未新增测试类。模块依赖未增加，runtime仍不依赖业务模块。
+- 独立8模块，89份生产Java（含8份包声明），12个测试类（含1个Failsafe部署测试）；UI-07新增KubernetesResourceService及其Controller，未新增测试类。模块依赖未增加，runtime仍不依赖业务模块。
 - 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
 - 主链：统一提交Checks → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally → 主终态 → 同链afterExecution。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
 - 叶子支持Log/Sleep、真实Application Job或终端Docker、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application容器内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
 - V1–V17共23张业务表；V16新增df_namespace_file，V17新增sla_violated_at并扩大phase列；04b增加resource终端预约表、offloading观测/模型两表，不复制Execution。字段真实消费者见卸载协议；既有接入hash、Worker prepared_json、TaskRun轮次/所属作用域语义保持。
-- 当前51个HTTP操作、58个公开record映射。本轮增加3个文件操作和Webhook，Check/Sla/NamespaceFile引用及文件API record；无新Worker端点、Binding、Runner或SPI。
-- 本批完整verify通过212项：runtime33、持久化86、接入18、编辑/文件/生命周期21、容器/联邦33、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。全部零失败/错误/跳过，不重复累加定向复测；失败与修正保留在VER-S6-002。
+- 当前57个HTTP操作、67个公开record映射。UI-07新增5个只读GET和9个查询响应映射（泛型Page分别映射Node/Service）；无新Worker端点、Binding、Runner或SPI。
+- S6历史verify通过212项：runtime33、持久化86、接入18、编辑/文件/生命周期21、容器/联邦33、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。后续UI-06基线216项通过，当前批次以顶部及VER-UI-007为准，不把历史结果当本批结果。
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
 - FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
