@@ -15,6 +15,7 @@ const browser = await chromium.launch({ headless: true });
 const errors = [];
 const logCounts = {};
 const catalogCounts = {};
+const metricsEvidence = {};
 const page = await browser.newPage({ baseURL: 'http://127.0.0.1:' + settings.CEA_HTTP_PORT, viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', error => errors.push(error.message));
 try {
@@ -186,6 +187,41 @@ try {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path: fileURLToPath(new URL(flow + '-task-graph-narrow.png', evidence)), fullPage: true});
     await page.setViewportSize({width: 1440, height: 1000});
+    await page.getByRole('tab', {name: 'Metrics', exact: true}).click();
+    await expect(page.getByLabel('指标任务', {exact: true})).toHaveValue('evaluate');
+    await expect(page.getByLabel('指标产物', {exact: true})).toHaveValue('metrics.json');
+    const evaluations = taskRuns.filter(task => task.taskId === 'evaluate' && task.state === 'SUCCESS');
+    expect(evaluations).toHaveLength(2);
+    const actualMetrics = [];
+    for (const task of evaluations) {
+      const response = await page.request.get('/api/namespaces/lab/executions/' + currentId + '/tasks/' + task.id + '/output-json?port=metrics.json', {headers: authHeaders});
+      expect(response.status()).toBe(200);
+      actualMetrics.push({taskRunId: task.id, iteration: task.iteration, values: await response.json()});
+    }
+    await expect(page.getByRole('button', {name: '刷新指标', exact: true})).toBeEnabled();
+    for (const name of ['accuracy', 'loss', 'samples', 'round']) {
+      await page.getByLabel('指标名称', {exact: true}).selectOption(name);
+      await expect(page.locator('.metric-bar')).toHaveCount(evaluations.length);
+      for (const entry of actualMetrics) {
+        expect(Number.isFinite(entry.values[name])).toBe(true);
+        await expect(page.locator('.metric-bar[data-task-run="' + entry.taskRunId + '"]')).toHaveAttribute('data-value', String(entry.values[name]));
+        const metricRow = page.getByRole('table', {name: '指标明细'}).getByRole('row').filter({hasText: entry.taskRunId});
+        await expect(metricRow.getByRole('cell').nth(2)).toHaveText(String(entry.values[name]));
+        await expect(metricRow).toContainText('rounds[' + entry.iteration + ']');
+        await expect(metricRow).toContainText('algorithm: ' + flow);
+      }
+    }
+    await page.getByLabel('指标名称', {exact: true}).selectOption('accuracy');
+    await page.getByRole('button', {name: '刷新指标', exact: true}).click();
+    await expect(page.getByRole('button', {name: '刷新指标', exact: true})).toBeEnabled();
+    await expect(page.getByLabel('指标名称', {exact: true})).toHaveValue('accuracy');
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-metrics.png', evidence)), fullPage: true});
+    await page.setViewportSize({width: 390, height: 1000});
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-metrics-narrow.png', evidence)), fullPage: true});
+    await page.setViewportSize({width: 1440, height: 1000});
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    metricsEvidence[flow] = {executionId: currentId, rows: actualMetrics};
     await page.getByRole('tab', { name: '输出', exact: true }).click();
     await expect(page.getByTestId('execution-outputs')).toContainText('completed_rounds');
     await page.screenshot({ path: fileURLToPath(new URL(flow + '-outputs.png', evidence)), fullPage: true });
@@ -207,7 +243,7 @@ try {
     await page.getByRole('button', { name: '执行', exact: true }).first().click();
   }
   expect(errors).toEqual([]);
-  const result = { result: 'PASS', scope: 'real deployed frontend: explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; desktop/narrow; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
+  const result = { result: 'PASS', scope: 'real deployed frontend: federated metrics accuracy/loss/samples/round chart and table match authorized artifact API, round identity, refresh selection, desktop/390px; explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', metricsEvidence, logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {
