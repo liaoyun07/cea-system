@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Cloud Edge Backend API",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "S1-S6 backend including Namespace Files, authenticated idempotent Webhook, shared Checks, max-duration SLA and durable afterExecution. No complete frontend, throughput SDK or long-horizon DQN."
   },
   "servers": [
@@ -16,6 +16,27 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/executions/{id}/tasks/{taskRunId}/output-json": {
+      "parameters": [
+        {"name": "namespace", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "taskRunId", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "operationId": "executionOutputJson",
+        "description": "READ. Reads an existing JSON output of a SUCCESS TaskRun and its successful Attempt. Port must be declared by the execution's pinned Flow revision. Exact configured artifact bucket and namespace/execution/task/attempt key only. Maximum 262144 bytes; one JSON object; no arbitrary URL, storage listing, ingestion, or writes.",
+        "parameters": [{"name": "port", "in": "query", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "Original JSON object", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "401": {"description": "Authentication required"},
+          "403": {"description": "Namespace READ denied"},
+          "404": {"description": "Execution, task, published port, successful attempt or stored file not found"},
+          "409": {"description": "Task has no successfully committed output"},
+          "422": {"description": "Undeclared/non-JSON port, foreign artifact URI, oversized or invalid/non-object JSON"},
+          "502": {"description": "Object storage unavailable (no credentials disclosed)"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/flows/editor/schema": {
       "parameters": [
         {

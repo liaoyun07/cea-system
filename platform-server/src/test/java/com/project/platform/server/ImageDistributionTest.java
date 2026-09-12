@@ -1,5 +1,7 @@
 package com.project.platform.server;
 
+import com.project.platform.runtime.model.WorkflowException;
+
 import com.project.platform.deployment.application.*;
 import com.project.platform.deployment.distribution.*;
 import com.project.platform.foundation.identity.AccessPolicy.*;
@@ -945,6 +947,38 @@ class ImageDistributionTest {
             }
         }
     }
+    @Test void jsonOutputIsBoundedAuthorizedPinnedAndNeverAcceptsForeignUris() throws Exception {
+        String command="printf '{\"loss\":0.25,\"accuracy\":0.8,\"algorithm\":\"fixture\"}' > /cea-work/out/metrics.json; "
+                +"printf '[]' > /cea-work/out/array.json; printf '{} {}' > /cea-work/out/trailing.json; "
+                +"printf '{\"loss\":1,\"loss\":2}' > /cea-work/out/duplicate.json; printf '{\"loss\":1e400}' > /cea-work/out/invalid.json; "
+                +"head -c 262145 /dev/zero > /cea-work/out/big.json";
+        String id=submit("tasks:\n  - id: measure\n    type: platform.Application\n    timeout: PT60S\n    container:\n      applicationId: service\n      version: v1\n      candidateClusters: [edge]\n      command: "+json.write(List.of("sh","-c",command))+"\n      outputFiles: [metrics.json, array.json, trailing.json, duplicate.json, invalid.json, big.json]\n");
+        var reader=context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class);
+        var run=executions().tasks(actor,"lab",id).getFirst();
+        assertEquals(WorkflowException.Kind.CONFLICT,assertThrows(WorkflowException.class,()->reader.readJson(actor,"lab",id,run.id(),"metrics.json")).kind());
+        drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state());
+        var value=reader.readJson(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab",id,run.id(),"metrics.json");
+        assertEquals(0.25,value.get("loss"));assertEquals(0.8,value.get("accuracy"));
+        assertThrows(Forbidden.class,()->reader.readJson(new Actor("foreign",Set.of("other"),Set.of(Action.READ)),"lab",id,run.id(),"metrics.json"));
+        assertEquals(WorkflowException.Kind.NOT_FOUND,assertThrows(WorkflowException.class,()->reader.readJson(actor,"lab",id,"foreign-task","metrics.json")).kind());
+        for(String port:List.of("array.json","trailing.json","duplicate.json","invalid.json","../metrics.json","model.pt","unknown.json"))
+            assertThrows(WorkflowException.class,()->reader.readJson(actor,"lab",id,run.id(),port),port);
+        assertThrows(ResourceException.class,()->reader.readJson(actor,"lab",id,run.id(),"big.json"));
+        var objectStorage=context.getBean(com.project.platform.resource.storage.ObjectStorage.class);
+        for(String uri:List.of("http://localhost/metrics.json","s3://datasets/metrics.json","s3://artifacts/other/metrics.json","s3://artifacts/lab/other/"+run.id()+"/1/metrics.json","s3://artifacts/lab/"+id+"/"+run.id()+"/2/metrics.json"))
+            assertThrows(ResourceException.class,()->objectStorage.readPublished("lab",id,run.id(),1,"metrics.json",uri,262144));
+        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/executions/"+id+"/tasks/"+run.id()+"/output-json?port=metrics.json";
+        var request=HttpRequest.newBuilder(URI.create(base));
+        assertEquals(401,http.send(request.GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        request.header("Authorization","Basic "+Base64.getEncoder().encodeToString("writer:test-api".getBytes(StandardCharsets.UTF_8)));
+        var response=http.send(request.GET().build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,response.statusCode(),response.body());assertEquals(value,json.map(response.body()));
+        var execution=executions().get(actor,"lab",id);
+        context.getBean(FlowService.class).save(actor,"lab",execution.flowId(),1,"schemaVersion: 1\nnamespace: lab\nid: "+execution.flowId()+"\ntasks: [{id: newer, type: core.Log, message: changed}]");
+        assertEquals(value,reader.readJson(actor,"lab",id,run.id(),"metrics.json"));
+        try(var client=s3()) {client.removeObject(io.minio.RemoveObjectArgs.builder().bucket("artifacts").object("lab/"+id+"/"+run.id()+"/1/metrics.json").build());}
+        assertEquals(404,http.send(request.GET().build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+    }
     @Test void fedAvgMigratesThroughActualTrainingAggregationAndEvaluation() throws Exception {verifyFederation("fedavg");}
     @Test void fedProxMigratesThroughActualTrainingAggregationAndEvaluation() throws Exception {verifyFederation("fedprox");}
     private void verifyFederation(String algorithm) throws Exception {
@@ -1001,6 +1035,10 @@ class ImageDistributionTest {
             assertEquals(clients.stream().map(r->r.outputs().get("model.pt")).toList(),loop.outputs().get("models"));
             var aggregate=runs.stream().filter(r->r.taskId().equals("aggregate")&&r.iteration()==n).findFirst().orElseThrow();
             var evaluate=runs.stream().filter(r->r.taskId().equals("evaluate")&&r.iteration()==n).findFirst().orElseThrow();
+            var metrics=context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class).readJson(actor,"lab",id,evaluate.id(),"metrics.json");
+            assertEquals(n,((Number)metrics.get("round")).intValue());assertEquals(algorithm,metrics.get("algorithm"));
+            assertEquals(json.map(Files.readString(evidence.resolve("evaluate-r"+n+".json"))),metrics);
+            assertTrue(Double.isFinite(((Number)metrics.get("loss")).doubleValue()));
             assertTrue(clients.stream().allMatch(r->!aggregate.startedAt().isBefore(r.endedAt())));
             assertFalse(evaluate.startedAt().isBefore(aggregate.endedAt()));
             var latestStart=clients.stream().map(r->r.startedAt()).max(Comparator.naturalOrder()).orElseThrow();

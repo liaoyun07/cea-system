@@ -1,5 +1,7 @@
 # 系统总览
 
+UI-06补执行Metrics：已有JSON产物→命名空间READ授权读取→真实TaskRun实例表与单指标图；不改变算法/执行/存储所有权，不新增计量表或速率口径。当前验证与发布状态见[进度](04-progress.md)。
+
 DEPLOY-01提供当前可运行的[独立CEA部署](../deploy/cea/README.md)：同一台Windows/Docker Desktop上12个常驻容器，D盘Linux命名卷，独立前后端、数据库、存储、四仓库和四集群。FedAvg/FedProx真实两轮及重启持久性通过；不导入旧业务数据，不等于S7切换、物理多云或吞吐验收。仅修正既有Kubernetes文件上传为字节流，没有新模型/表/执行链。算法Pod stdout尚未汇入工作台Execution日志。
 
 UI-01/02提供[独立工作台](../frontend/README.md)：Vue客户端 → 同源/api代理 → 现有Flow/Execution API。UI-02增加任务分组/单配置面板、显式绑定/目录选择、同源YAML编辑和修订比较回退。UI-03扩展已有后端支持的应用/镜像准备/部署、资源目录和边缘管理页面，范围见[迁移矩阵](features/UI-03-management.md)。八模块、状态所有权及数据库不变；没有旧DTO/旧数据迁移，完整Kestra及S7仍未完成。

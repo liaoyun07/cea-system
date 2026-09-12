@@ -26,8 +26,9 @@ public final class ExecutionController {
     }
     private final FlowExecutionService executions;
     private final IdentityDirectory identities;
-    public ExecutionController(FlowExecutionService executions, IdentityDirectory identities) {
-        this.executions = executions; this.identities = identities;
+    private final com.project.platform.dataflow.execution.ExecutionOutputService outputs;
+    public ExecutionController(FlowExecutionService executions, IdentityDirectory identities,com.project.platform.dataflow.execution.ExecutionOutputService outputs) {
+        this.executions = executions; this.identities = identities; this.outputs=outputs;
     }
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -63,5 +64,9 @@ public final class ExecutionController {
     public List<ExecutionRecord.LogEntry> logs(Principal principal, @PathVariable String namespace, @PathVariable String id,
                                               @RequestParam(defaultValue="0") long afterId, @RequestParam(defaultValue="50") int limit) {
         return executions.logs(identities.actor(principal.getName()), namespace, id, afterId, limit);
+    }
+    @GetMapping("/{id}/tasks/{taskRunId}/output-json")
+    public Map<?,?> outputJson(Principal principal,@PathVariable String namespace,@PathVariable String id,@PathVariable String taskRunId,@RequestParam String port) {
+        return outputs.readJson(identities.actor(principal.getName()),namespace,id,taskRunId,port);
     }
 }

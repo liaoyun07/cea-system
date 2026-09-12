@@ -2,6 +2,8 @@
 
 这是当前代码结构的权威索引。状态与计划见[实施计划](03-implementation-plan.md)和[进度](04-progress.md)。包根为 `com.project.platform`，不沿用旧 DTO/包依赖。
 
+UI-06增量（2026-09-12）：新增ExecutionOutputService（下表列出）和1个GET output-json操作；ObjectStorage增加精确成功产物的有界读取，既有Controller/异常映射/装配新增当前消费者。执行链、依赖边界及表/列不变。当前87个生产Java文件、52个HTTP操作；58个显式公开record和23张业务表不变。前端ExecutionMetrics/execution-metrics为按需读取/图表/明细消费者，详见[边界](features/UI-06-execution-metrics.md)。
+
 UI-04 SELECT增量（2026-09-12）：只修改既有FlowDefinition.Input（增加values及SELECT枚举）、FlowValidator（选项定义/默认值约束）、BindingResolver（运行输入类型/成员校验）、FlowSchema（选项字符串数组编辑结构）。Input.values以List<Object>保留原始JSON元素类型，避免数字/布尔被反序列化为字符串而绕过校验；合法定义只允许非空白、不重复的字符串。消费者为保存校验、预览、统一prepare及No-code/执行表单。无新增/删除Java文件、表/列、SPI或模块依赖；仍使用原Flow修订与Execution快照JSON，无DB migration。完整语义见[SELECT输入](features/UI-04-select-input.md)。
 
 ## 工程结构
@@ -156,6 +158,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化及USER源搜索 | save/get/history/search | 锁稳定head，CAS保存；只追加版本 | WF-003、WF-015 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | 定义管理及编辑门面 | save/get/history/list/search/rollback/schema/validate/preview/export/importFlows | WRITE/READ授权；启用Schedule另需EXECUTE；修订/并发配置/Schedule同事务，批量全有或全无 | WF-003、WF-015、WF-016、SEC-001 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | 提交、取消与运行查询门面 | submit/get/list/tasks/attempts/logs/cancel | 授权；原始请求hash优先查幂等，解析版本后委托runtime | WF-004、WF-006、SEC-001 | I |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionOutputService.java` | UI-06授权读取已有JSON输出 | readJson/Unavailable | 真实TaskRun/成功Attempt/执行固定修订；仅声明的JSON文件，256KiB限制；无写入 | UI-06 | J |
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | 有限批次内置消息推进 | poll | 每步由Executor独立事务；DB故障下次再试 | WF-005 | I |

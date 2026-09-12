@@ -1,5 +1,7 @@
 # 当前进度
 
+最新完成：UI-06执行Metrics的代码与验证，新增已有JSON产物的受权只读接口及前端指标选择/实例明细/图表；不改执行链、表或算法镜像。2026-09-12 17:00:24完整verify 216项通过；40项Node、42项浏览器、构建/格式/scaffold通过，真实FedAvg/FedProx两轮原值与文件一致。尚未发布CEA前后端，等当次确认；存量Flow、历史和服务未变。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
+
 最新完成：UI-05只读执行拓扑、轮次/item实例选择、TaskRun输出/时间/尝试，以及两个联邦Flow显式数据集SELECT。36项Node、40项真实浏览器、215项Maven及构建/格式/scaffold通过。2026-09-12 14:45只更新CEA前端，FedAvg r4→r5、FedProx r2→r3；14:46:19实际页面只读复核PASS，历史修订和四条执行未变，其余11个容器ID/StartedAt未变。无Java/API/表/执行主链变化，未增加Pod日志或产物内容/指标解析。见[验证记录](verification/VER-UI-005-execution-inspection.md)。
 
 最新完成：UI-02d仅将Loop.values每项改为JSON文本框，保留逐项增删排序/来源与原DSL；不扩展inputs或统一任务表单方案。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；2026-09-12 02:45只更新CEA前端，实际18080页面只读复核PASS，两Flow及四条历史执行不变，其余11个服务未重启。无Java/表/API或执行链变化。见[验证记录](verification/VER-UI-002d-loop-json-items.md)。

@@ -5,6 +5,7 @@ import { mergeLogs, pretty, terminal, time } from './model.js';
 import { duration } from './execution-graph.js';
 import ExecutionGraph from './ExecutionGraph.vue';
 import TaskRunDetail from './TaskRunDetail.vue';
+import ExecutionMetrics from './ExecutionMetrics.vue';
 
 const props = defineProps({ api: Function, executionId: String });
 const run = ref(null),
@@ -138,6 +139,7 @@ onBeforeUnmount(() => {
           ['graph', '拓扑'],
           ['tasks', '任务实例'],
           ['logs', '日志'],
+          ['metrics', 'Metrics'],
           ['outputs', '输出'],
         ]"
         :key="entry[0]"
@@ -256,6 +258,7 @@ onBeforeUnmount(() => {
           <p v-if="!logs.length" class="muted">暂无日志</p>
         </div>
       </section>
+      <ExecutionMetrics v-else-if="tab === 'metrics'" :api="api" :run="run" :tasks="tasks" />
       <section v-else class="panel">
         <h2>主执行输出</h2>
         <pre class="output-code" data-testid="execution-outputs">{{ pretty(run.outputs) }}</pre>

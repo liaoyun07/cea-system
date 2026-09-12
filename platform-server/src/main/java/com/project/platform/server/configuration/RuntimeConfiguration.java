@@ -55,6 +55,9 @@ public class RuntimeConfiguration {
         return new FlowService(repository, parser, access, executions, scheduler);
     }
     @Bean ExecutionService executionService(JdbcExecutionStore store) { return new ExecutionService(store); }
+    @Bean com.project.platform.dataflow.execution.ExecutionOutputService executionOutputService(FlowExecutionService executions,com.project.platform.resource.storage.ObjectStorage storage) {
+        return new com.project.platform.dataflow.execution.ExecutionOutputService(executions,storage);
+    }
     @Bean FlowExecutionService flowExecutionService(JdbcFlowRepository flows, ExecutionService executions,
                                                   BindingResolver bindings, JsonCodec json, AccessPolicy access) {
         return new FlowExecutionService(flows, executions, bindings, json, access);

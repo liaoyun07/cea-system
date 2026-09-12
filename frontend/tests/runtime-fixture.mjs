@@ -112,9 +112,52 @@ export async function startRuntime(token) {
     const config = parse(readFileSync(kubeconfig, 'utf8'));
     config.clusters[0].cluster.server = `https://127.0.0.1:${docker('port', k3s, '6443/tcp').split(':').at(-1)}`;
     writeFileSync(kubeconfig, stringify(config));
+    const minio = docker(
+      'run',
+      '-d',
+      '-p',
+      '127.0.0.1::9000',
+      '-e',
+      'MINIO_ROOT_USER=ui-test-key',
+      '-e',
+      'MINIO_ROOT_PASSWORD=ui-test-secret',
+      'quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z',
+      'server',
+      '/data',
+    );
+    owned.push(minio);
+    let storageReady = false;
+    for (let i = 0; i < 60; i++) {
+      try {
+        docker(
+          'exec',
+          minio,
+          'mc',
+          'alias',
+          'set',
+          'local',
+          'http://127.0.0.1:9000',
+          'ui-test-key',
+          'ui-test-secret',
+        );
+        docker('exec', minio, 'mc', 'mb', '--ignore-existing', 'local/artifacts');
+        storageReady = true;
+        break;
+      } catch {
+        await wait(500);
+      }
+    }
+    if (!storageReady) throw new Error('Isolated object storage did not become ready');
+    writeFileSync(join(directory, 's3-key'), 'ui-test-key');
+    writeFileSync(join(directory, 's3-secret'), 'ui-test-secret');
     return {
       cleanup,
       args: [
+        `--platform.jobs.storage.lab.endpoint=http://127.0.0.1:${docker('port', minio, '9000/tcp').split(':').at(-1)}`,
+        `--platform.jobs.storage.lab.access-key-file=${join(directory, 's3-key')}`,
+        `--platform.jobs.storage.lab.secret-key-file=${join(directory, 's3-secret')}`,
+        '--platform.jobs.storage.lab.artifact-bucket=artifacts',
+        '--platform.jobs.slots.lab.runtime-edge=2',
         '--platform.distribution.registries.ui.address=ui-registry:5000',
         '--platform.distribution.registries.ui.tls-verify=false',
         '--platform.distribution.registries.ui.auth-file=/tmp/auth.json',

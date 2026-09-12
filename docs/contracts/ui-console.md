@@ -1,6 +1,8 @@
 # UI-01/02/03 前端对接边界
 
-独立Vue前端通过同源`/api/namespaces/{namespace}`调用原51个操作中的子集，没有新API或响应封装。
+UI-06增量：执行Metrics新增GET `/executions/{id}/tasks/{taskRunId}/output-json?port=文件名`，返回已发布的JSON对象；平台按READ权限、固定修订声明和成功TaskRun/Attempt验证，256KiB上限。页面只展示有限数值及字符串/布尔标签，实例上下文/完成时间来自原TaskRun。无新上报/计量逻辑；现有API共52个。见[完整边界](../features/UI-06-execution-metrics.md)。
+
+独立Vue前端通过同源`/api/namespaces/{namespace}`调用52个操作中的子集；UI-06只新增上述只读JSON输出接口，无旧DTO或第二套响应包装。
 
 UI-02使用同一source作为唯一事实源：`GET /flows/editor/schema`提供结构字段；Document路径编辑只更新用户修改部分；TASK_OUTPUT与ITEM下拉仅作结构作用域提示，服务端仍负责权威校验。No-code不持久化画布、alias或第二套binding，不自动派生输入。
 
@@ -26,4 +28,4 @@ UI-02使用同一source作为唯一事实源：`GET /flows/editor/schema`提供�
 - Deployment：GET集群列表/详情；PUT创建只传显式应用、版本、副本、parameters、command，不传resourceVersion且不自动覆盖已有资源。DELETE使用详情读到的resourceVersion；409要求用户重新读取，不自动刷新重试。202后刷新列表，区分请求接受和资源消失，不声称Pod全部退出。
 - 卸载观测仅GET `/offloading/samples`，显示原数据和关联Execution，不调用模型写入/训练；没有扩大DQN范围。
 
-无账号管理、完整Node/Service/Namespace管理、完整Kestra插件/画线/局部重跑、监控大盘、指标曲线、全局产物浏览下载或旧DTO兼容。对象存储访问不通过向浏览器暴露凭据实现。Deployment回读缺parameters/command，安全编辑/启停/缩放尚不提供。
+无账号管理、完整Node/Service/Namespace管理、完整Kestra插件/画线/局部重跑、监控大盘、跨执行指标趋势、全局产物浏览下载或旧DTO兼容。对象存储访问不通过向浏览器暴露凭据实现。Deployment回读缺parameters/command，安全编辑/启停/缩放尚不提供。

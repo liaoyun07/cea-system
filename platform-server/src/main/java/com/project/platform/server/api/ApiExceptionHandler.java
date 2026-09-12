@@ -12,6 +12,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public final class ApiExceptionHandler {
+    @ExceptionHandler(com.project.platform.dataflow.execution.ExecutionOutputService.Unavailable.class)
+    public ResponseEntity<Map<String,String>> outputStorage(com.project.platform.dataflow.execution.ExecutionOutputService.Unavailable exception) {
+        return ResponseEntity.status(502).body(Map.of("code","OUTPUT_STORAGE_UNAVAILABLE","message",exception.getMessage()));
+    }
     @ExceptionHandler(io.fabric8.kubernetes.client.KubernetesClientException.class)
     public ResponseEntity<Map<String,String>> kubernetes(io.fabric8.kubernetes.client.KubernetesClientException exception) {
         int status=exception.getCode()==409?409:502;

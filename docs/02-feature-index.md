@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-06代码与验证完成：基于已有JSON产物展示实例指标，新增受READ授权的有界读取；216项Maven、40项Node、42项浏览器及构建/格式/scaffold通过。尚未发布CEA前后端；无新计量领域功能，MET-001仍后置。[规格](features/UI-06-execution-metrics.md)，[验证](verification/VER-UI-006-execution-metrics.md)。
+
 UI-05已完成并发布：WF-016既有执行数据的前端消费者，固定修订拓扑、TaskRun输出/时间/尝试及两个联邦Flow显式SELECT。36项Node、40项浏览器、215项Maven与构建/格式/scaffold通过；CEA前端及FedAvg r5/FedProx r3只读实测PASS，历史和其余11服务未变。不新增后端领域功能或计量口径。[规格](features/UI-05-execution-inspection.md)，[验证](verification/VER-UI-005-execution-inspection.md)。
 
 UI-02d已完成并发布：WF-016既有Loop集合每项JSON编辑，保留数组增删排序与原Binding；不新增领域能力。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；只更新CEA前端，实际页面复核PASS，两Flow及四条历史执行未变，其余11个服务未重启。[功能规格](features/UI-02d-loop-json-items.md)，[验证记录](verification/VER-UI-002d-loop-json-items.md)。

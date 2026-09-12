@@ -54,5 +54,18 @@ public final class ObjectStorage {
         try(var client=client(c)){client.statObject(StatObjectArgs.builder().bucket(c.artifactBucket()).object(key).build());}
         return "s3://"+c.artifactBucket()+"/"+key;
     }
+    /** Read only the exact artifact published by this task attempt, never a caller-provided destination. */
+    public byte[] readPublished(String namespace,String executionId,String taskRunId,int attempt,String name,String uri,int limit) throws Exception {
+        var c=connection(namespace);String key=key(namespace,executionId,taskRunId,attempt,name);
+        if(!("s3://"+c.artifactBucket()+"/"+key).equals(uri))throw ResourceException.invalid("output is not this task attempt's published artifact");
+        try(var client=client(c);var input=client.getObject(GetObjectArgs.builder().bucket(c.artifactBucket()).object(key).build())) {
+            byte[] bytes=input.readNBytes(limit+1);
+            if(bytes.length>limit)throw ResourceException.invalid("JSON output exceeds "+limit+" bytes");
+            return bytes;
+        } catch(io.minio.errors.ErrorResponseException ex) {
+            if(Set.of("NoSuchKey","NoSuchObject","NoSuchBucket").contains(ex.errorResponse().code()))throw ResourceException.missing("published output file is missing");
+            throw ex;
+        }
+    }
     private String key(String namespace,String executionId,String taskRunId,int attempt,String name) {return namespace+"/"+executionId+"/"+taskRunId+"/"+attempt+"/"+name;}
 }

@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [UI-06 JSON输出读取](../features/UI-06-execution-metrics.md)：新增GET tasks/{taskRunId}/output-json?port，仅成功实例的声明产物，READ授权/精确地址/256KiB/单JSON对象。当前HTTP操作总数52，record/表不变；OpenAPI同步。
+
 - [UI-01独立前端](ui-console.md)：通过现有API完成源编辑、固定修订执行、日志与结果；无新HTTP操作或旧DTO适配。
 
 - [S6-02至04文件与生命周期](s6-files-lifecycle.md)：小型文本固定修订/真实容器消费、认证Webhook、统一Checks、maxDuration告警及原执行链终态后处理。
@@ -14,7 +16,7 @@
 
 当前为S3执行协议及S4资源/应用目录、镜像/部署、Job/产物和通用任务协议；S1文档保留历史语义，S2叶子与失败语义仍适用，但顺序游标/单Worker串行已由S3替代，远程取消须等待停止的增量语义以S4协议为准。
 
-- [OpenAPI 3.1](openapi.json)：51个HTTP操作（S6-01新增5个编辑/管理操作，02–04新增3个文件操作和Webhook）；没有自动Flow Input派生或第二套绑定接口，字段以此为准。
+- [OpenAPI 3.1](openapi.json)：52个HTTP操作（S6增加编辑/文件/生命周期接口，UI-06增加1个JSON输出读取）；没有自动Flow Input派生或第二套绑定接口，字段以此为准。
 - [S4-02a应用契约目录](s4-application-catalog.md)：版本、类型/默认值/choices、数据集允许范围；目录本身不派生Flow Inputs或启动任务，真实执行见下方S4-03协议。
 - [S4-01资源目录](s4-resource-catalog.md)：集群/数据集版本/位置、权限、候选拒绝原因与当前边界。
 - [S3控制流与调度](s3-protocol.md)：嵌套控制、DAG/If、准入FIFO、Schedule、字段消费者和锁顺序。
