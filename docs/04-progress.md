@@ -1,5 +1,7 @@
 # 当前进度
 
+最新完成：UI-05只读执行拓扑、轮次/item实例选择、TaskRun输出/时间/尝试，以及两个联邦Flow显式数据集SELECT。36项Node、40项真实浏览器、215项Maven及构建/格式/scaffold通过。2026-09-12 14:45只更新CEA前端，FedAvg r4→r5、FedProx r2→r3；14:46:19实际页面只读复核PASS，历史修订和四条执行未变，其余11个容器ID/StartedAt未变。无Java/API/表/执行主链变化，未增加Pod日志或产物内容/指标解析。见[验证记录](verification/VER-UI-005-execution-inspection.md)。
+
 最新完成：UI-02d仅将Loop.values每项改为JSON文本框，保留逐项增删排序/来源与原DSL；不扩展inputs或统一任务表单方案。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；2026-09-12 02:45只更新CEA前端，实际18080页面只读复核PASS，两Flow及四条历史执行不变，其余11个服务未重启。无Java/表/API或执行链变化。见[验证记录](verification/VER-UI-002d-loop-json-items.md)。
 
 最新完成：UI-02c任务表单按类型必填前置/其余纵向排列，Loop/Repeat配置展平，values来源改普通下拉，保留原YAML路径/Binding和保存执行链。31项Node、37项浏览器、215项Maven及构建/格式/scaffold通过；2026-09-12 01:44仅更新CEA前端，01:45实际页面只读复核PASS，两Flow及四条历史执行不变，其余11个服务未重启。无Java/表/API变化，集合元素递归编辑仍保留。详见[验证记录](verification/VER-UI-002c-task-form-layout.md)。

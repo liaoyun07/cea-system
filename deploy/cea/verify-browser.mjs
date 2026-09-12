@@ -117,6 +117,9 @@ try {
     await expect(page.locator('[data-field="inputs.clients"]')).toHaveCount(0);
     await page.getByRole('button', {name: '▷ 执行', exact: true}).click();
     await expect(page.locator('.run-panel')).not.toContainText('clients');
+    await expect(page.locator('select#input-training_dataset')).toHaveValue('mnist-train/v1');
+    await expect(page.locator('select#input-test_dataset')).toHaveValue('mnist-test/v1');
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-dataset-select.png', evidence)), fullPage: true});
     await page.getByRole('button', {name: '关闭执行参数', exact: true}).click();
     await page.locator('[data-task="init"] > .task-card-header .task-select').click();
     const cloudChoice = page.getByRole('button', {name: /cloud · CLOUD/});
@@ -158,6 +161,31 @@ try {
     await row.getByRole('button', { name: '详情 →', exact: true }).click();
     await page.getByRole('tab', { name: /^任务实例/ }).click();
     await expect(page.locator('td > strong').filter({ hasText: /^train$/ })).toHaveCount(6);
+    const currentId = (await page.locator('.execution-id').textContent()).trim();
+    const taskResponse = await page.request.get('/api/namespaces/lab/executions/' + currentId + '/tasks', {headers: authHeaders});
+    expect(taskResponse.status()).toBe(200);
+    const taskRuns = await taskResponse.json();
+    await page.getByRole('tab', {name: '拓扑', exact: true}).click();
+    await expect(page.locator('[data-task="init"]')).toHaveAttribute('data-state', 'SUCCESS');
+    await expect(page.locator('[data-edge="init->rounds"]')).toHaveCount(1);
+    await page.getByRole('button', {name: '展开 rounds', exact: true}).click();
+    await page.getByLabel('迭代实例', {exact: true}).selectOption('2');
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-round-topology.png', evidence)), fullPage: true});
+    const clients = taskRuns.find(task => task.taskId === 'clients' && task.iteration === 2);
+    const train = taskRuns.find(task => task.taskId === 'train' && task.parentTaskRunId === clients.id && task.iteration === 3);
+    await page.getByRole('button', {name: '展开 clients', exact: true}).click();
+    await page.getByLabel('迭代实例', {exact: true}).selectOption('3');
+    await expect(page.getByTestId('graph-item')).toContainText('edge-c');
+    await page.getByRole('button', {name: '查看 train 实例', exact: true}).click();
+    await expect(page.getByLabel('任务实例详情')).toContainText(train.id);
+    expect(JSON.parse(await page.getByTestId('task-outputs').textContent())).toEqual(train.outputs);
+    await expect(page.getByTestId('task-duration')).toHaveText(((Date.parse(train.endedAt) - Date.parse(train.startedAt)) / 1000).toFixed(2) + ' s');
+    await expect(page.locator('.attempt')).toContainText('SUCCESS');
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-task-graph.png', evidence)), fullPage: true});
+    await page.setViewportSize({width: 650, height: 1000});
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({path: fileURLToPath(new URL(flow + '-task-graph-narrow.png', evidence)), fullPage: true});
+    await page.setViewportSize({width: 1440, height: 1000});
     await page.getByRole('tab', { name: '输出', exact: true }).click();
     await expect(page.getByTestId('execution-outputs')).toContainText('completed_rounds');
     await page.screenshot({ path: fileURLToPath(new URL(flow + '-outputs.png', evidence)), fullPage: true });
@@ -179,7 +207,7 @@ try {
     await page.getByRole('button', { name: '执行', exact: true }).first().click();
   }
   expect(errors).toEqual([]);
-  const result = { result: 'PASS', scope: 'real deployed frontend: unsaved SELECT draft schema/default/options and validation/preview membership; read-only management catalogs/details and four-cluster deployment lists, both saved Flows, Loop YAML, both successful executions, six training instances each, outputs and log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
+  const result = { result: 'PASS', scope: 'real deployed frontend: explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; desktop/narrow; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {

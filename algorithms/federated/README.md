@@ -2,6 +2,8 @@
 
 仅本地文件输入输出；没有MinIO客户端、平台SDK、旧FLOW_*环境变量或隐藏模板注册。运行语义见[S5-02规格](../../docs/features/S5-02-federated.md)。
 
+两个Flow示例在inputs中显式声明training_dataset/test_dataset为SELECT，当前选项为mnist-train/v1和mnist-test/v1，启动页直接下拉选择。新增可用数据集时，由Flow作者调整values并确保Application DatasetRule与实际Location满足要求；平台不自动派生Flow Input或合并契约选项。
+
 ## 文件职责
 
 - model.py：MLP/CNN、SGD/FedProx、样本数加权聚合和评估。

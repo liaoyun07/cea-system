@@ -2,13 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { errorText } from './api.js';
 import { mergeLogs, pretty, terminal, time } from './model.js';
+import { duration } from './execution-graph.js';
+import ExecutionGraph from './ExecutionGraph.vue';
+import TaskRunDetail from './TaskRunDetail.vue';
 
 const props = defineProps({ api: Function, executionId: String });
 const run = ref(null),
   tasks = ref([]),
   logs = ref([]),
   attempts = ref([]),
-  selectedTask = ref(null);
+  selectedTaskId = ref(null);
+const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value));
 const tab = ref('overview'),
   loading = ref(false),
   cancelling = ref(false),
@@ -34,10 +38,11 @@ const elapsed = computed(() =>
 );
 
 async function loadAttempts(task) {
-  selectedTask.value = task;
+  selectedTaskId.value = task?.id || null;
   attempts.value = [];
   attemptError.value = '';
   const generation = ++attemptGeneration;
+  if (!task) return;
   try {
     const result = await props.api(`${base}/tasks/${encodeURIComponent(task.id)}/attempts`);
     if (alive && generation === attemptGeneration) attempts.value = result;
@@ -130,6 +135,7 @@ onBeforeUnmount(() => {
       <button
         v-for="entry in [
           ['overview', '概览'],
+          ['graph', '拓扑'],
           ['tasks', '任务实例'],
           ['logs', '日志'],
           ['outputs', '输出'],
@@ -181,6 +187,20 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </div>
+      <div
+        v-else-if="tab === 'graph'"
+        class="execution-inspection"
+        :class="{ 'has-selection': selectedTask }"
+      >
+        <ExecutionGraph
+          :api="api"
+          :run="run"
+          :tasks="tasks"
+          :selected-id="selectedTaskId"
+          @select="loadAttempts"
+        />
+        <TaskRunDetail v-if="selectedTask" :task="selectedTask" :attempts="attempts" :error="attemptError" />
+      </div>
       <div v-else-if="tab === 'tasks'">
         <div class="table-wrap">
           <table>
@@ -192,6 +212,8 @@ onBeforeUnmount(() => {
                 <th>父实例</th>
                 <th>状态</th>
                 <th>开始时间</th>
+                <th>结束时间</th>
+                <th>实例耗时</th>
                 <th></th>
               </tr>
             </thead>
@@ -210,23 +232,15 @@ onBeforeUnmount(() => {
                   <span class="status" :data-state="task.state">{{ task.state }}</span>
                 </td>
                 <td>{{ time(task.startedAt) }}</td>
+                <td>{{ time(task.endedAt) }}</td>
+                <td>{{ duration(task.startedAt, task.endedAt) }}</td>
                 <td><button @click="loadAttempts(task)">尝试详情</button></td>
               </tr>
             </tbody>
           </table>
           <p v-if="!tasks.length" class="empty">暂无任务实例</p>
         </div>
-        <section v-if="selectedTask" class="panel attempt-panel">
-          <h2>{{ selectedTask.taskId }} · 执行尝试</h2>
-          <div v-if="attemptError" class="notice error" role="alert">{{ attemptError }}</div>
-          <p v-if="!attempts.length" class="muted">暂无 Worker 尝试</p>
-          <div v-for="attempt in attempts" :key="attempt.attemptNo" class="attempt">
-            <strong>#{{ attempt.attemptNo }}</strong
-            ><span class="status" :data-state="attempt.state">{{ attempt.state }}</span
-            ><span>{{ time(attempt.startedAt) }} → {{ time(attempt.endedAt) }}</span>
-            <pre v-if="attempt.error">{{ attempt.error }}</pre>
-          </div>
-        </section>
+        <TaskRunDetail v-if="selectedTask" :task="selectedTask" :attempts="attempts" :error="attemptError" />
       </div>
       <section v-else-if="tab === 'logs'" class="log-panel">
         <header>
@@ -254,3 +268,28 @@ onBeforeUnmount(() => {
     </footer>
   </section>
 </template>
+
+<style scoped>
+.execution-inspection {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.execution-inspection.has-selection {
+  grid-template-columns: minmax(0, 1fr) minmax(310px, 370px);
+}
+.execution-inspection :deep(.attempt-panel) {
+  margin-top: 0;
+  min-width: 0;
+  max-height: 780px;
+  overflow: auto;
+}
+.execution-inspection :deep(dd) {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .execution-inspection.has-selection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

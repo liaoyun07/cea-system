@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const auth =
   'Basic ' + Buffer.from(`${process.env.CEA_E2E_USER}:${process.env.CEA_E2E_PASSWORD}`).toString('base64');
@@ -77,7 +78,174 @@ test('real YAML save, preview, execution, outputs, logs and attempts', async ({ 
   await page.getByRole('tab', { name: /任务实例/ }).click();
   await page.getByRole('button', { name: '尝试详情' }).click();
   await expect(page.locator('.attempt')).toContainText('SUCCESS');
+  await expect(page.getByTestId('task-outputs')).toContainText('Hello CEA');
+  await expect(page.getByTestId('task-duration')).toHaveText(/\d+\.\d{2} s/);
   await page.screenshot({ path: '.local/evidence/execution.png', fullPage: true });
+});
+
+test('execution topology separates real rounds/items, If scopes, outputs and historical revisions', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  const yaml = `schemaVersion: 1
+namespace: lab
+id: ${id}
+tasks:
+  - id: rounds
+    type: core.Repeat
+    repeat:
+      iterations: {source: LITERAL, value: 2}
+    tasks:
+      - id: clients
+        type: core.Loop
+        loop:
+          values: {source: LITERAL, value: [false, 0]}
+          concurrency: 2
+        tasks:
+          - id: branch
+            type: core.If
+            condition: 'true'
+            then:
+              - id: train
+                type: core.Log
+                message: 'value={{ item.value }}'
+            else:
+              - id: unused
+                type: core.Log
+                message: skipped
+`;
+  await login(page);
+  await save(page, id, yaml);
+  await start(page);
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS', { timeout: 30000 });
+  const executionId = await page.locator('.execution-id').textContent();
+  const rows = await (
+    await request.get(`${apiBase}/executions/${executionId.trim()}/tasks`, {
+      headers: { Authorization: auth },
+    })
+  ).json();
+  const changed = await request.post(`${apiBase}/flows/${id}/revisions`, {
+    headers: { Authorization: auth },
+    data: { expectedRevision: 1, source: source(id) },
+  });
+  expect(changed.status()).toBe(201);
+  const revisionRequests = [];
+  page.on('request', (r) => {
+    if (r.url().includes(`/flows/${id}?`)) revisionRequests.push(r.url());
+  });
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await page.getByRole('button', { name: '展开 rounds', exact: true }).click();
+  await page.getByLabel('迭代实例', { exact: true }).selectOption('2');
+  await page.getByRole('button', { name: '展开 clients', exact: true }).click();
+  await page.getByLabel('迭代实例', { exact: true }).selectOption('2');
+  await expect(page.getByTestId('graph-item')).toHaveText('0');
+  await page.getByRole('button', { name: '展开 branch', exact: true }).click();
+  await page.getByRole('button', { name: '查看 train 实例', exact: true }).click();
+  const loop = rows.find((r) => r.taskId === 'clients' && r.iteration === 2);
+  const train = rows.find((r) => r.taskId === 'train' && r.parentTaskRunId === loop.id && r.iteration === 2);
+  await expect(page.getByLabel('任务实例详情')).toContainText(train.id);
+  await expect(page.getByTestId('task-outputs')).toContainText('value=0');
+  await expect(page.locator('.attempt')).toContainText('SUCCESS');
+  await page.screenshot({ path: '.local/evidence/graph-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 650, height: 1000 });
+  await page.screenshot({ path: '.local/evidence/graph-mobile.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.getByLabel('条件分支', { exact: true }).selectOption('else');
+  await expect(page.locator('[data-task="unused"]')).toHaveAttribute('data-state', 'SKIPPED');
+  await page
+    .getByRole('navigation', { name: '拓扑层级' })
+    .getByRole('button', { name: 'clients', exact: true })
+    .click();
+  await page.getByLabel('迭代实例', { exact: true }).selectOption('1');
+  await expect(page.getByTestId('graph-item')).toHaveText('false');
+  await page
+    .getByRole('navigation', { name: '拓扑层级' })
+    .getByRole('button', { name: 'rounds', exact: true })
+    .click();
+  await page.getByLabel('迭代实例', { exact: true }).selectOption('1');
+  await page.getByRole('button', { name: '查看 clients 实例', exact: true }).click();
+  await expect(page.getByLabel('任务实例详情')).toContainText(
+    rows.find((r) => r.taskId === 'clients' && r.iteration === 1).id,
+  );
+  expect(revisionRequests.length).toBeGreaterThan(0);
+  expect(revisionRequests.every((url) => url.endsWith('revision=1'))).toBe(true);
+  // A missing source must not hide task outputs or fall back to the newest flow.
+  await page.getByRole('tab', { name: /任务实例/ }).click();
+  await page.route(`**/flows/${id}?revision=1`, (route) =>
+    route.fulfill({ status: 403, body: 'revision access denied' }),
+  );
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('403');
+  await page.getByRole('tab', { name: /任务实例/ }).click();
+  await page.locator('tr').filter({ hasText: train.id }).getByRole('button', { name: '尝试详情' }).click();
+  await expect(page.getByTestId('task-outputs')).toContainText('value=0');
+});
+
+test('real DAG and Parallel graphs render dependency edges and separate lifecycle phases', async ({
+  page,
+}) => {
+  const id = unique();
+  await login(page);
+  await save(
+    page,
+    id,
+    `schemaVersion: 1
+namespace: lab
+id: ${id}
+tasks:
+  - id: dag
+    type: core.Dag
+    tasks:
+      - {id: join, type: core.Log, message: joined, dependsOn: [a, b]}
+      - {id: b, type: core.Log, message: b}
+      - {id: a, type: core.Log, message: a}
+  - id: parallel
+    type: core.Parallel
+    tasks:
+      - {id: x, type: core.Log, message: x}
+      - {id: y, type: core.Log, message: y}
+finally:
+  - {id: clean, type: core.Log, message: clean}
+`,
+  );
+  await start(page);
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await page.getByRole('button', { name: '展开 dag', exact: true }).click();
+  await expect(page.locator('[data-edge]')).toHaveCount(2);
+  await expect(page.locator('[data-edge="a->join"]')).toHaveCount(1);
+  await expect(page.locator('[data-task="join"]')).toHaveAttribute('data-state', 'SUCCESS');
+  await page.screenshot({ path: '.local/evidence/graph-dag.png', fullPage: true });
+  await page
+    .getByRole('navigation', { name: '拓扑层级' })
+    .getByRole('button', { name: '任务', exact: true })
+    .click();
+  await page.getByRole('button', { name: '展开 parallel', exact: true }).click();
+  await expect(page.locator('[data-edge]')).toHaveCount(0);
+  await expect(page.locator('.graph-node')).toHaveCount(2);
+  await page.getByLabel('执行阶段', { exact: true }).selectOption('finally');
+  await expect(page.locator('[data-task="clean"]')).toHaveAttribute('data-state', 'SUCCESS');
+});
+
+test('both federated flows expose explicit dataset SELECT controls without execution', async ({ page }) => {
+  await login(page);
+  for (const name of ['fedavg', 'fedprox']) {
+    const id = unique();
+    const yaml = readFileSync(
+      new URL(`../../../examples/federated/${name}.yaml`, import.meta.url),
+      'utf8',
+    ).replace(`id: ${name}`, `id: ${id}`);
+    await save(page, id, yaml);
+    await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
+    await expect(page.locator('select#input-training_dataset')).toHaveValue('mnist-train/v1');
+    await expect(page.locator('select#input-test_dataset')).toHaveValue('mnist-test/v1');
+    await page.getByRole('button', { name: '关闭执行参数', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: '主导航' })
+      .getByRole('button', { name: '流程', exact: true })
+      .click();
+  }
 });
 test('invalid YAML, stale revision conflict and unsaved navigation keep draft', async ({ page, request }) => {
   const id = unique();
@@ -145,6 +313,8 @@ test('cancel a real Sleep execution; no fake terminal state', async ({ page }) =
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: '取消执行', exact: true }).click();
   await expect(page.locator('h1 .status')).toHaveText('KILLED');
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await expect(page.locator('[data-task="wait"]')).toHaveAttribute('data-state', 'KILLED');
 });
 test('main terminal remains success while afterExecution continues', async ({ page }) => {
   const id = unique(),
@@ -199,7 +369,7 @@ test('typed inputs, required rejection and explicit pinned revision', async ({ p
 
 test('failed task reports backend error and attempt, not success', async ({ page }) => {
   const id = unique(),
-    yaml = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: timeout\n    type: core.Sleep\n    duration: PT5S\n    timeout: PT0.2S\n`;
+    yaml = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: timeout\n    type: core.Sleep\n    duration: PT5S\n    timeout: PT0.2S\n    retry: {type: constant, maxAttempts: 2, interval: PT0.1S}\n`;
   await login(page);
   await save(page, id, yaml);
   await start(page);
@@ -207,7 +377,11 @@ test('failed task reports backend error and attempt, not success', async ({ page
   await expect(page.getByRole('alert')).toContainText('主执行错误');
   await page.getByRole('tab', { name: /任务实例/ }).click();
   await page.getByRole('button', { name: '尝试详情' }).click();
-  await expect(page.locator('.attempt')).toContainText('FAILED');
+  await expect(page.locator('.attempt')).toHaveCount(2);
+  await expect(page.locator('.attempt').first()).toContainText('FAILED');
+  await expect(page.locator('.attempt').last()).toContainText('FAILED');
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await expect(page.locator('[data-task="timeout"]')).toHaveAttribute('data-state', 'FAILED');
 });
 
 test('server pagination and editing existing source round-trip', async ({ page, request }) => {
