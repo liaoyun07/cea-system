@@ -18,8 +18,12 @@ const catalogCounts = {};
 const metricsEvidence = {};
 const inspectionEvidence = {};
 const operationsEvidence = {usage: {}, preparations: {}};
+const podUsageRequests = [];
 const page = await browser.newPage({ baseURL: 'http://127.0.0.1:' + settings.CEA_HTTP_PORT, viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', error => errors.push(error.message));
+page.on('request', request => {
+  if (request.url().includes('/kubernetes/usage/pods')) podUsageRequests.push(request.url());
+});
 try {
   await page.goto('http://127.0.0.1:' + settings.CEA_HTTP_PORT);
   await page.getByLabel('账号', { exact: true }).fill(settings.BACKEND_USER);
@@ -304,14 +308,10 @@ try {
     await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
     await expect(page.getByRole('table', {name: '节点', exact: true})).toContainText('可用');
     await page.screenshot({path: fileURLToPath(new URL('usage-' + cluster + '.png', evidence)), fullPage: true});
-    await page.getByRole('tab', {name: '容器用量', exact: true}).click();
-    const podResponse = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/usage/pods', {headers: authHeaders});
-    expect(podResponse.status()).toBe(200);
-    const pods = await podResponse.json();
-    await expect(page.getByRole('table', {name: '容器用量', exact: true}).locator('tbody tr')).toHaveCount(pods.length);
-    await expect(page.getByRole('table', {name: '容器用量', exact: true})).not.toContainText('metrics-server');
+    await expect(page.getByRole('tablist', {name: 'Kubernetes 资源类型'}).getByRole('tab')).toHaveText(['节点', 'Service', 'Kubernetes Namespace']);
+    await expect(page.getByRole('tab', {name: '容器用量', exact: true})).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
-    operationsEvidence.usage[cluster] = {nodes, pods};
+    operationsEvidence.usage[cluster] = {nodes};
   }
   await page.setViewportSize({width: 650, height: 1000});
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -335,6 +335,7 @@ try {
   await page.screenshot({path: fileURLToPath(new URL('upload-form.png', evidence)), fullPage: true});
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(errors).toEqual([]);
+  expect(podUsageRequests).toEqual([]);
   const result = { result: 'PASS', scope: 'real deployed frontend: federated metrics accuracy/loss/samples/round chart and table match authorized artifact API, round identity, refresh selection, desktop/390px; explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', metricsEvidence, logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   result.inspectionEvidence = inspectionEvidence;
   result.operationsEvidence = operationsEvidence;

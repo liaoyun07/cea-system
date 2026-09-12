@@ -1,5 +1,7 @@
 # CEA 流任务工作台
 
+UI-08a按用户要求直接删除运行资源的容器用量标签和相关前端请求；保留节点CPU/内存、Service和Namespace，不迁移到其他页面，也不替换为提示。发布与验证状态见[进度](../docs/04-progress.md)。UI-08前后端基线已于2026-09-13发布，下面的“尚未发布”指原实现验收阶段。
+
 UI-08已实现并验证：单镜像Docker save归档上传、按需分发历史、Deployment配置回读/CAS编辑/手动扩缩容/就绪耗时，以及Metrics API近期CPU/内存。45项Node、47项真实浏览器通过。需要配套后端、V18/V19及配置/RBAC/采集器；尚未发布CEA。日志、数据文件上传、HPA和历史监控不在本批。边界见[UI-08协议](../docs/contracts/ui08-deployment-operations.md)，结果见[验收记录](../docs/verification/VER-UI-008-core-deployment-operations.md)。
 
 UI-07增加运行总览、运行资源（Node/Service/配置的Kubernetes Namespace）和执行输出中的任务产物JSON预览。总览统计提交时间窗口内执行的当前状态；资源为只读查询，容量不代表利用率；JSON沿用256KiB上限，其它文件只显示URI。运行资源需要配套后端及受限RBAC。实测/发布状态见[UI-07验证](../docs/verification/VER-UI-007-readonly-inspection.md)。

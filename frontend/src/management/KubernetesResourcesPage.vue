@@ -46,9 +46,8 @@ async function load(reset = false) {
   loading.value = !!cluster.value;
   if (!cluster.value) return;
   try {
-    const query = ['namespace', 'usage/pods'].includes(tab.value)
-      ? ''
-      : `?limit=50&continueToken=${encodeURIComponent(tokens.value.at(-1))}`;
+    const query =
+      tab.value === 'namespace' ? '' : `?limit=50&continueToken=${encodeURIComponent(tokens.value.at(-1))}`;
     const value = await props.api(
       `/clusters/${encodeURIComponent(cluster.value)}/kubernetes/${tab.value}${query}`,
       { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) },
@@ -116,7 +115,6 @@ onBeforeUnmount(() => {
       <button
         v-for="entry in [
           ['nodes', '节点'],
-          ['usage/pods', '容器用量'],
           ['services', 'Service'],
           ['namespace', 'Kubernetes Namespace'],
         ]"
@@ -185,28 +183,6 @@ onBeforeUnmount(() => {
             </tr>
           </tbody>
         </table>
-        <table v-else-if="tab === 'usage/pods'" aria-label="容器用量">
-          <thead>
-            <tr>
-              <th>Pod</th>
-              <th>容器</th>
-              <th>CPU 用量 / 限额占比</th>
-              <th>内存用量 / 限额占比</th>
-              <th>状态</th>
-              <th>采样时间 / 窗口</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in data" :key="`${r.pod}/${r.container}`">
-              <td>{{ r.pod }}</td>
-              <td>{{ r.container }}</td>
-              <td>{{ coresText(r.usage.cpuCores) }} / {{ percentText(r.usage.cpuPercent) }}</td>
-              <td>{{ memoryText(r.usage.memoryBytes) }} / {{ percentText(r.usage.memoryPercent) }}</td>
-              <td>{{ usageState(r.usage.status) }}</td>
-              <td>{{ r.usage.timestamp ? time(r.usage.timestamp) : '—' }} / {{ r.usage.window || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
         <table v-else-if="tab === 'services'" aria-label="Service">
           <thead>
             <tr>
@@ -247,8 +223,7 @@ onBeforeUnmount(() => {
         </table>
       </div>
       <p v-if="data.items && !data.items.length" class="empty">此范围暂无资源</p>
-      <p v-if="tab === 'usage/pods' && !data.length" class="empty">此范围暂无容器</p>
-      <div v-if="!['namespace', 'usage/pods'].includes(tab)" class="pagination">
+      <div v-if="tab !== 'namespace'" class="pagination">
         <button :disabled="loading || tokens.length === 1" @click="previous">上一页</button
         ><span>第 {{ tokens.length }} 页</span
         ><button :disabled="loading || !data.continueToken" @click="next">下一页</button>
@@ -259,9 +234,6 @@ onBeforeUnmount(() => {
 <style scoped>
 table[aria-label='节点'] {
   min-width: 1300px;
-}
-table[aria-label='容器用量'] {
-  min-width: 1000px;
 }
 td {
   white-space: nowrap;

@@ -62,3 +62,15 @@
 本地证据：`.local/UI08-deploy-baseline.json`、`UI08-deploy-after.json`；`.local/ui08-release-20260913/`内数据库/配置/RBAC备份、构建和rollout日志、浏览器失败及最终日志、workload-preservation.json；`.local/cea/browser/result.json`及usage/upload-form/distribution-history截图。运行数据、凭据和备份均不提交Git。发布只新增验证脚本覆盖及文档，不增加Java类、字段、表、API或SPI（V18/V19为已提交功能的首次应用），Execution主链和Kestra参考语义不涉及变更。
 
 回退注意：前端可使用保留镜像；后端已经应用V18/V19，不能把“重打旧标签”当已验证数据库回退。需要停止新增提交、备份发布后新记录、检查旧程序与schema的兼容性后决定回退方案；未授权不自动restore、删除新表或repair Flyway。
+
+## UI-08a：删除容器用量页面（2026-09-13）
+
+用户要求“直接删了就行”。基线7f114f6；只移除KubernetesResourcesPage.vue的容器用量标签、表格、空态、样式及请求分支，保留节点用量和其余两类资源。更新真实浏览器和上线检查：剩余三标签、节点采样和刷新仍可用、前端不发usage/pods请求，桌面/窄屏无溢出。示例操作文档改为查看节点整体用量，不冒充单容器用量。没有新的页面入口、提示、平台Java/表/API/SPI或执行链变更，不涉及Kestra执行语义；后端Pod API、RBAC与采集器保留。
+
+45项Node、47项完整真实浏览器（2.5分钟）、Vite构建和Prettier检查通过；静态资产index-D-4VlOJj.js、index-DO-puOAs.css。scaffold通过（8模块、93个Java、32功能编号、500链接），git diff --check通过。没有重新执行Maven或声称后端重新验收。
+
+用户确认“更新CEA前端”后，发布前深比较Flow/修订、Execution、TaskRun与Attempt及12个容器均未变化、无活动执行；保留实际原前端镜像为`cea/frontend:before-ui08a-20260913`。只构建frontend，并于03:18执行`compose up -d --no-deps --wait --wait-timeout 120 frontend`，新容器健康。实际容器Image为`sha256:7a8972bf6c376f940f0ce8b79a8defa6d6023bd323d0ee2146c26411a8d9bb3a`，StartedAt为`2026-09-12T19:18:53.232796382Z`。
+
+03:20:33实际18080完整只读浏览器复核PASS：四集群节点近期采样AVAILABLE，剩余三个标签与API对应，页面没有usage/pods请求或pageerror，桌面和650px视觉检查通过；原No-code/SELECT/管理页/历史指标与输出检查仍通过。发布后深比较PASS：仅frontend ID/Image更换，其余11个容器ID/StartedAt/Image不变；FedAvg r5、FedProx r3及历史、4条Execution、38个TaskRun及Attempt完全保留。未修改保存流程、部署配置、数据库或集群，没有运行新的算法任务，也未操作旧系统。
+
+本地证据（均不提交Git）：`frontend/.local/evidence/ui08a-e2e.log`、`operations-node-only-narrow.png`；`.local/UI08a-deploy-baseline.json`、`UI08a-deploy-after.json`、`ui08a-deploy-build.log`、`ui08a-deploy-rollout.log`、`ui08a-deploy-browser.log`；`.local/cea/browser/result.json`及`usage-cloud.png`、`usage-narrow.png`。保留原前端镜像可回退；本批只删除前端代码，可从Git恢复，不删除业务数据。

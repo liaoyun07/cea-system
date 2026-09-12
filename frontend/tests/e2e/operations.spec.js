@@ -124,7 +124,7 @@ test('deployment config edit and scale use current CAS, show real timing and pre
     await request.delete(`${base}${path}?resourceVersion=${current.resourceVersion}`, { headers });
   }
 });
-test('actual node Metrics API appears separately from capacity and keeps pod namespace scope', async ({
+test('node metrics remain while the container usage tab and requests are removed', async ({
   page,
   request,
 }) => {
@@ -138,6 +138,10 @@ test('actual node Metrics API appears separately from capacity and keeps pod nam
       { timeout: 120000 },
     )
     .toBeTruthy();
+  const podUsageRequests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/kubernetes/usage/pods')) podUsageRequests.push(request.url());
+  });
   await login(page, 'viewer');
   await nav(page, '运行资源');
   await page.getByLabel('资源集群', { exact: true }).selectOption('runtime-edge');
@@ -145,9 +149,21 @@ test('actual node Metrics API appears separately from capacity and keeps pod nam
   await expect(page.getByRole('table', { name: '节点', exact: true })).toContainText('可用');
   await expect(page.getByRole('table', { name: '节点', exact: true })).not.toContainText('javaDuration');
   await page.screenshot({ path: '.local/evidence/operations-node-usage.png', fullPage: true });
-  await page.getByRole('tab', { name: '容器用量', exact: true }).click();
-  await expect(page.getByRole('table', { name: '容器用量', exact: true })).toBeVisible();
-  await expect(page.getByRole('table', { name: '容器用量', exact: true })).not.toContainText(
-    'metrics-server',
-  );
+  await expect(page.getByRole('tablist', { name: 'Kubernetes 资源类型' }).getByRole('tab')).toHaveText([
+    '节点',
+    'Service',
+    'Kubernetes Namespace',
+  ]);
+  await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);
+  for (const name of ['Service', 'Kubernetes Namespace', '节点']) {
+    await page.getByRole('tab', { name, exact: true }).click();
+    await expect(page.getByRole('table', { name, exact: true })).toBeVisible();
+  }
+  await page.getByRole('button', { name: '刷新资源', exact: true }).click();
+  await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
+  await page.setViewportSize({ width: 650, height: 900 });
+  await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '.local/evidence/operations-node-only-narrow.png', fullPage: true });
+  expect(podUsageRequests).toEqual([]);
 });

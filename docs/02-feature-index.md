@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-08a：用户裁剪独立“容器用量”页面，当前前端只保留节点用量，不新增其他入口或平台能力。后端API和采集器不变；验证/发布状态见[进度](04-progress.md)。
+
 UI-08-demo：DEP-001/002现成能力的常驻HTTP示例镜像、上传契约与部署参数已提供；8项HTTP及容器/归档检查PASS，没有新增平台能力或功能编号，未自动登记/部署到CEA。见[示例](../examples/deployment-demo/README.md)与[验证](verification/VER-UI-008-demo-image.md)。
 
 UI-08已实现并于2026-09-13发布CEA：DEP-001/002、RES-001增加按需镜像分发历史、单镜像归档上传、常驻部署配置回读/CAS/手动扩缩容与就绪计时、Metrics API近期CPU/内存。4个新生产Java类，7个HTTP操作，V18/V19两张记录表；执行链和RES-002选址不变。实现阶段227项Maven、45项Node、47项浏览器通过；上线健康、迁移、四集群采样/权限和实际18080只读复核通过，既有数据与其余10服务保留。不是30秒或系统开销的正式性能验收。详见[规格](features/UI-08-core-deployment-operations.md)、[协议](contracts/ui08-deployment-operations.md)与[验证](verification/VER-UI-008-core-deployment-operations.md)。

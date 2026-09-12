@@ -13,7 +13,7 @@
 1. **应用与镜像 → 上传镜像**：应用ID填`cea-deployment-demo`、版本`v1`，选择导出的tar。可以不添加参数（使用镜像默认值）；如需演示配置编辑，添加`MESSAGE`，类型STRING，默认`Hello CEA`，非必填。[upload-contract.json](upload-contract.json)是等价上传API的contract部分，不是镜像引用。
 2. 上传后**应用部署 → 新建部署**：集群选`edge-a`，名称填`cea-demo`，选择上一步应用/v1、副本1；命令按顺序填`python`、`/app/app.py`，参数JSON为`{"MESSAGE":"Hello CEA"}`（仅当已声明MESSAGE契约）；就绪检查路径`/healthz`、端口`8080`。[deployment.json](deployment.json)对应声明MESSAGE后的创建请求；无契约参数时改为`{}`。
 3. 部署完成后刷新状态，查看本次有效就绪耗时。扩缩容可将副本改为2；修改MESSAGE用于演示配置滚动更新。应用详情底部的**按需分发历史**会记录部署调用的镜像准备，单纯扩缩容不会产生分发记录。
-4. **运行资源 → edge-a → 容器用量**查询采样；新Pod可能需等待至少一轮采集。当前部署表单未提供容器resource limits，因此示例通常只有实际CPU核数/内存MiB，限额占比为`—`，不是采集失败。
+4. **运行资源 → edge-a → 节点**查看集群和节点CPU/内存用量，点击“刷新资源”更新。容器用量标签已按用户要求删除，没有移入其他页面；节点用量不是单个示例容器的用量。
 
 ## HTTP接口
 

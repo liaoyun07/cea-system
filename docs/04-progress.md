@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-08a（2026-09-13，已发布）：已直接删除运行资源的容器用量标签、表格、空态、样式和前端usage/pods请求分支；保留节点CPU/内存、Service和Namespace，没有新增其他入口。45项Node、47项真实浏览器、构建与格式检查PASS。用户确认后03:18仅替换CEA前端，03:20:33实际18080四集群采样/剩余三页及桌面/窄屏复核PASS，页面不再请求usage/pods；其余11个容器ID/StartedAt/Image、两Flow及修订、4条Execution、38个TaskRun与Attempt不变。未修改Java/API/表/RBAC/采集器或执行链，未重跑Maven或训练。见[验证记录](verification/VER-UI-008-core-deployment-operations.md)。
+
 UI-08-demo（2026-09-13）：已准备可自行上传的常驻HTTP示例镜像`cea/deployment-demo:v1`，tar约43.36MiB。默认非root/8080健康检查、MESSAGE配置回显及数值统计，8项真实HTTP测试、默认CMD容器/只读根文件系统和Skopeo归档检查通过；未向CEA登记或部署。仅示例与文档，无平台Java/API/表或执行链变化。[使用说明](../examples/deployment-demo/README.md)、[验证](verification/VER-UI-008-demo-image.md)。
 
 UI-08已实现并发布CEA：按需镜像分发历史、单镜像Docker save tar上传、部署配置回读/CAS编辑/手动扩缩容/就绪计时、近期CPU/内存用量展示。2026-09-12 21:54:30实现阶段完整verify 227项、45项Node和47项真实浏览器通过。用户确认部署后，2026-09-13 02:50替换前后端、应用V18/V19两张记录表与上传卷，四集群安装Metrics Server及受限只读RBAC；02:53:34实际18080页面/API复核PASS，四节点采样AVAILABLE。发布前已备份CEA数据库、配置及回退镜像；FedAvg r5/FedProx r3、4条执行、38个TaskRun/Attempt和原算法工作负载不变，其余10个容器未重启。没有新业务代码或执行链改动，也没有新建业务上传/部署/训练；新历史不回填，已结束容器缺近期用量显示MISSING。失败、修正、验证边界和回退注意事项见[规格](features/UI-08-core-deployment-operations.md)和[验证](verification/VER-UI-008-core-deployment-operations.md)。
