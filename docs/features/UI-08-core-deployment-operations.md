@@ -1,6 +1,6 @@
 # UI-08 核心镜像部署与资源用量
 
-状态：DONE（本批核心范围），验证PASS，未发布CEA。依赖UI-03/07和DEP-001/002、RES-001；用量为资源查询，不改变RES-002选址。设计见[ADR-0020](../decisions/ADR-0020-core-deployment-operations.md)。
+状态：DONE（本批核心范围），验证PASS，2026-09-13已发布CEA并通过实际页面/API只读复核。依赖UI-03/07和DEP-001/002、RES-001；用量为资源查询，不改变RES-002选址。设计见[ADR-0020](../decisions/ADR-0020-core-deployment-operations.md)。
 
 ## 授权与验收
 
@@ -16,4 +16,4 @@
 
 ## 验证
 
-2026-09-12 21:54:30最终完整Maven verify 227项通过（含实际FedAvg/FedProx和JAR启动）；45项Node、47项真实浏览器、构建、格式及scaffold通过。桌面/650px截图、独立Docker镜像构建及UID10001目录可写验证通过。网络拉取、测试夹具冲突、CAS等待和字段清理经过均记录于[VER-UI-008](../verification/VER-UI-008-core-deployment-operations.md)。没有进行CEA发布或正式性能验收。
+2026-09-12 21:54:30实现阶段完整Maven verify 227项通过（含实际FedAvg/FedProx和JAR启动）；45项Node、47项真实浏览器、构建、格式及scaffold通过。2026-09-13授权后发布CEA，迁移、上传卷权限、四集群Metrics API、实际桌面/窄屏页面和历史保留检查通过；未在CEA新建业务上传、分发、常驻部署或训练，相关写操作以隔离集成测试为依据。首次新增上线脚本漏返回列表导致按钮定位超时，修正测试导航后完整复核通过，未改业务代码。详细证据与未测项见[VER-UI-008](../verification/VER-UI-008-core-deployment-operations.md)；没有正式性能验收。

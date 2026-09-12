@@ -17,6 +17,7 @@ const logCounts = {};
 const catalogCounts = {};
 const metricsEvidence = {};
 const inspectionEvidence = {};
+const operationsEvidence = {usage: {}, preparations: {}};
 const page = await browser.newPage({ baseURL: 'http://127.0.0.1:' + settings.CEA_HTTP_PORT, viewport: { width: 1440, height: 1000 } });
 page.on('pageerror', error => errors.push(error.message));
 try {
@@ -284,9 +285,59 @@ try {
     else await expect(page.getByLabel('执行日志')).not.toContainText('暂无日志');
     await page.getByRole('button', { name: '执行', exact: true }).first().click();
   }
+  // UI-08: read live usage/history and inspect the upload form without creating business records.
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '运行资源', exact: true}).click();
+  for (const cluster of ['cloud', 'edge-a', 'edge-b', 'edge-c']) {
+    await page.getByLabel('资源集群').selectOption(cluster);
+    await page.getByRole('tab', {name: '节点', exact: true}).click();
+    const nodeResponse = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/usage/nodes', {headers: authHeaders});
+    expect(nodeResponse.status()).toBe(200);
+    const nodes = await nodeResponse.json();
+    expect(nodes.namespace).toBe('cea-lab');
+    expect(nodes.nodes.length).toBeGreaterThan(0);
+    for (const node of nodes.nodes) {
+      expect(node.usage.status).toBe('AVAILABLE');
+      expect(Number.isFinite(node.usage.cpuCores)).toBe(true);
+      expect(Number.isFinite(node.usage.memoryBytes)).toBe(true);
+      expect(node.usage.window).toMatch(/^PT/);
+    }
+    await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
+    await expect(page.getByRole('table', {name: '节点', exact: true})).toContainText('可用');
+    await page.screenshot({path: fileURLToPath(new URL('usage-' + cluster + '.png', evidence)), fullPage: true});
+    await page.getByRole('tab', {name: '容器用量', exact: true}).click();
+    const podResponse = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/usage/pods', {headers: authHeaders});
+    expect(podResponse.status()).toBe(200);
+    const pods = await podResponse.json();
+    await expect(page.getByRole('table', {name: '容器用量', exact: true}).locator('tbody tr')).toHaveCount(pods.length);
+    await expect(page.getByRole('table', {name: '容器用量', exact: true})).not.toContainText('metrics-server');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    operationsEvidence.usage[cluster] = {nodes, pods};
+  }
+  await page.setViewportSize({width: 650, height: 1000});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path: fileURLToPath(new URL('usage-narrow.png', evidence)), fullPage: true});
+  await page.setViewportSize({width: 1440, height: 1000});
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '应用与镜像', exact: true}).click();
+  const applications = await (await page.request.get('/api/namespaces/lab/applications?limit=100', {headers: authHeaders})).json();
+  for (const app of applications) {
+    const response = await page.request.get('/api/namespaces/lab/applications/' + encodeURIComponent(app.applicationId) + '/versions/' + encodeURIComponent(app.version) + '/preparations', {headers: authHeaders});
+    expect(response.status()).toBe(200);
+    operationsEvidence.preparations[app.applicationId + '/' + app.version] = await response.json();
+  }
+  await page.locator('.table-wrap tbody tr').first().getByRole('button', {name: '详情 →', exact: true}).click();
+  await expect(page.getByRole('table', {name: '按需分发历史', exact: true})).toBeVisible();
+  await page.screenshot({path: fileURLToPath(new URL('distribution-history.png', evidence)), fullPage: true});
+  await page.getByRole('button', {name: '← 返回列表', exact: true}).click();
+  await page.getByRole('button', {name: '上传镜像', exact: true}).click();
+  await expect(page.locator('input[type=file]')).toBeVisible();
+  await expect(page.getByLabel('镜像引用', {exact: true})).toHaveCount(0);
+  await expect(page.getByRole('button', {name: '上传并登记', exact: true})).toBeVisible();
+  await page.screenshot({path: fileURLToPath(new URL('upload-form.png', evidence)), fullPage: true});
+  await expect(page.getByRole('alert')).toHaveCount(0);
   expect(errors).toEqual([]);
   const result = { result: 'PASS', scope: 'real deployed frontend: federated metrics accuracy/loss/samples/round chart and table match authorized artifact API, round identity, refresh selection, desktop/390px; explicit federated dataset SELECT; historical execution topology, round 2/item 3 train ID/outputs/duration/attempts verified against API; unsaved SELECT validation, management catalogs and four-cluster deployment lists; both saved Flows and executions; log empty-state consistent with API', metricsEvidence, logCounts, catalogCounts, limitation: 'Application Pod stdout is not collected into Execution logs by the current runtime; no management writes against CEA business data', checkedAt: new Date().toISOString() };
   result.inspectionEvidence = inspectionEvidence;
+  result.operationsEvidence = operationsEvidence;
   await writeFile(new URL('result.json', evidence), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } catch (error) {

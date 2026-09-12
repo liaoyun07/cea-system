@@ -1,6 +1,6 @@
 # UI-08 核心镜像、部署与资源用量验证
 
-日期：2026-09-12（Asia/Shanghai）。源码基线：main `2a64c48fedb6ab79b3c48838245815579289ce37` + 本批UI-08修改；最终提交见Git历史。本批只实施和测试，不发布CEA，不改已保存Flow/执行/旧系统。
+实现验证日期：2026-09-12（Asia/Shanghai）。源码基线：main `2a64c48fedb6ab79b3c48838245815579289ce37` + UI-08修改，最终功能提交`63fda36c64b5edb9c566af0edff34088bdc29629`。实现阶段不发布CEA；用户随后于2026-09-13授权“部署”，实际发布见末节，不改已保存Flow/执行/旧系统。
 
 ## 环境与参考
 
@@ -44,4 +44,21 @@
 
 这是核心功能验证，不是申报书30秒部署或系统开销的正式性能验收。部署耗时包含本次镜像准备至同代全部副本就绪；本地镜像缓存、单机网络和正常轮询时延必须说明，不能拿小型测试容器推断所有算法均达标。CPU/内存为近期资源用量，不是平台自身开销结论。
 
-未做：CEA真实发布、物理多云基准、最大2GiB上传压力测试、崩溃残留文件/Registry未引用tag自动GC、容器日志、数据文件上传、HPA、历史监控、告警、DQN和数据处理速率。Registry与MySQL跨系统登记失败可能保留未引用tag，接口失败需查询版本状态，不自动重传覆盖。
+实现阶段未做CEA发布（后续发布见下节）。仍未做：物理多云基准、最大2GiB上传压力测试、崩溃残留文件/Registry未引用tag自动GC、容器日志、数据文件上传、HPA、历史监控、告警、DQN和数据处理速率。Registry与MySQL跨系统登记失败可能保留未引用tag，接口失败需查询版本状态，不自动重传覆盖。
+
+## CEA发布（2026-09-13，用户已授权）
+
+1. 发布前读取实际业务和容器快照：FedAvg r5、FedProx r3；4条Execution（2成功、1失败、1取消）、38个TaskRun及其Attempt均为终态，待处理wf_message为0，无活动afterExecution。专用MySQL以single-transaction导出153436字节，确认正常结束；配置、原RBAC和业务快照保留在D盘忽略目录`.local/ui08-release-20260913/`，原镜像保存为`cea/backend:before-ui08-20260913`及`cea/frontend:before-ui08-20260913`。D盘剩余约450GiB。数据库备份未做独立恢复演练，不宣称已验收自动回滚。
+2. 复用已验收JAR，重新运行45项Node测试和Vite构建PASS，Compose构建前后端成功。前端资源为`index-CE2zMEwx.js`、`index-D_YoeK1G.css`。未重新构建或推送算法镜像，未重新执行完整227项Maven/47项隔离浏览器；它们是前一实现批次结果。
+3. 确认四集群均无清单中的Metrics Server资源，备份并比较原RBAC与UI-07一致，用resourceVersion/rules前置检查只替换既有Role/ClusterRole规则。导入缓存的Rancher v0.7.2镜像并安装采集器，各Deployment 1/1就绪、APIService Available=True。实际验证后端SA允许节点用量及cea-lab Pod用量读取，拒绝default Pod用量、指标写入、Namespace list及Service create。没有重建后端SA/Secret、重启K3s或放宽到其他命名空间。
+4. 02:50执行`compose up -d --no-deps --wait backend frontend`，仅替换这两个容器；后端02:50:39成功校验19项迁移并从V17升级至V19。新增两张记录表均为空，不回填旧历史。`cea_upload-scratch`卷创建，实际后端UID/GID10001可写multipart/import目录。前后端健康检查通过，Nginx重新加载；没有重置数据库、MinIO或Registry。
+5. 运行镜像ID：后端`sha256:4891bbaeeee1ae42e388b875c70ae9218ca01313588d8cb4fc1232907498cb4f`，前端`sha256:2f7c9bce2125ba041bbcb97ec58aeb2a03f3e2eacf3cea746c7746fdea373c73`。它们为本机Docker实际容器Image字段，不将构建manifest/config摘要混写成同一个标识。
+6. 02:51原上线脚本PASS。扩充UI-08只读检查后，首次因在应用详情尚未返回列表就点击上传按钮而超时；只修正验证脚本导航，未改业务代码。02:53:34完整重跑PASS：四集群节点采样AVAILABLE且CPU/内存为真实数值，容器用量严格cea-lab范围；5个应用的分发历史可查为空，上传表单可见；原管理页、总览、两联邦Flow编排、拓扑、历史产物与两轮Metrics一致，桌面/窄屏检查通过，无pageerror。
+7. 当前业务Pod已全部结束，没有近期容器样本，API和页面正确显示MISSING/空值，不补0或推算历史用量。四个K3s共用Docker宿主，节点用量反映同一Linux主机视角，不能四者相加冒充独立物理多云资源。
+8. 发布前后深比较PASS：所有Flow及修订、Execution、TaskRun与Attempt不变，其余10个CEA容器ID/StartedAt/Image完全相同。四集群cea-lab原Job/Pod/Deployment的UID/spec/status集合分别22/9/9/9项完全保留。仅新增kube-system采集器；临时导入tar和容器内SQL备份副本已清理，D盘原始归档和SQL备份保留。旧Harbor/Kestra及旧系统未操作。
+
+本次不向CEA新增测试应用、镜像上传、按需分发、常驻部署或训练。上述写操作核心闭环已在实现阶段的真实隔离集成测试验证；上线验证覆盖实际部署、配置/权限、采集器、读取和页面，不据此声称生产首次上传/扩缩容或30秒指标已实测达标。
+
+本地证据：`.local/UI08-deploy-baseline.json`、`UI08-deploy-after.json`；`.local/ui08-release-20260913/`内数据库/配置/RBAC备份、构建和rollout日志、浏览器失败及最终日志、workload-preservation.json；`.local/cea/browser/result.json`及usage/upload-form/distribution-history截图。运行数据、凭据和备份均不提交Git。发布只新增验证脚本覆盖及文档，不增加Java类、字段、表、API或SPI（V18/V19为已提交功能的首次应用），Execution主链和Kestra参考语义不涉及变更。
+
+回退注意：前端可使用保留镜像；后端已经应用V18/V19，不能把“重打旧标签”当已验证数据库回退。需要停止新增提交、备份发布后新记录、检查旧程序与schema的兼容性后决定回退方案；未授权不自动restore、删除新表或repair Flyway。

@@ -1,6 +1,6 @@
 # 功能与验证索引
 
-UI-08已实现并验证，未发布CEA：DEP-001/002、RES-001增加按需镜像分发历史、单镜像归档上传、常驻部署配置回读/CAS/手动扩缩容与就绪计时、Metrics API近期CPU/内存。4个新生产Java类，7个HTTP操作，V18/V19两张记录表；执行链和RES-002选址不变。227项Maven、45项Node、47项浏览器及构建/格式/scaffold通过；不是30秒或系统开销的正式性能验收。详见[规格](features/UI-08-core-deployment-operations.md)、[协议](contracts/ui08-deployment-operations.md)与[验证](verification/VER-UI-008-core-deployment-operations.md)。
+UI-08已实现并于2026-09-13发布CEA：DEP-001/002、RES-001增加按需镜像分发历史、单镜像归档上传、常驻部署配置回读/CAS/手动扩缩容与就绪计时、Metrics API近期CPU/内存。4个新生产Java类，7个HTTP操作，V18/V19两张记录表；执行链和RES-002选址不变。实现阶段227项Maven、45项Node、47项浏览器通过；上线健康、迁移、四集群采样/权限和实际18080只读复核通过，既有数据与其余10服务保留。不是30秒或系统开销的正式性能验收。详见[规格](features/UI-08-core-deployment-operations.md)、[协议](contracts/ui08-deployment-operations.md)与[验证](verification/VER-UI-008-core-deployment-operations.md)。
 
 UI-07已完成并发布CEA：WF-006/RES-001的只读展示增量——任务声明产物及JSON预览、执行全窗口SQL总览、Kubernetes资源查询。220项Maven、41项Node、44项浏览器测试通过；2026-09-12 19:51实际18080复核通过。无新功能编号/表/计量口径/执行链，原流程/历史不变。范围见[规格](features/UI-07-readonly-inspection.md)，实际测试与发布见[验证](verification/VER-UI-007-readonly-inspection.md)。
 

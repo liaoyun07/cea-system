@@ -1,6 +1,6 @@
 # 当前进度
 
-UI-08已实现并验证，尚未发布CEA：按需镜像分发历史、单镜像Docker save tar上传、部署配置回读/CAS编辑/手动扩缩容/就绪计时、近期CPU/内存用量展示。2026-09-12 21:54:30最终完整verify 227项通过；45项Node、47项真实浏览器、构建/格式/scaffold、桌面/650px视觉复核、独立Docker镜像构建与UID10001上传目录权限检查通过。新增4个生产Java、7个HTTP操作、V18/V19两张记录表，无新SPI或执行链。不实现日志、产物下载、数据上传、HPA或历史监控，不把本地小容器测试当30秒/系统开销正式达标。CEA保持UI-07服务及数据，未apply或发布。失败、修正与最终结果见[规格](features/UI-08-core-deployment-operations.md)和[验证](verification/VER-UI-008-core-deployment-operations.md)。
+UI-08已实现并发布CEA：按需镜像分发历史、单镜像Docker save tar上传、部署配置回读/CAS编辑/手动扩缩容/就绪计时、近期CPU/内存用量展示。2026-09-12 21:54:30实现阶段完整verify 227项、45项Node和47项真实浏览器通过。用户确认部署后，2026-09-13 02:50替换前后端、应用V18/V19两张记录表与上传卷，四集群安装Metrics Server及受限只读RBAC；02:53:34实际18080页面/API复核PASS，四节点采样AVAILABLE。发布前已备份CEA数据库、配置及回退镜像；FedAvg r5/FedProx r3、4条执行、38个TaskRun/Attempt和原算法工作负载不变，其余10个容器未重启。没有新业务代码或执行链改动，也没有新建业务上传/部署/训练；新历史不回填，已结束容器缺近期用量显示MISSING。失败、修正、验证边界和回退注意事项见[规格](features/UI-08-core-deployment-operations.md)和[验证](verification/VER-UI-008-core-deployment-operations.md)。
 
 最新完成UI-07：产物JSON查看、运行总览、Kubernetes只读资源。2个新Java文件、5个GET查询，不新增表/列/调度动作；89个生产Java、57个HTTP操作。2026-09-12 19:37:20完整verify 220项通过；41项Node、44项真实浏览器、构建/格式/scaffold及桌面/390px视觉验收通过。产物声明与Metrics共用Execution快照，不跨USER/EDGE_POLICY管理入口读Flow。用户确认部署后，19:50仅替换CEA前后端并对四集群的既有Role/ClusterRole增加受限只读权限；19:51:23实际18080总览、四集群查询及FedAvg/FedProx历史产物/Metrics复核PASS。FedAvg r5/FedProx r3、4条Execution、38个TaskRun及其Attempt不变，其余10个容器ID/StartedAt/镜像ID不变。没有重跑训练、迁移数据库或修改旧系统，保留before-ui07回退镜像。详见[规格](features/UI-07-readonly-inspection.md)与[验证](verification/VER-UI-007-readonly-inspection.md)。
 

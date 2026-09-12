@@ -12,7 +12,9 @@ UI-08新增上传暂存卷`cea_upload-scratch`（D盘Docker数据盘）、namesp
 
 资源用量需要显式安装[metrics-server.yaml](metrics-server.yaml)和更新[rbac.yaml](rbac.yaml)，不随后端启动安装。本地K3s1.30使用Rancher镜像的metrics-server v0.7.2，官方镜像映射见[Rancher配置](https://github.com/rancher/artifact-mirror/blob/master/config.yaml)。清单中的Kubelet insecure-tls只适用于当前本地自签环境，外部生产集群应提供受信任证书并移除此参数。不接入历史监控/HPA。
 
-获得部署授权后，在backend根目录执行以下命令（当前代码任务未执行这些命令）：
+2026-09-13已按用户授权在当前CEA发布UI-08。下列命令用于明确授权后的安装；已有集群更新前须检查现有资源归属，不能覆盖其他控制器的Metrics Server。当前实例采用已缓存镜像导入四个containerd，且仅JSON Patch更新既有Role/ClusterRole规则，没有重建SA/Secret。发布记录见[VER-UI-008](../../docs/verification/VER-UI-008-core-deployment-operations.md)。
+
+在backend根目录执行：
 
 ```powershell
 . .\deploy\cea\common.ps1
@@ -84,7 +86,7 @@ docker compose -p cea --env-file deploy/cea/.env -f deploy/cea/compose.yaml stop
 - Kubernetes连接是cea-lab ServiceAccount，不给后端admin kubeconfig；nodes list用于选址与只读展示，UI-07另增加cea-lab中Service get/list及仅名为cea-lab的Namespace get，不授予其他Namespace读取或Service写权限。应用Pod不自动挂ServiceAccount token。当前使用显式长期SA token文件，未做自动轮换。
 - 存储账号只可读datasets并读写cea-artifacts，不使用MinIO root；root仅供初始化/运维。Registry需要Basic认证；HTTP仅用于本机隔离网络，不是公网TLS方案。
 - K3s容器需要privileged用于嵌套集群；不是给业务镜像额外权限，不构成敌对多租户沙箱。
-- 本批只需文件型联邦算法；K3s未部署Traefik、ServiceLB、metrics-server、CoreDNS和local-storage。Pod内部服务DNS/Ingress/动态PVC不在当前部署验收范围，不能拿它当完整生产Kubernetes平台。
+- 本批只需文件型联邦算法；K3s未部署Traefik、ServiceLB、CoreDNS和local-storage。内置metrics-server保持禁用，UI-08以独立清单安装v0.7.2采集器。Pod内部服务DNS/Ingress/动态PVC不在当前部署验收范围，不能拿它当完整生产Kubernetes平台。
 - Compose设置日志轮转和内存上限，Worker并发4、每边缘1个Job槽/云2槽，Flow自身Loop上限6仍保留；平台槽不是CPU物理独占。
 
 ## 本地文件与复核
