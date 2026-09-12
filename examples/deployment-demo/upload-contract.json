@@ -1,0 +1,5 @@
+{
+  "parameters": {
+    "MESSAGE": {"type": "STRING", "required": false, "defaultValue": "Hello CEA"}
+  }
+}

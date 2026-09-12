@@ -1,0 +1,8 @@
+{
+  "applicationId": "cea-deployment-demo",
+  "version": "v1",
+  "replicas": 1,
+  "parameters": {"MESSAGE": "Hello CEA"},
+  "command": ["python", "/app/app.py"],
+  "readiness": {"path": "/healthz", "port": 8080}
+}
