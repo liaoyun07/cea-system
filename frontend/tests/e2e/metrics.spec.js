@@ -46,9 +46,9 @@ test('real Job JSON artifacts display per-instance numeric metrics, errors, pinn
   const command = [
     'sh',
     '-c',
-    `printf '{"loss":%s,"accuracy":0.8,"algorithm":"fixture"}' "$ROUND" > /cea-work/out/metrics.json; printf '{"loss":0}' > /cea-work/out/zero.json; printf '[]' > /cea-work/out/invalid.json; printf '{"name":"no numeric metrics"}' > /cea-work/out/text.json`,
+    `printf '{"loss":%s,"accuracy":0.8,"algorithm":"fixture"}' "$ROUND" > /cea-work/out/metrics.json; printf '{"loss":0}' > /cea-work/out/zero.json; printf '[]' > /cea-work/out/invalid.json; printf '{"name":"no numeric metrics"}' > /cea-work/out/text.json; if [ "$ROUND" = 1 ]; then printf '{"loss":-1}'; else printf '{"samples":2}'; fi > /cea-work/out/sparse.json`,
   ];
-  const yaml = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: rounds\n    type: core.Loop\n    loop:\n      values: {source: LITERAL, value: [1, 2]}\n      concurrency: 2\n    tasks:\n      - id: measure\n        type: platform.Application\n        timeout: PT60S\n        container:\n          applicationId: ${id}\n          version: v1\n          candidateClusters: [runtime-edge]\n          parameters:\n            ROUND: {source: ITEM, path: [value]}\n          command: ${JSON.stringify(command)}\n          outputFiles: [metrics.json, zero.json, invalid.json, text.json]\n`;
+  const yaml = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: rounds\n    type: core.Loop\n    loop:\n      values: {source: LITERAL, value: [1, 2]}\n      concurrency: 2\n    tasks:\n      - id: measure\n        type: platform.Application\n        timeout: PT60S\n        container:\n          applicationId: ${id}\n          version: v1\n          candidateClusters: [runtime-edge]\n          parameters:\n            ROUND: {source: ITEM, path: [value]}\n          command: ${JSON.stringify(command)}\n          outputFiles: [metrics.json, zero.json, invalid.json, text.json, sparse.json]\n`;
   await createAndStart(page, id, yaml);
   await expect(page.locator('h1 .status')).toHaveText('SUCCESS', { timeout: 90000 });
   const executionId = (await page.locator('.execution-id').textContent()).trim();
@@ -89,19 +89,82 @@ test('real Job JSON artifacts display per-instance numeric metrics, errors, pinn
     );
   }
   await page.screenshot({ path: '.local/evidence/metrics-desktop.png', fullPage: true });
+  const bars = page.getByRole('button', { name: '柱状图', exact: true }),
+    lines = page.getByRole('button', { name: '折线图', exact: true });
+  await expect(bars).toHaveAttribute('aria-pressed', 'true');
+  await expect(lines).toHaveAttribute('aria-pressed', 'false');
+  const ticks = await page.locator('.metrics-chart svg text').allTextContents();
+  const details = await page.getByRole('table', { name: '指标明细' }).textContent();
+  const originalBars = await page.locator('.metric-bar').evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      id: node.dataset.taskRun,
+      value: node.dataset.value,
+      x: Number(node.getAttribute('x')) + Number(node.getAttribute('width')) / 2,
+      y: Number(node.getAttribute('y')),
+    })),
+  );
+  let metricReads = 0;
+  const trackReads = (request) => {
+    if (request.url().includes('/output-json?')) metricReads++;
+  };
+  page.on('request', trackReads);
+  await lines.focus();
+  await lines.press('Enter');
+  await expect(lines).toHaveAttribute('aria-pressed', 'true');
+  await expect(lines).toHaveCSS('background-color', 'rgb(113, 70, 206)');
+  await expect(bars).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.metric-bar')).toHaveCount(0);
+  await expect(page.locator('.metric-point')).toHaveCount(2);
+  await expect(page.locator('.metric-line')).toHaveAttribute('d', 'M 260 130 L 580 40');
+  expect(await page.locator('.metrics-chart svg text').allTextContents()).toEqual(ticks);
+  expect(await page.getByRole('table', { name: '指标明细' }).textContent()).toBe(details);
+  for (const bar of originalBars) {
+    const point = page.locator(`.metric-point[data-task-run="${bar.id}"]`);
+    await expect(point).toHaveAttribute('data-value', bar.value);
+    await expect(point).toHaveAttribute('cx', String(bar.x));
+    await expect(point).toHaveAttribute('cy', String(bar.y));
+    await expect(point.locator('title')).toContainText(`loss = ${bar.value}`);
+  }
+  await page.screenshot({ path: '.local/evidence/metrics-line-desktop.png', fullPage: true });
+  await bars.click();
+  await expect(page.locator('.metric-bar')).toHaveCount(2);
+  await expect(page.locator('.metric-point')).toHaveCount(0);
+  expect(await page.locator('.metrics-chart svg text').allTextContents()).toEqual(ticks);
+  expect(metricReads).toBe(0);
+  page.off('request', trackReads);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: '.local/evidence/metrics-narrow.png', fullPage: true });
+  await lines.click();
+  await expect(page.locator('.metric-point')).toHaveCount(2);
+  await expect(lines).toHaveCSS('background-color', 'rgb(113, 70, 206)');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: '.local/evidence/metrics-line-narrow.png', fullPage: true });
+  await page.getByRole('button', { name: '刷新指标', exact: true }).click();
+  await expect(page.locator('.metric-point')).toHaveCount(2);
+  await expect(lines).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('指标产物').selectOption('zero.json');
-  await expect(page.locator('.metric-bar').first()).toHaveAttribute('data-value', '0');
+  await expect(page.locator('.metric-point').first()).toHaveAttribute('data-value', '0');
+  await expect(page.locator('.metric-line')).toHaveAttribute('d', 'M 260 220 L 580 220');
+  await page.getByLabel('指标产物').selectOption('sparse.json');
+  await expect(page.locator('.metric-point')).toHaveCount(1);
+  await expect(page.locator('.metric-point')).toHaveAttribute('data-value', '-1');
+  await expect(page.locator('.metric-line')).toHaveAttribute('d', 'M 260 220');
+  await expect(page.getByRole('cell', { name: '此实例无此指标', exact: true })).toHaveCount(1);
+  await page.getByLabel('指标名称').selectOption('samples');
+  await expect(page.locator('.metric-point')).toHaveAttribute('data-value', '2');
+  await expect(page.locator('.metric-line')).toHaveAttribute('d', 'M 580 40');
   await page.getByLabel('指标产物').selectOption('invalid.json');
   await expect(page.getByRole('alert')).toHaveCount(2);
   await expect(page.locator('.metric-bar')).toHaveCount(0);
+  await expect(page.locator('.metric-point')).toHaveCount(0);
   await page.getByLabel('指标产物').selectOption('text.json');
   await expect(page.getByRole('cell', { name: '无数值指标', exact: true })).toHaveCount(2);
   expect(errors).toEqual([]);
   await page.getByRole('tab', { name: '输出', exact: true }).click();
-  await expect(page.getByRole('table', { name: '任务产物', exact: true }).locator('tbody tr')).toHaveCount(8);
+  await expect(page.getByRole('table', { name: '任务产物', exact: true }).locator('tbody tr')).toHaveCount(
+    10,
+  );
   const outputRow = page
     .getByRole('table', { name: '任务产物', exact: true })
     .locator('tbody tr')

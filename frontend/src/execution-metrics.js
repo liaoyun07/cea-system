@@ -45,3 +45,19 @@ export function chartScale(values) {
   const y = (value) => 220 - ((value / magnitude - low) / (high - low)) * 180;
   return { min, max: max || (min === 0 ? 1 : 0), y };
 }
+
+export function chartLine(points, y) {
+  let connected = false;
+  return points
+    .map(({ x, value }) => {
+      if (!Number.isFinite(value)) {
+        connected = false;
+        return '';
+      }
+      const segment = `${connected ? 'L' : 'M'} ${x} ${y(value)}`;
+      connected = true;
+      return segment;
+    })
+    .filter(Boolean)
+    .join(' ');
+}

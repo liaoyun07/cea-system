@@ -26,7 +26,7 @@ npm run dev
 
 ## 第一次操作
 
-执行详情的Metrics页签按任务、JSON产物、指标名查看真实数值。每页20个实例、单指标图和原值明细；轮次/item来自实际TaskRun。FedAvg/FedProx现有metrics.json可直接读取，不需重建算法镜像。训练epoch采样和数据处理速率尚未实现；无产物或读取失败不补值。部署需要匹配UI-06后端接口，详见[边界](../docs/features/UI-06-execution-metrics.md)。
+执行详情的Metrics页签按任务、JSON产物、指标名查看真实数值。每页20个实例、单指标图和原值明细；轮次/item来自实际TaskRun。UI-06a增加图表右上角柱状/折线切换，默认柱状；共用原始数据、坐标和顺序，缺失断线、单值显示点，不插值、不新增请求。FedAvg/FedProx现有metrics.json可直接读取，不需重建算法镜像。训练epoch采样和数据处理速率尚未实现；无产物或读取失败不补值。部署需要匹配UI-06后端接口，详见[边界](../docs/features/UI-06-execution-metrics.md)；UI-06a发布状态见[验证](../docs/verification/VER-UI-006a-chart-switch.md)。
 
 执行页新增“拓扑”：按固定执行修订只读显示依赖，点击节点查看TaskRun输出、时间和Attempt；展开Repeat切换轮次、展开Loop切换实际item。根生命周期分组独立，失败/取消/跳过状态直接来自后端。耗时是实例的结束减开始，不是算法速率。详见[UI-05边界](../docs/features/UI-05-execution-inspection.md)。
 

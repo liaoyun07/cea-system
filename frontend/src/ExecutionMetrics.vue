@@ -2,13 +2,21 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { errorText } from './api.js';
 import { time } from './model.js';
-import { chartScale, instanceLabel, metricSources, metricTags, numericMetrics } from './execution-metrics.js';
+import {
+  chartLine,
+  chartScale,
+  instanceLabel,
+  metricSources,
+  metricTags,
+  numericMetrics,
+} from './execution-metrics.js';
 
 const props = defineProps({ api: Function, run: Object, tasks: Array });
 const sources = ref([]),
   taskId = ref(''),
   port = ref(''),
   metric = ref('');
+const chartType = ref('bar');
 const rows = ref([]),
   page = ref(0),
   loading = ref(false),
@@ -50,6 +58,7 @@ const chartPoints = computed(() =>
   })),
 );
 const label = (task) => instanceLabel(task, props.tasks);
+const linePath = computed(() => chartLine(chartPoints.value, scale.value.y));
 const tick = (value) => Number(value.toPrecision(4)).toString();
 
 async function loadSources() {
@@ -163,20 +172,35 @@ onBeforeUnmount(() => {
       <div class="panel metrics-chart" v-if="metric && !loading">
         <header>
           <h2>{{ metric }}</h2>
-          <span class="muted"
-            >任务实例 · {{ page * pageSize + 1 }}–{{ page * pageSize + points.length }}</span
-          >
+          <div class="metrics-chart-actions">
+            <span class="muted"
+              >任务实例 · {{ page * pageSize + 1 }}–{{ page * pageSize + points.length }}</span
+            >
+            <div class="metrics-chart-toggle" role="group" aria-label="图表类型">
+              <button type="button" :aria-pressed="chartType === 'bar'" @click="chartType = 'bar'">
+                柱状图
+              </button>
+              <button type="button" :aria-pressed="chartType === 'line'" @click="chartType = 'line'">
+                折线图
+              </button>
+            </div>
+          </div>
         </header>
         <div class="metrics-plot" :class="{ dense: points.length > 8 }">
-          <svg viewBox="0 0 800 280" role="img" :aria-label="`${metric} 按任务实例分布`">
+          <svg
+            viewBox="0 0 800 280"
+            role="img"
+            :aria-label="`${metric} 按任务实例分布 · ${chartType === 'bar' ? '柱状图' : '折线图'}`"
+          >
             <g v-for="value in [scale.min, scale.max]" :key="value">
               <line x1="100" x2="740" :y1="scale.y(value)" :y2="scale.y(value)" class="grid-line" />
               <text x="90" :y="scale.y(value) + 4" text-anchor="end">{{ tick(value) }}</text>
             </g>
             <line x1="100" x2="740" :y1="scale.y(0)" :y2="scale.y(0)" class="axis-line" />
+            <path v-if="chartType === 'line'" :d="linePath" class="metric-line" />
             <g v-for="point in chartPoints" :key="point.task.id">
               <rect
-                v-if="Number.isFinite(point.value)"
+                v-if="chartType === 'bar' && Number.isFinite(point.value)"
                 :x="point.x - Math.min(22, 220 / points.length)"
                 :width="Math.min(44, 440 / points.length)"
                 :y="Math.min(scale.y(0), scale.y(point.value))"
@@ -188,6 +212,17 @@ onBeforeUnmount(() => {
               >
                 <title>{{ label(point.task) }} · {{ metric }} = {{ point.value }}</title>
               </rect>
+              <circle
+                v-if="chartType === 'line' && Number.isFinite(point.value)"
+                :cx="point.x"
+                :cy="scale.y(point.value)"
+                r="4"
+                class="metric-point"
+                :data-task-run="point.task.id"
+                :data-value="point.value"
+              >
+                <title>{{ label(point.task) }} · {{ metric }} = {{ point.value }}</title>
+              </circle>
               <text :x="point.x" y="247" text-anchor="middle">{{ point.index }}</text>
             </g>
             <text x="420" y="273" text-anchor="middle">任务实例序号</text>
@@ -271,6 +306,32 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+.metrics-chart-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+.metrics-chart-toggle {
+  display: flex;
+  padding: 3px;
+  border: 1px solid #e8e2ef;
+  border-radius: 8px;
+}
+.metrics-chart-toggle button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  font-size: 13px;
+}
+.metrics-chart-toggle button[aria-pressed='true'],
+.metrics-chart-toggle button[aria-pressed='true']:hover:not(:disabled) {
+  background: #7146ce;
+  color: #fff;
 }
 .metrics-chart h2 {
   margin: 0;
@@ -300,8 +361,14 @@ onBeforeUnmount(() => {
 .axis-line {
   stroke: #b9adca;
 }
-.metric-bar {
+.metric-bar,
+.metric-point {
   fill: #7146ce;
+}
+.metric-line {
+  fill: none;
+  stroke: #7146ce;
+  stroke-width: 2;
 }
 td small {
   display: block;

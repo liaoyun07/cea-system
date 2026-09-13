@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  chartLine,
   chartScale,
   instanceLabel,
   metricSources,
@@ -65,4 +66,43 @@ test('chart has a truthful zero baseline and handles negative/all-zero/very larg
   const scale = chartScale([2, 4]);
   assert.equal(scale.y(0), 220);
   assert.equal(scale.y(4), 40);
+});
+
+test('line uses exact shared coordinates, breaks at missing values and never fills or smooths them', () => {
+  const values = [undefined, -2, 0, 2, undefined, 1, null, NaN, Infinity, 0];
+  const points = values.map((value, index) => ({ value, x: index * 10 }));
+  const scale = chartScale(values);
+  assert.equal(chartLine(points, scale.y), 'M 10 220 L 20 130 L 30 40 M 50 85 M 90 130');
+  assert.deepEqual(
+    points.map((point) => point.value),
+    values,
+  );
+});
+
+test('line handles no values, one value, all zero and extreme finite values', () => {
+  const scale = chartScale([0]);
+  assert.equal(chartLine([], scale.y), '');
+  assert.equal(chartLine([{ x: 100, value: undefined }], scale.y), '');
+  assert.equal(chartLine([{ x: 100, value: 0 }], scale.y), 'M 100 220');
+  assert.equal(
+    chartLine(
+      [
+        { x: 100, value: 0 },
+        { x: 200, value: 0 },
+      ],
+      scale.y,
+    ),
+    'M 100 220 L 200 220',
+  );
+  const extreme = chartScale([-1e308, 1e308]);
+  assert.equal(
+    chartLine(
+      [
+        { x: 100, value: -1e308 },
+        { x: 200, value: 1e308 },
+      ],
+      extreme.y,
+    ),
+    'M 100 220 L 200 40',
+  );
 });

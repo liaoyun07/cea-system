@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-06a（DONE/PASS，已发布CEA前端）：WF-006既有Metrics页面增加柱状/折线显示切换，共用原值和实例坐标，不新增采集/计量或工作流能力。范围见[Metrics规格](features/UI-06-execution-metrics.md)，47项单测/54项浏览器及实际18080发布见[验证](verification/VER-UI-006a-chart-switch.md)。
+
 UI-10（DONE/PASS，已发布CEA）：WF-003/WF-006、RES-001、SEC-001、DEP-001/002增加Flow/终态Execution/未引用Dataset逻辑删除、ADMIN/USER账号/个人中心和独立BuildKit在线构建。无新功能域、执行链或吞吐/DQN能力。边界见[工作包](features/UI-10-cleanup-users-build.md)和[协议](contracts/ui10-cleanup-users-build.md)，实际测试/部署见[验证](verification/VER-UI-010-cleanup-users-build.md)。
 
 UI-09（DEP-001/DEP-002/RES-001管理补齐，DONE/PASS，已发布CEA）：Registry实际库存/详情/引用保护删除、应用目录删除、Service创建/删除/访问详情及多Namespace管理；不新造功能域ID。包含源tag与digest契约的无标签副本核验，不以历史记录代替库存。验证/发布结果见[验证记录](verification/VER-UI-009-registry-kubernetes.md)。

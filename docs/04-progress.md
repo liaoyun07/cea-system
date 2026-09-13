@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-06a（2026-09-13，DONE，已部署CEA）：Metrics新增柱状/折线切换，默认柱状，保持原值/实例顺序/坐标，缺失断线、单值显示点；只改前端，无Java/API/表或执行链变化。47项Node、54项真实浏览器、构建/格式/scaffold及桌面/390px视觉验证PASS。13:59仅更新frontend，实际18080 FedAvg/FedProx原值和双向切换复核PASS，原2个Flow、4条Execution、38个TaskRun、27个Attempt及其余12服务不变。用户新增“每次修改测试后同步部署”约定已写入AGENTS.md。见[验证](verification/VER-UI-006a-chart-switch.md)。
+
 UI-10：DONE（最小范围，已部署CEA）。Flow/终态Execution/未引用Dataset逻辑删除、ADMIN/USER人员与个人中心、独立rootless BuildKit在线构建已接通。2026-09-13 09:47:47完整235项后端回归、45项前端单测、54项真实浏览器及构建/格式通过；09:52:38追加1项删除竞争测试通过（任务提交/契约登记各5轮竞争，不修改生产代码）。09:49:44只更新前后端、增加builder及专用socket/cache/网络，应用V21–V24；09:50:14实际18080桌面/390px、ADMIN、健康、后端实际构建导出及数据对照PASS。原2个Flow、6个应用版本、2个数据集、4条Execution、38个TaskRun、27个Attempt、http-server部署和原卷保留，其他10服务未重启。5个新Java、12个API、3个删除列/1张人员表；执行链、Runner/Placement不变。两次测试socket超时与后续回归经过保留在[验证](verification/VER-UI-010-cleanup-users-build.md)，不宣称根因已定位。范围见[工作包](features/UI-10-cleanup-users-build.md)；存储GC、复杂IAM、持久构建历史和旧系统切换未做。
 
 UI-09（2026-09-13，已发布）：补齐Registry实际库存/详情/引用保护删除、应用目录删除、Service及多Namespace管理。06:18:11最终230项后端回归通过，45项前端单元、50项浏览器及构建/格式/结构检查通过；06:21实际18080复核四仓库5/2/2/2个条目（含无标签副本），源标签解析/目标直接查询与库存一致。前后端、4个Registry删除开关与4集群管理RBAC均已应用；V20只增加应用目录deleted列。原2个Flow、6个应用版本、4条Execution、38个TaskRun、27个Attempt与http-server部署及全部卷挂载不变，MySQL/MinIO/4算法集群未重建，没有删除既有业务对象。执行链与默认Namespace不变，不自动GC；迭代中遗漏标签候选等问题及修正证据见[验证](verification/VER-UI-009-registry-kubernetes.md)，[范围](features/UI-09-registry-kubernetes-management.md)。
