@@ -1,8 +1,8 @@
 # CEA 独立本地部署（DEPLOY-01）
 
-FILE-01 部署调整（状态见[进度](../../docs/04-progress.md)）：新增 minio-edge-a/b/c 三个服务和独立卷（共16个常驻服务），不新增宿主端口；四集群使用公共文件助手，原算法镜像不变。中心保留 datasets/历史 cea-artifacts，新的边缘 Job 输出写到对应 cea-artifacts-edge-*；不是数据集迁移。新增三个存储的内存上限各512MiB，实际磁盘随产物增长，暂不自动GC。
+FILE-01已于2026-09-13发布并现场验收（见[记录](../../docs/verification/VER-FILE-001-pod-artifacts.md)）：新增 minio-edge-a/b/c 三个服务和独立卷（共16个常驻服务），不新增宿主端口；四集群使用公共文件助手，原算法镜像不变。中心保留 datasets/历史 cea-artifacts，新的边缘 Job 输出写到对应 cea-artifacts-edge-*；不是数据集迁移。新增三个存储的内存上限各512MiB，实际磁盘随产物增长，暂不自动GC。
 
-现有环境授权后先检查无活动 Execution/WorkerJob、保存恢复镜像和旧配置，再执行 `setup-files.ps1`，构建测试后的 backend，仅 `up -d --no-deps --wait backend`，最后 `exec -T frontend nginx -s reload`。setup-files只增加边缘存储、Bucket权限、助手Registry副本及Secret RBAC，并生成ignored的`secrets/backend/storage-endpoints.yaml`（Pod可达内网IP和助手digest）；它不重启原服务、不提交Flow、不迁移数据。存储容器重建/IP改变后应重新生成并更新backend；新安装的start已调用该步骤。禁用CoreDNS的本地设置不能直接照搬到物理多云。
+旧版本现场升级须先获授权、检查无活动Execution/WorkerJob、保存恢复镜像/配置/Role并停止backend（防止旧Runner在pods/exec撤销后继续接任务），再应用新storage配置并执行`setup-files.ps1`；发布测试后的backend镜像，仅`up -d --no-deps --wait backend`，最后`exec -T frontend nginx -s reload`。本次已完成，不必重复初始化。setup-files只增加边缘存储、Bucket权限、助手Registry副本及Secret RBAC，并生成ignored的`secrets/backend/storage-endpoints.yaml`（Pod可达内网IP和助手digest）；它不重启原服务、不提交Flow、不迁移数据。存储容器重建/IP改变后应重新生成并更新backend；新安装的start已调用该步骤。禁用CoreDNS的本地设置不能直接照搬到物理多云。
 
 K8s Runner不再需要pods/exec，替换为执行Namespace内secrets get/create/update/delete；助手授权挂载不进入算法。参考[协议](../../docs/contracts/file01-pod-artifacts.md)。部署后`verify-federated.ps1`同时检查四存储输出、助手/Secret隔离及两轮模型数值，不适用于断言旧中心-only历史执行已具备新存储行为。接收边缘产物后不能简单回退到只识别中心的旧backend。
 

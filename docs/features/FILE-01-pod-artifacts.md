@@ -1,6 +1,6 @@
 # FILE-01 Pod 文件传输
 
-状态：代码和测试完成，CEA新增基础设施授权待确认，尚未发布。依赖 S4 Job/Application、S5 FedAvg/FedProx、UI-06/07 产物读取。实际结果见[验证](../verification/VER-FILE-001-pod-artifacts.md)。
+状态：DONE，2026-09-13已按授权发布CEA并通过现场验收。依赖 S4 Job/Application、S5 FedAvg/FedProx、UI-06/07 产物读取。现场两算法各两轮/11个Job、边缘模型驻留与跨存储聚合、独立数值及历史读取均PASS，实际结果见[验证](../verification/VER-FILE-001-pod-artifacts.md)。
 
 范围和架构决策见 [ADR-0023](../decisions/ADR-0023-pod-artifact-transfer.md)。
 

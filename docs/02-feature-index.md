@@ -1,6 +1,6 @@
 # 功能与验证索引
 
-FILE-01（RUN-001/RES-001 增量，代码/测试PASS，未发布CEA）：K8s Pod 公共文件助手和按执行位置存储，不新增功能域/DSL/SQL/API；终端 Docker 保留既有文件路径。完整237项、最终8项K3s/1项JAR回归、8项助手测试及两算法数值审计通过，新增存储/Secret权限待确认。规格见 [FILE-01](features/FILE-01-pod-artifacts.md)，[验证](verification/VER-FILE-001-pod-artifacts.md)。
+FILE-01（RUN-001/RES-001 增量，DONE/PASS，已发布CEA）：K8s Pod公共文件助手和按执行位置存储，不新增功能域/DSL/SQL/API；终端Docker保留既有文件路径。完整237项、最终8项K3s/1项JAR回归、8项助手测试通过；获批新增三边缘存储/Secret权限后，现场两算法各两轮/11个Job、四存储实物和独立数值复核PASS，历史保持。规格见 [FILE-01](features/FILE-01-pod-artifacts.md)，[验证](verification/VER-FILE-001-pod-artifacts.md)。
 
 UI-05a（DONE/PASS，已发布CEA前端）：WF-006任务实例表按startedAt展示，不改原始数据/后端顺序/执行链；同时间保留原顺序，未开始置后。范围见[规格](features/UI-05-execution-inspection.md)，50项单测/55项浏览器及实际18080验收见[验证](verification/VER-UI-005a-task-start-order.md)。
 

@@ -1,8 +1,8 @@
 # 当前进度
 
-FILE-01：代码/测试完成，CEA发布等待新增基础设施权限确认。18:11:51完整237项后端回归通过；18:18:19最终代码8项K3s定向和1项打包JAR验证通过（覆盖最后的URI校验、Secret所有权/CAS清理与终端适配）；8项助手Linux测试、结构/脚本/Compose检查通过。FedAvg/FedProx各两轮数值审计通过，训练产物在隔离边缘MinIO，聚合在中心MinIO。已构建backend/file-helper的file01-candidate镜像，未替换CEA运行镜像。无新Java文件/SQL/API/DSL，原调度/执行链及历史URI保留；无常驻交接服务、DQN或计量新增。见[规格](features/FILE-01-pod-artifacts.md)、[验证](verification/VER-FILE-001-pod-artifacts.md)。
+FILE-01（2026-09-13，DONE，已发布CEA）：18:29更新backend、frontend仅reload，新增三个边缘MinIO/独立卷，四集群应用文件助手及Namespace内Secret权限，撤销旧pods/exec权限。现场FedAvg/FedProx各两轮、11个Job及独立数值复核通过；18:32:38四存储实物核验PASS，每个执行中心5个文件、每边缘2个文件，中心没有train输出副本。2个Flow/8修订、原5条Execution/100个TaskRun和3份历史Metrics原值保持，其他12个原容器未重启。无新Java文件/SQL/API/DSL，原调度/执行链及历史URI保留；无常驻交接服务、DQN或计量新增。见[规格](features/FILE-01-pod-artifacts.md)、[验证](verification/VER-FILE-001-pod-artifacts.md)。
 
-FILE-01待发布说明：3个边缘MinIO/独立卷和执行Namespace内Secret管理权限尚未获单独回复，不应用、不停止原服务。为保持当前旧后端可重启，等待确认期间工作区`deploy/cea/application.yaml`暂保留旧运行配置（相对已提交新配置的有意差异）；新配置副本在ignored的`.local/cea/file01/application-ready.yaml`。确认后恢复新配置、复查无活动Execution/WorkerJob、保留恢复镜像/Role，短停backend后执行setup-files及发布候选后端，再进行现场两算法/历史数据验收；不能将测试PASS当作已上线。
+FILE-01实施验证：18:11:51完整237项后端回归；18:18:19最终8项K3s定向和1项打包JAR验证（含最后的URI校验、Secret所有权/CAS清理与终端适配）；8项助手Linux测试、结构/脚本/Compose检查均PASS。用户随后明确“部署”，本次应用新配置并完成现场验收，原先等待确认期间的有意配置差异已解除。保留旧backend恢复标签/配置/Role，但新边缘产物已产生，不可直接回退为中心-only旧后端。仍为单宿主四集群，数据集保留中心，不宣称物理多云或边缘脱网自治。
 
 UI-05a（2026-09-13，DONE，已部署CEA）：任务实例开始时间升序、同时间稳定、未开始置后，仅表格排序投影，不修改原tasks/拓扑/Metrics或后端执行链。50项Node、55项真实浏览器、构建/格式/scaffold和桌面/390px复核PASS。14:37仅替换frontend，14:38–14:39实际18080 FedAvg 62实例、FedProx 14实例的排序/详情/刷新通过；2个Flow、5条Execution、100个TaskRun、78个Attempt及其余12服务未变。无Java/API/表变化，见[验证](verification/VER-UI-005a-task-start-order.md)。
 
@@ -69,7 +69,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 - 主链：统一提交Checks → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally → 主终态 → 同链afterExecution。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
 - 叶子支持Log/Sleep、真实Application Job或终端Docker、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application容器内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
-- 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。命名输入、数据集文件和输出通过后端Kubernetes文件API/S3转运，镜像不带存储凭据。
+- 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。Kubernetes命名输入、数据集文件和输出由Pod公共助手按授权URI直接读写源/本域S3，算法镜像不带存储凭据；中心仅控制、确认对象及限量读取JSON，终端Docker保留原文件搬运路径。
 - UI-10源码V1–V24共26张业务表；V20–V23为目录/Flow/Execution/Dataset逻辑删除列，V24人员表用于登录和权限。V18/V19分发/部署记录保持；无构建历史或新执行状态表，既有prepared_json和TaskRun作用域语义保持。
 - UI-10源码89个HTTP操作、94个公开record映射。无新Worker端点、Binding、Runner或SPI；本批API/字段消费者见UI-10协议。
 - S6历史verify通过212项：runtime33、持久化86、接入18、编辑/文件/生命周期21、容器/联邦33、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。后续UI-06基线216项通过，当前批次以顶部及VER-UI-008为准，不把历史结果当本批结果。

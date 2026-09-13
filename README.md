@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FILE-01已于2026-09-13发布CEA：Kubernetes文件由Pod公共助手传输，输出先写实际执行位置的存储，跨域下游直接读取源存储。新增三个边缘MinIO及独立卷，只更新backend，frontend仅reload；不修改算法镜像或Flow定义。现场FedAvg/FedProx各两轮、11个Job及独立数值复核通过，历史中心产物保持可读。数据集未迁移，终端Docker文件链未改，详见[部署验证](docs/verification/VER-FILE-001-pod-artifacts.md)。
+
 UI-10已于2026-09-13发布CEA：删除管理、简单ADMIN/USER与个人中心、在线Dockerfile构建。新增独立rootless BuildKit、专用缓存和DB人员认证；不挂宿主Docker socket，不清理现有数据/工作负载。235项完整后端回归、追加删除竞争验证、45项前端单测和54项浏览器通过，详见[进度](docs/04-progress.md)及[行为与限制](docs/contracts/ui10-cleanup-users-build.md)。`.env`人员凭据从本批起只用于首次初始化，在线改密后以数据库为准，重启不会恢复原密码。
 
 UI-08已实现并于2026-09-13发布CEA：单镜像tar上传、持久按需分发历史、Deployment配置编辑/手动扩缩容/就绪耗时与30秒目标对比、近期CPU/内存用量。实现阶段227项Maven、45项Node、47项浏览器通过；发布时重新构建前后端、应用V18/V19两张记录表、上传卷及四集群Metrics Server/只读RBAC，实际18080页面/API复核通过。既有Flow/执行/算法工作负载及其余10个服务不变，执行链不变。[功能与边界](docs/features/UI-08-core-deployment-operations.md)、[实测记录](docs/verification/VER-UI-008-core-deployment-operations.md)。
