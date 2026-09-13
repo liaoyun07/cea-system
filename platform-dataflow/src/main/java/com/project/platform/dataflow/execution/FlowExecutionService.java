@@ -69,6 +69,11 @@ public final class FlowExecutionService {
         access.require(actor, namespace, Action.READ);
         return executions.list(namespace, limit, offset);
     }
+    public List<ExecutionRecord> listForFlows(Actor actor,String namespace,List<String> flowIds,
+                                             com.project.platform.runtime.model.ExecutionState state,int limit,int offset) {
+        access.require(actor,namespace,Action.READ);
+        return executions.listForFlows(namespace,flowIds,state,limit,offset);
+    }
     public com.project.platform.runtime.execution.ExecutionService.Overview overview(Actor actor,String namespace,int days) {
         access.require(actor,namespace,Action.READ);
         return executions.overview(namespace,days);

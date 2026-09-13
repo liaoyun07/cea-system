@@ -44,5 +44,14 @@ public final class EdgeController {
     public List<Policy> policies(Principal p,@PathVariable String namespace,@RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
         return edge.policies(actor(p),namespace,limit,offset);
     }
+    public record ProcessingView(ExecutionController.View execution,String eventType,SubmissionOrigin origin) {}
+    @GetMapping("/processing-records")
+    public List<ProcessingView> processingRecords(Principal p,@PathVariable String namespace,
+            @RequestParam(required=false) String policyId,
+            @RequestParam(required=false) com.project.platform.runtime.model.ExecutionState state,
+            @RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
+        return edge.processingRecords(actor(p),namespace,policyId,state,limit,offset).stream()
+                .map(r->new ProcessingView(ExecutionController.View.of(r.execution()),r.eventType(),r.origin())).toList();
+    }
     private Actor actor(Principal p) { return identities.actor(p.getName()); }
 }

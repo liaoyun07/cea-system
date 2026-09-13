@@ -66,6 +66,16 @@ public final class EdgeAccessService {
     public List<Policy> policies(Actor actor,String ns,int limit,int offset) {
         authorize(actor,ns,Action.READ);ExecutionService.page(limit,offset);return repository.policies(ns,limit,offset);
     }
+    /** Read projection only: runtime owns pagination, state, timestamps and output snapshots. */
+    public List<ProcessingRecord> processingRecords(Actor actor,String ns,String policyId,
+                                                   com.project.platform.runtime.model.ExecutionState state,int limit,int offset) {
+        authorize(actor,ns,Action.READ);ExecutionService.page(limit,offset);
+        if(policyId!=null) identifier(policyId);
+        var policies=repository.processingPolicies(ns,policyId);
+        var events=new HashMap<String,String>();policies.forEach(p->events.put(p.id(),p.eventType()));
+        return executions.listForFlows(actor,ns,policies.stream().map(Policy::id).toList(),state,limit,offset).stream()
+                .map(e->new ProcessingRecord(e,events.get(e.flowId()),repository.submissionOrigin(ns,e.id()))).toList();
+    }
     public Gateway heartbeat(Actor actor,String ns) {
         var gateway=connected(actor,ns);return repository.heartbeat(ns,gateway.id());
     }

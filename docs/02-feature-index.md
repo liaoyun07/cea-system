@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+EP-02（S5-03增量，DONE/PASS，已发布）：边缘处理记录、策略/状态服务端筛选分页、原执行详情与结果；240项Maven、50项Node、最终57项浏览器及实际CEA三记录/三结果JSON验收通过。没有第二套状态/表；原数据及其余15服务保持。见[规格](features/EP-02-processing-records.md)、[API](contracts/ep02-processing-records.md)、[实际验收](verification/VER-EP-002-processing-records.md)。
+
 EP-01（S5-03/FILE-01增量，DONE/PASS，已发布）：实际HTTP网关、终端容器上传、三个策略与三种结果去向；237项Maven、19项新Python测试、4命令断网试跑和现场3执行/数值/归属/存储核验PASS。不新增功能域/Java/DB/DSL；[规格](features/EP-01-terminal-edge-examples.md)，[协议](contracts/ep01-gateway.md)，[验收](verification/VER-EP-001-terminal-edge.md)。
 
 FILE-01（RUN-001/RES-001 增量，DONE/PASS，已发布CEA）：K8s Pod公共文件助手和按执行位置存储，不新增功能域/DSL/SQL/API；终端Docker保留既有文件路径。完整237项、最终8项K3s/1项JAR回归、8项助手测试通过；获批新增三边缘存储/Secret权限后，现场两算法各两轮/11个Job、四存储实物和独立数值复核PASS，历史保持。规格见 [FILE-01](features/FILE-01-pod-artifacts.md)，[验证](verification/VER-FILE-001-pod-artifacts.md)。

@@ -61,6 +61,10 @@ public final class ExecutionService {
         page(limit, offset);
         return store.list(namespace, limit, offset);
     }
+    public List<ExecutionRecord> listForFlows(String namespace,List<String> flowIds,ExecutionState state,int limit,int offset) {
+        page(limit,offset);
+        return store.listForFlows(namespace,flowIds,state,limit,offset);
+    }
     public List<TaskRun> tasks(String namespace, String id) {
         store.get(namespace, id);
         return store.tasks(id);

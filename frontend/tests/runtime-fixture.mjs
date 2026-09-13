@@ -10,6 +10,7 @@ export async function startRuntime(token) {
   const owned = [],
     network = `cea-ui-runtime-${token}`;
   let networkCreated = false;
+  let helperImage;
   const docker = (...args) =>
     execFileSync('docker', args, {
       encoding: 'utf8',
@@ -20,6 +21,7 @@ export async function startRuntime(token) {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const cleanup = () => {
     for (const id of owned.reverse()) docker('rm', '-f', id);
+    if (helperImage) docker('image', 'rm', helperImage);
     if (networkCreated) docker('network', 'rm', network);
     const absolute = resolve(directory);
     if (
@@ -137,6 +139,13 @@ export async function startRuntime(token) {
     docker('save', '-o', join(directory, 'pause.tar'), 'rancher/mirrored-pause:3.6');
     docker('cp', join(directory, 'pause.tar'), `${k3s}:/tmp/pause.tar`);
     docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/pause.tar');
+    // FILE-01 Jobs transfer artifacts in the Pod, using the current shared helper.
+    const helperTag = `cea-ui-file-helper:${token}`;
+    docker('build', '-t', helperTag, resolve(import.meta.dirname, '../../deploy/file-helper'));
+    helperImage = helperTag;
+    docker('save', '-o', join(directory, 'file-helper.tar'), helperImage);
+    docker('cp', join(directory, 'file-helper.tar'), `${k3s}:/tmp/file-helper.tar`);
+    docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/file-helper.tar');
     const metricsImage = 'rancher/mirrored-metrics-server:v0.7.2';
     try {
       docker('image', 'inspect', metricsImage);
@@ -172,6 +181,8 @@ export async function startRuntime(token) {
     const minio = docker(
       'run',
       '-d',
+      '--network',
+      network,
       '-p',
       '127.0.0.1::9000',
       '-e',
@@ -207,14 +218,19 @@ export async function startRuntime(token) {
     if (!storageReady) throw new Error('Isolated object storage did not become ready');
     writeFileSync(join(directory, 's3-key'), 'ui-test-key');
     writeFileSync(join(directory, 's3-secret'), 'ui-test-secret');
+    const transferAddress = JSON.parse(docker('inspect', minio))[0].NetworkSettings.Networks[network]
+      .IPAddress;
     return {
       cleanup,
       archive: join(directory, 'alpine.tar'),
       args: [
-        `--platform.jobs.storage.lab.endpoint=http://127.0.0.1:${docker('port', minio, '9000/tcp').split(':').at(-1)}`,
-        `--platform.jobs.storage.lab.access-key-file=${join(directory, 's3-key')}`,
-        `--platform.jobs.storage.lab.secret-key-file=${join(directory, 's3-secret')}`,
-        '--platform.jobs.storage.lab.artifact-bucket=artifacts',
+        `--platform.jobs.helpers.lab.runtime-edge=${helperImage}`,
+        '--platform.jobs.storage.lab.outputs.runtime-edge=center',
+        `--platform.jobs.storage.lab.stores.center.endpoint=http://127.0.0.1:${docker('port', minio, '9000/tcp').split(':').at(-1)}`,
+        `--platform.jobs.storage.lab.stores.center.transfer-endpoint=http://${transferAddress}:9000`,
+        `--platform.jobs.storage.lab.stores.center.access-key-file=${join(directory, 's3-key')}`,
+        `--platform.jobs.storage.lab.stores.center.secret-key-file=${join(directory, 's3-secret')}`,
+        '--platform.jobs.storage.lab.stores.center.artifact-bucket=artifacts',
         '--platform.jobs.slots.lab.runtime-edge=2',
         '--platform.distribution.registries.ui.address=ui-registry:5000',
         '--platform.distribution.registries.ui.tls-verify=false',

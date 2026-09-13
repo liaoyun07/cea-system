@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+EP-02：仍104份生产Java，无文件新增/删除。`EdgeController`增加GET processing-records与ProcessingView；`EdgeAccess`增加SubmissionOrigin/ProcessingRecord，只读响应不持久化；`EdgeAccessService`组合策略/可信来源及原Execution。`JdbcEdgeRepository`只查本模块策略和接入归属；`FlowExecutionService` → `ExecutionService` → `JdbcExecutionStore`增加listForFlows，runtime仅按namespace/flowIds/state在自己表内筛选后分页，不引用edge表或类型。无DB/模块依赖/引擎状态所有权变化；新增前端`management/EdgeProcessingPage.vue`，详情继续ExecutionDetail。平台HTTP操作89→90。见[规格](features/EP-02-processing-records.md)。
+
 EP-01：生产Java仍104份，未新增/修改Java类、record、表/列、后端API或模块依赖。新增`deploy/edge-gateway/gateway.py`（认证、限量上传、事件转交、所属结果读取）与`terminal.py`（真实文件回放）；`examples/edge-processing/app.py`是4个应用命令，`prepare.py`离线数据/模型，3份YAML是唯一策略定义。链路仍为EdgeAccessController → EdgeAccessService → FlowExecutionService → 原Executor/Worker/ApplicationTaskRunner/KubernetesJobRunner；网关不运行算法或决定cluster。`setup-edge-examples.ps1`负责本地配置和示例登记，不成为生产调度组件。
 
 FILE-01（实施/验证状态见进度）：不新增生产 Java 文件、SQL 表/列或 HTTP API，仍为 104 个 Java 文件。ObjectStorage.Configuration 为实际多存储配置消费者；Connection.transferEndpoint 用于生成 Pod 可达授权地址。ApplicationTaskRunner.Prepared 增加 outputUris/helperImage（Attempt 固定发布目标和助手镜像），仍保存于原 prepared_json。ContainerTask.Transfers 只服务 K8s 文件助手；Filesystem 仍由终端 Docker 消费，不保留旧 K8s 搬运回退。

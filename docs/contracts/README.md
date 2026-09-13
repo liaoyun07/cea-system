@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [EP-02 边缘处理记录](ep02-processing-records.md)：namespace READ、策略/状态筛选和服务端分页，复用原Execution与产物权限。
+
 - [EP-01 终端上传网关](ep01-gateway.md)：独立网关的上传/事件/所属结果HTTP接口；平台原OpenAPI、Flow定义和执行协议不变。
 
 - [FILE-01 Pod 文件助手](file01-pod-artifacts.md)：K8s init/main/output、按执行位置存储、临时 Secret 授权与恢复；不新增外部 API/SQL/DSL，替代 S4 的中心文件搬运。

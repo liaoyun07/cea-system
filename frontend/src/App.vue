@@ -10,6 +10,7 @@ import DeploymentsPage from './management/DeploymentsPage.vue';
 import KubernetesResourcesPage from './management/KubernetesResourcesPage.vue';
 import RegistryPage from './management/RegistryPage.vue';
 import OverviewPage from './OverviewPage.vue';
+import EdgeProcessingPage from './management/EdgeProcessingPage.vue';
 import { catalogs } from './management/catalogs.js';
 
 const navigation = [
@@ -45,6 +46,7 @@ const navigation = [
       ['gateways', '边缘网关', '⌁'],
       ['terminals', '终端设备', '▱'],
       ['policies', '边缘处理策略', '⋈'],
+      ['edge-records', '边缘处理记录', '≋'],
       ['observations', '卸载观测', '↗'],
     ],
   },
@@ -57,6 +59,7 @@ const titleFor = (key) =>
     registries: '镜像仓库',
     flows: '流程',
     executions: '执行',
+    'edge-records': '边缘处理记录',
     deployments: '应用部署',
     profile: '个人中心',
     users: '用户管理',
@@ -312,6 +315,7 @@ async function removeRow(row) {
         :api="session.api"
         @execution="showExecution"
       />
+      <EdgeProcessingPage v-else-if="page === 'edge-records'" :key="pageEpoch" :api="session.api" />
       <KubernetesResourcesPage
         v-else-if="page === 'kubernetes'"
         :key="pageEpoch"

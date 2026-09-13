@@ -77,6 +77,16 @@ public final class JdbcExecutionStore {
     public List<ExecutionRecord> list(String namespace,int limit,int offset) {
         return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? AND deleted=FALSE ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,namespace,limit,offset);
     }
+    public List<ExecutionRecord> listForFlows(String namespace,List<String> flowIds,ExecutionState state,int limit,int offset) {
+        if(flowIds.isEmpty()) return List.of();
+        var arguments=new ArrayList<Object>();arguments.add(namespace);arguments.addAll(flowIds);
+        String filter="";
+        if(state!=null) { filter=" AND state=?";arguments.add(state.name()); }
+        arguments.add(limit);arguments.add(offset);
+        return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? AND deleted=FALSE AND flow_id IN ("
+                +String.join(",",Collections.nCopies(flowIds.size(),"?"))+")"+filter
+                +" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,arguments.toArray());
+    }
     public com.project.platform.runtime.execution.ExecutionService.Overview overview(String namespace,int days) {
         return transaction(() -> {
             var to=now();

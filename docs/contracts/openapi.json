@@ -1594,6 +1594,28 @@
         }
       }
     },
+    "/api/namespaces/{namespace}/edge/processing-records": {
+      "parameters": [
+        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}}
+      ],
+      "get": {
+        "operationId": "listEdgeProcessingRecords",
+        "description": "READ in namespace. Original executions of EDGE_POLICY flows, including disabled policies, excluding logically deleted executions and ordinary USER flows. Server-side filtering before pagination; createdAt DESC, id DESC. Origin comes from persisted ingress ownership, not caller inputs. No physical-location or terminal-delivery inference.",
+        "parameters": [
+          {"name":"policyId","in":"query","schema":{"type":"string"},"description":"Exact policy ID; omitted means all policies, unknown ID gives an empty list."},
+          {"name":"state","in":"query","schema":{"type":"string","enum":["CREATED","QUEUED","RUNNING","RETRYING","KILLING","SUCCESS","FAILED","KILLED","SKIPPED"]}},
+          {"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},
+          {"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}
+        ],
+        "responses": {
+          "200":{"description":"Matching execution page","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/EdgeProcessingRecord"}}}}},
+          "400":{"description":"Malformed query or unknown state"},
+          "401":{"description":"Authentication required"},
+          "403":{"description":"Namespace READ required; CONNECT alone is insufficient"},
+          "422":{"description":"Invalid policy identifier or pagination"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/edge/policies": {
       "parameters": [
         {
@@ -5990,6 +6012,22 @@
           "enabled"
         ],
         "additionalProperties": false
+      },
+      "EdgeProcessingRecord": {
+        "type":"object",
+        "properties":{
+          "execution":{"$ref":"#/components/schemas/Execution"},
+          "eventType":{"type":"string"},
+          "origin":{
+            "type":["object","null"],
+            "description":"Persisted terminal/gateway ownership; null if no ingress receipt. clusterId is the source edge, not the actual execution placement.",
+            "properties":{"terminalId":{"type":"string"},"gatewayId":{"type":"string"},"clusterId":{"type":"string"}},
+            "required":["terminalId","gatewayId","clusterId"],
+            "additionalProperties":false
+          }
+        },
+        "required":["execution","eventType","origin"],
+        "additionalProperties":false
       },
       "PolicyView": {
         "type": "object",

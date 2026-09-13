@@ -81,6 +81,10 @@ location /api/ {
 
 非本机访问需配置HTTPS和适当访问控制。无需放宽后端CORS，也不向浏览器暴露数据库/Kubernetes凭据。
 
+## 边缘处理记录
+
+“边缘与终端 → 边缘处理记录”使用受权`GET edge/processing-records`，按策略/状态服务端筛选分页；查看可信来源、原运行修订、状态和时间。“详情与结果”复用原执行详情，返回保留筛选/页码。来源边缘不等于实际任务位置，没有接入回执时不推测。需本批新后端，发布状态见[EP-02验收](../docs/verification/VER-EP-002-processing-records.md)。
+
 ## 验证
 
 ```powershell
@@ -95,5 +99,7 @@ npm run test:e2e
 E2E要求Docker可用、已构建后端JAR，以及本地测试镜像mysql:8.0、registry:2、quay.io/skopeo/stable:v1.20.0、rancher/k3s:v1.30.6-k3s1、rancher/mirrored-pause:3.6、rancher/mirrored-metrics-server:v0.7.2、alpine:latest及quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z。自动创建临时MySQL、Registry、Skopeo、K3s、MinIO、随机账号/端口、新JAR进程和静态预览；测试结束清理本次容器、网络和临时配置。不接业务库、不启动/停止IDEA或CEA服务。临时K3s用于实际上传、分发、Deployment编辑/就绪/缩放/删除、近期用量及JSON产物读取验收。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
 
 UI-10 E2E还会创建独立`moby/buildkit:v0.33.0-rootless`测试容器，使用真实构建及既有Registry导入；缺少镜像时需可访问官方镜像源。它不会使用或重启CEA的builder。
+
+EP-02回归将浏览器基础设施同步到FILE-01：从`deploy/file-helper`构建独立测试助手镜像（基础镜像python:3.11-slim），导入临时K3s；临时MinIO加入测试网络，使用stores/outputs及Pod可达transfer-endpoint。结束仅删除本次容器/网络/助手镜像，不改CEA存储或权限。
 
 UI-09已有Registry库存/详情/受保护删除、Service与受管Kubernetes Namespace管理；UI-10补两角色账号、个人中心、删除入口和ZIP/Dockerfile在线构建，实际验证/发布状态见[进度](../docs/04-progress.md)。仍无任意Node管理、数据文件上传、历史资源监控、跨执行指标趋势、数据处理速率、全局产物浏览下载或旧数据迁移。UI-08提供镜像tar上传和持久按需分发历史；UI-06提供已声明JSON产物的指标图和明细。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)及[UI-10](../docs/contracts/ui10-cleanup-users-build.md)。

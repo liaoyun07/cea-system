@@ -71,6 +71,20 @@ public final class JdbcEdgeRepository {
     public List<Policy> policies(String ns,int limit,int offset) {
         return jdbc.query("SELECT * FROM edge_policy WHERE namespace=? ORDER BY id LIMIT ? OFFSET ?",this::policy,ns,limit,offset);
     }
+    public List<Policy> processingPolicies(String ns,String policyId) {
+        return policyId==null
+                ?jdbc.query("SELECT * FROM edge_policy WHERE namespace=? ORDER BY id",this::policy,ns)
+                :jdbc.query("SELECT * FROM edge_policy WHERE namespace=? AND id=?",this::policy,ns,policyId);
+    }
+    public SubmissionOrigin submissionOrigin(String ns,String execution) {
+        var rows=jdbc.query("""
+                SELECT s.terminal_id,t.gateway_id,g.cluster_id FROM edge_submission s
+                JOIN edge_terminal t ON t.namespace=s.namespace AND t.id=s.terminal_id
+                JOIN edge_gateway g ON g.namespace=t.namespace AND g.id=t.gateway_id
+                WHERE s.namespace=? AND s.execution_id=?
+                """,(rs,row)->new SubmissionOrigin(rs.getString(1),rs.getString(2),rs.getString(3)),ns,execution);
+        return rows.isEmpty()?null:rows.getFirst();
+    }
     public Receipt receipt(String ns,String terminal,String key) {
         var rows=jdbc.query("SELECT request_hash,execution_id FROM edge_submission WHERE namespace=? AND terminal_id=? AND request_key=?",(rs,row)->new Receipt(rs.getString(1),rs.getString(2)),ns,terminal,key);
         return rows.isEmpty()?null:rows.getFirst();

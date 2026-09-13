@@ -16,5 +16,8 @@ public final class EdgeAccess {
     public record PolicyRequest(String clusterId,String eventType,boolean enabled,Integer expectedRevision,String source) {}
     public record Policy(String id,String clusterId,String eventType,boolean enabled) {}
     public record PolicyView(Policy policy,FlowRevision flow) {}
+    public record SubmissionOrigin(String terminalId,String gatewayId,String clusterId) {}
+    public record ProcessingRecord(com.project.platform.runtime.model.ExecutionRecord execution,
+                                   String eventType,SubmissionOrigin origin) {}
     public record Event(String eventType,Map<String,Object> inputs) {}
 }

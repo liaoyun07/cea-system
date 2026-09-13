@@ -1,5 +1,7 @@
 # 系统总览
 
+EP-02只读增量：边缘处理记录是原Execution按策略范围筛选的视图，由既有接入回执补充终端/网关来源；不建立第二套处理状态或执行链。页面与接口的验证/发布状态见[进度](04-progress.md)。
+
 EP-01增量（状态见进度）：独立HTTP网关负责终端认证与本边缘文件接入，终端容器回放真实公开样本；三个策略仍调用原EdgeAccessService/FlowExecutionService/Executor/Worker，文件走FILE-01。中心不转发原始上传；留边缘/返回终端/摘要到中心由普通Flow输出绑定和任务选址表达，不增加第二套引擎。见[决策](decisions/ADR-0024-terminal-edge-ingress.md)。
 
 FILE-01 文件传输调整（验证/发布状态见[进度](04-progress.md)）：中心控制面仍负责 Flow/Placement/Job；Kubernetes 输入/输出文件由 Pod 公共助手直接读写 S3。输出 URI 按已选执行 cluster 固定，输入 URI 标识实际存储，跨域不强制中转中心。终端 Docker 搬运、本地数据集迁移、策略触发和吞吐计量不在本批。见[决策](decisions/ADR-0023-pod-artifact-transfer.md)。

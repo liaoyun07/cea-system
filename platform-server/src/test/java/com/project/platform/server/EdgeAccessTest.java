@@ -271,4 +271,62 @@ class EdgeAccessTest {
         assertEquals(400,call("gateway-a","POST","/edge-access/terminals/"+terminal+"/executions","invalid",Map.of("flowId",flow,"terminalId","spoof","inputs",Map.of("value","x"))).statusCode());
         assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM edge_submission WHERE terminal_id=?",Integer.class,terminal));
     }
+    @Test void processingHistoryUsesRuntimePagingAndSnapshotsWithTrustedOrigin() throws Exception {
+        String terminal=terminal(),policy=savePolicy(),ordinary=id();
+        String first=edge().event(gateway,"lab",terminal,"history-first",new Event(policy,Map.of("value","first")));
+        edge().putPolicy(manager,"lab",policy,new PolicyRequest("edge-a",policy,true,1,source(policy).replace("processed","updated")));
+        String second=edge().event(gateway,"lab",terminal,"history-second",new Event(policy,Map.of("value","second")));
+        flows().save(manager,"lab",ordinary,0,source(ordinary));
+        String notPolicy=edge().submit(gateway,"lab",terminal,"history-ordinary",request(ordinary));
+        var reader=new Actor("reader",Set.of("lab"),Set.of(Action.READ));
+        var before=edge().processingRecords(reader,"lab",policy,null,20,0);
+        assertEquals(2,before.size());assertEquals(second,before.getFirst().execution().id());
+        assertEquals(new SubmissionOrigin(terminal,"a","edge-a"),before.getFirst().origin());
+        assertEquals(policy,before.getFirst().eventType());
+        assertEquals(second,edge().processingRecords(reader,"lab",policy,null,1,0).getFirst().execution().id());
+        assertEquals(first,edge().processingRecords(reader,"lab",policy,null,1,1).getFirst().execution().id());
+        assertTrue(edge().processingRecords(reader,"lab",policy,null,1,2).isEmpty());
+        assertTrue(edge().processingRecords(reader,"lab",ordinary,null,20,0).isEmpty());
+        assertTrue(edge().processingRecords(reader,"lab",null,null,100,0).stream().noneMatch(r->r.execution().id().equals(notPolicy)));
+        drain();
+        edge().putPolicy(manager,"lab",policy,new PolicyRequest("edge-a",policy,false,2,source(policy)));
+        edge().putTerminal(manager,"lab",terminal,new TerminalRegistration("a",false));
+        var completed=edge().processingRecords(reader,"lab",policy,com.project.platform.runtime.model.ExecutionState.SUCCESS,20,0);
+        assertEquals(2,completed.size());assertEquals(2,completed.getFirst().execution().flowRevision());
+        assertEquals(Map.of("result","updated second"),completed.getFirst().execution().outputs());
+        assertEquals(Map.of("result","processed first"),completed.get(1).execution().outputs());
+        assertEquals(executions().get(reader,"lab",first),completed.get(1).execution());
+        var response=call("manager","GET","/edge/processing-records?policyId="+policy+"&state=SUCCESS&limit=1&offset=1",null,null);
+        assertEquals(200,response.statusCode());
+        var row=(Map<?,?>)json.read(response.body(),List.class).getFirst();
+        var execution=(Map<?,?>)row.get("execution");
+        assertEquals(first,execution.get("id"));assertFalse(execution.containsKey("definition"));
+        assertEquals(terminal,((Map<?,?>)row.get("origin")).get("terminalId"));
+        executions().remove(manager,"lab",first);
+        assertEquals(List.of(second),edge().processingRecords(reader,"lab",policy,null,20,0).stream().map(r->r.execution().id()).toList());
+    }
+    @Test void processingHistoryFiltersCancelledWorkAndDoesNotFabricateOrigin() throws Exception {
+        String terminal=terminal(),policy=savePolicy();
+        String killed=edge().event(gateway,"lab",terminal,"history-kill",new Event(policy,Map.of("value","cancel")));
+        executions().cancel(manager,"lab",killed);drain();
+        assertEquals(killed,edge().processingRecords(manager,"lab",policy,com.project.platform.runtime.model.ExecutionState.KILLED,20,0).getFirst().execution().id());
+        assertTrue(edge().processingRecords(manager,"lab",policy,com.project.platform.runtime.model.ExecutionState.SUCCESS,20,0).isEmpty());
+        String internal=executions().submitPolicy(manager,"lab",id(),request(policy));drain();
+        var record=edge().processingRecords(manager,"lab",policy,com.project.platform.runtime.model.ExecutionState.SUCCESS,20,0).getFirst();
+        assertEquals(internal,record.execution().id());assertNull(record.origin());
+    }
+    @Test void processingHistoryRequiresNamespaceReadAndValidFilters() throws Exception {
+        assertEquals(401,call(null,"GET","/edge/processing-records",null,null).statusCode());
+        assertEquals(403,call("gateway-a","GET","/edge/processing-records",null,null).statusCode());
+        assertEquals(400,call("manager","GET","/edge/processing-records?state=NOT_A_STATE",null,null).statusCode());
+        assertEquals(422,call("manager","GET","/edge/processing-records?limit=101",null,null).statusCode());
+        assertEquals(422,call("manager","GET","/edge/processing-records?offset=-1",null,null).statusCode());
+        assertEquals(422,call("manager","GET","/edge/processing-records?policyId=bad%27",null,null).statusCode());
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,
+                ()->edge().processingRecords(manager,"other",null,null,20,0));
+        var other=new Actor("other-reader",Set.of("other"),Set.of(Action.READ));
+        assertTrue(edge().processingRecords(other,"other",null,null,20,0).isEmpty());
+        String policy=savePolicy();edge().event(gateway,"lab",terminal(),"history-scope",new Event(policy,Map.of("value","scoped")));
+        assertTrue(executions().listForFlows(other,"other",List.of(policy),null,20,0).isEmpty());drain();
+    }
 }
