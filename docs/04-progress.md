@@ -1,5 +1,7 @@
 # 当前进度
 
+DOC-02（2026-09-14，DONE，文档检查PASS）：建立[现有系统与申报书功能审查表](07-proposal-audit.md)，覆盖26项功能、8项指标/研究成果与8项范围差异，关联原文位置和已有实现/验证；作为申报书视角的进度入口。结构/链接、42个审查项唯一性与引用、10张Markdown表列数及差异检查通过。仅文档，不增加业务能力，不改变DQN/计量等后置决定，不重启CEA；检查范围见[验证记录](verification/VER-DOC-002-proposal-audit.md)。
+
 EP-02（2026-09-13，DONE，已发布）：边缘处理记录页及只读GET，原Execution筛选分页/快照与可信接入归属组成记录，复用现有详情与输出；无新Java文件/DB/状态机。21:35:47完整240项Maven、50项Node/构建/格式/结构通过；修正测试脚本与FILE-01隔离fixture后，21:46最终57项浏览器PASS。21:47只发布前后端，21:48实际18080三策略记录、筛选返回、三份原结果JSON和桌面/390px通过；原2个USER Flow、3个策略、10条执行、2个数据集及其余15个容器不变。未重跑生产算法或改接入/存储配置。见[范围](features/EP-02-processing-records.md)、[验收](verification/VER-EP-002-processing-records.md)。
 
 EP-01（2026-09-13，DONE，已发布）：新增常驻HTTP网关和按次终端回放，原后端只增加CONNECT配置；3策略/4应用契约复用一个CPU镜像与原执行链。20:47完整237项Maven回归PASS，最终12项网关/终端与7项算法测试、四命令断网真实数据试跑PASS。20:55现场3执行/4个Job成功，上传字节一致、8份边缘输出/2份中心输出、返回终端诊断、重复事件/越权拒绝和独立数值复核通过。原2个USER Flow、7条Execution原值及其他15个服务容器保持；frontend仅reload。无Java/API/DB/Binding或调度器新增。样本/模型不入Git，单机Docker不等于物理多云；部署排错和模型限制见[验证](verification/VER-EP-001-terminal-edge.md)，[范围](features/EP-01-terminal-edge-examples.md)。

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+申报书逐项覆盖及待补进度见[审查表](07-proposal-audit.md)（DOC-02，2026-09-14）。本索引继续汇总实现/验证状态；审查表只判断这些已实现范围与原文要求的差距，不新增领域功能编号，也不把MET-001或完整DQN标为完成。
+
 EP-02（S5-03增量，DONE/PASS，已发布）：边缘处理记录、策略/状态服务端筛选分页、原执行详情与结果；240项Maven、50项Node、最终57项浏览器及实际CEA三记录/三结果JSON验收通过。没有第二套状态/表；原数据及其余15服务保持。见[规格](features/EP-02-processing-records.md)、[API](contracts/ep02-processing-records.md)、[实际验收](verification/VER-EP-002-processing-records.md)。
 
 EP-01（S5-03/FILE-01增量，DONE/PASS，已发布）：实际HTTP网关、终端容器上传、三个策略与三种结果去向；237项Maven、19项新Python测试、4命令断网试跑和现场3执行/数值/归属/存储核验PASS。不新增功能域/Java/DB/DSL；[规格](features/EP-01-terminal-edge-examples.md)，[协议](contracts/ep01-gateway.md)，[验收](verification/VER-EP-001-terminal-edge.md)。

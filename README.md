@@ -26,6 +26,8 @@ S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing
 
 ## 文档入口
 
+- [现有系统与申报书功能审查表](docs/07-proposal-audit.md)：逐项覆盖结论、待补功能、指标验收及本期范围差异，作为申报书视角的进度入口。
+
 - [S5-04b终端卸载](docs/contracts/s5-terminal-offloading.md)：显式允许卸载、规则/单步Q模型、真实画像、容量FIFO及配置升级。
 - [S5-04a终端Docker执行](docs/contracts/s5-terminal-docker.md)：终端本地执行、可信来源、文件传递和失败/取消基础。
 
