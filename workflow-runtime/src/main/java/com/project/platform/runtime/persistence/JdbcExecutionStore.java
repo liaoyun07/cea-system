@@ -70,12 +70,12 @@ public final class JdbcExecutionStore {
     }
     public ExecutionRecord lock(String id) { return jdbc.queryForObject("SELECT * FROM wf_execution WHERE id=? FOR UPDATE",this::execution,id); }
     public ExecutionRecord get(String namespace,String id) {
-        var rows=jdbc.query("SELECT * FROM wf_execution WHERE namespace=? AND id=?",this::execution,namespace,id);
+        var rows=jdbc.query("SELECT * FROM wf_execution WHERE namespace=? AND id=? AND deleted=FALSE",this::execution,namespace,id);
         if(rows.isEmpty()) throw WorkflowException.missing("execution not found");
         return rows.getFirst();
     }
     public List<ExecutionRecord> list(String namespace,int limit,int offset) {
-        return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,namespace,limit,offset);
+        return jdbc.query("SELECT * FROM wf_execution WHERE namespace=? AND deleted=FALSE ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",this::execution,namespace,limit,offset);
     }
     public com.project.platform.runtime.execution.ExecutionService.Overview overview(String namespace,int days) {
         return transaction(() -> {
@@ -84,13 +84,13 @@ public final class JdbcExecutionStore {
                     .atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
             var counts=jdbc.query("""
                     SELECT DATE(created_at) AS day,state,COUNT(*) AS amount FROM wf_execution
-                    WHERE namespace=? AND created_at>=? AND created_at<? GROUP BY DATE(created_at),state ORDER BY day,state
+                    WHERE namespace=? AND deleted=FALSE AND created_at>=? AND created_at<? GROUP BY DATE(created_at),state ORDER BY day,state
                     """,(rs,row)->new com.project.platform.runtime.execution.ExecutionService.DayCount(
                             rs.getString("day"),ExecutionState.valueOf(rs.getString("state")),rs.getLong("amount")),
                     namespace,Timestamp.from(from),Timestamp.from(to));
             var recent=jdbc.query("""
                     SELECT id,flow_id,state,created_at FROM wf_execution
-                    WHERE namespace=? AND created_at>=? AND created_at<? ORDER BY created_at DESC,id DESC LIMIT 10
+                    WHERE namespace=? AND deleted=FALSE AND created_at>=? AND created_at<? ORDER BY created_at DESC,id DESC LIMIT 10
                     """,(rs,row)->new com.project.platform.runtime.execution.ExecutionService.Recent(
                             rs.getString("id"),rs.getString("flow_id"),ExecutionState.valueOf(rs.getString("state")),
                             instant(rs,"created_at")),
@@ -99,6 +99,25 @@ public final class JdbcExecutionStore {
         });
     }
     public List<TaskRun> tasks(String id) { return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? ORDER BY task_index",this::task,id); }
+    public boolean hasActive(String namespace,String flowId) {
+        return jdbc.queryForObject("""
+            SELECT COUNT(*) FROM wf_execution e WHERE e.namespace=? AND e.flow_id=? AND
+            (e.state NOT IN ('SUCCESS','FAILED','KILLED','SKIPPED') OR EXISTS
+            (SELECT 1 FROM wf_task_run t WHERE t.execution_id=e.id AND t.state NOT IN ('SUCCESS','FAILED','KILLED','SKIPPED')))
+            """,Integer.class,namespace,flowId)>0;
+    }
+    public void remove(String namespace,String id) {
+        transaction(()->{
+            var found=get(namespace,id);
+            lockFlow(namespace,found.flowId());
+            var current=lock(id);
+            if(!current.state().terminal() || tasks(id).stream().anyMatch(t->!t.state().terminal()))
+                throw WorkflowException.conflict("execution and all afterExecution tasks must be terminal before deletion");
+            if(jdbc.update("UPDATE wf_execution SET deleted=TRUE WHERE namespace=? AND id=? AND deleted=FALSE",namespace,id)!=1)
+                throw WorkflowException.missing("execution not found");
+            return null;
+        });
+    }
     public List<TaskRun> scopedTasks(String id,String parent,int iteration) {
         return jdbc.query("SELECT * FROM wf_task_run WHERE execution_id=? AND parent_task_run_id <=> ? AND iteration=? ORDER BY task_index",this::task,id,parent,iteration);
     }

@@ -1,0 +1,1 @@
+ALTER TABLE res_dataset_version ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE;

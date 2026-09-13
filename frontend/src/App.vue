@@ -1,7 +1,8 @@
 <script setup>
 import { computed, markRaw, onBeforeUnmount, ref } from 'vue';
 import { basicAuthorization, createApi, errorText } from './api.js';
-import { time } from './model.js';
+import { time, terminal } from './model.js';
+import UsersPage from './management/UsersPage.vue';
 import FlowEditor from './FlowEditor.vue';
 import ExecutionDetail from './ExecutionDetail.vue';
 import CatalogPage from './management/CatalogPage.vue';
@@ -32,6 +33,13 @@ const navigation = [
     ],
   },
   {
+    label: '账号',
+    items: [
+      ['profile', '个人中心', '○'],
+      ['users', '用户管理', '♙'],
+    ],
+  },
+  {
     label: '边缘与终端',
     items: [
       ['gateways', '边缘网关', '⌁'],
@@ -50,6 +58,8 @@ const titleFor = (key) =>
     flows: '流程',
     executions: '执行',
     deployments: '应用部署',
+    profile: '个人中心',
+    users: '用户管理',
   }[key];
 
 const namespace = ref('lab'),
@@ -105,8 +115,9 @@ async function login() {
     const ns = namespace.value.trim();
     if (!ns) throw new Error('请填写命名空间');
     const api = createApi(ns, basicAuthorization(username.value, password.value));
+    const profile = await api('/me');
     const rows = await api('/flows?limit=20&offset=0');
-    session.value = { namespace: ns, username: username.value, api: markRaw(api) };
+    session.value = { namespace: ns, username: username.value, api: markRaw(api), profile };
     password.value = '';
     flows.value = rows;
     page.value = 'flows';
@@ -186,6 +197,30 @@ function paginate(delta) {
   offset.value += delta * 20;
   loadList();
 }
+async function removeRow(row) {
+  if (busy.value) return;
+  const flow = page.value === 'flows',
+    id = flow ? row.flowId : row.id;
+  const message = flow
+    ? '删除此流程并停止后续定时触发？历史执行保留，流程 ID 不可复用。'
+    : '删除此执行历史？文件、模型和集群工作负载保留。';
+  if (window.prompt(message + ' 请输入 ID 确认：') !== id) return;
+  busy.value = true;
+  pending.value = true;
+  error.value = '';
+  try {
+    await session.value.api(
+      `/${flow ? 'flows' : 'executions'}/${encodeURIComponent(id)}${flow ? '?expectedRevision=' + row.revision : ''}`,
+      { method: 'DELETE' },
+    );
+    await loadList();
+  } catch (e) {
+    error.value = errorText(e);
+  } finally {
+    busy.value = false;
+    pending.value = false;
+  }
+}
 </script>
 
 <template>
@@ -215,7 +250,9 @@ function paginate(delta) {
         <template v-for="group in navigation" :key="group.label">
           <div class="nav-caption">{{ group.label }}</div>
           <button
-            v-for="[key, title, icon] in group.items"
+            v-for="[key, title, icon] in group.items.filter(
+              ([key]) => key !== 'users' || session.profile.role === 'ADMIN',
+            )"
             :key="key"
             :aria-label="title"
             :class="{ active: page === key }"
@@ -295,6 +332,16 @@ function paginate(delta) {
         @dirty="dirty = $event"
         @pending="pending = $event"
       />
+      <UsersPage
+        v-else-if="page === 'users' || page === 'profile'"
+        :key="`${page}/${pageEpoch}`"
+        :api="session.api"
+        :mode="page"
+        :profile="session.profile"
+        @dirty="dirty = $event"
+        @pending="pending = $event"
+        @password-changed="logout"
+      />
       <section v-else class="list-page">
         <div class="page-heading">
           <div>
@@ -348,7 +395,19 @@ function paginate(delta) {
                 <td>r{{ flow.revision }}</td>
                 <td>{{ flow.createdBy }}</td>
                 <td>{{ time(flow.createdAt) }}</td>
-                <td><button :disabled="busy" @click="edit(flow.flowId)">编辑 →</button></td>
+                <td>
+                  <div class="button-row">
+                    <button :disabled="busy" @click="edit(flow.flowId)">编辑 →</button
+                    ><button
+                      v-if="session.profile.actions.includes('WRITE')"
+                      class="danger"
+                      :disabled="busy"
+                      @click="removeRow(flow)"
+                    >
+                      删除流程
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -376,7 +435,19 @@ function paginate(delta) {
                 </td>
                 <td>r{{ run.flowRevision }}</td>
                 <td>{{ time(run.createdAt) }}</td>
-                <td><button :disabled="busy" @click="showExecution(run.id)">详情 →</button></td>
+                <td>
+                  <div class="button-row">
+                    <button :disabled="busy" @click="showExecution(run.id)">详情 →</button
+                    ><button
+                      v-if="session.profile.actions.includes('WRITE')"
+                      class="danger"
+                      :disabled="busy || !terminal(run.state)"
+                      @click="removeRow(run)"
+                    >
+                      删除历史
+                    </button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>

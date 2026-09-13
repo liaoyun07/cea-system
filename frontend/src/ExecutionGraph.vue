@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { errorText } from './api.js';
-import { readDocument, sections } from './no-code/document.js';
+import { sections } from './no-code/document.js';
 import { childGroups, dynamic, iterations, taskInstance, topology } from './execution-graph.js';
 
 const props = defineProps({ api: Function, run: Object, tasks: Array, selectedId: String });
@@ -18,12 +18,9 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    // Never use the current revision to describe a historical execution.
-    const saved = await props.api(
-      `/flows/${encodeURIComponent(props.run.flowId)}?revision=${props.run.flowRevision}`,
-    );
-    const parsed = readDocument(saved.source);
-    if (alive) flow.value = parsed.value;
+    // Execution owns its snapshot even when the editable Flow has been removed.
+    const definition = await props.api(`/executions/${encodeURIComponent(props.run.id)}/definition`);
+    if (alive) flow.value = definition;
   } catch (e) {
     if (alive) error.value = `无法读取执行修订 r${props.run.flowRevision} 的拓扑：${errorText(e)}`;
   } finally {

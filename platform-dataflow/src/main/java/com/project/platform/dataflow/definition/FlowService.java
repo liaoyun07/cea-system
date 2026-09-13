@@ -27,6 +27,18 @@ public final class FlowService {
     public FlowRevision save(Actor actor, String namespace, String flowId, Integer expectedRevision, String source) {
         return saveScoped(actor,namespace,flowId,expectedRevision,source,"USER");
     }
+    public void remove(Actor actor,String namespace,String flowId,int expectedRevision) {
+        access.require(actor,namespace,Action.WRITE);
+        FlowValidator.identifier(flowId,"flowId");
+        if(expectedRevision<1)throw WorkflowException.invalid("expectedRevision","positive revision required");
+        executions.transaction(()->{
+            repository.requireScope(namespace,flowId,"USER");
+            scheduler.remove(namespace,flowId);
+            if(executions.hasActive(namespace,flowId))throw WorkflowException.conflict("Flow has active executions or unfinished afterExecution tasks");
+            repository.remove(namespace,flowId,expectedRevision);
+            return null;
+        });
+    }
     public FlowRevision savePolicy(Actor actor,String namespace,String flowId,Integer expectedRevision,String source) {
         return saveScoped(actor,namespace,flowId,expectedRevision,source,"EDGE_POLICY");
     }

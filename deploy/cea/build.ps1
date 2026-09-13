@@ -17,3 +17,5 @@ foreach ($taskRole in @('backend','frontend')) {
     & docker build -f (Join-Path $PSScriptRoot "$taskRole.Dockerfile") -t "cea/${taskRole}:local" $taskRepository
     if ($LASTEXITCODE -ne 0) { throw "CEA $taskRole build failed" }
 }
+& docker build -f (Join-Path $PSScriptRoot 'buildkit.Dockerfile') -t cea/buildkit:local $taskRepository
+if ($LASTEXITCODE -ne 0) { throw 'CEA BuildKit image build failed' }

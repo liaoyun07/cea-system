@@ -60,6 +60,30 @@ export async function startRuntime(token) {
       'exec sleep infinity',
     );
     owned.push(tool);
+    const builder = docker(
+      'run',
+      '-d',
+      '--security-opt',
+      'seccomp=unconfined',
+      '--security-opt',
+      'apparmor=unconfined',
+      '--security-opt',
+      'systempaths=unconfined',
+      'moby/buildkit:v0.33.0-rootless',
+      '--oci-worker-snapshotter=native',
+    );
+    owned.push(builder);
+    let builderReady = false;
+    for (let i = 0; i < 60; i++) {
+      try {
+        docker('exec', builder, 'buildctl', 'debug', 'workers');
+        builderReady = true;
+        break;
+      } catch {
+        await wait(500);
+      }
+    }
+    if (!builderReady) throw new Error('Isolated rootless BuildKit did not become ready');
     writeFileSync(join(directory, 'auth.json'), '{"auths":{}}');
     docker('cp', join(directory, 'auth.json'), `${tool}:/tmp/auth.json`);
     docker('save', '-o', join(directory, 'alpine.tar'), 'alpine:latest');
@@ -199,6 +223,18 @@ export async function startRuntime(token) {
         '--platform.distribution.timeout=PT60S',
         '--platform.image-upload.centers.lab=ui',
         `--platform.image-upload.directory=${join(directory, 'uploads')}`,
+        `--platform.image-build.directory=${join(directory, 'builds')}`,
+        ...[
+          join(
+            process.env.CEA_JAVA_HOME || process.env.JAVA_HOME,
+            'bin',
+            process.platform === 'win32' ? 'java.exe' : 'java',
+          ),
+          '-cp',
+          resolve(import.meta.dirname, '../../platform-server/target/test-classes'),
+          'com.project.platform.server.BuildkitTestBridge',
+          builder,
+        ].map((v, i) => `--platform.image-build.command[${i}]=${v}`),
         `--platform.kubernetes.connections.lab.runtime-edge.kubeconfig=${kubeconfig}`,
         '--platform.kubernetes.connections.lab.runtime-edge.context=default',
         '--platform.kubernetes.connections.lab.runtime-edge.namespace=ui-test',

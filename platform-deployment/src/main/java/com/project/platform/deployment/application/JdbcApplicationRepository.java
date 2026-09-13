@@ -50,4 +50,13 @@ public final class JdbcApplicationRepository {
         return result;
     }
     private ApplicationVersion decode(String source) { return ApplicationContractValidator.normalize(json.readValue(source,ApplicationVersion.class)); }
+    public List<String> datasetReferences(String namespace,String id,String version) {
+        var result=new java.util.ArrayList<String>();
+        jdbc.query("SELECT contract_json FROM dep_application_version WHERE namespace=? AND deleted=FALSE",(org.springframework.jdbc.core.RowCallbackHandler)rs->{
+            var app=decode(rs.getString(1));
+            if(app.parameters().values().stream().anyMatch(p->p.dataset()!=null && p.dataset().allowed().stream().anyMatch(d->d.datasetId().equals(id) && d.version().equals(version))))
+                result.add(app.applicationId()+"/"+app.version());
+        },namespace);
+        return result;
+    }
 }

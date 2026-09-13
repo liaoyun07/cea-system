@@ -348,6 +348,57 @@ class ImageDistributionTest {
         }
     }
     private DeploymentService deployments(){return context.getBean(DeploymentService.class);}
+    @Test void onlineBuildUsesRealDockerfileRunsResultAndRejectsInvalidContexts() throws Exception {
+        var directory=Files.createTempDirectory("cea-build-fixture-");
+        String builder="cea-build-fixture-"+UUID.randomUUID();boolean started=false;
+        try {
+            dockerCli("run","-d","--name",builder,"--security-opt","seccomp=unconfined","--security-opt","apparmor=unconfined","--security-opt","systempaths=unconfined","moby/buildkit:v0.33.0-rootless","--oci-worker-snapshotter=native");started=true;
+            await().atMost(Duration.ofSeconds(30)).ignoreExceptions().until(()->{dockerCli("exec",builder,"buildctl","debug","workers");return true;});
+            var command=List.of(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-cp",Path.of("target","test-classes").toAbsolutePath().toString(),BuildkitTestBridge.class.getName(),builder);
+            var service=new com.project.platform.deployment.upload.ImageBuildService(new com.project.platform.foundation.identity.AccessPolicy(),applications(),
+                    context.getBean(com.project.platform.deployment.upload.ImageUploadService.class),command,directory,Duration.ofMinutes(2));
+            var contract=new com.project.platform.deployment.upload.ImageUploadService.Request(Map.of());
+            dockerCli("cp",builder+":/bin/busybox",directory.resolve("busybox").toString());
+            dockerCli("cp",builder+":/lib/ld-musl-x86_64.so.1",directory.resolve("musl").toString());
+            byte[] busybox=Files.readAllBytes(directory.resolve("busybox")),musl=Files.readAllBytes(directory.resolve("musl"));
+            Files.delete(directory.resolve("busybox"));Files.delete(directory.resolve("musl"));
+            String dockerfile="FROM scratch\nCOPY --chmod=755 busybox /bin/busybox\nCOPY --chmod=755 musl /lib/ld-musl-x86_64.so.1\nRUN [\"/bin/busybox\",\"sh\",\"-c\",\"echo built-by-cea > /result\"]\nCMD [\"/bin/busybox\",\"cat\",\"/result\"]\n";
+            byte[] zip=sourceZip(Map.of("Dockerfile",dockerfile.getBytes(StandardCharsets.UTF_8),"busybox",busybox,"musl",musl));
+            var result=service.build(actor,"lab","online-build","v1",contract,zip.length,new java.io.ByteArrayInputStream(zip));
+            assertTrue(result.log().contains("RUN"),result.log());assertTrue(result.application().image().contains("@sha256:"));
+            var prepared=distribution().prepare(actor,"lab","online-build","v1","edge");
+            var run=terminalEngine.execInContainer("docker","run","--rm",prepared.image());
+            assertEquals(0,run.getExitCode(),run.getStderr());assertTrue(run.getStdout().contains("built-by-cea"));
+            assertThrows(ApplicationException.class,()->service.build(actor,"lab","online-build","v1",contract,zip.length,new java.io.ByteArrayInputStream(zip)));
+            for(var invalid:List.of(Map.of("../outside",new byte[]{1}),Map.of("readme",new byte[]{1}),Map.of("Dockerfile","INVALID instruction\n".getBytes(StandardCharsets.UTF_8)))) {
+                byte[] bad=sourceZip(invalid);
+                assertThrows(ApplicationException.class,()->service.build(actor,"lab","build-invalid","v1",contract,bad.length,new java.io.ByteArrayInputStream(bad)));
+                assertThrows(ApplicationException.class,()->applications().get(actor,"lab","build-invalid","v1"));
+            }
+            assertThrows(ApplicationException.class,()->service.build(actor,"lab","too-large","v1",contract,101L*1024*1024,new java.io.ByteArrayInputStream(zip)));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.build(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","denied","v1",contract,zip.length,new java.io.ByteArrayInputStream(zip)));
+            byte[] slow=sourceZip(Map.of("Dockerfile",dockerfile.replace("echo built-by-cea","/bin/busybox sleep 3; echo built-by-cea").getBytes(StandardCharsets.UTF_8),"busybox",busybox,"musl",musl));
+            try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+                var first=pool.submit(()->service.build(actor,"lab","build-concurrent","v1",contract,slow.length,new java.io.ByteArrayInputStream(slow)));
+                await().atMost(Duration.ofSeconds(10)).until(()->{try(var files=Files.list(directory)){return files.anyMatch(Files::isDirectory);}});
+                var conflict=assertThrows(ApplicationException.class,()->service.build(actor,"lab","build-second","v1",contract,zip.length,new java.io.ByteArrayInputStream(zip)));
+                assertTrue(conflict.getMessage().contains("another image build"));
+                assertNotNull(first.get(60,TimeUnit.SECONDS).application());
+            }
+            var shortDeadline=new com.project.platform.deployment.upload.ImageBuildService(new com.project.platform.foundation.identity.AccessPolicy(),applications(),
+                    context.getBean(com.project.platform.deployment.upload.ImageUploadService.class),command,directory,Duration.ofMillis(1));
+            assertTrue(assertThrows(ApplicationException.class,()->shortDeadline.build(actor,"lab","build-timeout","v1",contract,slow.length,new java.io.ByteArrayInputStream(slow))).getMessage().contains("timed out"));
+            assertThrows(ApplicationException.class,()->applications().get(actor,"lab","build-timeout","v1"));
+            try(var files=Files.list(directory)){assertEquals(0,files.count());}
+        } finally {if(started)dockerCli("rm","-f",builder);try(var paths=Files.walk(directory)){for(Path path:paths.sorted(Comparator.reverseOrder()).toList())Files.deleteIfExists(path);}}
+    }
+    private byte[] sourceZip(Map<String,byte[]> entries)throws Exception {
+        var bytes=new java.io.ByteArrayOutputStream();
+        try(var zip=new java.util.zip.ZipOutputStream(bytes)) {
+            for(var entry:entries.entrySet()) {zip.putNextEntry(new java.util.zip.ZipEntry(entry.getKey()));zip.write(entry.getValue());zip.closeEntry();}
+        }
+        return bytes.toByteArray();
+    }
     @Test void imageUploadImportsRealArchivePinsDigestRejectsOverwriteAndCleansFailedUploads() throws Exception {
         Path archive=Files.createTempFile("cea-upload-fixture-",".tar");
         try {
@@ -744,6 +795,14 @@ class ImageDistributionTest {
                 await().atMost(Duration.ofSeconds(90)).pollInterval(Duration.ofMillis(50)).until(()->{
                     context.getBean(FlowExecutor.class).processNext();return executions().get(actor,"lab",id).state().terminal();
                 });
+            } catch(RuntimeException failure) {
+                // Isolated fixture diagnostics: retain the assertion failure and do not retry a lost commit.
+                try {
+                    var diagnostic=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e",
+                            "SHOW FULL PROCESSLIST; SELECT EVENT_NAME,COUNT_STAR,MAX_TIMER_WAIT/1000000000000 AS max_seconds FROM performance_schema.events_statements_summary_global_by_event_name WHERE COUNT_STAR>0 ORDER BY MAX_TIMER_WAIT DESC LIMIT 10; SHOW ENGINE INNODB STATUS;");
+                    System.err.println("Isolated MySQL diagnostics after execution driver failure:\n"+diagnostic.getStdout());
+                } catch(Exception diagnosticFailure) {failure.addSuppressed(diagnosticFailure);}
+                throw failure;
             } finally {stop.set(true);try{worker.get(5,TimeUnit.SECONDS);}catch(TimeoutException timeout){worker.cancel(true);}}
         }
     }

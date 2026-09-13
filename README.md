@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+UI-10已于2026-09-13发布CEA：删除管理、简单ADMIN/USER与个人中心、在线Dockerfile构建。新增独立rootless BuildKit、专用缓存和DB人员认证；不挂宿主Docker socket，不清理现有数据/工作负载。235项完整后端回归、追加删除竞争验证、45项前端单测和54项浏览器通过，详见[进度](docs/04-progress.md)及[行为与限制](docs/contracts/ui10-cleanup-users-build.md)。`.env`人员凭据从本批起只用于首次初始化，在线改密后以数据库为准，重启不会恢复原密码。
+
 UI-08已实现并于2026-09-13发布CEA：单镜像tar上传、持久按需分发历史、Deployment配置编辑/手动扩缩容/就绪耗时与30秒目标对比、近期CPU/内存用量。实现阶段227项Maven、45项Node、47项浏览器通过；发布时重新构建前后端、应用V18/V19两张记录表、上传卷及四集群Metrics Server/只读RBAC，实际18080页面/API复核通过。既有Flow/执行/算法工作负载及其余10个服务不变，执行链不变。[功能与边界](docs/features/UI-08-core-deployment-operations.md)、[实测记录](docs/verification/VER-UI-008-core-deployment-operations.md)。
 
 UI-07已完成并发布CEA：任务产物JSON查看、运行总览与Node/Service/Kubernetes Namespace只读页面；220项Maven、41项Node和44项浏览器测试通过。2026-09-12仅更新前后端及受限只读RBAC，实际18080验收通过，原流程/历史和其余10个容器不变。详情见[进度](docs/04-progress.md)与[功能边界](docs/features/UI-07-readonly-inspection.md)。
@@ -47,8 +49,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。Flyway依序运行V1–V19，创建25张业务表及迁移历史表。
-测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；额外账号管理、TLS、备份恢复现已后置，不宣称当前具备。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。UI-10源码中Flyway依序运行V1–V24，创建26张业务表及迁移历史表；本批验收/发布状态见进度。
+测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；UI-10补两角色账号管理，TLS、自动备份恢复仍后置。
 
 在已配置 JDK 21 的 PowerShell 中设置：
 
@@ -63,7 +65,7 @@ java -jar .\platform-server\target\platform-server-0.1.0-SNAPSHOT.jar
 ```
 
 默认监听 `127.0.0.1:18085`，使用 HTTP Basic；没有默认密码。IDEA 中使用相同环境变量和 JDK 21，运行
-`com.project.platform.server.BackendApplication`。其他账号通过外部 Spring 配置的 `platform.security.users` 列表提供，不在请求中传身份。
+`com.project.platform.server.BackendApplication`。人员通过管理API/用户页维护；外部 Spring 配置的 `platform.security.users` 只用于首次人员初始化及CONNECT机器账号，不在请求中传身份。
 
 ## 最小调用示例
 

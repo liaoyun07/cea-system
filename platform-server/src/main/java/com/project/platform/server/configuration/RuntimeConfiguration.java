@@ -20,6 +20,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
 public class RuntimeConfiguration {
+    @Bean DatasetRemovalService datasetRemovalService(com.project.platform.resource.catalog.ResourceCatalogService resources,
+            com.project.platform.deployment.application.ApplicationCatalogService applications) {
+        return new DatasetRemovalService(resources,applications);
+    }
     @Bean NamespaceFileService namespaceFileService(JdbcTemplate jdbc,TransactionTemplate transactions,AccessPolicy access) {
         return new NamespaceFileService(jdbc,transactions,access);
     }

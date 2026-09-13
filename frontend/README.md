@@ -20,7 +20,7 @@ npm ci
 npm run dev
 ```
 
-打开`http://127.0.0.1:18100`，填写后端配置中的命名空间、账号和密码。前端没有默认密码或用户数据库。后端未启动时连接会明确失败，不伪造列表。
+打开`http://127.0.0.1:18100`，填写授权命名空间、账号和当前密码。UI-10起人员账号由后端DB管理，外部配置仅首次初始化；前端没有默认密码或身份数据库。后端未启动时明确失败，不伪造列表。ADMIN可用“用户管理”，所有人员可用“个人中心”改密；改密后退出重新登录。
 
 默认代理`/api`到`http://127.0.0.1:18085`。端口不同时先设置`$env:BACKEND_URL='http://127.0.0.1:你的端口'`，或参照`.env.example`创建`.env.local`。代理目标只由管理员配置；不要把凭据放入VITE_*或提交Git。
 
@@ -94,4 +94,6 @@ npm run test:e2e
 
 E2E要求Docker可用、已构建后端JAR，以及本地测试镜像mysql:8.0、registry:2、quay.io/skopeo/stable:v1.20.0、rancher/k3s:v1.30.6-k3s1、rancher/mirrored-pause:3.6、rancher/mirrored-metrics-server:v0.7.2、alpine:latest及quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z。自动创建临时MySQL、Registry、Skopeo、K3s、MinIO、随机账号/端口、新JAR进程和静态预览；测试结束清理本次容器、网络和临时配置。不接业务库、不启动/停止IDEA或CEA服务。临时K3s用于实际上传、分发、Deployment编辑/就绪/缩放/删除、近期用量及JSON产物读取验收。失败trace位于test-results，后端日志与截图位于.local/evidence，均不提交Git。Java全量测试仍用根scripts/verify.ps1。
 
-尚无账号管理、Node/Service/Namespace完整管理、镜像构建、数据文件上传、历史资源监控、跨执行指标趋势、数据处理速率、全局产物浏览下载或旧数据迁移。UI-08增加镜像tar上传和持久按需分发历史；UI-06提供已声明JSON产物的指标图和明细。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)及[UI-08](../docs/contracts/ui08-deployment-operations.md)。
+UI-10 E2E还会创建独立`moby/buildkit:v0.33.0-rootless`测试容器，使用真实构建及既有Registry导入；缺少镜像时需可访问官方镜像源。它不会使用或重启CEA的builder。
+
+UI-09已有Registry库存/详情/受保护删除、Service与受管Kubernetes Namespace管理；UI-10补两角色账号、个人中心、删除入口和ZIP/Dockerfile在线构建，实际验证/发布状态见[进度](../docs/04-progress.md)。仍无任意Node管理、数据文件上传、历史资源监控、跨执行指标趋势、数据处理速率、全局产物浏览下载或旧数据迁移。UI-08提供镜像tar上传和持久按需分发历史；UI-06提供已声明JSON产物的指标图和明细。No-code中的目录仍只读选择，登记在专属管理页完成；没有把Pod stdout伪装为平台日志。详细边界见[UI协议](../docs/contracts/ui-console.md)及[UI-10](../docs/contracts/ui10-cleanup-users-build.md)。

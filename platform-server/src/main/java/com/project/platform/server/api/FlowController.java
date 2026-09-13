@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/namespaces/{namespace}/flows")
 public final class FlowController {
+    @DeleteMapping("/{flowId}")
+    public void remove(Principal principal,@PathVariable String namespace,@PathVariable String flowId,@RequestParam int expectedRevision) {
+        flows.remove(identities.actor(principal.getName()),namespace,flowId,expectedRevision);
+    }
     public record SaveRequest(Integer expectedRevision, String source) {}
     public record RollbackRequest(Integer expectedRevision, int targetRevision) {}
     public record SourceRequest(String source) {}

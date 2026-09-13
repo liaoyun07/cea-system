@@ -119,11 +119,29 @@ services:
       - edge-c-log:/var/log
       - ./secrets/registries/edge-c.yaml:/etc/rancher/k3s/registries.yaml:ro
       - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
+  builder:
+    image: cea/buildkit:local
+    build: {context: ../.., dockerfile: deploy/cea/buildkit.Dockerfile}
+    # Rootless namespace GID 0 maps to outer container GID 1000, shared only with backend.
+    command: ["--addr=unix:///run/cea-buildkit/buildkitd.sock", "--group=0", "--oci-worker-snapshotter=native"]
+    security_opt: ["seccomp=unconfined", "apparmor=unconfined", "systempaths=unconfined"]
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2
+    volumes: [buildkit-socket:/run/cea-buildkit, buildkit-cache:/home/user/.local/share/buildkit]
+    networks: [build-network]
+    logging: *log
+    healthcheck:
+      test: ["CMD", "buildctl", "--addr", "unix:///run/cea-buildkit/buildkitd.sock", "debug", "workers"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   backend:
     image: cea/backend:local
     build: {context: ../.., dockerfile: deploy/cea/backend.Dockerfile}
     restart: unless-stopped
     mem_limit: 2g
+    group_add: ["1000"]
     environment:
       BACKEND_DB_URL: "jdbc:mysql://mysql:3306/cea?connectionTimeZone=UTC"
       BACKEND_DB_USER: ${BACKEND_DB_USER}
@@ -133,11 +151,13 @@ services:
       BACKEND_NAMESPACES: lab
       SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1200m"
+      PLATFORM_IMAGE_BUILD_DIRECTORY: /var/lib/cea/uploads/build
     ports: ["127.0.0.1:${CEA_API_PORT:-18085}:18085"]
     volumes:
       - ./application.yaml:/config/application.yaml:ro
       - ./secrets/backend:/run/secrets:ro
       - upload-scratch:/var/lib/cea/uploads
+      - buildkit-socket:/run/cea-buildkit
     depends_on:
       mysql: {condition: service_healthy}
       minio: {condition: service_healthy}
@@ -145,9 +165,10 @@ services:
       edge-a: {condition: service_healthy}
       edge-b: {condition: service_healthy}
       edge-c: {condition: service_healthy}
+      builder: {condition: service_healthy}
     logging: *log
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS -u \"$$BACKEND_USER:$$BACKEND_PASSWORD\" http://localhost:18085/api/namespaces/lab/flows >/dev/null"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:18085/health"]
       interval: 15s
       timeout: 5s
       retries: 20
@@ -182,6 +203,8 @@ services:
       - ../../.local/cea:/data:ro
 
 volumes:
+  buildkit-socket:
+  buildkit-cache:
   upload-scratch:
   mysql-data:
   minio-data:
@@ -205,3 +228,6 @@ volumes:
   edge-c-kubelet:
   edge-c-cni:
   edge-c-log:
+
+networks:
+  build-network:

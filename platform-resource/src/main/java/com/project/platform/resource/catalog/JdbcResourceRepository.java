@@ -28,14 +28,14 @@ public final class JdbcResourceRepository {
         return rows.getFirst();
     }
     public DatasetVersion dataset(String namespace,String id,String version) {
-        var formats=jdbc.queryForList("SELECT format FROM res_dataset_version WHERE namespace=? AND dataset_id=? AND version=?",String.class,namespace,id,version);
+        var formats=jdbc.queryForList("SELECT format FROM res_dataset_version WHERE namespace=? AND dataset_id=? AND version=? AND deleted=FALSE FOR UPDATE",String.class,namespace,id,version);
         if(formats.isEmpty()) throw ResourceException.missing("dataset version not found: "+id+"/"+version);
         var locations=jdbc.query("SELECT cluster_id,uri FROM res_dataset_location WHERE namespace=? AND dataset_id=? AND version=? ORDER BY cluster_id",
                 (rs,row)->new Location(rs.getString(1),rs.getString(2)),namespace,id,version);
         return new DatasetVersion(id,version,formats.getFirst(),locations);
     }
     public List<DatasetVersion> datasets(String namespace,int limit,int offset) {
-        var keys=jdbc.query("SELECT dataset_id,version FROM res_dataset_version WHERE namespace=? ORDER BY dataset_id,version LIMIT ? OFFSET ?",
+        var keys=jdbc.query("SELECT dataset_id,version FROM res_dataset_version WHERE namespace=? AND deleted=FALSE ORDER BY dataset_id,version LIMIT ? OFFSET ?",
                 (rs,row)->List.of(rs.getString(1),rs.getString(2)),namespace,limit,offset);
         return keys.stream().map(k->dataset(namespace,k.get(0),k.get(1))).toList();
     }
@@ -48,9 +48,15 @@ public final class JdbcResourceRepository {
                 return value;
             });
         } catch(DuplicateKeyException duplicate) {
+            if(Boolean.TRUE.equals(jdbc.queryForObject("SELECT deleted FROM res_dataset_version WHERE namespace=? AND dataset_id=? AND version=?",Boolean.class,namespace,value.datasetId(),value.version())))
+                throw ResourceException.conflict("dataset version was removed; register a new version");
             var existing=dataset(namespace,value.datasetId(),value.version());
             if(existing.equals(value)) return existing;
             throw ResourceException.conflict("dataset version is immutable; register a new version");
         }
+    }
+    public void remove(String namespace,String id,String version) {
+        if(jdbc.update("UPDATE res_dataset_version SET deleted=TRUE WHERE namespace=? AND dataset_id=? AND version=? AND deleted=FALSE",namespace,id,version)!=1)
+            throw ResourceException.missing("dataset version not found");
     }
 }

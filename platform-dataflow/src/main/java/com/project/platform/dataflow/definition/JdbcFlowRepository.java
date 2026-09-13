@@ -64,7 +64,7 @@ public final class JdbcFlowRepository {
         return jdbc.query("""
                 SELECT r.* FROM wf_flow_head h JOIN wf_flow_revision r
                 ON h.namespace=r.namespace AND h.flow_id=r.flow_id AND h.latest_revision=r.revision
-                WHERE h.namespace=? AND h.management_scope='USER'
+                WHERE h.namespace=? AND h.management_scope='USER' AND h.deleted=FALSE
                 AND (LOCATE(?,h.flow_id)>0 OR LOCATE(?,COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.definition_json,'$.description')),''))>0)
                 AND JSON_CONTAINS(COALESCE(JSON_EXTRACT(r.definition_json,'$.labels'),JSON_OBJECT()),CAST(? AS JSON))
                 ORDER BY h.flow_id LIMIT ? OFFSET ?
@@ -74,7 +74,7 @@ public final class JdbcFlowRepository {
     }
 
     public void requireScope(String namespace,String flowId,String scope) {
-        var values=jdbc.queryForList("SELECT management_scope FROM wf_flow_head WHERE namespace=? AND flow_id=?",String.class,namespace,flowId);
+        var values=jdbc.queryForList("SELECT management_scope FROM wf_flow_head WHERE namespace=? AND flow_id=? AND deleted=FALSE FOR UPDATE",String.class,namespace,flowId);
         if(values.isEmpty()) throw WorkflowException.missing("flow not found");
         if(!scope.equals(values.getFirst())) throw WorkflowException.conflict("flow belongs to a different management scope");
     }
@@ -83,9 +83,14 @@ public final class JdbcFlowRepository {
         return new FlowRevision(rs.getString("namespace"), rs.getString("flow_id"), rs.getInt("revision"),
                 rs.getString("source_text"), json.flow(rs.getString("definition_json")), rs.getString("created_by"), rs.getTimestamp("created_at").toInstant());
     }
+    public void remove(String namespace,String flowId,int expectedRevision) {
+        requireScope(namespace,flowId,"USER");
+        if(jdbc.update("UPDATE wf_flow_head SET deleted=TRUE WHERE namespace=? AND flow_id=? AND latest_revision=? AND deleted=FALSE",namespace,flowId,expectedRevision)!=1)
+            throw WorkflowException.conflict("expectedRevision does not match latest revision");
+    }
     public List<String> applicationReferences(String namespace,String applicationId,String version) {
         var references=new ArrayList<String>();
-        jdbc.query("SELECT flow_id,revision,definition_json FROM wf_flow_revision WHERE namespace=?",rs->{
+        jdbc.query("SELECT r.flow_id,r.revision,r.definition_json FROM wf_flow_revision r JOIN wf_flow_head h ON h.namespace=r.namespace AND h.flow_id=r.flow_id WHERE r.namespace=? AND h.deleted=FALSE",rs->{
             var definition=json.read(rs.getString("definition_json"),FlowDefinition.class);
             if(definition.allTasks().stream().anyMatch(t->t.container()!=null && applicationId.equals(t.container().applicationId()) && version.equals(t.container().version())))
                 references.add(rs.getString("flow_id")+" r"+rs.getInt("revision"));

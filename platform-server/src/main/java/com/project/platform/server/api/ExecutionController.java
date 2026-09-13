@@ -14,6 +14,10 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/namespaces/{namespace}/executions")
 public final class ExecutionController {
+    @DeleteMapping("/{id}")
+    public void remove(Principal principal,@PathVariable String namespace,@PathVariable String id) {
+        executions.remove(identities.actor(principal.getName()),namespace,id);
+    }
     public record Accepted(String executionId) {}
     public record View(String id, String namespace, String flowId, int flowRevision, String submittedBy,
                        ExecutionState state, Map<String,Object> inputs, Map<String,Object> variables,
@@ -44,6 +48,10 @@ public final class ExecutionController {
     public com.project.platform.runtime.execution.ExecutionService.Overview overview(Principal principal,@PathVariable String namespace,
                                                                                      @RequestParam(defaultValue="7") int days) {
         return executions.overview(identities.actor(principal.getName()),namespace,days);
+    }
+    @GetMapping("/{id}/definition")
+    public com.project.platform.runtime.model.FlowDefinition definition(Principal principal,@PathVariable String namespace,@PathVariable String id) {
+        return executions.get(identities.actor(principal.getName()),namespace,id).definition();
     }
     @PostMapping("/{id}/cancel")
     @ResponseStatus(HttpStatus.ACCEPTED)

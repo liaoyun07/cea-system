@@ -1,5 +1,7 @@
 FROM eclipse-temurin:21-jre-jammy AS java
+FROM moby/buildkit:v0.33.0-rootless AS buildkit
 FROM quay.io/skopeo/stable:v1.20.0
+COPY --from=buildkit /usr/bin/buildctl /usr/local/bin/buildctl
 COPY --from=java /opt/java/openjdk /opt/java/openjdk
 ENV JAVA_HOME=/opt/java/openjdk PATH=/opt/java/openjdk/bin:$PATH
 RUN microdnf install -y --setopt=install_weak_deps=0 httpd-tools && microdnf clean all \

@@ -12,7 +12,12 @@ import org.springframework.web.bind.annotation.*;
 public final class ResourceController {
     private final ResourceCatalogService resources;
     private final IdentityDirectory identities;
-    public ResourceController(ResourceCatalogService resources,IdentityDirectory identities) { this.resources=resources;this.identities=identities; }
+    private final com.project.platform.dataflow.definition.DatasetRemovalService removals;
+    public ResourceController(ResourceCatalogService resources,IdentityDirectory identities,com.project.platform.dataflow.definition.DatasetRemovalService removals) { this.resources=resources;this.identities=identities;this.removals=removals; }
+    @DeleteMapping("/datasets/{datasetId}/versions/{version}")
+    public void removeDataset(Principal principal,@PathVariable String namespace,@PathVariable String datasetId,@PathVariable String version) {
+        removals.remove(identities.actor(principal.getName()),namespace,datasetId,version);
+    }
     @PutMapping("/clusters/{clusterId}")
     public Cluster putCluster(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@RequestBody Cluster request) {
         return resources.putCluster(identities.actor(principal.getName()),namespace,clusterId,request);

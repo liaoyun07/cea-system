@@ -1,5 +1,13 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+UI-10新增builder（第13个常驻容器）、buildkit-socket和buildkit-cache专用卷，仍在D盘Docker数据盘。rootless BuildKit v0.33.0保留process sandbox；只调整builder的seccomp/AppArmor/systempaths，不挂宿主Docker socket，不给privileged，不暴露TCP端口；backend通过共享UNIX socket连接，builder处于单独build-network，不加入CEA业务网络。可信实验室源码构建环境，不是敌对多租户沙箱。2CPU/2GiB内存限制；缓存沿BuildKit默认GC，非硬磁盘配额，应继续保留至少8GiB暂存余量及缓存余量。
+
+V21–V23增加逻辑删除列，V24增加sec_user。管理员账号由外部配置首次导入，之后只认数据库密码/权限；修改`.env`不会重置人员账号。初始默认developer为ADMIN；外部显式users数组须给预期管理员设置`role: ADMIN`，其余默认USER。CONNECT仅机器账号、保持外置。改密后命令行脚本若仍使用旧BACKEND_PASSWORD也会401，应使用当前凭据，不用重启覆盖。GET /health不依赖管理员凭据，只返回DB readiness。
+
+已安装环境本批只发布builder/backend/frontend。先备份数据库、保留旧镜像、确认无活动执行和上传；构建测试通过后依次`up -d --no-deps --wait builder`、`up -d --no-deps --wait backend frontend`，最后刷新nginx。不重新运行initialize/start覆盖已配置服务/SA，不重建MySQL、MinIO、Registry、算法集群。不删除业务对象；回退涉及已删除可见性和DB人员密码，不能只用旧镜像把新账号语义当作仍有效，应结合发布前DB备份明确回退范围。
+
+在线构建入口为“应用与镜像 → 在线构建”，选择ZIP（根Dockerfile）及应用/版本/契约。当前100MiB压缩、512MiB展开、并发1、10分钟、linux/amd64、输出≤2GiB；日志仅本次响应。私有基础镜像认证、持久构建历史、前端取消、Git仓库拉取和多架构构建未实现。成功后使用原镜像部署/分发功能；[示例源码](../../examples/deployment-demo/README.md)可打ZIP上传，根目录必须保持Dockerfile和app.py同级。修改权限在Dockerfile中完成。
+
 UI-09发布准备：启用Registry manifest删除开关（不运行GC），ClusterRole增加Namespace/Service管理和引用检查所需读取；V20给应用版本加deleted列，保留旧版本身份。管理Namespace不会改变算法默认`cea-lab`。现有安装只更新已授权的前后端、4个Registry及ClusterRole规则，不重新运行initialize/start或覆盖SA/Secret。发布状态见[VER-UI-009](../../docs/verification/VER-UI-009-registry-kubernetes.md)。RBAC扩大后的工作空间隔离由管理API强制执行，不等同于Kubernetes原生按标签授权。
 
 固定 Compose 项目名 `cea`。源码与配置在 D 盘 backend 仓库，Docker Desktop 数据盘必须先切到 D 盘；命名卷实际存于该 Linux VHDX，不把 MySQL/K3s 数据库直接绑定到 NTFS。启动脚本检查路径，不负责再次迁移 Docker 数据。
@@ -44,7 +52,7 @@ UI-07只读资源页需要更新后的`rbac.yaml`：原cea-lab Role新增Service
 node .\deploy\cea\verify-browser.mjs
 ```
 
-build 执行完整 Maven verify、前端单测和构建，再构建两个部署镜像。需要网络下载依赖；失败即停止，不自动退回旧代码或关闭检查。
+build 执行完整 Maven verify、前端单测和构建，再构建前端、后端和BuildKit三个部署镜像。需要网络下载依赖；失败即停止，不自动退回旧代码或关闭检查。
 
 initialize 首次从 [.env.example](.env.example) 生成随机凭据，后续复用已有 .env；生成服务连接文件、Registry 认证及 pause 镜像离线包。已有凭据不自动换一套。连接配置见 [application.yaml](application.yaml)。
 
@@ -60,7 +68,7 @@ verify-federated 会真实提交一次两轮执行，保留失败记录；验证
 
 - 工作台：http://127.0.0.1:18080
 - API：http://127.0.0.1:18085
-- 账号：`.env` 中 `BACKEND_USER`（默认 developer）；密码：`BACKEND_PASSWORD`；命名空间 lab。
+- 初始账号：`.env` 中 `BACKEND_USER`（默认 developer）；初始密码：`BACKEND_PASSWORD`；命名空间 lab。在线改密后使用新密码，以数据库为准。
 - MySQL：127.0.0.1:18306，库 cea，应用账号/密码在 `BACKEND_DB_USER/PASSWORD`。
 - MinIO API：127.0.0.1:18900；控制台：http://127.0.0.1:18901，使用 `MINIO_ROOT_USER/PASSWORD`。
 - Registry 与 Kubernetes API 不映射宿主端口，只在 cea 网络中被后端访问。管理集群可使用 `docker compose -p cea -f deploy/cea/compose.yaml exec cloud kubectl get pods -n cea-lab`。

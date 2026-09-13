@@ -1,5 +1,17 @@
 # 项目结构与 Java 文件索引
 
+UI-10增量（验收/发布状态见进度）：5个新生产Java文件，共104个；新增12个HTTP操作，共89个；6个新公开record映射，共94个。V21/V22/V23分别增加Flow头、Execution、DatasetVersion的deleted列；V24增加sec_user人员表（26张业务表），没有构建历史表、第二个Executor/Worker或新模块依赖。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/DatasetRemovalService.java` | 通过resource事务与dataset行锁、deployment公开契约引用查询协调删除，不访问跨模块Repository |
+| `platform-deployment/src/main/java/com/project/platform/deployment/upload/ImageBuildService.java` | 有界ZIP展开、独立BuildKit客户端进程/输出归档/日志、并发与超时；成功后复用ImageUploadService |
+| `platform-server/src/main/java/com/project/platform/server/api/ImageBuildController.java` | ZIP/contract multipart身份适配，不直接构建或访问仓库 |
+| `platform-server/src/main/java/com/project/platform/server/api/UserController.java` | 6个用户/个人资料API，委托已有IdentityDirectory执行两角色及范围校验 |
+| `platform-server/src/main/java/com/project/platform/server/api/HealthController.java` | 无凭据的最小DB readiness，仅UP/DOWN；通过ExecutionService读取DB时间，不直读业务表 |
+
+既有IdentityDirectory成为数据库人员账号的认证源；CONNECT机器身份仍外置。FlowService/JdbcFlowRepository、ExecutionService/JdbcExecutionStore、ResourceCatalogService/JdbcResourceRepository分别拥有本域逻辑删除；SchedulerEngine.remove移除未来触发，FlowExecutionService提交与删除共用Flow头事务锁。ApplicationCatalogService登记契约与Dataset删除共用资源事务/锁。新增ExecutionController.definition读取原Execution快照，由ExecutionGraph消费，删除Flow后不丢历史图。前端UsersPage、既有列表/CatalogPage提供操作；生产构建进程不依赖宿主Docker。协议见[UI-10](contracts/ui10-cleanup-users-build.md)。
+
 UI-09（验证/发布状态见进度）：新增6个生产Java文件，共99个；新增13个HTTP操作，共77个；新增11个公开record映射，共88个。V20只给dep_application_version增加deleted列，删除目录后禁止版本号复用；已保留契约的image仍经ApplicationCatalogService.knownImages提供给Registry作为现场查询候选，不恢复执行契约或活动目录。无新表、模块依赖、执行状态或SPI。
 
 | Java 文件 | 当前职责 |
@@ -195,9 +207,9 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | 有限批次内置消息推进 | poll | 每步由Executor独立事务；DB故障下次再试 | WF-005 | I |
-| `platform-server/src/main/java/com/project/platform/server/security/SecurityProperties.java` | 外部配置账号/命名空间/actions | record访问器 | 不提交密码到源码；没有默认密码 | SEC-001 | I |
-| `platform-server/src/main/java/com/project/platform/server/security/IdentityDirectory.java` | 配置身份映射与密码编码 | users/actor | 启动校验；不接受客户端指定actor | SEC-001 | I |
-| `platform-server/src/main/java/com/project/platform/server/security/SecurityConfiguration.java` | HTTP Basic与无会话安全链 | apiSecurity/users/identityDirectory | 仅本地基线；无生产IAM承诺 | SEC-001 | I |
+| `platform-server/src/main/java/com/project/platform/server/security/SecurityProperties.java` | 首次人员bootstrap及外置CONNECT账号/命名空间/actions/人员role | record访问器 | 不提交密码；后续不覆盖DB人员修改 | SEC-001 | I |
+| `platform-server/src/main/java/com/project/platform/server/security/IdentityDirectory.java` | sec_user认证/两角色管理/改密；外部机器身份 | loadUserByUsername/actor/profile/list/create/update/changePassword/resetPassword | DB人员事实源；认证返回独立对象以免凭据清除污染机器账号 | SEC-001 | I/UI-10 |
+| `platform-server/src/main/java/com/project/platform/server/security/SecurityConfiguration.java` | HTTP Basic与无会话安全链，Flyway后初始化身份 | apiSecurity/identityDirectory | 无SSO/复杂IAM；GET health只返回DB状态 | SEC-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/api/FlowController.java` | 定义/版本/编辑HTTP适配 | save/get/revisions/rollback/list/schema/validate/preview/export/importFlows | 不直接访问任何Repository或表 | WF-003、WF-015、WF-016 | I/C/A/FlowManagementTest |
 | `platform-server/src/main/java/com/project/platform/server/api/ExecutionController.java` | 执行HTTP适配与返回View | submit/get/list/tasks/attempts/logs/cancel | 202在提交/取消事务完成后；不泄露内部定义快照 | WF-004、WF-006 | I/C/A |
 | `platform-server/src/main/java/com/project/platform/server/api/ApiExceptionHandler.java` | 领域和请求错误HTTP映射 | workflow/forbidden/malformed | 400/403/404/409/422；基础设施错误不改业务状态 | SEC-001、WF-004 | I |

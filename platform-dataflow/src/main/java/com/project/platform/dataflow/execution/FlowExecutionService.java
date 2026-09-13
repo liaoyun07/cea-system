@@ -45,16 +45,21 @@ public final class FlowExecutionService {
         String hash = json.hash(request);
         String existing = executions.findSubmission(namespace, actor.name(), requestKey, hash);
         if (existing != null) return existing;
+        return executions.transaction(()->{
         flows.requireScope(namespace,request.flowId(),scope);
         var flow = flows.get(namespace, request.flowId(), request.revision());
         if(webhook && !Boolean.TRUE.equals(flow.definition().webhook()))throw WorkflowException.invalid("webhook","not enabled for this flow");
         var prepared = bindings.prepare(flow.definition(), request.inputs());
         return executions.submit(flow.definition(), flow.revision(), actor.name(), requestKey, hash, prepared);
+        });
     }
 
     public ExecutionRecord get(Actor actor, String namespace, String id) {
         access.require(actor, namespace, Action.READ);
         return executions.get(namespace, id);
+    }
+    public void remove(Actor actor,String namespace,String id) {
+        access.require(actor,namespace,Action.WRITE);executions.remove(namespace,id);
     }
     public void cancel(Actor actor,String namespace,String id) {
         access.require(actor,namespace,Action.EXECUTE);

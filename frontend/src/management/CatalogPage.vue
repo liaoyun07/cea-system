@@ -40,6 +40,8 @@ const targetCluster = ref(''),
   prepared = ref(null);
 const form = ref(null);
 const uploadMode = ref(false),
+  buildMode = ref(false),
+  buildLog = ref(''),
   archive = ref(null),
   history = ref([]),
   historyOffset = ref(0),
@@ -60,7 +62,10 @@ onBeforeUnmount(() => {
 const api = (path, options = {}) =>
   props.api(path, {
     ...options,
-    signal: AbortSignal.any([abort.signal, AbortSignal.timeout(options.long ? 600000 : 20000)]),
+    signal: AbortSignal.any([
+      abort.signal,
+      AbortSignal.timeout(options.build ? 1200000 : options.long ? 600000 : 20000),
+    ]),
   });
 
 async function action(work, write = false) {
@@ -113,6 +118,8 @@ async function dependencies() {
 }
 function begin(value, saved = false, record = null) {
   uploadMode.value = false;
+  buildMode.value = false;
+  buildLog.value = '';
   archive.value = null;
   history.value = [];
   historyOffset.value = 0;
@@ -127,7 +134,7 @@ function begin(value, saved = false, record = null) {
   prepared.value = null;
   targetCluster.value = '';
 }
-async function open(row, upload = false) {
+async function open(row, upload = false, build = false) {
   await action(async () => {
     await dependencies();
     if (!alive) return;
@@ -138,6 +145,7 @@ async function open(row, upload = false) {
     if (!row) {
       begin(newDraft(props.kind, props.namespace));
       uploadMode.value = upload;
+      buildMode.value = build;
       return;
     }
     let data = row;
@@ -178,9 +186,18 @@ async function save() {
   if (readonly.value || invalid.value || !form.value.reportValidity()) return;
   await action(async () => {
     let result;
-    if (uploadMode.value) {
-      if (!archive.value || archive.value.size === 0 || archive.value.size > 2 * 1024 ** 3)
-        throw new Error('请选择不超过 2 GiB 的非空 Docker save 镜像归档。');
+    if (uploadMode.value || buildMode.value) {
+      const building = buildMode.value;
+      if (
+        !archive.value ||
+        archive.value.size === 0 ||
+        archive.value.size > (building ? 100 * 1024 ** 2 : 2 * 1024 ** 3)
+      )
+        throw new Error(
+          building
+            ? '请选择不超过 100 MiB、根目录包含 Dockerfile 的 ZIP。'
+            : '请选择不超过 2 GiB 的非空 Docker save 镜像归档。',
+        );
       const body = new FormData();
       body.append('file', archive.value);
       body.append(
@@ -189,13 +206,17 @@ async function save() {
           type: 'application/json',
         }),
       );
-      result = await api(`${itemPath('applications', draft.value)}/upload`, {
+      result = await api(`${itemPath('applications', draft.value)}/${building ? 'build' : 'upload'}`, {
         method: 'POST',
         body,
         long: true,
+        build: building,
       });
       if (!alive) return;
+      const log = building ? result.log : '';
+      if (building) result = result.application;
       begin(applicationDraft(result), true, result);
+      buildLog.value = log;
     } else {
       const body = requestBody(props.kind, draft.value);
       result = await api(itemPath(props.kind, draft.value), { method: 'PUT', body });
@@ -253,6 +274,24 @@ async function removeApplication() {
     }
   }, true);
 }
+async function removeDataset() {
+  const id = draft.value.datasetId;
+  if (
+    window.prompt(
+      `删除数据集 ${id}/${draft.value.version}？原始文件保留，此版本号不可复用。请输入数据集 ID：`,
+    ) !== id
+  )
+    return;
+  await action(async () => {
+    await api(itemPath('datasets', draft.value), { method: 'DELETE' });
+    if (alive) {
+      draft.value = null;
+      raw.value = null;
+      await loadRows();
+      success.value = '数据集版本已删除，原始文件保留';
+    }
+  }, true);
+}
 async function loadHistory() {
   historyError.value = '';
   const selected = itemPath('applications', draft.value),
@@ -299,6 +338,13 @@ onMounted(() => action(loadRows));
       <button v-if="kind === 'applications' && !draft && !raw" :disabled="busy" @click="open(null, true)">
         上传镜像
       </button>
+      <button
+        v-if="kind === 'applications' && !draft && !raw"
+        :disabled="busy"
+        @click="open(null, false, true)"
+      >
+        在线构建
+      </button>
       <button v-if="draft || raw" :disabled="busy" @click="back">← 返回列表</button>
     </div>
     <div v-if="error" class="notice error" role="alert">{{ error }}</div>
@@ -312,7 +358,17 @@ onMounted(() => action(loadRows));
         <div class="editor-actions management-actions">
           <div>
             <h2>
-              {{ readonly ? '版本详情' : uploadMode ? '上传镜像版本' : existing ? '编辑配置' : '新建登记' }}
+              {{
+                readonly
+                  ? '版本详情'
+                  : buildMode
+                    ? '在线构建镜像'
+                    : uploadMode
+                      ? '上传镜像版本'
+                      : existing
+                        ? '编辑配置'
+                        : '新建登记'
+              }}
             </h2>
             <span class="muted small">{{
               dirty ? '有未保存修改' : readonly ? '不可变版本' : existing ? '已保存' : '未保存'
@@ -346,14 +402,37 @@ onMounted(() => action(loadRows));
               :disabled="busy || invalid || !!catalogError"
               @click="save"
             >
-              {{ writing ? '正在提交…' : uploadMode ? '上传并登记' : '保存配置' }}
+              {{
+                writing
+                  ? buildMode
+                    ? '正在构建…'
+                    : '正在提交…'
+                  : buildMode
+                    ? '构建并登记'
+                    : uploadMode
+                      ? '上传并登记'
+                      : '保存配置'
+              }}
+            </button>
+            <button
+              v-if="readonly && kind === 'datasets'"
+              type="button"
+              class="danger"
+              :disabled="busy"
+              @click="removeDataset"
+            >
+              删除数据集版本
             </button>
           </div>
         </div>
-        <label v-if="uploadMode"
-          >镜像归档（Docker save，最大 2 GiB）<input
+        <label v-if="uploadMode || buildMode"
+          >{{
+            buildMode
+              ? '构建源码（ZIP，根目录含 Dockerfile，最大 100 MiB）'
+              : '镜像归档（Docker save，最大 2 GiB）'
+          }}<input
             type="file"
-            accept=".tar"
+            :accept="buildMode ? '.zip' : '.tar'"
             required
             :disabled="busy"
             @change="archive = $event.target.files[0] || null"
@@ -363,7 +442,7 @@ onMounted(() => action(loadRows));
           :draft="draft"
           :existing="existing"
           :readonly="readonly"
-          :upload="uploadMode"
+          :upload="uploadMode || buildMode"
           :busy="busy"
           :api="api"
           :namespace="namespace"
@@ -373,6 +452,10 @@ onMounted(() => action(loadRows));
           @invalid="invalid = $event"
         />
       </form>
+      <section v-if="buildLog" class="management-editor">
+        <h2>构建日志</h2>
+        <pre class="json-preview">{{ buildLog }}</pre>
+      </section>
       <section v-if="kind === 'applications' && readonly" class="management-editor">
         <h2>准备 / 分发镜像</h2>
         <div class="inline-form">

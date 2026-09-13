@@ -33,6 +33,7 @@ public final class JdbcScheduleStore {
                 (rs,row)->new Due(rs.getString(1),rs.getString(2),rs.getTimestamp(3).toInstant(),null));
         return rows.isEmpty()?null:rows.getFirst();
     }
+    public void remove(String namespace,String flowId) { jdbc.update("DELETE FROM wf_schedule WHERE namespace=? AND flow_id=?",namespace,flowId); }
     public Due lockDue(Due candidate) {
         var rows=jdbc.query("SELECT payload_json,next_fire FROM wf_schedule WHERE namespace=? AND flow_id=? AND next_fire<=CURRENT_TIMESTAMP(6) FOR UPDATE",
                 (rs,row)->new Due(candidate.namespace(),candidate.flowId(),rs.getTimestamp(2).toInstant(),json.read(rs.getString(1),ScheduledFlow.class)),candidate.namespace(),candidate.flowId());

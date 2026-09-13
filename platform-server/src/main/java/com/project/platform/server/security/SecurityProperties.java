@@ -7,6 +7,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("platform.security")
 public record SecurityProperties(List<Account> users) {
-    public record Account(String name, String password, Set<String> namespaces, Set<Action> actions) {}
+    public record Account(String name, String password, Set<String> namespaces, Set<Action> actions,IdentityDirectory.Role role) {}
 }
-

@@ -94,6 +94,7 @@ try {
               users: [
                 {
                   name: 'owner',
+                  role: 'ADMIN',
                   password: apiPass,
                   namespaces: ['lab'],
                   actions: ['READ', 'WRITE', 'EXECUTE'],

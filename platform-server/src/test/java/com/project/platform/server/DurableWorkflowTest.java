@@ -31,6 +31,106 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DurableWorkflowTest {
+    @Test void deletionRacesWithSubmissionsAndContractsWithoutDanglingReferences() throws Exception {
+        var applications=context.getBean(com.project.platform.deployment.application.ApplicationCatalogService.class);
+        var removal=context.getBean(com.project.platform.dataflow.definition.DatasetRemovalService.class);
+        String cluster=id();resources().putCluster(actor,"lab",cluster,new Cluster(cluster,Kind.EDGE,true));
+        try(var pool=java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            for(int trial=0;trial<5;trial++) {
+                String flow=register();var start=new java.util.concurrent.CountDownLatch(1);
+                var deleted=pool.submit(()->{start.await();try {flows().remove(actor,"lab",flow,1);return true;}
+                    catch(WorkflowException ex){assertEquals(WorkflowException.Kind.CONFLICT,ex.kind());return false;}});
+                var submitted=pool.submit(()->{start.await();try {return executions().submit(actor,"lab",UUID.randomUUID().toString(),request(flow));}
+                    catch(WorkflowException ex){assertEquals(WorkflowException.Kind.NOT_FOUND,ex.kind());return null;}});
+                start.countDown();assertEquals(deleted.get(5,java.util.concurrent.TimeUnit.SECONDS),submitted.get(5,java.util.concurrent.TimeUnit.SECONDS)==null);
+                drain();
+
+                String data=id(),app=id();resourceDataset(data,"v1","pt",cluster);
+                var contract=new com.project.platform.deployment.application.ApplicationVersion(app,"v1","registry.test/demo:v1",Map.of("DATASET",new com.project.platform.deployment.application.ApplicationVersion.Parameter(
+                        com.project.platform.deployment.application.ApplicationVersion.ValueType.STRING,true,null,List.of(),new com.project.platform.deployment.application.ApplicationVersion.DatasetRule("pt",List.of(new com.project.platform.deployment.application.ApplicationVersion.DatasetRef(data,"v1"))))));
+                var ready=new java.util.concurrent.CountDownLatch(1);
+                var removed=pool.submit(()->{ready.await();try {removal.remove(actor,"lab",data,"v1");return true;}
+                    catch(WorkflowException ex){assertEquals(WorkflowException.Kind.CONFLICT,ex.kind());return false;}});
+                var registered=pool.submit(()->{ready.await();try {applications.register(actor,"lab",app,"v1",contract);return true;}
+                    catch(com.project.platform.resource.catalog.ResourceException ex){assertEquals(com.project.platform.resource.catalog.ResourceException.Kind.NOT_FOUND,ex.kind());return false;}});
+                ready.countDown();assertNotEquals(removed.get(5,java.util.concurrent.TimeUnit.SECONDS),registered.get(5,java.util.concurrent.TimeUnit.SECONDS));
+            }
+        }
+    }
+    @Test void removalProtectsActiveWorkAndIdempotencyAndKeepsExecutionSnapshot() throws Exception {
+        String id=register(),key=UUID.randomUUID().toString();var request=request(id);
+        String execution=executions().submit(actor,"lab",key,request);
+        assertThrows(WorkflowException.class,()->flows().remove(actor,"lab",id,1));
+        assertThrows(WorkflowException.class,()->executions().remove(actor,"lab",execution));
+        drain();
+        assertThrows(WorkflowException.class,()->flows().remove(actor,"lab",id,2));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->flows().remove(new Actor("reader",Set.of("lab"),Set.of(Action.READ)),"lab",id,1));
+        flows().remove(actor,"lab",id,1);
+        assertThrows(WorkflowException.class,()->flows().get(actor,"lab",id,1));
+        assertThrows(WorkflowException.class,()->flows().save(actor,"lab",id,1,source(id)));
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        assertEquals(execution,executions().submit(actor,"lab",key,request));
+        assertThrows(WorkflowException.class,()->executions().submit(actor,"lab",UUID.randomUUID().toString(),request));
+        executions().remove(actor,"lab",execution);
+        assertThrows(WorkflowException.class,()->executions().get(actor,"lab",execution));
+        assertThrows(WorkflowException.class,()->executions().logs(actor,"lab",execution,0,20));
+        assertEquals(execution,executions().submit(actor,"lab",key,request));
+        assertTrue(jdbc().queryForObject("SELECT deleted FROM wf_execution WHERE id=?",Boolean.class,execution));
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_execution WHERE id=?",Integer.class,execution));
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_schedule WHERE namespace='lab' AND flow_id=?",Integer.class,id));
+    }
+    @Test void removalStopsScheduleAndRejectsPendingAfterExecution() {
+        String id=id();
+        String yaml="schemaVersion: 1\nnamespace: lab\nid: "+id+"\ntasks: [{id: main, type: core.Log, message: hello}]\nschedule: {cron: '0 0 0 1 1 *', timezone: UTC}\n";
+        flows().save(actor,"lab",id,0,yaml);
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM wf_schedule WHERE flow_id=?",Integer.class,id));
+        flows().remove(actor,"lab",id,1);
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_schedule WHERE flow_id=?",Integer.class,id));
+        String other=register(),run=executions().submit(actor,"lab",UUID.randomUUID().toString(),request(other));
+        jdbc().update("UPDATE wf_execution SET state='SUCCESS',ended_at=CURRENT_TIMESTAMP(6) WHERE id=?",run);
+        assertThrows(WorkflowException.class,()->executions().remove(actor,"lab",run));
+        jdbc().update("UPDATE wf_execution SET state='CREATED',ended_at=NULL WHERE id=?",run);drain();
+    }
+    @Test void datasetRemovalProtectsContractAndRejectsIdentityReuse() {
+        String data=id(),cluster=id(),app=id();
+        resources().putCluster(actor,"lab",cluster,new Cluster(cluster,Kind.EDGE,true));
+        var dataset=resourceDataset(data,"v1","pt",cluster);
+        var applications=context.getBean(com.project.platform.deployment.application.ApplicationCatalogService.class);
+        var contract=new com.project.platform.deployment.application.ApplicationVersion(app,"v1","registry.test/demo:v1",Map.of("DATASET",new com.project.platform.deployment.application.ApplicationVersion.Parameter(
+                com.project.platform.deployment.application.ApplicationVersion.ValueType.STRING,true,null,List.of(),new com.project.platform.deployment.application.ApplicationVersion.DatasetRule("pt",List.of(new com.project.platform.deployment.application.ApplicationVersion.DatasetRef(data,"v1"))))));
+        applications.register(actor,"lab",app,"v1",contract);
+        var removal=context.getBean(com.project.platform.dataflow.definition.DatasetRemovalService.class);
+        assertThrows(WorkflowException.class,()->removal.remove(actor,"lab",data,"v1"));
+        applications.removeUnreferenced(actor,"lab",app,"v1");
+        removal.remove(actor,"lab",data,"v1");
+        assertThrows(com.project.platform.resource.catalog.ResourceException.class,()->resources().dataset(actor,"lab",data,"v1"));
+        assertThrows(com.project.platform.resource.catalog.ResourceException.class,()->resources().registerDataset(actor,"lab",data,"v1",dataset));
+        assertEquals(1,jdbc().queryForObject("SELECT COUNT(*) FROM res_dataset_location WHERE dataset_id=?",Integer.class,data));
+    }
+    @Test void humanUsersEnforceRolesPasswordsAndBootstrapPersistence() throws Exception {
+        var identities=context.getBean(com.project.platform.server.security.IdentityDirectory.class);
+        String name=id();
+        var user=identities.create("writer","lab",new com.project.platform.server.security.IdentityDirectory.Create(name,"test-password",com.project.platform.server.security.IdentityDirectory.Role.USER,Set.of("lab")));
+        assertEquals(com.project.platform.server.security.IdentityDirectory.Role.USER,user.role());
+        assertEquals(403,call(port(),"GET","/api/namespaces/lab/users",name,null,null).statusCode());
+        assertEquals(200,call(port(),"GET","/api/namespaces/lab/me",name,null,null).statusCode());
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->identities.create("writer","lab",new com.project.platform.server.security.IdentityDirectory.Create(id(),"test-password",user.role(),Set.of("other"))));
+        assertThrows(WorkflowException.class,()->identities.update("writer","lab","writer",new com.project.platform.server.security.IdentityDirectory.Update(user.role(),false,Set.of("lab"))));
+        assertThrows(WorkflowException.class,()->identities.changePassword(name,"lab",new com.project.platform.server.security.IdentityDirectory.PasswordChange("incorrect","changed-password")));
+        identities.changePassword(name,"lab",new com.project.platform.server.security.IdentityDirectory.PasswordChange("test-password","changed-password"));
+        assertEquals(401,call(port(),"GET","/api/namespaces/lab/me",name,null,null).statusCode());
+        var encoder=context.getBean(org.springframework.security.crypto.password.PasswordEncoder.class);
+        var properties=new com.project.platform.server.security.SecurityProperties(List.of(new com.project.platform.server.security.SecurityProperties.Account(name,"test-password",Set.of("lab"),Set.of(Action.READ),user.role())));
+        var reboot=new com.project.platform.server.security.IdentityDirectory(properties,encoder,jdbc(),context.getBean(org.springframework.transaction.support.TransactionTemplate.class));
+        assertTrue(encoder.matches("changed-password",reboot.loadUserByUsername(name).getPassword()));
+        assertTrue(reboot.actor(name).actions().contains(Action.WRITE));
+        assertFalse(reboot.loadUserByUsername(name).getPassword().contains("changed-password"));
+        identities.resetPassword("writer","lab",name,new com.project.platform.server.security.IdentityDirectory.PasswordReset("test-password"));
+        assertEquals(200,call(port(),"GET","/api/namespaces/lab/me",name,null,null).statusCode());
+        identities.update("writer","lab",name,new com.project.platform.server.security.IdentityDirectory.Update(user.role(),false,Set.of("lab")));
+        assertEquals(401,call(port(),"GET","/api/namespaces/lab/me",name,null,null).statusCode());
+        assertNotNull(identities.actor(name)); // Already accepted Worker identity is not revoked by disabling login.
+    }
     @Test void outputDeclarationsUsePinnedExecutionAcrossUserAndPolicyScopes() throws Exception {
         var outputs=context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class);
         for(boolean policy:List.of(false,true)) {
@@ -120,7 +220,7 @@ class DurableWorkflowTest {
                 "--spring.datasource.username="+mysql.getUsername(),
                 "--spring.datasource.password="+mysql.getPassword(),
                 "--platform.security.users[0].name=writer","--platform.security.users[0].password=test-password",
-                "--platform.security.users[0].namespaces=lab","--platform.security.users[0].actions=READ,WRITE,EXECUTE",
+                "--platform.security.users[0].namespaces=lab","--platform.security.users[0].actions=READ,WRITE,EXECUTE","--platform.security.users[0].role=ADMIN",
                 "--platform.security.users[1].name=viewer","--platform.security.users[1].password=test-password",
                 "--platform.security.users[1].namespaces=lab","--platform.security.users[1].actions=READ",
                 "--logging.level.root=WARN");
@@ -168,7 +268,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(20,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(24,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {

@@ -23,7 +23,7 @@ class ContractTest {
     }
     @Test void openApiRoutesMatchControllers() throws Exception {
         Set<String> actual = new TreeSet<>();
-        for (Class<?> controller : List.of(KubernetesManagementController.class,RegistryController.class,KubernetesResourceController.class,FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
+        for (Class<?> controller : List.of(HealthController.class,UserController.class,ImageBuildController.class,KubernetesManagementController.class,RegistryController.class,KubernetesResourceController.class,FlowController.class,ExecutionController.class,ResourceController.class,ApplicationController.class,ImageDistributionController.class,DeploymentController.class,EdgeController.class,EdgeAccessController.class,OffloadingController.class,NamespaceFileController.class,WebhookController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (var method : controller.getDeclaredMethods()) {
                 var get = method.getAnnotation(GetMapping.class);
@@ -49,6 +49,12 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("UserProfile",com.project.platform.server.security.IdentityDirectory.Profile.class),
+                Map.entry("UserCreate",com.project.platform.server.security.IdentityDirectory.Create.class),
+                Map.entry("UserUpdate",com.project.platform.server.security.IdentityDirectory.Update.class),
+                Map.entry("PasswordChange",com.project.platform.server.security.IdentityDirectory.PasswordChange.class),
+                Map.entry("PasswordReset",com.project.platform.server.security.IdentityDirectory.PasswordReset.class),
+                Map.entry("ImageBuildResult",com.project.platform.deployment.upload.ImageBuildService.Result.class),
                 Map.entry("ManagedNamespace",com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceInfo.class),
                 Map.entry("NamespaceCreate",com.project.platform.resource.kubernetes.KubernetesManagementService.NamespaceRequest.class),
                 Map.entry("ServicePortConfiguration",com.project.platform.resource.kubernetes.KubernetesManagementService.Port.class),

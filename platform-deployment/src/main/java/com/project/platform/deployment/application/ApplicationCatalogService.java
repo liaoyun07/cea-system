@@ -15,7 +15,7 @@ public final class ApplicationCatalogService {
         this.repository=repository;this.resources=resources;this.access=access;
     }
     public ApplicationVersion register(Actor actor,String namespace,String id,String version,ApplicationVersion value) {
-        return repository.register(namespace,validate(actor,namespace,id,version,value));
+        return resources.withDatasetTransaction(actor,namespace,()->repository.register(namespace,validate(actor,namespace,id,version,value)));
     }
     /** Upload preflight: validate before importing bytes and reject an already registered version. */
     public ApplicationVersion validateNew(Actor actor,String namespace,String id,String version,ApplicationVersion value) {
@@ -50,5 +50,8 @@ public final class ApplicationCatalogService {
     /** Registry discovery only; includes retained deleted versions but cannot resolve or execute them. */
     public java.util.Map<String,java.util.Set<String>> knownImages(Actor actor,String namespace) {
         access.require(actor,namespace,Action.READ);identifier(namespace);return repository.knownImages(namespace);
+    }
+    public List<String> datasetReferences(Actor actor,String namespace,String id,String version) {
+        access.require(actor,namespace,Action.READ);return repository.datasetReferences(namespace,id,version);
     }
 }

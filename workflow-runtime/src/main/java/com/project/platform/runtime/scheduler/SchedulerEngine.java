@@ -38,4 +38,8 @@ public final class SchedulerEngine {
             return true;
         });
     }
+    public void remove(String namespace,String flowId) {
+        executions.lockFlow(namespace,flowId);
+        schedules.remove(namespace,flowId);
+    }
 }

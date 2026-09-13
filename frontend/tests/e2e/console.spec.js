@@ -132,7 +132,7 @@ tasks:
   expect(changed.status()).toBe(201);
   const revisionRequests = [];
   page.on('request', (r) => {
-    if (r.url().includes(`/flows/${id}?`)) revisionRequests.push(r.url());
+    if (r.url().includes(`/executions/${executionId.trim()}/definition`)) revisionRequests.push(r.url());
   });
   await page.getByRole('tab', { name: '拓扑', exact: true }).click();
   await page.getByRole('button', { name: '展开 rounds', exact: true }).click();
@@ -169,10 +169,12 @@ tasks:
     rows.find((r) => r.taskId === 'clients' && r.iteration === 1).id,
   );
   expect(revisionRequests.length).toBeGreaterThan(0);
-  expect(revisionRequests.every((url) => url.endsWith('revision=1'))).toBe(true);
+  expect(revisionRequests.every((url) => url.endsWith(`/executions/${executionId.trim()}/definition`))).toBe(
+    true,
+  );
   // A missing source must not hide task outputs or fall back to the newest flow.
   await page.getByRole('tab', { name: /任务实例/ }).click();
-  await page.route(`**/flows/${id}?revision=1`, (route) =>
+  await page.route(`**/executions/${executionId.trim()}/definition`, (route) =>
     route.fulfill({ status: 403, body: 'revision access denied' }),
   );
   await page.getByRole('tab', { name: '拓扑', exact: true }).click();

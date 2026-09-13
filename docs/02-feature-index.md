@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-10（DONE/PASS，已发布CEA）：WF-003/WF-006、RES-001、SEC-001、DEP-001/002增加Flow/终态Execution/未引用Dataset逻辑删除、ADMIN/USER账号/个人中心和独立BuildKit在线构建。无新功能域、执行链或吞吐/DQN能力。边界见[工作包](features/UI-10-cleanup-users-build.md)和[协议](contracts/ui10-cleanup-users-build.md)，实际测试/部署见[验证](verification/VER-UI-010-cleanup-users-build.md)。
+
 UI-09（DEP-001/DEP-002/RES-001管理补齐，DONE/PASS，已发布CEA）：Registry实际库存/详情/引用保护删除、应用目录删除、Service创建/删除/访问详情及多Namespace管理；不新造功能域ID。包含源tag与digest契约的无标签副本核验，不以历史记录代替库存。验证/发布结果见[验证记录](verification/VER-UI-009-registry-kubernetes.md)。
 
 UI-08a：用户裁剪独立“容器用量”页面，当前前端只保留节点用量，不新增其他入口或平台能力。后端API和采集器不变；验证/发布状态见[进度](04-progress.md)。
@@ -43,10 +45,10 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | FND-001 | 工程和文档框架 | S0 | platform-server | SCAFFOLD | PASS |
 | WF-001 | Flow/Task 模型、解析和结构校验 | S1 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-002 | Inputs/Variables/Outputs 类型与绑定 | S1 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-003 | 模板持久化、不可变版本与回滚 | S1 | platform-dataflow | IMPLEMENTED | PASS |
+| WF-003 | 模板持久化、不可变版本、回滚与受保护逻辑删除 | S1/UI-10 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-004 | 手动提交、Execution/TaskRun/Attempt 状态 | S1 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-005 | 持久消息、幂等、顺序任务、Log 闭环 | S1 | workflow-runtime | IMPLEMENTED | PASS |
-| WF-006 | 执行历史、日志、结果查询 | S1 | platform-dataflow | IMPLEMENTED | PASS |
+| WF-006 | 执行历史、日志、结果查询与终态历史逻辑删除 | S1/UI-10 | platform-dataflow | IMPLEMENTED | PASS |
 | WF-007 | Worker 租约、结果归并、接管和恢复 | S2 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-008 | Constant Retry、超时、取消、Errors/Finally | S2 | workflow-runtime | IMPLEMENTED | PASS |
 | WF-009 | DAG/Topology、If/Else、Parallel | S3 | workflow-runtime | IMPLEMENTED | PASS |
@@ -62,14 +64,14 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | RES-001 | 站点/集群资源、数据集版本与本地性 | S4 | platform-resource | IMPLEMENTED | PASS |
 | RES-002 | 普通选址、共享资源预约与释放 | S4 | platform-resource | IMPLEMENTED | PASS |
 | DEP-001 | 应用目录、镜像契约 | S4 | platform-deployment | IMPLEMENTED | PASS |
-| DEP-002 | 镜像复制、分发策略、常驻部署管理 | S4 | platform-deployment | IMPLEMENTED | PASS |
+| DEP-002 | 镜像上传/在线构建/复制、分发历史、常驻部署管理 | S4/UI-08/09/10 | platform-deployment | IMPLEMENTED | PASS |
 | RUN-001 | Kubernetes Job、终端Docker与产物发布 | S4/S5 | workflow-runtime | IMPLEMENTED | PASS |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | IMPLEMENTED | PASS |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
 | OFF-001 | 终端卸载资格、规则/单步Q决策 | S5 | platform-offloading | IMPLEMENTED | PASS |
 | OFF-002 | 显式卸载任务画像、模型版本与反馈 | S5 | platform-offloading | IMPLEMENTED | PASS |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
-| SEC-001 | 身份、命名空间权限与内部通信认证 | S1/S4 | platform-foundation | IMPLEMENTED | PASS |
+| SEC-001 | 身份、命名空间权限、两角色人员/个人中心与内部通信认证 | S1/S4/UI-10 | platform-foundation/platform-server | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |
 | OPS-001 | 最小部署与单机恢复验收 | S4/S7 | platform-server | IN_PROGRESS | PARTIAL |
 
@@ -85,7 +87,7 @@ RES-001包含节点健康与UI-08近期Metrics API用量查询，不提供Promet
 
 详细边界见[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)和[部署说明](operations/s4-minimal-deployment.md)。SQL写入、其他HTTP方法、Windows/distroless、完整No-code前端仍未实现；不通过隐藏这些限制冒充迁移了Kestra全套插件。S6后端范围已完成并通过完整回归；S7未进入。
 
-SEC-001按已接入接口的最小鉴权范围PASS，不表示TLS/IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
+SEC-001按已接入接口及ADMIN/USER人员管理的最小范围PASS，不表示TLS、SSO或复杂IAM已实现。OPS-001的S4空库部署和单机恢复部分PASS；因还包含S7最终上线环境复验，汇总仍IN_PROGRESS/PARTIAL，不将S7提前标完成。
 S5的WF-013、WF-017与FL-001已实现，150项Maven verify及7项Python测试通过，见[Loop及动态联邦学习验收](verification/VER-S5-003-loop.md)及[S5工作包](features/S5-research-edge.md)。FL-001仅真实MNIST子集两轮功能验收，不包含其他流任务、物理多云或性能基准。计量口径仍待确认，MET未实现；S5整体仍IN_PROGRESS。EDGE-001/002已按后端接入/策略协议范围完成，166项全量回归及107项收尾复测通过，见[接入验收](verification/VER-S5-004-edge-access.md)；不表示已部署物理网关代理。
 
 S5-04a完成RUN-001终端Docker与可信来源基础；S5-04b增加OFF-001/002的显式卸载、规则/单步Q、画像/反馈及终端FIFO。新增3表、3个HTTP操作，原执行链不变。188项Maven与12项Python全量验证通过，见[本批验收](verification/VER-S5-006-terminal-offloading.md)。状态仅代表当前最小范围，单步模型不等于多步长期DQN优化，未做策略性能对比。

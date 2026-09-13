@@ -43,6 +43,14 @@ public final class ResourceCatalogService {
     public List<DatasetVersion> datasets(Actor actor,String namespace,int limit,int offset) {
         authorize(actor,namespace,Action.READ);page(limit,offset);return repository.datasets(namespace,limit,offset);
     }
+    /** Keeps dataset-reference validation and its dependent catalog write in one transaction. */
+    public <T>T withDatasetTransaction(Actor actor,String namespace,java.util.function.Supplier<T> work) {
+        authorize(actor,namespace,Action.WRITE);return repository.transaction(work);
+    }
+    public void removeUnreferencedDataset(Actor actor,String namespace,String id,String version) {
+        authorize(actor,namespace,Action.WRITE);identifier(id,"dataset id");token(version,"version",100);
+        repository.remove(namespace,id,version);
+    }
     public List<PlacementOption> placementOptions(Actor actor,String namespace,PlacementRequest request) {
         authorize(actor,namespace,Action.READ);
         if(request==null || request.candidateClusterIds().isEmpty() || request.candidateClusterIds().size()>100 || request.datasets().size()>100)

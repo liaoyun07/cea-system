@@ -8,6 +8,8 @@
 
 镜像默认`python /app/app.py`，UID/GID10001，监听8080，支持只读根文件系统。没有数据库、数据文件或启动下载。
 
+也可用于UI-10在线构建：把本目录的Dockerfile和app.py直接放在ZIP根目录，在“应用与镜像 → 在线构建”选择ZIP，用一个未使用的应用/版本登记。不要把外层deployment-demo目录一起压进去；不用先docker build/save。构建需要拉取Dockerfile固定的公开Python基础镜像。完成后按下方部署步骤使用，不额外修改执行链或算法镜像。
+
 ## 页面操作
 
 1. **应用与镜像 → 上传镜像**：应用ID填`cea-deployment-demo`、版本`v1`，选择导出的tar。可以不添加参数（使用镜像默认值）；如需演示配置编辑，添加`MESSAGE`，类型STRING，默认`Hello CEA`，非必填。[upload-contract.json](upload-contract.json)是等价上传API的contract部分，不是镜像引用。

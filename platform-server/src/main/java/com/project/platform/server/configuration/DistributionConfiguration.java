@@ -17,8 +17,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({DistributionConfiguration.Settings.class,DistributionConfiguration.UploadSettings.class})
+@EnableConfigurationProperties({DistributionConfiguration.Settings.class,DistributionConfiguration.UploadSettings.class,DistributionConfiguration.BuildSettings.class})
 public class DistributionConfiguration {
+    @ConfigurationProperties("platform.image-build")
+    public record BuildSettings(List<String> command,Path directory,Duration timeout) {
+        public BuildSettings {
+            command=command==null?List.of("buildctl","--addr","unix:///run/cea-buildkit/buildkitd.sock"):List.copyOf(command);
+            directory=directory==null?Path.of(System.getProperty("java.io.tmpdir"),"cea-builds"):directory;
+            timeout=timeout==null?Duration.ofMinutes(10):timeout;
+        }
+    }
+    @Bean com.project.platform.deployment.upload.ImageBuildService imageBuildService(BuildSettings settings,AccessPolicy access,ApplicationCatalogService applications,ImageUploadService uploads) {
+        return new com.project.platform.deployment.upload.ImageBuildService(access,applications,uploads,settings.command(),settings.directory(),settings.timeout());
+    }
     @ConfigurationProperties("platform.distribution")
     public record Settings(List<String> command,Duration timeout,Map<String,RegistrySettings> registries,Map<String,Map<String,String>> targets) {
         public Settings {
