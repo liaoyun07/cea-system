@@ -1,5 +1,11 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+FILE-01 部署调整（状态见[进度](../../docs/04-progress.md)）：新增 minio-edge-a/b/c 三个服务和独立卷（共16个常驻服务），不新增宿主端口；四集群使用公共文件助手，原算法镜像不变。中心保留 datasets/历史 cea-artifacts，新的边缘 Job 输出写到对应 cea-artifacts-edge-*；不是数据集迁移。新增三个存储的内存上限各512MiB，实际磁盘随产物增长，暂不自动GC。
+
+现有环境授权后先检查无活动 Execution/WorkerJob、保存恢复镜像和旧配置，再执行 `setup-files.ps1`，构建测试后的 backend，仅 `up -d --no-deps --wait backend`，最后 `exec -T frontend nginx -s reload`。setup-files只增加边缘存储、Bucket权限、助手Registry副本及Secret RBAC，并生成ignored的`secrets/backend/storage-endpoints.yaml`（Pod可达内网IP和助手digest）；它不重启原服务、不提交Flow、不迁移数据。存储容器重建/IP改变后应重新生成并更新backend；新安装的start已调用该步骤。禁用CoreDNS的本地设置不能直接照搬到物理多云。
+
+K8s Runner不再需要pods/exec，替换为执行Namespace内secrets get/create/update/delete；助手授权挂载不进入算法。参考[协议](../../docs/contracts/file01-pod-artifacts.md)。部署后`verify-federated.ps1`同时检查四存储输出、助手/Secret隔离及两轮模型数值，不适用于断言旧中心-only历史执行已具备新存储行为。接收边缘产物后不能简单回退到只识别中心的旧backend。
+
 UI-10新增builder（第13个常驻容器）、buildkit-socket和buildkit-cache专用卷，仍在D盘Docker数据盘。rootless BuildKit v0.33.0保留process sandbox；只调整builder的seccomp/AppArmor/systempaths，不挂宿主Docker socket，不给privileged，不暴露TCP端口；backend通过共享UNIX socket连接，builder处于单独build-network，不加入CEA业务网络。可信实验室源码构建环境，不是敌对多租户沙箱。2CPU/2GiB内存限制；缓存沿BuildKit默认GC，非硬磁盘配额，应继续保留至少8GiB暂存余量及缓存余量。
 
 V21–V23增加逻辑删除列，V24增加sec_user。管理员账号由外部配置首次导入，之后只认数据库密码/权限；修改`.env`不会重置人员账号。初始默认developer为ADMIN；外部显式users数组须给预期管理员设置`role: ADMIN`，其余默认USER。CONNECT仅机器账号、保持外置。改密后命令行脚本若仍使用旧BACKEND_PASSWORD也会401，应使用当前凭据，不用重启覆盖。GET /health不依赖管理员凭据，只返回DB readiness。
@@ -12,7 +18,7 @@ UI-09发布准备：启用Registry manifest删除开关（不运行GC），Clust
 
 固定 Compose 项目名 `cea`。源码与配置在 D 盘 backend 仓库，Docker Desktop 数据盘必须先切到 D 盘；命名卷实际存于该 Linux VHDX，不把 MySQL/K3s 数据库直接绑定到 NTFS。启动脚本检查路径，不负责再次迁移 Docker 数据。
 
-这是**单机上的四个独立 K3s 集群**：cloud、edge-a/b/c 各有自己的 API、状态库、containerd 和 Registry，不是四个目录项映射到同一个集群，也不是跨地域物理多云。对象存储当前为独立中央 MinIO，三个训练分片按位置登记，不宣称数据已存放在三台物理边缘设备。
+这是**单机上的四个独立 K3s 集群**：cloud、edge-a/b/c 各有自己的 API、状态库、containerd 和 Registry，不是四个目录项映射到同一个集群，也不是跨地域物理多云。FILE-01前只有中央MinIO，FILE-01新增按位置分开的产物存储；三个训练分片仍在原中心datasets桶，按位置登记，不宣称数据已迁移至物理边缘设备。
 
 不导入 web-platform 数据、旧模板或旧执行历史；不连接旧数据库/Harbor，不切换旧系统。DQN、数据处理速率、物理终端/网关代理不在本批范围。
 

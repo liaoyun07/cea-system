@@ -20,13 +20,14 @@ import java.util.function.Function;
 /** Application/resource adaptation only; lifecycle and lease ownership stay in runtime. */
 public final class ApplicationTaskRunner implements TaskRunner {
     public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots) {}
-    public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,String dockerContext,String terminalId) {}
+    public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,Map<String,String> outputUris,String helperImage,String dockerContext,String terminalId) {}
     private final ApplicationCatalogService applications;
     private final ResourceCatalogService resources;
     private final ImageDistributionService images;
     private final JobPlacementService placement;
     private final KubernetesConnections connections;
     private final ObjectStorage storage;
+    private final Map<String,Map<String,String>> helpers;
     private final Function<WorkerJob,Actor> identities;
     private final Function<WorkerJob,TerminalTarget> terminals;
     private final OffloadingService offloading;
@@ -38,10 +39,11 @@ public final class ApplicationTaskRunner implements TaskRunner {
     public ApplicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,Function<WorkerJob,Actor> identities,
             Function<WorkerJob,TerminalTarget> terminals,OffloadingService offloading,JsonCodec json,BindingResolver bindings,
-            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles) {
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,Map<String,Map<String,String>> helpers) {
         this.applications=applications;this.resources=resources;this.images=images;this.placement=placement;this.connections=connections;
         this.storage=storage;this.identities=identities;this.terminals=terminals;this.offloading=offloading;this.json=json;this.bindings=bindings;
         this.namespaceFiles=namespaceFiles;
+        this.helpers=helpers;
     }
     @Override public WorkerJob.Result run(TaskContext context) throws Exception {
         var job=context.job();var execution=(Map<?,?>)job.context().get("execution");
@@ -53,19 +55,22 @@ public final class ApplicationTaskRunner implements TaskRunner {
             }
             Prepared plan=saved==null?prepare(context,namespace,key):json.read(saved,Prepared.class);
             if(plan==null){complete(context,namespace,key,null);return WorkerJob.Result.failed("attempt cancelled before dispatch");}
-            var files=new ContainerTask.Filesystem() {
+            if(plan.dockerContext()!=null) {
+                var files=new ContainerTask.Filesystem() {
                     public void download(String name,Path destination) throws Exception {
                         if(plan.inlineFiles().containsKey(name))java.nio.file.Files.writeString(destination,plan.inlineFiles().get(name));
                         else storage.download(namespace,plan.inputUris().get(name),destination);
                     }
-                    public String publish(String name,Path source) throws Exception {return storage.publish(namespace,job.executionId(),job.taskRunId(),job.attemptNo(),name,source);}
-                    public String published(String name) throws Exception {return storage.published(namespace,job.executionId(),job.taskRunId(),job.attemptNo(),name);}
-            };
-            if(plan.dockerContext()!=null) {
+                    public String publish(String name,Path source) throws Exception {return storage.publish(namespace,plan.outputUris().get(name),source);}
+                    public String published(String name) throws Exception {return storage.published(namespace,plan.outputUris().get(name));}
+                };
                 var result=docker.run(context,plan.dockerContext(),plan.spec(),files);complete(context,namespace,key,result);return result;
             }
             try(var client=connections.open(namespace,plan.clusterId())) {
-                var result=runner.run(context,client,plan.spec(),files);
+                var result=runner.run(context,client,plan.spec(),plan.helperImage(),new ContainerTask.Transfers() {
+                    public String authorization() throws Exception {return grants(namespace,plan);}
+                    public String published(String name) throws Exception {return storage.published(namespace,plan.outputUris().get(name));}
+                });
                 complete(context,namespace,key,result);return result;
             }
         } catch(InterruptedException ex){throw ex;}
@@ -176,8 +181,19 @@ public final class ApplicationTaskRunner implements TaskRunner {
         var image=images.prepareForExecution(actor,namespace,c.applicationId(),c.version(),cluster);
         context.check();if(context.cancellation()!=null)return null;
         var files=new ArrayList<>(inputUris.keySet());files.addAll(inlineFiles.keySet());
-        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,local?origin.dockerContext():null,local?origin.terminalId():null);
+        var outputs=new LinkedHashMap<String,String>();
+        for(String name:c.outputFiles())outputs.put(name,storage.outputUri(namespace,cluster,local,context.job().executionId(),context.job().taskRunId(),context.job().attemptNo(),name));
+        String helper=local?null:helpers.getOrDefault(namespace,Map.of()).get(cluster);
+        if(!local && (helper==null || helper.isBlank()))throw WorkflowException.invalid("helperImage","file helper is not configured for cluster");
+        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,outputs,helper,local?origin.dockerContext():null,local?origin.terminalId():null);
+        if(!local && grants(namespace,plan).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>900_000)throw WorkflowException.invalid("inputFiles","file plan exceeds 900000 bytes");
         context.prepare(json.write(plan));return plan;
+    }
+    private String grants(String namespace,Prepared plan) throws Exception {
+        var inputs=new LinkedHashMap<String,String>();var outputs=new LinkedHashMap<String,String>();
+        for(var entry:plan.inputUris().entrySet())inputs.put(entry.getKey(),storage.grant(namespace,entry.getValue(),false));
+        for(var entry:plan.outputUris().entrySet())outputs.put(entry.getKey(),storage.grant(namespace,entry.getValue(),true));
+        return json.write(Map.of("inputs",inputs,"outputs",outputs,"inline",plan.inlineFiles()));
     }
     private boolean reserve(TaskContext context,Actor actor,String ns,String key,PlacementRequest request) throws Exception {
         JobPlacementService.Allocation allocation;

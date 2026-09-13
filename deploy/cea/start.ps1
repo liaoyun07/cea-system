@@ -26,6 +26,7 @@ foreach ($taskCluster in @('cloud','edge-a','edge-b','edge-c')) {
     Write-CeaGeneratedFile (Join-Path $PSScriptRoot "secrets/backend/$taskCluster.yaml") ($taskKube | ConvertTo-Json -Depth 8)
 }
 Invoke-CeaCompose run --rm --no-deps storage-tool -ec 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; mc mb --ignore-existing local/datasets local/cea-artifacts; mc admin user add local "$CEA_S3_ACCESS_KEY" "$CEA_S3_SECRET_KEY" >/dev/null; mc admin policy create local cea-backend /config/s3-policy.json; mc admin policy attach local cea-backend --user "$CEA_S3_ACCESS_KEY"'
+& (Join-Path $PSScriptRoot 'setup-files.ps1')
 Invoke-CeaCompose up -d --wait --wait-timeout 240 backend frontend
 # A recreated backend can have a different private IP; refresh nginx's upstream DNS.
 Invoke-CeaCompose exec -T frontend nginx -s reload

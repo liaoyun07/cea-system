@@ -1,5 +1,9 @@
 # 当前进度
 
+FILE-01：代码/测试完成，CEA发布等待新增基础设施权限确认。18:11:51完整237项后端回归通过；18:18:19最终代码8项K3s定向和1项打包JAR验证通过（覆盖最后的URI校验、Secret所有权/CAS清理与终端适配）；8项助手Linux测试、结构/脚本/Compose检查通过。FedAvg/FedProx各两轮数值审计通过，训练产物在隔离边缘MinIO，聚合在中心MinIO。已构建backend/file-helper的file01-candidate镜像，未替换CEA运行镜像。无新Java文件/SQL/API/DSL，原调度/执行链及历史URI保留；无常驻交接服务、DQN或计量新增。见[规格](features/FILE-01-pod-artifacts.md)、[验证](verification/VER-FILE-001-pod-artifacts.md)。
+
+FILE-01待发布说明：3个边缘MinIO/独立卷和执行Namespace内Secret管理权限尚未获单独回复，不应用、不停止原服务。为保持当前旧后端可重启，等待确认期间工作区`deploy/cea/application.yaml`暂保留旧运行配置（相对已提交新配置的有意差异）；新配置副本在ignored的`.local/cea/file01/application-ready.yaml`。确认后恢复新配置、复查无活动Execution/WorkerJob、保留恢复镜像/Role，短停backend后执行setup-files及发布候选后端，再进行现场两算法/历史数据验收；不能将测试PASS当作已上线。
+
 UI-05a（2026-09-13，DONE，已部署CEA）：任务实例开始时间升序、同时间稳定、未开始置后，仅表格排序投影，不修改原tasks/拓扑/Metrics或后端执行链。50项Node、55项真实浏览器、构建/格式/scaffold和桌面/390px复核PASS。14:37仅替换frontend，14:38–14:39实际18080 FedAvg 62实例、FedProx 14实例的排序/详情/刷新通过；2个Flow、5条Execution、100个TaskRun、78个Attempt及其余12服务未变。无Java/API/表变化，见[验证](verification/VER-UI-005a-task-start-order.md)。
 
 UI-06a（2026-09-13，DONE，已部署CEA）：Metrics新增柱状/折线切换，默认柱状，保持原值/实例顺序/坐标，缺失断线、单值显示点；只改前端，无Java/API/表或执行链变化。47项Node、54项真实浏览器、构建/格式/scaffold及桌面/390px视觉验证PASS。13:59仅更新frontend，实际18080 FedAvg/FedProx原值和双向切换复核PASS，原2个Flow、4条Execution、38个TaskRun、27个Attempt及其余12服务不变。用户新增“每次修改测试后同步部署”约定已写入AGENTS.md。见[验证](verification/VER-UI-006a-chart-switch.md)。

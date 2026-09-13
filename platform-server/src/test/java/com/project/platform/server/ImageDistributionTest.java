@@ -57,7 +57,9 @@ class ImageDistributionTest {
     private final JsonCodec json=new JsonCodec();
     private final Actor actor=new Actor("writer",Set.of("lab"),Set.of(Action.READ,Action.WRITE,Action.EXECUTE));
     private final GenericContainer<?> storage=new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z")
-            .withEnv("MINIO_ROOT_USER","s4-test-key").withEnv("MINIO_ROOT_PASSWORD","s4-test-secret").withCommand("server","/data").withExposedPorts(9000);
+            .withNetwork(network).withEnv("MINIO_ROOT_USER","s4-test-key").withEnv("MINIO_ROOT_PASSWORD","s4-test-secret").withCommand("server","/data").withExposedPorts(9000);
+    private final GenericContainer<?> edgeStorage=new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z")
+            .withNetwork(network).withEnv("MINIO_ROOT_USER","s4-test-key").withEnv("MINIO_ROOT_PASSWORD","s4-test-secret").withCommand("server","/data").withExposedPorts(9000);
     private Path accessKey,secretKey;
     private ConfigurableApplicationContext context;
     private String fixtureDigest;
@@ -90,7 +92,8 @@ class ImageDistributionTest {
         var kubernetesCommand=new ArrayList<>(Arrays.asList(kubernetes.getCommandParts()));
         kubernetesCommand.add("--disable=metrics-server");kubernetes.withCommand(kubernetesCommand.toArray(String[]::new));
         try {
-            mysql.start();source.start();target.start();tool.start();storage.start();
+            mysql.start();source.start();target.start();tool.start();storage.start();edgeStorage.start();
+            try(var s3=edgeS3()){s3.makeBucket(io.minio.MakeBucketArgs.builder().bucket("edge-artifacts").build());}
             terminalEngine.start();
             await().atMost(Duration.ofSeconds(30)).until(()->terminalEngine.execInContainer("docker","info").getExitCode()==0);
             dockerCli("context","create",terminalContext,"--docker","host=tcp://127.0.0.1:"+terminalEngine.getMappedPort(2375));terminalContextCreated=true;
@@ -118,12 +121,20 @@ class ImageDistributionTest {
                     """),"/etc/rancher/k3s/registries.yaml");
             // Seed the real pause image; pod sandbox creation must not depend on Docker Hub during assertions.
             String pause=new org.testcontainers.images.RemoteDockerImage(DockerImageName.parse("rancher/mirrored-pause:3.6")).get();
+            String helper=new org.testcontainers.images.builder.ImageFromDockerfile("cea-file-helper-test:"+UUID.randomUUID(),true)
+                    .withFileFromPath("Dockerfile",Path.of("../deploy/file-helper/Dockerfile"))
+                    .withFileFromPath("transfer.py",Path.of("../deploy/file-helper/transfer.py")).get();
+            Path helperArchive=Files.createTempFile("cea-file-helper-",".tar");
+            try(var content=DockerClientFactory.instance().client().saveImageCmd(helper).exec()) {
+                Files.copy(content,helperArchive,StandardCopyOption.REPLACE_EXISTING);
+                kubernetes.withCopyFileToContainer(MountableFile.forHostPath(helperArchive),"/var/lib/rancher/k3s/agent/images/file-helper.tar");
+            }
             Path pauseArchive=Files.createTempFile("cea-s4-pause-",".tar");
             try(var content=DockerClientFactory.instance().client().saveImageCmd(pause).exec()) {
                 Files.copy(content,pauseArchive,StandardCopyOption.REPLACE_EXISTING);
                 kubernetes.withCopyFileToContainer(MountableFile.forHostPath(pauseArchive),"/var/lib/rancher/k3s/agent/images/s4-pause.tar");
                 kubernetes.start();
-            } finally {Files.deleteIfExists(pauseArchive);}
+            } finally {Files.deleteIfExists(pauseArchive);Files.deleteIfExists(helperArchive);}
             kubeconfig=Files.createTempFile("cea-s4-kube-",".yaml");
             admin=new KubernetesClientBuilder().withConfig(Config.fromKubeconfig(kubernetes.getKubeConfigYaml())).build();
             admin.namespaces().resource(new NamespaceBuilder().withNewMetadata().withName("s4-test").endMetadata().build()).create();
@@ -146,8 +157,8 @@ class ImageDistributionTest {
                         resources: [pods, services]
                         verbs: [get, list]
                       - apiGroups: [""]
-                        resources: [pods/exec]
-                        verbs: [get, create]
+                        resources: [secrets]
+                        verbs: [get, create, update, delete]
                       - apiGroups: [metrics.k8s.io]
                         resources: [pods]
                         verbs: [get, list]
@@ -225,9 +236,17 @@ class ImageDistributionTest {
             args.add("--platform.image-upload.centers.lab=source");
             args.addAll(List.of("--platform.kubernetes.connections.lab.edge.kubeconfig="+kubeconfig,
                     "--platform.kubernetes.connections.lab.edge.context=default","--platform.kubernetes.connections.lab.edge.namespace=s4-test"));
-            args.addAll(List.of("--platform.jobs.slots.lab.edge=1","--platform.jobs.storage.lab.endpoint="+storageEndpoint(),
-                    "--platform.jobs.storage.lab.access-key-file="+accessKey,"--platform.jobs.storage.lab.secret-key-file="+secretKey,
-                    "--platform.jobs.storage.lab.artifact-bucket=artifacts","--platform.jobs.storage.lab.readable-buckets=datasets"));
+            args.addAll(List.of("--platform.jobs.slots.lab.edge=1","--platform.jobs.helpers.lab.edge="+helper,
+                    "--platform.jobs.storage.lab.outputs.edge=center","--platform.jobs.storage.lab.outputs.remote=edge",
+                    "--platform.jobs.storage.lab.terminal-store=center",
+                    "--platform.jobs.storage.lab.stores.center.endpoint="+storageEndpoint(),
+                    "--platform.jobs.storage.lab.stores.center.transfer-endpoint=http://"+storage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000",
+                    "--platform.jobs.storage.lab.stores.center.access-key-file="+accessKey,"--platform.jobs.storage.lab.stores.center.secret-key-file="+secretKey,
+                    "--platform.jobs.storage.lab.stores.center.artifact-bucket=artifacts","--platform.jobs.storage.lab.stores.center.readable-buckets=datasets",
+                    "--platform.jobs.storage.lab.stores.edge.endpoint=http://"+edgeStorage.getHost()+":"+edgeStorage.getMappedPort(9000),
+                    "--platform.jobs.storage.lab.stores.edge.transfer-endpoint=http://"+edgeStorage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000",
+                    "--platform.jobs.storage.lab.stores.edge.access-key-file="+accessKey,"--platform.jobs.storage.lab.stores.edge.secret-key-file="+secretKey,
+                    "--platform.jobs.storage.lab.stores.edge.artifact-bucket=edge-artifacts"));
             var command=List.of(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-cp",Path.of("target","test-classes").toAbsolutePath().toString(),SkopeoTestBridge.class.getName(),tool.getContainerId());
             for(int i=0;i<command.size();i++) args.add("--platform.distribution.command["+i+"]="+command.get(i));
             applicationArguments=List.copyOf(args);context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
@@ -242,6 +261,7 @@ class ImageDistributionTest {
         } catch(Exception ex) { close();throw ex; }
     }
     @AfterAll void close() {
+        edgeStorage.stop();
         terminalEngine.stop();
         if(terminalContextCreated)try{dockerCli("context","rm","--force",terminalContext);terminalContextCreated=false;}catch(Exception ex){throw new RuntimeException(ex);}
         if(context!=null)context.close();if(admin!=null)admin.close();if(federation!=null)federation.stop();kubernetes.stop();tool.stop();target.stop();source.stop();storage.stop();mysql.stop();network.close();
@@ -274,6 +294,7 @@ class ImageDistributionTest {
     }
     private String storageEndpoint(){return "http://"+storage.getHost()+":"+storage.getMappedPort(9000);}
     private io.minio.MinioClient s3(){return io.minio.MinioClient.builder().endpoint(storageEndpoint()).credentials("s4-test-key","s4-test-secret").build();}
+    private io.minio.MinioClient edgeS3(){return io.minio.MinioClient.builder().endpoint("http://"+edgeStorage.getHost()+":"+edgeStorage.getMappedPort(9000)).credentials("s4-test-key","s4-test-secret").build();}
     private ResourceCatalogService resources() { return context.getBean(ResourceCatalogService.class); }
     private ApplicationCatalogService applications() { return context.getBean(ApplicationCatalogService.class); }
     private ImageDistributionService distribution() { return context.getBean(ImageDistributionService.class); }
@@ -846,6 +867,10 @@ class ImageDistributionTest {
             assertEquals(0,job.getSpec().getBackoffLimit());
             assertTrue(job.getSpec().getTemplate().getSpec().getContainers().getFirst().getImage().contains("@sha256:"));
             assertTrue(job.getSpec().getTemplate().getSpec().getContainers().getFirst().getEnv().stream().noneMatch(e->e.getName().contains("SECRET")||e.getName().contains("ACCESS_KEY")));
+            assertEquals(List.of("files-in"),job.getSpec().getTemplate().getSpec().getInitContainers().stream().map(c->c.getName()).toList());
+            assertEquals(List.of("task","files-out"),job.getSpec().getTemplate().getSpec().getContainers().stream().map(c->c.getName()).toList());
+            assertTrue(job.getSpec().getTemplate().getSpec().getContainers().getFirst().getVolumeMounts().stream().noneMatch(m->"file-plan".equals(m.getName())));
+            assertNull(admin.secrets().inNamespace("s4-test").withName("cea-"+task.id()+"-a1-files").get());
         }
         assertEquals(0,context.getBean(JdbcTemplate.class).queryForObject("SELECT COUNT(*) FROM res_job_reservation WHERE released=FALSE",Integer.class));
     }
@@ -910,7 +935,30 @@ class ImageDistributionTest {
                       outputFiles: [missing.txt]
                 """);
         drive(id);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",id).state());
-        assertTrue(executions().get(actor,"lab",id).error().contains("output file missing"));
+        assertTrue(executions().get(actor,"lab",id).outputs().isEmpty());
+        assertNull(admin.secrets().inNamespace("s4-test").withName(remoteName(id)+"-files").get());
+    }
+    @Test void helpersReadAcrossStoresAndMissingInputNeverRunsAlgorithm() throws Exception {
+        var objectStorage=context.getBean(com.project.platform.resource.storage.ObjectStorage.class);
+        String source=objectStorage.outputUri("lab","remote",false,"prior","task",1,"data.txt");
+        for(String invalid:List.of("s3://edge-artifacts/lab/../other/data", "s3://edge-artifacts/lab/%2e%2e/other/data", "s3://unknown/lab/data", "s3://edge-artifacts/other/data"))
+            assertThrows(ResourceException.class,()->objectStorage.validateInput("lab",invalid));
+        assertThrows(ResourceException.class,()->objectStorage.outputUri("lab","unconfigured",false,"prior","task",1,"data.txt"));
+        assertEquals("s3://edge-artifacts/lab/prior/task/1/data.txt",source);
+        Path data=Files.createTempFile("cea-cross-store-",".txt");
+        try {Files.writeString(data,"from real edge store");objectStorage.publish("lab",source,data);}finally {Files.deleteIfExists(data);}
+        String yaml=sleeper("PT60S","cat /cea-work/in/data > /cea-work/out/result.txt")
+                .replace("      command:","      inputFiles: {data: {source: LITERAL, value: '"+source+"'}}\n      outputFiles: [result.txt]\n      command:");
+        String id=submit(yaml);drive(id);
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+        String uri=executions().tasks(actor,"lab",id).getFirst().outputs().get("result.txt").toString();
+        assertTrue(uri.startsWith("s3://artifacts/lab/"));assertEquals("from real edge store",artifact(uri));
+        assertEquals("from real edge store",new String(objectStorage.readPublished("lab","prior","task",1,"data.txt",source,1024),StandardCharsets.UTF_8));
+        String missing=submit(yaml.replace("lab/prior/task/1/data.txt","lab/prior/task/1/absent.txt"));drive(missing);
+        assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",missing).state());
+        assertTrue(executions().tasks(actor,"lab",missing).getFirst().outputs().isEmpty());
+        var pods=admin.pods().inNamespace("s4-test").withLabel("job-name",remoteName(missing)).list().getItems();
+        assertTrue(pods.stream().allMatch(p->p.getStatus().getContainerStatuses()==null || p.getStatus().getContainerStatuses().stream().noneMatch(c->c.getState()!=null && c.getState().getRunning()!=null)));
     }
     @Test void gatewayApplicationUsesRealWorkerAndTerminalArtifactFeedsClusterTask() throws Exception {
         applications().register(actor,"lab","terminal-reader","v1",new ApplicationVersion("terminal-reader","v1","source:5000/alpine:v1",Map.of(
@@ -1167,6 +1215,8 @@ class ImageDistributionTest {
             String uid=admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get().getMetadata().getUid();
             String prepared=context.getBean(JdbcTemplate.class).queryForObject("SELECT prepared_json FROM wf_worker_job WHERE task_run_id=?",String.class,run.id());
             assertTrue(prepared.contains("models.json"));assertTrue(prepared.contains("models.item-1"));
+            assertTrue(prepared.contains("outputUris"));assertFalse(prepared.contains("X-Amz-"));
+            assertNotNull(admin.secrets().inNamespace("s4-test").withName(name+"-files").get());
             local.close();running.get(5,TimeUnit.SECONDS);
             context.getBean(JdbcTemplate.class).update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",run.id());
             drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
@@ -1329,6 +1379,8 @@ class ImageDistributionTest {
             args.add("--platform.kubernetes.connections.lab."+cluster+".context=default");
             args.add("--platform.kubernetes.connections.lab."+cluster+".namespace=s4-test");
             args.add("--platform.jobs.slots.lab."+cluster+"=1");
+            args.add("--platform.jobs.storage.lab.outputs."+cluster+"="+(cluster.equals("cloud")?"center":"edge"));
+            args.add("--platform.jobs.helpers.lab."+cluster+"="+context.getEnvironment().getProperty("platform.jobs.helpers.lab.edge"));
         }
         context.close();applicationArguments=List.copyOf(args);
         context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
@@ -1422,7 +1474,8 @@ class ImageDistributionTest {
             String task=run.taskId().equals("train")?"client-"+letters.get(run.iteration()-1):run.taskId();
             String file=task.equals("init")?"init.pt":task+"-r"+round+(task.equals("evaluate")?".json":".pt");
             String uri=run.outputs().values().iterator().next().toString();
-            try(var client=s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket("artifacts").object(URI.create(uri).getPath().substring(1)).build())) {
+            assertEquals(run.taskId().equals("train")?"edge-artifacts":"artifacts",URI.create(uri).getHost());
+            try(var client=URI.create(uri).getHost().equals("edge-artifacts")?edgeS3():s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket(URI.create(uri).getHost()).object(URI.create(uri).getPath().substring(1)).build())) {
                 byte[] content=input.readAllBytes();Files.write(evidence.resolve(file),content);
                 federation.copyFileToContainer(Transferable.of(content),"/tmp/audit/"+algorithm+"/"+file);
             }

@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [FILE-01 Pod 文件助手](file01-pod-artifacts.md)：K8s init/main/output、按执行位置存储、临时 Secret 授权与恢复；不新增外部 API/SQL/DSL，替代 S4 的中心文件搬运。
+
 - [UI-09镜像与Kubernetes管理](ui09-registry-kubernetes.md)：13个新增操作、工作空间范围、引用保护、V20目录删除及明确的Registry/RBAC限制。
 
 - [UI-08核心运维](ui08-deployment-operations.md)：增加7个HTTP操作，总数64；77个显式公开record映射，V18/V19后25张业务表。当前验证状态见进度，不代表已部署。

@@ -32,12 +32,13 @@ public class JobConfiguration {
         }
     }
     @ConfigurationProperties("platform.jobs")
-    public record Settings(Map<String,Map<String,Integer>> slots,Map<String,ObjectStorage.Connection> storage,
+    public record Settings(Map<String,Map<String,Integer>> slots,Map<String,ObjectStorage.Configuration> storage,Map<String,Map<String,String>> helpers,
                            Map<String,Map<String,CommonTaskRunner.HttpConnection>> http,Map<String,Map<String,CommonTaskRunner.SqlConnection>> sql,
                            Map<String,Map<String,TerminalConnection>> terminals) {
         public Settings {
             slots=slots==null?Map.of():slots;storage=storage==null?Map.of():storage;http=http==null?Map.of():http;sql=sql==null?Map.of():sql;
             terminals=terminals==null?Map.of():terminals;
+            helpers=helpers==null?Map.of():helpers;
         }
     }
     @Bean JobPlacementService jobPlacementService(ResourceCatalogService resources,KubernetesConnections connections,JdbcTemplate jdbc,
@@ -58,7 +59,7 @@ public class JobConfiguration {
             var connection=settings.terminals().getOrDefault(namespace,Map.of()).get(origin.terminalId());
             if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no Docker context configured for request origin");
             return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots());
-        },offloading,json,bindings,namespaceFiles);
+        },offloading,json,bindings,namespaceFiles,settings.helpers());
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
         return context->context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
     }

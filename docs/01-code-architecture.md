@@ -1,5 +1,9 @@
 # 项目结构与 Java 文件索引
 
+FILE-01（实施/验证状态见进度）：不新增生产 Java 文件、SQL 表/列或 HTTP API，仍为 104 个 Java 文件。ObjectStorage.Configuration 为实际多存储配置消费者；Connection.transferEndpoint 用于生成 Pod 可达授权地址。ApplicationTaskRunner.Prepared 增加 outputUris/helperImage（Attempt 固定发布目标和助手镜像），仍保存于原 prepared_json。ContainerTask.Transfers 只服务 K8s 文件助手；Filesystem 仍由终端 Docker 消费，不保留旧 K8s 搬运回退。
+
+文件链：原 Binding/Placement → Prepared → KubernetesJobRunner → files-in init（直读源 S3/内联文本）→ 原 task → files-out（上传本执行位置 S3）→ Job 完成与 ObjectStorage HEAD → 原 Worker/Executor 归并。Runner 不再使用 pods/exec 或后端临时文件进行 K8s 大文件搬运。公共脚本/镜像在 `deploy/file-helper/`，本地部署在 `deploy/cea/setup-files.ps1`；完整配置与故障边界见 [协议](contracts/file01-pod-artifacts.md)。此前条目中的中心搬运描述属于对应历史阶段，由本段替代。
+
 UI-10增量（验收/发布状态见进度）：5个新生产Java文件，共104个；新增12个HTTP操作，共89个；6个新公开record映射，共94个。V21/V22/V23分别增加Flow头、Execution、DatasetVersion的deleted列；V24增加sec_user人员表（26张业务表），没有构建历史表、第二个Executor/Worker或新模块依赖。
 
 | Java 文件 | 当前职责 |
@@ -176,9 +180,9 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 |---|---|---|---|---|---|
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskRunner.java` | 被Worker真实消费的外部任务执行边界 | run | 不定义第二套状态 | RUN-001 | J/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskContext.java` | 租约作用域的冻结计划及停止请求 | job/check/prepared/prepare/cancellation/stop | 只访问Worker传输表；旧owner禁止写计划 | RUN-001 | J |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、文件暂存/收集、远程停止 | run；使用ContainerTask.Spec/Filesystem | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、init/main/output助手、Secret授权刷新/移除、远程停止 | run；使用ContainerTask.Spec/Transfers | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
 | `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
-| `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace S3文件下载/发布/存在校验 | download/publish/published | 管理员凭据文件；产物前缀隔离 | RES-001、RUN-001 | J |
+| `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace/bucket定位存储、按执行位置确定URI、签名授权、HEAD/限量读取；终端文件传输 | Configuration/Connection；outputUri/grant/download/publish/published/readPublished | 管理员凭据文件；产物前缀隔离；不自动中心回退 | RES-001、RUN-001 | J |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到runtime Kubernetes或Docker的适配 | run/TerminalTarget | prepared_json冻结cluster/dockerContext/digest/env/文件；不改Execution状态 | RUN-001、DEP-001 | J/A |
 | `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3/终端Docker连接及可信TaskRunner装配 | Settings/Beans | 外部配置，无业务状态；通过edge公开服务注入来源/权限 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |

@@ -64,8 +64,27 @@ platform:
       lab: {cloud: 2, edge-a: 1, edge-b: 1, edge-c: 1}
     storage:
       lab:
-        endpoint: http://minio:9000
-        access-key-file: /run/secrets/s3-access
-        secret-key-file: /run/secrets/s3-secret
-        artifact-bucket: cea-artifacts
-        readable-buckets: [datasets]
+        outputs: {cloud: center, edge-a: edge-a, edge-b: edge-b, edge-c: edge-c}
+        terminal-store: center
+        stores:
+          center:
+            endpoint: http://minio:9000
+            access-key-file: /run/secrets/s3-access
+            secret-key-file: /run/secrets/s3-secret
+            artifact-bucket: cea-artifacts
+            readable-buckets: [datasets]
+          edge-a:
+            endpoint: http://minio-edge-a:9000
+            access-key-file: /run/secrets/s3-access
+            secret-key-file: /run/secrets/s3-secret
+            artifact-bucket: cea-artifacts-edge-a
+          edge-b:
+            endpoint: http://minio-edge-b:9000
+            access-key-file: /run/secrets/s3-access
+            secret-key-file: /run/secrets/s3-secret
+            artifact-bucket: cea-artifacts-edge-b
+          edge-c:
+            endpoint: http://minio-edge-c:9000
+            access-key-file: /run/secrets/s3-access
+            secret-key-file: /run/secrets/s3-secret
+            artifact-bucket: cea-artifacts-edge-c

@@ -13,6 +13,11 @@ public final class ContainerTask {
         String publish(String name,Path source) throws Exception;
         String published(String name) throws Exception;
     }
+    /** Kubernetes-only file plan. JSON grants are ephemeral and mounted only in helper containers. */
+    public interface Transfers {
+        String authorization() throws Exception;
+        String published(String name) throws Exception;
+    }
     static final String WRAPPER="""
             mkdir -p /cea-work/in /cea-work/out
             while [ ! -f /cea-work/start ]; do sleep 0.2; done

@@ -1,5 +1,7 @@
 # 系统总览
 
+FILE-01 文件传输调整（验证/发布状态见[进度](04-progress.md)）：中心控制面仍负责 Flow/Placement/Job；Kubernetes 输入/输出文件由 Pod 公共助手直接读写 S3。输出 URI 按已选执行 cluster 固定，输入 URI 标识实际存储，跨域不强制中转中心。终端 Docker 搬运、本地数据集迁移、策略触发和吞吐计量不在本批。见[决策](decisions/ADR-0023-pod-artifact-transfer.md)。
+
 UI-10管理增量：Flow/终态Execution/未引用Dataset逻辑删除；server持久化人员身份并提供ADMIN/USER和个人中心；deployment以独立rootless BuildKit构建后复用原镜像导入/分发。Flow删除不破坏执行快照图，不做存储GC或停止工作负载；执行主链、Runner、Placement不变。状态见[进度](04-progress.md)，边界见[UI-10](features/UI-10-cleanup-users-build.md)。
 
 UI-09已验证并发布CEA：deployment实时读取Registry库存并执行引用保护删除manifest，resource管理工作空间内Kubernetes Namespace/Service，dataflow负责应用目录删除前的Flow引用检查。目录删除与仓库删除分开；V20保留已删除应用版本身份，避免复用改变历史含义。契约tag经已授权源Registry解析为候选摘要，和已有摘要一样必须现场核验目标副本。Kubernetes是资源事实源，不增加管理状态表，不改变Execution/Worker/Runner/Placement。范围、权限代价与验证状态见[UI-09](features/UI-09-registry-kubernetes-management.md)及[进度](04-progress.md)。

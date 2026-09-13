@@ -29,6 +29,21 @@ x-k3s: &k3s
     retries: 30
     start_period: 60s
 
+x-edge-storage: &edge-storage
+  image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+  command: [server, /data]
+  restart: unless-stopped
+  mem_limit: 512m
+  environment:
+    MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run initialize.ps1}
+    MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run initialize.ps1}
+  logging: *log
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+    interval: 10s
+    timeout: 5s
+    retries: 20
+
 services:
   mysql:
     image: mysql:8.0
@@ -67,6 +82,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
+  minio-edge-a:
+    <<: *edge-storage
+    volumes: [minio-edge-a-data:/data]
+  minio-edge-b:
+    <<: *edge-storage
+    volumes: [minio-edge-b-data:/data]
+  minio-edge-c:
+    <<: *edge-storage
+    volumes: [minio-edge-c-data:/data]
   registry-center:
     <<: *registry
     volumes: [registry-center-data:/var/lib/registry, "./secrets/registry.htpasswd:/auth/htpasswd:ro"]
@@ -149,7 +173,7 @@ services:
       BACKEND_USER: ${BACKEND_USER}
       BACKEND_PASSWORD: ${BACKEND_PASSWORD}
       BACKEND_NAMESPACES: lab
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml,file:/run/secrets/storage-endpoints.yaml
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1200m"
       PLATFORM_IMAGE_BUILD_DIRECTORY: /var/lib/cea/uploads/build
     ports: ["127.0.0.1:${CEA_API_PORT:-18085}:18085"]
@@ -193,6 +217,7 @@ services:
     env_file: [.env]
     volumes:
       - ./s3-policy.json:/config/s3-policy.json:ro
+      - ./s3-edge-policy.json:/config/s3-edge-policy.json:ro
       - ../../.local/cea:/data
   image-tool:
     image: quay.io/skopeo/stable:v1.20.0
@@ -208,6 +233,9 @@ volumes:
   upload-scratch:
   mysql-data:
   minio-data:
+  minio-edge-a-data:
+  minio-edge-b-data:
+  minio-edge-c-data:
   registry-center-data:
   registry-edge-a-data:
   registry-edge-b-data:
