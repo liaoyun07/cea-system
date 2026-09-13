@@ -173,7 +173,7 @@ services:
       BACKEND_USER: ${BACKEND_USER}
       BACKEND_PASSWORD: ${BACKEND_PASSWORD}
       BACKEND_NAMESPACES: lab
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml,file:/run/secrets/storage-endpoints.yaml
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml,file:/run/secrets/storage-endpoints.yaml,optional:file:/run/secrets/edge-access.yaml
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1200m"
       PLATFORM_IMAGE_BUILD_DIRECTORY: /var/lib/cea/uploads/build
     ports: ["127.0.0.1:${CEA_API_PORT:-18085}:18085"]
@@ -210,6 +210,38 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+  edge-gateway:
+    image: cea/edge-gateway:ep01-v1
+    profiles: [edge-processing]
+    build: {context: ../edge-gateway}
+    restart: unless-stopped
+    read_only: true
+    mem_limit: 256m
+    cpus: 1
+    tmpfs: ["/tmp:size=150m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["127.0.0.1:18086:8080"]
+    volumes: ["./secrets/edge/gateway.json:/run/secrets/gateway.json:ro"]
+    logging: *log
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  terminal-replay:
+    image: cea/edge-gateway:ep01-v1
+    profiles: [tools]
+    entrypoint: [python, /app/terminal.py]
+    read_only: true
+    mem_limit: 128m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./secrets/edge/terminal.json:/run/secrets/terminal.json:ro
+      - ../../.local/cea/edge-processing/terminal:/data:ro
+      - ../../.local/cea/edge-processing/evidence:/evidence
+    logging: *log
   storage-tool:
     image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
     profiles: [tools]

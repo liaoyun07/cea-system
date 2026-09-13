@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+EP-01：生产Java仍104份，未新增/修改Java类、record、表/列、后端API或模块依赖。新增`deploy/edge-gateway/gateway.py`（认证、限量上传、事件转交、所属结果读取）与`terminal.py`（真实文件回放）；`examples/edge-processing/app.py`是4个应用命令，`prepare.py`离线数据/模型，3份YAML是唯一策略定义。链路仍为EdgeAccessController → EdgeAccessService → FlowExecutionService → 原Executor/Worker/ApplicationTaskRunner/KubernetesJobRunner；网关不运行算法或决定cluster。`setup-edge-examples.ps1`负责本地配置和示例登记，不成为生产调度组件。
+
 FILE-01（实施/验证状态见进度）：不新增生产 Java 文件、SQL 表/列或 HTTP API，仍为 104 个 Java 文件。ObjectStorage.Configuration 为实际多存储配置消费者；Connection.transferEndpoint 用于生成 Pod 可达授权地址。ApplicationTaskRunner.Prepared 增加 outputUris/helperImage（Attempt 固定发布目标和助手镜像），仍保存于原 prepared_json。ContainerTask.Transfers 只服务 K8s 文件助手；Filesystem 仍由终端 Docker 消费，不保留旧 K8s 搬运回退。
 
 文件链：原 Binding/Placement → Prepared → KubernetesJobRunner → files-in init（直读源 S3/内联文本）→ 原 task → files-out（上传本执行位置 S3）→ Job 完成与 ObjectStorage HEAD → 原 Worker/Executor 归并。Runner 不再使用 pods/exec 或后端临时文件进行 K8s 大文件搬运。公共脚本/镜像在 `deploy/file-helper/`，本地部署在 `deploy/cea/setup-files.ps1`；完整配置与故障边界见 [协议](contracts/file01-pod-artifacts.md)。此前条目中的中心搬运描述属于对应历史阶段，由本段替代。

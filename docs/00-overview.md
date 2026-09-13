@@ -1,5 +1,7 @@
 # 系统总览
 
+EP-01增量（状态见进度）：独立HTTP网关负责终端认证与本边缘文件接入，终端容器回放真实公开样本；三个策略仍调用原EdgeAccessService/FlowExecutionService/Executor/Worker，文件走FILE-01。中心不转发原始上传；留边缘/返回终端/摘要到中心由普通Flow输出绑定和任务选址表达，不增加第二套引擎。见[决策](decisions/ADR-0024-terminal-edge-ingress.md)。
+
 FILE-01 文件传输调整（验证/发布状态见[进度](04-progress.md)）：中心控制面仍负责 Flow/Placement/Job；Kubernetes 输入/输出文件由 Pod 公共助手直接读写 S3。输出 URI 按已选执行 cluster 固定，输入 URI 标识实际存储，跨域不强制中转中心。终端 Docker 搬运、本地数据集迁移、策略触发和吞吐计量不在本批。见[决策](decisions/ADR-0023-pod-artifact-transfer.md)。
 
 UI-10管理增量：Flow/终态Execution/未引用Dataset逻辑删除；server持久化人员身份并提供ADMIN/USER和个人中心；deployment以独立rootless BuildKit构建后复用原镜像导入/分发。Flow删除不破坏执行快照图，不做存储GC或停止工作负载；执行主链、Runner、Placement不变。状态见[进度](04-progress.md)，边界见[UI-10](features/UI-10-cleanup-users-build.md)。

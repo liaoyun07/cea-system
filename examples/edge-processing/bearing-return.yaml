@@ -1,0 +1,21 @@
+schemaVersion: 1
+namespace: lab
+id: bearing-return
+description: Bearing diagnosis at edge, owned execution JSON returned through gateway.
+inputs:
+  data_uri: {type: STRING, required: true}
+tasks:
+  - id: diagnose
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: edge-bearing
+      version: ep01-v1
+      candidateClusters: [edge-a]
+      command: [python, /app/app.py, bearing]
+      inputFiles:
+        data: {source: INPUT, name: data_uri}
+        model: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/edge-models/ep01-v1/bearing.joblib'}
+      outputFiles: [diagnosis.json, metrics.json]
+outputs:
+  terminal_result: {source: TASK_OUTPUT, taskId: diagnose, port: diagnosis.json}

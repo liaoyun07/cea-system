@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+EP-01已于2026-09-13发布CEA：终端容器真实HTTP上传到网关，文件先落边缘，再通过原执行链运行液压清洗留边缘、轴承诊断返回终端、表面检测摘要送中心三策略。18080的边缘处理策略页可见，网关本机入口18086；[回放命令及数据说明](examples/edge-processing/README.md)。237项后端回归、19项新Python测试及三次真实执行/存储/数值核验PASS，原Flow/7条执行历史保持。不新增Java/DB/DSL；[实测与限制](docs/verification/VER-EP-001-terminal-edge.md)。
+
 FILE-01已于2026-09-13发布CEA：Kubernetes文件由Pod公共助手传输，输出先写实际执行位置的存储，跨域下游直接读取源存储。新增三个边缘MinIO及独立卷，只更新backend，frontend仅reload；不修改算法镜像或Flow定义。现场FedAvg/FedProx各两轮、11个Job及独立数值复核通过，历史中心产物保持可读。数据集未迁移，终端Docker文件链未改，详见[部署验证](docs/verification/VER-FILE-001-pod-artifacts.md)。
 
 UI-10已于2026-09-13发布CEA：删除管理、简单ADMIN/USER与个人中心、在线Dockerfile构建。新增独立rootless BuildKit、专用缓存和DB人员认证；不挂宿主Docker socket，不清理现有数据/工作负载。235项完整后端回归、追加删除竞争验证、45项前端单测和54项浏览器通过，详见[进度](docs/04-progress.md)及[行为与限制](docs/contracts/ui10-cleanup-users-build.md)。`.env`人员凭据从本批起只用于首次初始化，在线改密后以数据库为准，重启不会恢复原密码。

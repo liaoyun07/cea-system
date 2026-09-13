@@ -1,5 +1,7 @@
 # 当前进度
 
+EP-01（2026-09-13，DONE，已发布）：新增常驻HTTP网关和按次终端回放，原后端只增加CONNECT配置；3策略/4应用契约复用一个CPU镜像与原执行链。20:47完整237项Maven回归PASS，最终12项网关/终端与7项算法测试、四命令断网真实数据试跑PASS。20:55现场3执行/4个Job成功，上传字节一致、8份边缘输出/2份中心输出、返回终端诊断、重复事件/越权拒绝和独立数值复核通过。原2个USER Flow、7条Execution原值及其他15个服务容器保持；frontend仅reload。无Java/API/DB/Binding或调度器新增。样本/模型不入Git，单机Docker不等于物理多云；部署排错和模型限制见[验证](verification/VER-EP-001-terminal-edge.md)，[范围](features/EP-01-terminal-edge-examples.md)。
+
 FILE-01（2026-09-13，DONE，已发布CEA）：18:29更新backend、frontend仅reload，新增三个边缘MinIO/独立卷，四集群应用文件助手及Namespace内Secret权限，撤销旧pods/exec权限。现场FedAvg/FedProx各两轮、11个Job及独立数值复核通过；18:32:38四存储实物核验PASS，每个执行中心5个文件、每边缘2个文件，中心没有train输出副本。2个Flow/8修订、原5条Execution/100个TaskRun和3份历史Metrics原值保持，其他12个原容器未重启。无新Java文件/SQL/API/DSL，原调度/执行链及历史URI保留；无常驻交接服务、DQN或计量新增。见[规格](features/FILE-01-pod-artifacts.md)、[验证](verification/VER-FILE-001-pod-artifacts.md)。
 
 FILE-01实施验证：18:11:51完整237项后端回归；18:18:19最终8项K3s定向和1项打包JAR验证（含最后的URI校验、Secret所有权/CAS清理与终端适配）；8项助手Linux测试、结构/脚本/Compose检查均PASS。用户随后明确“部署”，本次应用新配置并完成现场验收，原先等待确认期间的有意配置差异已解除。保留旧backend恢复标签/配置/Role，但新边缘产物已产生，不可直接回退为中心-only旧后端。仍为单宿主四集群，数据集保留中心，不宣称物理多云或边缘脱网自治。
@@ -60,7 +62,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 
 - S5-04：用户确认终端Docker；显式TERMINAL+offload才进行规则或已注册单步Q模型决策及观测。04c中普通CLUSTER和固定TERMINAL不再读写卸载画像；终端FIFO以同Attempt预约并在确认停止后按实际资源预约释放，不重复派发；详情见[协议](contracts/s5-terminal-offloading.md)。
 
-- S5-03：外部CONNECT网关账号、集群/终端归属及心跳；USER/EDGE_POLICY管理隔离；终端多节点请求和事件策略均提交原Execution，结果校验终端归属后查询原状态/outputs。未复制Executor/Binding/执行状态，未部署代理。详见ADR-0014及接入协议。
+- S5-03/EP-01：CONNECT网关身份、终端归属及心跳；USER/EDGE_POLICY管理隔离，事件提交原Execution。EP-01已部署HTTP网关/真实终端文件回放，未复制Executor/Binding/执行状态；不含MQTT、物理设备代理或离线自治。详见ADR-0014/0024及接入协议。
 
 - S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
@@ -76,7 +78,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。
 - FedAvg/FedProx通过五个应用契约、一个共享CPU镜像和两个显式Flow运行；真实MNIST子集/独立测试256条、动态客户端两轮，逐张量验证训练/加权聚合与全局评估。模板经API登记为数据库修订，无Java内置模板；S5-02b为通用Loop改动现有Java与V11索引，不新增生产Java文件/表/API/SPI。
-- 仍未实现：其他流任务、完整Kestra工作台、复杂IAM/SSO、任意Node管理、网关代理部署/终端卸载DQN研究、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows任务镜像、强删Job后的exactly-once恢复。UI-10未提供物理清理/磁盘GC、私有基础镜像认证、多架构或持久构建历史。联邦学习测试不是物理多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
+- 仍未实现：三个EP-01示例之外的其他业务迁移、完整Kestra工作台、复杂IAM/SSO、任意Node管理、物理设备协议/MQTT、终端卸载DQN研究、S5计量；也不支持SQL写入、任意HTTP方法、distroless/Windows任务镜像、强删Job后的exactly-once恢复。UI-10未提供物理清理/磁盘GC、私有基础镜像认证、多架构或持久构建历史。联邦学习测试不是物理多云或吞吐验收；旧执行历史、模型JSON和既有Harbor未迁移。
 - 详细语义：[Job协议](contracts/s4-job-execution.md)、[通用任务](contracts/s4-common-tasks.md)、[最小部署](operations/s4-minimal-deployment.md)。设计取舍见ADR-0009/0010；完整源码索引见架构文档。
 
 ## 阶段看板
@@ -109,7 +111,7 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 | S5-01 | DONE | Repeat定义/状态反馈/新轮次/屏障/恢复/重试/取消，真实容器产物及统一verify PASS，见VER-S5-001 |
 | S5-02 | DONE | 仅FedAvg/FedProx，真实训练/聚合/评估数值、API注册和全量回归PASS，见VER-S5-002 |
 | S5-02b | DONE | 通用Loop、ITEM、动态集群、集合文件；150项全量verify和7项Python PASS，见VER-S5-003 |
-| S5-03 | DONE | 后端接入/策略及统一结果查询，完整回归和收尾复测PASS，见VER-S5-004；未部署网关代理 |
+| S5-03 | DONE | 原后端接入PASS，EP-01已追加实际HTTP网关/终端回放及三个策略；见VER-S5-004/VER-EP-001 |
 | S5-04a | DONE | 终端Docker、真实来源/接入权限、文件/结果、retry/timeout/cancel/接管及全量回归PASS；不等于自动卸载 |
 | S5-04b | DONE | 显式卸载、规则/单步Q、画像/反馈和终端FIFO及全量回归PASS；不宣称长期DQN或策略性能最优 |
 | S5-04c | DONE | 普通执行/资源释放最小解耦，观测表不可用真实产物链及完整188项Maven/12项Python回归PASS，见VER-S5-007 |

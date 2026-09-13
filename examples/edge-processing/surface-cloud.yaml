@@ -1,0 +1,33 @@
+schemaVersion: 1
+namespace: lab
+id: surface-cloud
+description: Edge surface inspection, only small detection summary read by the cloud report.
+inputs:
+  data_uri: {type: STRING, required: true}
+tasks:
+  - id: inspect
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: edge-surface
+      version: ep01-v1
+      candidateClusters: [edge-a]
+      command: [python, /app/app.py, surface]
+      inputFiles:
+        data: {source: INPUT, name: data_uri}
+        model: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/edge-models/ep01-v1/tile.pt'}
+      outputFiles: [inspection.json, heatmaps.zip, metrics.json]
+  - id: report
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: edge-quality-report
+      version: ep01-v1
+      candidateClusters: [cloud]
+      command: [python, /app/app.py, report]
+      inputFiles:
+        data: {source: TASK_OUTPUT, taskId: inspect, port: inspection.json}
+      outputFiles: [report.json, metrics.json]
+outputs:
+  cloud_report: {source: TASK_OUTPUT, taskId: report, port: report.json}
+  edge_heatmaps: {source: TASK_OUTPUT, taskId: inspect, port: heatmaps.zip}

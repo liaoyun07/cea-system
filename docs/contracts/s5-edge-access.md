@@ -1,5 +1,7 @@
 # S5-03 网关、终端与策略协议
 
+后续EP-01已部署独立HTTP网关与终端容器真实上传，见[新增网关协议](ep01-gateway.md)。本文件以下“本批”未部署代理等描述记录S5-03当时的后端范围；原Java API及状态语义不变。
+
 ## 边界与实际调用链
 
 管理账号 → edge注册/策略API。网关CONNECT账号 → edge-access → 校验网关/终端归属 → FlowExecutionService → 现有Execution/Executor/Worker → 原Execution结果。

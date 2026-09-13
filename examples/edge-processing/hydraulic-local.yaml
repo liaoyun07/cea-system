@@ -1,0 +1,21 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-local
+description: Native-rate hydraulic window statistics retained at the source edge.
+inputs:
+  data_uri: {type: STRING, required: true}
+tasks:
+  - id: clean
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: edge-hydraulic
+      version: ep01-v1
+      candidateClusters: [edge-a]
+      command: [python, /app/app.py, hydraulic]
+      inputFiles:
+        data: {source: INPUT, name: data_uri}
+      outputFiles: [cleaned.npz, summary.json, metrics.json]
+outputs:
+  cleaned: {source: TASK_OUTPUT, taskId: clean, port: cleaned.npz}
+  summary: {source: TASK_OUTPUT, taskId: clean, port: summary.json}

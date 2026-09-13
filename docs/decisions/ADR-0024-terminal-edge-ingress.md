@@ -1,0 +1,15 @@
+# ADR-0024 终端文件接入与业务策略复用原执行链
+
+日期：2026-09-13。决策已采纳，验证状态见EP-01记录。
+
+终端容器实际向网关上传文件；网关拥有固定边缘存储写权限及CONNECT机器账号，终端只持有自己的token。对象存储成功PUT即上传完成，网关生成的对象键包含终端和uploadId。事件请求只接收uploadId/eventType，HEAD确认所属对象后明确映射至作者声明的data_uri，再调用现有事件接口。
+
+不用额外上传记录表：原子对象PUT、受身份约束的对象前缀和原edge_submission幂等/归属记录已足够当前闭环；没有必须持久化的第二套状态。Content-MD5仅由S3协议验证实际上传内容，不保存为领域hash。网关保留受限临时缓冲，不挂宿主Docker socket。
+
+算法处理仍是普通platform.Application，选址仍归Resource/Placement，文件传输仍归FILE-01公共助手。终端结果轮询使用原EdgeAccessService.result检查归属，网关仅下载执行输出中明确命名的terminal_result，并限制本网关边缘bucket/namespace/execution前缀及JSON大小；不提供任意URL下载代理。
+
+Java类、调用链、DB表、Binding与API均不变。新增的是HTTP网关进程、终端回放程序、离线数据模型准备和三个显式Flow。不会把终端事件误判为execution: TERMINAL或DQN卸载。
+
+参考Kestra本地0354ddf8的ExecutionController/FlowInputOutput输入读取后提交既有Execution；本项目的差异是云边端数据就地接入。未复制其中心文件上传实现，因为此处要求文件先留边缘。PaDiM参考Defard等论文和Anomalib模型结构，当前独立CPU最小实现使用128像素/32维ResNet18多层特征、逐位置正则Gaussian/Mahalanobis；不是完整Anomalib移植，也不宣称复现论文指标。
+
+限制：CEA内网HTTP、静态机器token配置、最大64MiB/两路上传；没有断点续传/离线自治/自动GC/物理设备控制。重新上传产生新对象，重复事件使用原uploadId；无事件的孤立上传不自动删除。公开数据回放只代替采集，其他路径真实运行。

@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [EP-01 终端上传网关](ep01-gateway.md)：独立网关的上传/事件/所属结果HTTP接口；平台原OpenAPI、Flow定义和执行协议不变。
+
 - [FILE-01 Pod 文件助手](file01-pod-artifacts.md)：K8s init/main/output、按执行位置存储、临时 Secret 授权与恢复；不新增外部 API/SQL/DSL，替代 S4 的中心文件搬运。
 
 - [UI-09镜像与Kubernetes管理](ui09-registry-kubernetes.md)：13个新增操作、工作空间范围、引用保护、V20目录删除及明确的Registry/RBAC限制。
