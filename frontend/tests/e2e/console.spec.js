@@ -230,6 +230,92 @@ finally:
   await expect(page.locator('[data-task="clean"]')).toHaveAttribute('data-state', 'SUCCESS');
 });
 
+test('task table sorts actual starts, keeps unstarted tasks last and refreshes the selected instance', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  await login(page);
+  await save(
+    page,
+    id,
+    `schemaVersion: 1
+namespace: lab
+id: ${id}
+tasks:
+  - id: clients
+    type: core.Loop
+    loop:
+      values: {source: LITERAL, value: [a, b]}
+      concurrency: 2
+    tasks:
+      - {id: train, type: core.Sleep, duration: PT6S}
+  - {id: aggregate, type: core.Log, message: aggregated}
+  - {id: evaluate, type: core.Log, message: evaluated}
+`,
+  );
+  await start(page);
+  await page.getByRole('tab', { name: /任务实例/ }).click();
+  const table = page.getByRole('table', { name: '任务实例列表', exact: true });
+  const trainRows = table
+    .locator('tbody tr')
+    .filter({ has: page.locator('td > strong', { hasText: /^train$/ }) });
+  await expect(trainRows).toHaveCount(2);
+  await expect(trainRows.locator('.status')).toHaveText(['RUNNING', 'RUNNING']);
+  await expect(table.locator('tbody tr td > strong')).toHaveText([
+    'clients',
+    'train',
+    'train',
+    'aggregate',
+    'evaluate',
+  ]);
+  await expect(table.getByRole('columnheader', { name: '开始时间', exact: true })).toHaveAttribute(
+    'aria-sort',
+    'ascending',
+  );
+  await expect(table.locator('tbody tr').filter({ hasText: 'aggregate' }).locator('td').nth(5)).toHaveText(
+    '—',
+  );
+  const executionId = (await page.locator('.execution-id').textContent()).trim();
+  const tasks = await (
+    await request.get(`${apiBase}/executions/${executionId}/tasks`, { headers: { Authorization: auth } })
+  ).json();
+  // The API still returns creation order; only the table uses chronological order.
+  expect(tasks.map((task) => task.taskId)).toEqual(['clients', 'aggregate', 'evaluate', 'train', 'train']);
+  const selectedId = (await trainRows.first().locator('small').textContent()).trim();
+  await trainRows.first().getByRole('button', { name: '尝试详情', exact: true }).click();
+  await expect(page.getByLabel('任务实例详情')).toContainText(selectedId);
+  await expect(page.locator('h1 .status')).toHaveText('SUCCESS');
+  await expect(table.locator('tbody tr td > strong')).toHaveText([
+    'clients',
+    'train',
+    'train',
+    'aggregate',
+    'evaluate',
+  ]);
+  await expect(page.getByLabel('任务实例详情')).toContainText(selectedId);
+  await expect(page.locator('.attempt')).toContainText('SUCCESS');
+  await page.getByRole('button', { name: '↻ 刷新', exact: true }).click();
+  await expect(table.locator('tbody tr td > strong')).toHaveText([
+    'clients',
+    'train',
+    'train',
+    'aggregate',
+    'evaluate',
+  ]);
+  await expect(page.getByLabel('任务实例详情')).toContainText(selectedId);
+  await page.screenshot({ path: '.local/evidence/task-order-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: '.local/evidence/task-order-narrow.png', fullPage: true });
+  await page.getByRole('tab', { name: '拓扑', exact: true }).click();
+  await page.getByRole('button', { name: '展开 clients', exact: true }).click();
+  await page.getByRole('button', { name: '查看 train 实例', exact: true }).click();
+  await expect(page.getByLabel('任务实例详情')).toContainText(
+    tasks.find((task) => task.taskId === 'train' && task.iteration === 1).id,
+  );
+});
+
 test('both federated flows expose explicit dataset SELECT controls without execution', async ({ page }) => {
   await login(page);
   for (const name of ['fedavg', 'fedprox']) {

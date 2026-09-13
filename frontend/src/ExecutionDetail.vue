@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { errorText } from './api.js';
-import { mergeLogs, pretty, terminal, time } from './model.js';
+import { mergeLogs, pretty, tasksByStartTime, terminal, time } from './model.js';
 import { duration } from './execution-graph.js';
 import ExecutionGraph from './ExecutionGraph.vue';
 import TaskRunDetail from './TaskRunDetail.vue';
@@ -15,6 +15,7 @@ const run = ref(null),
   attempts = ref([]),
   selectedTaskId = ref(null);
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value));
+const sortedTasks = computed(() => tasksByStartTime(tasks.value));
 const tab = ref('overview'),
   loading = ref(false),
   cancelling = ref(false),
@@ -206,7 +207,7 @@ onBeforeUnmount(() => {
       </div>
       <div v-else-if="tab === 'tasks'">
         <div class="table-wrap">
-          <table>
+          <table aria-label="任务实例列表">
             <thead>
               <tr>
                 <th>任务 / 实例 ID</th>
@@ -214,14 +215,14 @@ onBeforeUnmount(() => {
                 <th>迭代索引</th>
                 <th>父实例</th>
                 <th>状态</th>
-                <th>开始时间</th>
+                <th aria-sort="ascending">开始时间</th>
                 <th>结束时间</th>
                 <th>实例耗时</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="task in tasks" :key="task.id">
+              <tr v-for="task in sortedTasks" :key="task.id">
                 <td>
                   <strong>{{ task.taskId }}</strong
                   ><small class="mono block">{{ task.id }}</small>

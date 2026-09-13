@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeFields, inputValues, mergeLogs, submission, terminal } from '../../src/model.js';
+import {
+  makeFields,
+  inputValues,
+  mergeLogs,
+  submission,
+  tasksByStartTime,
+  terminal,
+} from '../../src/model.js';
 import { basicAuthorization, createApi, ApiError, errorText } from '../../src/api.js';
 
 test('defaults preserve false, zero, empty strings, objects and omitted values', () => {
@@ -71,6 +78,65 @@ test('logs are sorted, deduplicated and bounded', () => {
     { id: 3 },
     { id: 4 },
   ]);
+});
+
+test('task table orders starts, keeps ties stable and leaves missing or invalid starts last without mutation', () => {
+  const tasks = Object.freeze([
+    Object.freeze({ id: 'aggregate', startedAt: '2026-09-13T06:05:14Z' }),
+    Object.freeze({ id: 'pending', startedAt: null }),
+    Object.freeze({ id: 'train-b', startedAt: '2026-09-13T06:05:04Z' }),
+    Object.freeze({ id: 'train-a', startedAt: '2026-09-13T14:05:04+08:00' }),
+    Object.freeze({ id: 'invalid', startedAt: 'invalid' }),
+    Object.freeze({ id: 'init', startedAt: '2026-09-13T06:04:57Z' }),
+    Object.freeze({ id: 'skipped' }),
+  ]);
+  const before = [...tasks];
+  const sorted = tasksByStartTime(tasks);
+  assert.deepEqual(
+    sorted.map((task) => task.id),
+    ['init', 'train-b', 'train-a', 'aggregate', 'pending', 'invalid', 'skipped'],
+  );
+  assert.deepEqual(tasks, before);
+  assert.notEqual(sorted, tasks);
+  assert.equal(sorted[0], tasks[5]);
+  assert.deepEqual(tasksByStartTime([]), []);
+});
+
+test('task starts retain backend fractional precision instead of tying different microseconds', () => {
+  const tasks = [
+    { id: 'later', startedAt: '2026-09-13T06:05:04.123456Z' },
+    { id: 'early', startedAt: '2026-09-13T06:05:04.123123Z' },
+    { id: 'same', startedAt: '2026-09-13T06:05:04.123123000Z' },
+    { id: 'exact', startedAt: '2026-09-13T06:05:04.123Z' },
+  ];
+  assert.deepEqual(
+    tasksByStartTime(tasks).map((task) => task.id),
+    ['exact', 'early', 'same', 'later'],
+  );
+});
+
+test('updated tasks move out of the unstarted group without changing the source list or selection identity', () => {
+  const tasks = [
+    { id: 'later', startedAt: '2026-09-13T06:05:14Z' },
+    { id: 'pending', startedAt: null },
+  ];
+  assert.deepEqual(
+    tasksByStartTime(tasks).map((task) => task.id),
+    ['later', 'pending'],
+  );
+  const updated = tasks.map((task) =>
+    task.id === 'pending' ? { ...task, startedAt: '2026-09-13T06:05:04Z' } : task,
+  );
+  const sorted = tasksByStartTime(updated);
+  assert.deepEqual(
+    sorted.map((task) => task.id),
+    ['pending', 'later'],
+  );
+  assert.equal(
+    sorted[0],
+    updated.find((task) => task.id === 'pending'),
+  );
+  assert.equal(tasks[1].startedAt, null);
 });
 test('only backend terminal states stop polling', () => {
   for (const state of ['SUCCESS', 'FAILED', 'KILLED', 'SKIPPED']) assert.equal(terminal(state), true);

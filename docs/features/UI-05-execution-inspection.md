@@ -2,6 +2,16 @@
 
 状态：DONE（本批展示范围），已发布CEA前端及FedAvg r5/FedProx r3。范围来自2026-09-12用户授权及当次“更新前端和两个流程”确认。
 
+UI-05a（2026-09-13）：任务实例表按开始时间展示，增量验证/发布状态见[记录](../verification/VER-UI-005a-task-start-order.md)，不沿用上面的历史发布结论。
+
+## UI-05a 列表排序
+
+- 任务实例表按后端TaskRun.startedAt升序，完全相同时间保留API返回顺序；尚未开始（包括未启动即跳过/取消）置后并保留相互顺序。非法/缺失时间同样置后，不补造开始时间。
+- 使用完整返回时间比较，保留Java Instant的小数秒精度，不按页面格式化后的秒级文字排序。并行同时间不表示存在执行依赖；父级控制任务仍覆盖子任务的运行区间。重试不改口径：使用TaskRun首次开始时间，不按最新Attempt重新排序。
+- `model.js.tasksByStartTime`只返回排序后的数组副本；`ExecutionDetail.vue.sortedTasks`只供此表使用。刷新后自动重算，行及尝试详情仍通过TaskRun.id识别，不使用行号作为身份。
+- 原tasks数组、概览后处理列表、拓扑、Metrics和输出不变；不改变后端task_index查询顺序、轮询/API请求、调度、状态或执行链。表头提供aria-sort，不添加新开关或解释文案。
+- 无Java类、API、DB表/字段、DSL或SPI增删；不是新增Kestra执行语义，仅调整已有只读表格。当前功能消费者就是任务实例列表，不引入新的领域状态或采集能力。
+
 ## 当前边界与调用链
 
 执行详情继续轮询原Execution/TaskRun/Log API。只读拓扑通过GET Flow?revision=Execution.flowRevision获取固定修订，按DSL结构展示依赖，状态只取真实TaskRun。点击节点沿用GET tasks/{taskRunId}/attempts；输出直接展示TaskRun.outputs，不下载/解析文件内容。

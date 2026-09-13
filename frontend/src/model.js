@@ -2,6 +2,19 @@ export const terminal = (state) => ['SUCCESS', 'FAILED', 'KILLED', 'SKIPPED'].in
 export const pretty = (value) => JSON.stringify(value, null, 2);
 export const time = (value) => (value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—');
 
+export function tasksByStartTime(tasks) {
+  return tasks.slice().sort((a, b) => {
+    const left = Date.parse(a.startedAt),
+      right = Date.parse(b.startedAt);
+    if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : 0;
+    if (!Number.isFinite(right)) return -1;
+    if (left !== right) return left - right;
+    // Java Instant may include sub-millisecond digits that Date.parse truncates.
+    const fraction = (value) => (value.match(/\.(\d+)/)?.[1] || '').padEnd(9, '0');
+    return fraction(a.startedAt).localeCompare(fraction(b.startedAt));
+  });
+}
+
 export function makeFields(inputs = {}) {
   return Object.entries(inputs).map(([name, input]) => ({
     name,
