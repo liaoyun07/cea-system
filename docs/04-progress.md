@@ -1,5 +1,7 @@
 # 当前进度
 
+OFF-02（2026-09-14，DONE/PASS，已发布）：终端元数据compute、网关派发、固定三层/RULE及成功小JSON返回已闭环。本地原始文件不上传，EDGE/CLOUD按需上传所属边缘；沿原Worker/Placement/Pod助手执行。16:37:23完整244项Maven、51项Node/构建/格式、58项浏览器、25项Python通过，包含原Attempt接管、取消确认、失败重试和权限回归。16:44:42更新CEA backend/gateway，新增terminal-agent及独立DinD（无宿主Docker socket/无Docker TCP），frontend只reload。16:45四次真实执行均SUCCESS，六项结果与独立参考一致；local/RULE原文件上传0字节，EDGE/CLOUD各1507314字节且内容一致。16:47实际18080记录/来源/详情/结果、桌面与390px通过；原2流程、3策略、10执行和2数据集不变，其余15服务ID/镜像/启动时间保持。新增1份Java和1个GET，无DB migration/新运行状态机。OFF-03真实六维/端到端反馈及OFF-04 Double DQN未开始。见[验收](verification/VER-OFF-002-terminal-gateway.md)、[ADR-0026](decisions/ADR-0026-terminal-gateway-runner.md)。以下条目中的未实现描述为对应历史批次状态。
+
 OFF-01（2026-09-14，DONE/PASS，已发布）：卸载只选层，Resource/Placement 选具体位置。删除 offload.candidateClusters、代表集群评分和旧画像 estimate 查询；增加管理员 central-clouds 范围，EDGE 取可信终端归属；V25 仅允许预约前 target_id 为空。新 DQN 决策暂停至 OFF-04。15:45:56 完整242项Maven、51项Node/构建/格式、58项浏览器PASS；真实RULE三层与第二云集群Placement通过。15:50:54仅发布前后端，15:51～52实际18080健康/校验/编辑schema/浏览器及历史复核PASS；11份修订、10执行、132任务实例、104次尝试、2数据集、3策略及其余15容器不变。无新增生产Java文件/表/API/SPI，执行状态机不变。OFF-02网关终端三路径、OFF-03真实状态反馈、OFF-04 Double DQN比较仍未实现；下一步需要终端模拟运行环境，新增基础设施另行确认。见[本批验证](verification/VER-OFF-001-layer-placement.md)。
 
 DOC-02（2026-09-14，DONE，文档检查PASS）：建立[现有系统与申报书功能审查表](07-proposal-audit.md)，覆盖26项功能、8项指标/研究成果与8项范围差异，关联原文位置和已有实现/验证；作为申报书视角的进度入口。结构/链接、42个审查项唯一性与引用、10张Markdown表列数及差异检查通过。仅文档，不增加业务能力，不改变DQN/计量等后置决定，不重启CEA；检查范围见[验证记录](verification/VER-DOC-002-proposal-audit.md)。

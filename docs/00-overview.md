@@ -1,5 +1,7 @@
 # 系统总览
 
+OFF-02增量（2026-09-14已发布CEA）：终端元数据请求复用策略Flow与原执行器；Application适配器新增经网关到终端代理的执行路径。本地原文件不上传，卸载后经网关先入所属边缘存储；Pod助手/Placement保持原职责。成功小JSON通过原产物权限链回到网关。CEA已验证FIXED三层及RULE；无第二套Execution/Binding/数据库状态表。当前RULE仍在后端原适配链内运行，边缘Double DQN与真实六维采集在OFF-03/04，不冒称已完成。见[当前协议](contracts/off02-terminal-gateway.md)、[验收](verification/VER-OFF-002-terminal-gateway.md)。
+
 EP-02只读增量：边缘处理记录是原Execution按策略范围筛选的视图，由既有接入回执补充终端/网关来源；不建立第二套处理状态或执行链。页面与接口的验证/发布状态见[进度](04-progress.md)。
 
 EP-01增量（状态见进度）：独立HTTP网关负责终端认证与本边缘文件接入，终端容器回放真实公开样本；三个策略仍调用原EdgeAccessService/FlowExecutionService/Executor/Worker，文件走FILE-01。中心不转发原始上传；留边缘/返回终端/摘要到中心由普通Flow输出绑定和任务选址表达，不增加第二套引擎。见[决策](decisions/ADR-0024-terminal-edge-ingress.md)。
@@ -49,7 +51,7 @@ S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出
 
 OFF-01：普通CLUSTER与固定TERMINAL仍不读写卸载观测；资源回收依照Prepared/实际预约。显式RULE只决定层，JobPlacementService根据可信归属边缘或服务端central-clouds范围选具体cluster；卸载配置不再含candidateClusters。新DQN决策暂停到OFF-04，S5-05计量继续后置。见[ADR-0025](decisions/ADR-0025-offloading-layer-placement.md)，当前测试/发布状态见[进度](04-progress.md)。
 
-ApplicationTaskRunner→Resource汇总合法层负载→OffloadingService冻结同Attempt层决策→JobPlacementService选择/预约具体位置→原Docker/Kubernetes Runner→记录服务端观测，Executor仍独占运行状态。terminal FIFO归resource，决策观测及旧模型存档归offloading，dataflow只调用公开服务。现有服务端观测不是终端端到端反馈；新网关/终端请求链与六维MDP仍待OFF-02/03。详见[协议](contracts/s5-terminal-offloading.md)。
+ApplicationTaskRunner→Resource汇总合法层负载→OffloadingService冻结同Attempt层决策→JobPlacementService选择/预约具体位置→原Docker/Kubernetes执行或OFF-02网关终端适配→记录服务端观测，Executor仍独占运行状态。terminal FIFO归resource，决策观测及旧模型存档归offloading，dataflow只调用公开服务。OFF-02已打通元数据请求及三路径；现有服务端观测不是终端端到端反馈，六维MDP仍待OFF-03。详见[协议](contracts/s5-terminal-offloading.md)。
 
 ## 目标执行关系（未全部实现）
 

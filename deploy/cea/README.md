@@ -1,5 +1,9 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+OFF-02于2026-09-14已发布，当前19个常驻服务；真实三层/RULE、文件存储、结果和页面验证通过，见[发布证据](../../docs/verification/VER-OFF-002-terminal-gateway.md)。下列安装脚本不是日常重复运行任务的入口，回放请使用示例中的terminal-compute命令。
+
+OFF-02新增可选`terminal-offloading`服务组：terminal-agent、独立terminal-engine，以及一次性terminal-compute工具。引擎只监听专用Unix socket卷、不挂宿主Docker socket、不开放Docker TCP端口；仅engine特权。当前安装状态见进度。运行前先测试/保存CEA基线和回退镜像；`setup-offloading-paths.ps1`仅生成私有待发布配置与合成终端信号，`-Publish`才更新backend/gateway及新增服务、注册4个新策略。原17服务中只重建backend/gateway；frontend只reload，不改原3策略或FedAvg/FedProx。新增4个卷承载独立Docker缓存、socket、工作文件与取消标记，暂不自动GC。示例操作见[三路径说明](../../examples/offloading/README.md)。
+
 OFF-01 升级：`application.yaml` 的 `platform.jobs.central-clouds.lab: [cloud]` 只限定终端卸载的云层范围，不改变普通 Flow 候选。EDGE 由可信终端归属限定。V25 仅允许卸载观测的 target_id 在预约前为空；新 DQN 执行暂停至 OFF-04。发布前须确认无活动执行/WorkerJob，并检查保存修订和执行快照没有旧 offload.candidateClusters（若有则停止发布，不能悄悄改历史）。备份数据库/配置与旧镜像后，仅更新 backend/frontend 并刷新 nginx；不重启存储、Registry、网关或算法集群。详细边界见[当前卸载协议](../../docs/contracts/s5-terminal-offloading.md)。
 
 FILE-01已于2026-09-13发布并现场验收（见[记录](../../docs/verification/VER-FILE-001-pod-artifacts.md)）：新增 minio-edge-a/b/c 三个服务和独立卷（共16个常驻服务），不新增宿主端口；四集群使用公共文件助手，原算法镜像不变。中心保留 datasets/历史 cea-artifacts，新的边缘 Job 输出写到对应 cea-artifacts-edge-*；不是数据集迁移。新增三个存储的内存上限各512MiB，实际磁盘随产物增长，暂不自动GC。

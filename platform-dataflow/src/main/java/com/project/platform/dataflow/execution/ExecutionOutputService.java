@@ -56,4 +56,18 @@ public final class ExecutionOutputService {
                 .filter(task->task.container()!=null && !task.container().outputFiles().isEmpty())
                 .map(task->new OutputSource(task.id(),task.container().outputFiles())).toList();
     }
+    /** Resolve one successful Flow output back to its committed task artifact; never read an arbitrary URI. */
+    public Map<?,?> terminalResult(Actor actor,String namespace,String executionId) {
+        var execution=executions.get(actor,namespace,executionId);
+        if(execution.state()!=ExecutionState.SUCCESS)throw WorkflowException.conflict("execution is not successful");
+        Object uri=execution.outputs().get("terminal_result");
+        if(!(uri instanceof String))throw WorkflowException.invalid("terminal_result","published JSON artifact required");
+        for(var task:executions.tasks(actor,namespace,executionId)) {
+            var definition=execution.definition().allTasks().stream().filter(t->t.id().equals(task.taskId())).findFirst().orElseThrow();
+            if(task.state()!=ExecutionState.SUCCESS || definition.container()==null)continue;
+            for(String port:definition.container().outputFiles())
+                if(port.endsWith(".json") && uri.equals(task.outputs().get(port)))return readJson(actor,namespace,executionId,task.id(),port);
+        }
+        throw WorkflowException.invalid("terminal_result","no successful declared JSON artifact matches this execution output");
+    }
 }

@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [OFF-02 终端经网关计算](off02-terminal-gateway.md)：元数据先行、原始文件按需上传、FIXED/RULE、原Worker执行分支及成功JSON返回。
+
 - [EP-02 边缘处理记录](ep02-processing-records.md)：namespace READ、策略/状态筛选和服务端分页，复用原Execution与产物权限。
 
 - [EP-01 终端上传网关](ep01-gateway.md)：独立网关的上传/事件/所属结果HTTP接口；平台原OpenAPI、Flow定义和执行协议不变。

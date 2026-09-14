@@ -50,7 +50,7 @@ test('offloading YAML shares validation and schema without a second cluster bind
   expect(response.status()).toBe(200);
   const offload = (await response.json()).$defs.Offload.properties;
   expect(offload.candidateClusters).toBeUndefined();
-  expect(offload.strategy.anyOf.find((shape) => shape.enum).enum).toEqual(['RULE']);
+  expect(offload.strategy.anyOf.find((shape) => shape.enum).enum).toEqual(['RULE', 'FIXED']);
   await page.getByRole('tab', { name: '源代码', exact: true }).click();
   expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.offload).toEqual({
     strategy: 'RULE',
@@ -60,6 +60,8 @@ test('offloading YAML shares validation and schema without a second cluster bind
   for (const invalid of [
     source.replace('strategy: RULE', 'strategy: RULE, candidateClusters: [edge, cloud]'),
     source.replace('strategy: RULE', 'strategy: DQN, modelVersion: old-v1'),
+    source.replace('strategy: RULE', 'strategy: FIXED'),
+    source.replace('strategy: RULE', 'strategy: RULE, layer: CLOUD'),
   ]) {
     const response = await request.post(`${base}/flows/${id}/validate`, {
       headers,
@@ -67,6 +69,11 @@ test('offloading YAML shares validation and schema without a second cluster bind
     });
     expect(response.status()).toBe(422);
   }
+  const fixed = await request.post(`${base}/flows/${id}/validate`, {
+    headers,
+    data: { source: source.replace('strategy: RULE', 'strategy: FIXED, layer: CLOUD') },
+  });
+  expect(fixed.status()).toBe(200);
 });
 test.afterEach(async ({ page }) => {
   expect(page.uiErrors).toEqual([]);

@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.*;
 public final class EdgeAccessController {
     private final EdgeAccessService edge;
     private final IdentityDirectory identities;
-    public EdgeAccessController(EdgeAccessService edge,IdentityDirectory identities) { this.edge=edge;this.identities=identities; }
+    private final com.project.platform.dataflow.execution.ExecutionOutputService outputs;
+    public EdgeAccessController(EdgeAccessService edge,IdentityDirectory identities,com.project.platform.dataflow.execution.ExecutionOutputService outputs) { this.edge=edge;this.identities=identities;this.outputs=outputs; }
     @PostMapping("/heartbeat")
     public Gateway heartbeat(Principal p,@PathVariable String namespace) { return edge.heartbeat(identities.actor(p.getName()),namespace); }
     @PostMapping("/terminals/{id}/heartbeat")
@@ -33,5 +34,9 @@ public final class EdgeAccessController {
     @GetMapping("/terminals/{id}/executions/{executionId}")
     public ExecutionController.View result(Principal p,@PathVariable String namespace,@PathVariable String id,@PathVariable String executionId) {
         return ExecutionController.View.of(edge.result(identities.actor(p.getName()),namespace,id,executionId));
+    }
+    @GetMapping("/terminals/{id}/executions/{executionId}/result")
+    public java.util.Map<?,?> terminalResult(Principal p,@PathVariable String namespace,@PathVariable String id,@PathVariable String executionId) {
+        return edge.terminalResult(identities.actor(p.getName()),namespace,id,executionId,outputs);
     }
 }

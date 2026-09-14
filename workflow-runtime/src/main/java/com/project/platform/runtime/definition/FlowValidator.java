@@ -95,9 +95,11 @@ public final class FlowValidator {
                     var o=c.offload();
                     if(c.execution()!=ContainerExecution.TERMINAL || o.strategy()==null)
                         throw WorkflowException.invalid("offload","only TERMINAL tasks may explicitly enable offloading");
-                    if(o.strategy()!=OffloadStrategy.RULE)
-                        throw WorkflowException.invalid("offload.strategy","only RULE is enabled; Double DQN integration is pending");
-                    if(o.modelVersion()!=null)throw WorkflowException.invalid("modelVersion","RULE does not use a DQN model");
+                    if(o.strategy()==OffloadStrategy.DQN)
+                        throw WorkflowException.invalid("offload.strategy","Double DQN integration is pending");
+                    if(o.modelVersion()!=null)throw WorkflowException.invalid("modelVersion","RULE/FIXED do not use a DQN model");
+                    if((o.strategy()==OffloadStrategy.FIXED)!=(o.layer()!=null))
+                        throw WorkflowException.invalid("offload.layer","layer is required only for FIXED");
                 }
                 if(new HashSet<>(c.outputFiles()).size()!=c.outputFiles().size())
                     throw WorkflowException.invalid("container","duplicate candidate/output");

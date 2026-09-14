@@ -115,6 +115,12 @@ class OffloadingTest {
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.EDGE,1,0,0),new Candidate(Layer.EDGE,1,0,0)),"RULE",null));
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.EDGE,0,0,0)),"RULE",null));
     }
+    @Test void fixedSelectsOnlyAnExplicitLegalLayerWithoutClusterSelectionOrFallback() {
+        assertEquals("CLOUD",service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.CLOUD,1,0,0)),"FIXED",null,Layer.CLOUD).target().kind());
+        assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.EDGE,1,0,0)),"FIXED",null,Layer.CLOUD));
+        assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),options(0),"FIXED",null,null));
+        assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),options(0),"RULE",null,Layer.CLOUD));
+    }
     @Test void terminalSlotsAreDurableFifoAndWaitingCancellationCannotResurrect() {
         String terminal=key(),a=key(),b=key(),c=key();
         assertTrue(slots().reserveTerminal(actor,"lab",a,"edge",terminal,1));

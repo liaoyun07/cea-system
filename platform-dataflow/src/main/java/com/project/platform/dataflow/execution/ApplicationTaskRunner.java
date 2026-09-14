@@ -19,8 +19,9 @@ import java.util.function.Function;
 
 /** Application/resource adaptation only; lifecycle and lease ownership stay in runtime. */
 public final class ApplicationTaskRunner implements TaskRunner {
-    public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots) {}
-    public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,Map<String,String> outputUris,String helperImage,String dockerContext,String terminalId) {}
+    public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots,TerminalGatewayClient.Connection gateway) {}
+    public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,Map<String,String> outputUris,String helperImage,String dockerContext,String terminalId,
+                           Map<String,TerminalGatewayClient.LocalFile> terminalFiles,boolean gatewayTerminal) {}
     private final ApplicationCatalogService applications;
     private final ResourceCatalogService resources;
     private final ImageDistributionService images;
@@ -36,6 +37,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
     private final com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles;
     private final KubernetesJobRunner runner=new KubernetesJobRunner();
     private final DockerTaskRunner docker=new DockerTaskRunner();
+    private final TerminalGatewayClient gateway;
     public ApplicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,Function<WorkerJob,Actor> identities,
             Function<WorkerJob,TerminalTarget> terminals,OffloadingService offloading,JsonCodec json,BindingResolver bindings,
@@ -44,6 +46,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         this.storage=storage;this.identities=identities;this.terminals=terminals;this.offloading=offloading;this.json=json;this.bindings=bindings;
         this.namespaceFiles=namespaceFiles;
         this.helpers=helpers;
+        this.gateway=new TerminalGatewayClient(json);
     }
     @Override public WorkerJob.Result run(TaskContext context) throws Exception {
         var job=context.job();var execution=(Map<?,?>)job.context().get("execution");
@@ -55,6 +58,11 @@ public final class ApplicationTaskRunner implements TaskRunner {
             }
             Prepared plan=saved==null?prepare(context,namespace,key):json.read(saved,Prepared.class);
             if(plan==null){complete(context,namespace,key,null);return WorkerJob.Result.failed("attempt cancelled before dispatch");}
+            if(plan.gatewayTerminal()) {
+                var origin=terminals.apply(job);
+                var result=runTerminal(context,namespace,origin,plan);
+                complete(context,namespace,key,result);return result;
+            }
             if(plan.dockerContext()!=null) {
                 var files=new ContainerTask.Filesystem() {
                     public void download(String name,Path destination) throws Exception {
@@ -89,7 +97,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         context.check();var container=context.job().task().container();
         String saved=context.prepared();
         Prepared plan=saved==null?null:json.read(saved,Prepared.class);
-        if(plan!=null && plan.dockerContext()!=null)placement.releaseTerminal(ns,key,plan.clusterId(),plan.terminalId());
+        if(plan!=null && (plan.dockerContext()!=null || plan.gatewayTerminal()))placement.releaseTerminal(ns,key,plan.clusterId(),plan.terminalId());
         else if(!placement.releaseTerminal(ns,key)
                 && (container.offload()!=null || container.execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.CLUSTER))placement.release(ns,key);
         if(container.offload()!=null) {
@@ -110,6 +118,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         TerminalTarget origin=c.execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.TERMINAL?terminals.apply(context.job()):null;
         var env=new LinkedHashMap<String,String>();values.forEach((name,value)->{if(value!=null)env.put(name,value.toString());});
         var inputUris=new LinkedHashMap<String,String>();
+        var terminalFiles=new LinkedHashMap<String,TerminalGatewayClient.LocalFile>();
         var inlineFiles=new LinkedHashMap<String,String>();var names=new HashSet<String>();
         int textBytes=0;
         for(var entry:c.namespaceFiles().entrySet()) {
@@ -123,6 +132,11 @@ public final class ApplicationTaskRunner implements TaskRunner {
             Object value=bindings.resolve(entry.getValue(),context.job().context());
             if(value instanceof String uri) {
                 reserveName(names,entry.getKey());inputUris.put(entry.getKey(),uri);
+            } else if(value instanceof Map<?,?>) {
+                if(origin==null || origin.gateway()==null)throw WorkflowException.invalid("inputFiles","terminal file requires a trusted gateway terminal origin");
+                reserveName(names,entry.getKey());var file=gateway.file(value);
+                gateway.call(context,origin.gateway(),origin.terminalId(),"files/check",file);
+                terminalFiles.put(entry.getKey(),file);
             } else if(value instanceof List<?> files && files.size()<=1000 && files.stream().allMatch(String.class::isInstance)) {
                 var paths=new ArrayList<String>();
                 for(int i=0;i<files.size();i++) {
@@ -140,11 +154,12 @@ public final class ApplicationTaskRunner implements TaskRunner {
                 Sample sample=offloading.get(namespace,key);
                 if(sample==null) {
                     long bytes=0;for(String uri:inputUris.values())bytes=Math.addExact(bytes,storage.size(namespace,uri));
+                    for(var file:terminalFiles.values())bytes=Math.addExact(bytes,file.bytes());
                     // Offloading cost estimate only; not algorithm throughput measurement.
                     for(var requirement:requirements)bytes=Math.addExact(bytes,storage.size(namespace,resources.dataset(actor,namespace,requirement.datasetId(),requirement.version()).locations().getFirst().uri()));
                     var work=new Workload(c.applicationId(),c.version(),c.command(),values,bytes);
                     var candidates=new ArrayList<Candidate>();
-                    if(resources.placementOptions(actor,namespace,new PlacementRequest(List.of(origin.clusterId()),requirements)).getFirst().eligible() && docker.available(context,origin.dockerContext())) {
+                    if(resources.placementOptions(actor,namespace,new PlacementRequest(List.of(origin.clusterId()),requirements)).getFirst().eligible() && terminalAvailable(context,origin)) {
                         var load=placement.terminalLoad(actor,namespace,origin.clusterId(),origin.terminalId(),origin.slots());
                         candidates.add(new Candidate(Layer.TERMINAL,load.capacity(),load.active(),load.waiting()));
                     }
@@ -157,7 +172,8 @@ public final class ApplicationTaskRunner implements TaskRunner {
                                 loads.stream().mapToInt(JobPlacementService.Load::active).sum(),
                                 loads.stream().mapToInt(JobPlacementService.Load::waiting).sum()));
                     }
-                    context.check();sample=offloading.decide(actor,namespace,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion());
+                    context.check();sample=offloading.decide(actor,namespace,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion(),
+                            c.offload().layer()==null?null:Layer.valueOf(c.offload().layer().name()));
                 }
                 local="TERMINAL".equals(sample.target().kind());
                 if(local)cluster=origin.clusterId();
@@ -191,20 +207,61 @@ public final class ApplicationTaskRunner implements TaskRunner {
             inputUris.put(filename,uri);env.put(entry.getKey()+"_PATH","/cea-work/in/"+filename);
         }
         inputUris.values().forEach(uri->storage.validateInput(namespace,uri));
+        if(!local && !terminalFiles.isEmpty()) {
+            for(var entry:terminalFiles.entrySet()) {
+                context.check();if(context.cancellation()!=null)return null;
+                var reply=gateway.call(context,origin.gateway(),origin.terminalId(),"files/materialize",
+                        Map.of("executionId",context.job().executionId(),"file",entry.getValue()));
+                String uri=(String)reply.get("uri");storage.validateInput(namespace,uri);
+                if(storage.size(namespace,uri)!=entry.getValue().bytes())throw WorkflowException.invalid("inputFiles","uploaded terminal size mismatch");
+                inputUris.put(entry.getKey(),uri);
+            }
+            terminalFiles.clear();
+        }
         if(c.offload()!=null) {
             long actualBytes=0;for(String uri:inputUris.values())actualBytes=Math.addExact(actualBytes,storage.size(namespace,uri));
+            for(var file:terminalFiles.values())actualBytes=Math.addExact(actualBytes,file.bytes());
             context.check();offloading.started(actor,namespace,key,actualBytes);
         }
         var image=images.prepareForExecution(actor,namespace,c.applicationId(),c.version(),cluster);
         context.check();if(context.cancellation()!=null)return null;
-        var files=new ArrayList<>(inputUris.keySet());files.addAll(inlineFiles.keySet());
+        var files=new ArrayList<>(inputUris.keySet());files.addAll(inlineFiles.keySet());files.addAll(terminalFiles.keySet());
         var outputs=new LinkedHashMap<String,String>();
-        for(String name:c.outputFiles())outputs.put(name,storage.outputUri(namespace,cluster,local,context.job().executionId(),context.job().taskRunId(),context.job().attemptNo(),name));
+        boolean remoteTerminal=local && origin.gateway()!=null;
+        if(remoteTerminal && c.outputFiles().stream().anyMatch(name->!name.endsWith(".json")))
+            throw WorkflowException.invalid("outputFiles","gateway terminal execution currently publishes JSON files only");
+        for(String name:c.outputFiles())outputs.put(name,storage.outputUri(namespace,cluster,local && !remoteTerminal,context.job().executionId(),context.job().taskRunId(),context.job().attemptNo(),name));
         String helper=local?null:helpers.getOrDefault(namespace,Map.of()).get(cluster);
         if(!local && (helper==null || helper.isBlank()))throw WorkflowException.invalid("helperImage","file helper is not configured for cluster");
-        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,outputs,helper,local?origin.dockerContext():null,local?origin.terminalId():null);
+        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,outputs,helper,local?origin.dockerContext():null,local?origin.terminalId():null,terminalFiles,remoteTerminal);
         if(!local && grants(namespace,plan).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>900_000)throw WorkflowException.invalid("inputFiles","file plan exceeds 900000 bytes");
         context.prepare(json.write(plan));return plan;
+    }
+    private boolean terminalAvailable(TaskContext context,TerminalTarget origin) throws Exception {
+        if(origin.gateway()==null)return docker.available(context,origin.dockerContext());
+        try {return Boolean.TRUE.equals(gateway.call(context,origin.gateway(),origin.terminalId(),"available",Map.of()).get("available"));}
+        catch(java.io.IOException unavailable){return false;}
+    }
+    private WorkerJob.Result runTerminal(TaskContext context,String namespace,TerminalTarget origin,Prepared plan) throws Exception {
+        while(true) {
+            context.check();String cancelled=context.cancellation();
+            if(cancelled!=null) {
+                var response=gateway.call(context,origin.gateway(),origin.terminalId(),"attempts/cancel",Map.of("name",ContainerTask.name(context.job())));
+                if(!"CANCELLED".equals(response.get("state")))throw new java.io.IOException("terminal stop unconfirmed");
+                return WorkerJob.Result.failed(cancelled);
+            }
+            var response=gateway.call(context,origin.gateway(),origin.terminalId(),"attempts/step",Map.of("name",ContainerTask.name(context.job()),
+                    "spec",plan.spec(),"localFiles",plan.terminalFiles(),"grants",json.read(grants(namespace,plan),Map.class)));
+            if("SUCCESS".equals(response.get("state"))) {
+                var outputs=new LinkedHashMap<String,Object>();
+                for(var entry:plan.outputUris().entrySet())outputs.put(entry.getKey(),storage.published(namespace,entry.getValue()));
+                return WorkerJob.Result.success(outputs);
+            }
+            if("FAILED".equals(response.get("state")))return WorkerJob.Result.failed(String.valueOf(response.get("error")));
+            if("CANCELLED".equals(response.get("state")))return WorkerJob.Result.failed("terminal attempt cancelled");
+            if(!"RUNNING".equals(response.get("state")))throw new java.io.IOException("unknown terminal effect");
+            Thread.sleep(250);
+        }
     }
     private String grants(String namespace,Prepared plan) throws Exception {
         var inputs=new LinkedHashMap<String,String>();var outputs=new LinkedHashMap<String,String>();

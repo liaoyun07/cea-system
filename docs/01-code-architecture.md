@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+OFF-02：生产Java104→105，新增`TerminalGatewayClient`，平台HTTP操作90→91。`ApplicationTaskRunner`在原Worker内识别终端本地文件、FIXED/RULE选层及网关执行，Prepared只保存稳定描述；`JobConfiguration`装配互斥的gateway/dockerContext连接。`ExecutionOutputService.terminalResult`把成功Flow输出反查为本Execution成功Attempt声明JSON，`EdgeAccessService/Controller`先做原来源授权再读取。原Binding/Executor/Worker/Placement状态所有权不变，无新增DB/表/列/SPI。Python代理及独立DinD只承担终端容器副作用，见[验收](verification/VER-OFF-002-terminal-gateway.md)。下列各批数字为历史时点。
+
 EP-02：仍104份生产Java，无文件新增/删除。`EdgeController`增加GET processing-records与ProcessingView；`EdgeAccess`增加SubmissionOrigin/ProcessingRecord，只读响应不持久化；`EdgeAccessService`组合策略/可信来源及原Execution。`JdbcEdgeRepository`只查本模块策略和接入归属；`FlowExecutionService` → `ExecutionService` → `JdbcExecutionStore`增加listForFlows，runtime仅按namespace/flowIds/state在自己表内筛选后分页，不引用edge表或类型。无DB/模块依赖/引擎状态所有权变化；新增前端`management/EdgeProcessingPage.vue`，详情继续ExecutionDetail。平台HTTP操作89→90。见[规格](features/EP-02-processing-records.md)。
 
 EP-01：生产Java仍104份，未新增/修改Java类、record、表/列、后端API或模块依赖。新增`deploy/edge-gateway/gateway.py`（认证、限量上传、事件转交、所属结果读取）与`terminal.py`（真实文件回放）；`examples/edge-processing/app.py`是4个应用命令，`prepare.py`离线数据/模型，3份YAML是唯一策略定义。链路仍为EdgeAccessController → EdgeAccessService → FlowExecutionService → 原Executor/Worker/ApplicationTaskRunner/KubernetesJobRunner；网关不运行算法或决定cluster。`setup-edge-examples.ps1`负责本地配置和示例登记，不成为生产调度组件。
@@ -124,7 +126,7 @@ OFF-01（2026-09-14）更新：ApplicationTaskRunner从Resource获取每层范�
 |---|---|---|---|---|---|
 | `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 旧13维模型存档校验；新决策不调用推断，待OFF-04替换 | validate；predict/choose仅旧研究工具测试 | 无执行状态 | OFF-001 | OffloadingTest |
 | `platform-offloading/src/main/java/com/project/platform/offloading/JdbcOffloadingRepository.java` | 首次层决策、已预约位置审计、服务端反馈与旧模型存档 | begin/placed/started/finish/register | 仅off两表；Attempt唯一键、位置匹配、首次反馈条件更新 | OFF-001、OFF-002 | OffloadingTest |
-| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端RULE选层；不接收cluster、不构造旧网络state | decide/placed/started/finish/samples | 不读写运行或资源表；无具体位置选择 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端RULE/FIXED选层；不接收cluster、不构造旧网络state | decide/placed/started/finish/samples | 不读写运行或资源表；无具体位置选择 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
 | `platform-server/src/main/java/com/project/platform/server/api/OffloadingController.java` | 模型注册/查询及真实样本导出 | register/model/samples | 仅服务调用；WRITE/READ授权 | OFF-001、OFF-002 | OffloadingTest/ContractTest |
 
 V14增加resource的res_terminal_reservation，JobPlacementService以既有网关资源行锁串行化FIFO入队/准入/释放。V15增加off_task_observation、off_dqn_model；共22张业务表、V1–V15，42个HTTP操作和47个公开record映射。没有第二份Execution状态表。新增OffloadingTest，测试类共11个。离线训练位于[algorithms/offloading](../algorithms/offloading/README.md)，不是新增服务模块。
@@ -173,7 +175,7 @@ S5-03增加6份生产Java，合计76份（含8份package-info）；新增4张edg
 | `platform-edge/src/main/java/com/project/platform/edge/JdbcEdgeRepository.java` | edge四表持久化及可信执行来源查询 | putGateway/putTerminal/putPolicy/receipt/record/executionOrigin | 终端锁、唯一事件路由、接入回执；不读运行表 | EDGE-001、EDGE-002 | EdgeAccessTest |
 | `platform-edge/src/main/java/com/project/platform/edge/EdgeAccessService.java` | 归属检查、策略范围、统一提交/查询及内部执行鉴权 | submit/event/result/executionOrigin/workerActor | 接入回执及Execution同事务；不复制运行状态 | EDGE-001、EDGE-002、SEC-001 | EdgeAccessTest/A |
 | `platform-server/src/main/java/com/project/platform/server/api/EdgeController.java` | 管理HTTP入口 | gateway/terminal/policy/list | READ/WRITE；外部CONNECT账号检查 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
-| `platform-server/src/main/java/com/project/platform/server/api/EdgeAccessController.java` | 网关HTTP入口 | heartbeat/submit/event/result | CONNECT；202在事务完成后返回 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
+| `platform-server/src/main/java/com/project/platform/server/api/EdgeAccessController.java` | 网关HTTP入口及授权成功JSON结果 | heartbeat/submit/event/result/terminalResult | CONNECT与持久来源；202在事务完成后返回 | EDGE-001、EDGE-002 | EdgeAccessTest/C |
 | `platform-server/src/main/java/com/project/platform/server/configuration/EdgeConfiguration.java` | 装配edge公开服务 | edgeRepository/edgeAccessService | 使用既有同库TransactionTemplate | EDGE-001、EDGE-002 | EdgeAccessTest/A |
 
 S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDGE_POLICY范围保存/读取/提交及USER范围检查；AccessPolicy增加CONNECT，IdentityDirectory拒绝CONNECT和管理权限混用。无新Runner/SPI/Executor/Binding。
@@ -187,8 +189,9 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、init/main/output助手、Secret授权刷新/移除、远程停止 | run；使用ContainerTask.Spec/Transfers | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
 | `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
 | `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace/bucket定位存储、按执行位置确定URI、签名授权、HEAD/限量读取；终端文件传输 | Configuration/Connection；outputUri/grant/download/publish/published/readPublished | 管理员凭据文件；产物前缀隔离；不自动中心回退 | RES-001、RUN-001 | J |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到runtime Kubernetes或Docker的适配 | run/TerminalTarget | prepared_json冻结cluster/dockerContext/digest/env/文件；不改Execution状态 | RUN-001、DEP-001 | J/A |
-| `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3/终端Docker连接及可信TaskRunner装配 | Settings/Beans | 外部配置，无业务状态；通过edge公开服务注入来源/权限 | RUN-001、SEC-001 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到Kubernetes、Docker或网关终端的适配 | run/TerminalTarget | prepared_json冻结位置/镜像/文件计划；网关新签授权，不改Execution状态 | RUN-001、DEP-001 | J/A |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/TerminalGatewayClient.java` | 经受信配置网关访问来源终端代理 | call/Connection/LocalFile | 元数据检查、按需物化、同Attempt容器step/cancel；不拥有Execution或直接访问终端 | OFF-02 | J/A |
+| `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3/终端网关或Docker连接及可信TaskRunner装配 | Settings/Beans | 外部配置，无业务状态；通过edge公开服务注入来源/权限 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionState.java` | 执行/任务状态 | terminal | Execution无RETRYING/SKIPPED；TaskRun可RETRYING/SKIPPED；QUEUED仅Execution | WF-004 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/ExecutionRecord.java` | 运行、TaskRun、Attempt、日志、幂等回执记录 | record访问器 | 承载持久状态；区分mainState/cleanupError、phase/retryAt；parentTaskRunId/iteration标记Repeat轮次 | WF-004、WF-006 | I/C |
@@ -211,7 +214,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化及USER源搜索 | save/get/history/search | 锁稳定head，CAS保存；只追加版本 | WF-003、WF-015 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | 定义管理及编辑门面 | save/get/history/list/search/rollback/schema/validate/preview/export/importFlows | WRITE/READ授权；启用Schedule另需EXECUTE；修订/并发配置/Schedule同事务，批量全有或全无 | WF-003、WF-015、WF-016、SEC-001 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | 提交、取消与运行查询门面 | submit/get/list/tasks/attempts/logs/cancel | 授权；原始请求hash优先查幂等，解析版本后委托runtime | WF-004、WF-006、SEC-001 | I |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionOutputService.java` | 授权读取已有JSON及快照输出声明 | readJson/declarations/OutputSource/Unavailable | 真实TaskRun/成功Attempt/执行固定快照；声明查询兼容管理范围但无回退分支；JSON 256KiB；无写入 | UI-06/07 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionOutputService.java` | 授权读取已有JSON及快照输出声明，解析terminal_result | readJson/declarations/terminalResult/OutputSource/Unavailable | 真实TaskRun/成功Attempt/执行固定快照；JSON 256KiB；禁止任意URI；无写入 | UI-06/07、OFF-02 | J |
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | 有限批次内置消息推进 | poll | 每步由Executor独立事务；DB故障下次再试 | WF-005 | I |

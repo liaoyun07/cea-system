@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+OFF-02已于2026-09-14发布CEA：终端先经网关只发文件元数据，FIXED/RULE选层后，本地执行不上传原始文件，边缘/云执行才经网关上传到所属边缘；同一镜像沿原Worker执行，小JSON结果经网关返回。加入终端代理和独立DinD（不挂宿主Docker socket），仅更新backend/gateway，frontend只reload。244项Maven、51项Node、58项浏览器、25项Python及CEA四条真实路径/存储数值/页面核验PASS。18080“边缘处理记录”可看offload-terminal/edge/cloud/rule；[示例与回放](examples/offloading/README.md)、[验收与限制](docs/verification/VER-OFF-002-terminal-gateway.md)。六维状态、端到端反馈和Double DQN仍待OFF-03/04。
+
 EP-02已于2026-09-13发布CEA前后端：18080“边缘与终端 → 边缘处理记录”支持策略/状态筛选、分页、可信来源和原执行详情/结果。240项Maven、50项Node、最终57项浏览器回归PASS；实际三策略记录及summary/diagnosis/report JSON预览通过，原流程/10条执行/数据集和其余15服务不变。新增1个只读API，无新Java文件/DB/执行状态链；[范围与边界](docs/features/EP-02-processing-records.md)、[验证](docs/verification/VER-EP-002-processing-records.md)。
 
 EP-01已于2026-09-13发布CEA：终端容器真实HTTP上传到网关，文件先落边缘，再通过原执行链运行液压清洗留边缘、轴承诊断返回终端、表面检测摘要送中心三策略。18080的边缘处理策略页可见，网关本机入口18086；[回放命令及数据说明](examples/edge-processing/README.md)。237项后端回归、19项新Python测试及三次真实执行/存储/数值核验PASS，原Flow/7条执行历史保持。不新增Java/DB/DSL；[实测与限制](docs/verification/VER-EP-001-terminal-edge.md)。

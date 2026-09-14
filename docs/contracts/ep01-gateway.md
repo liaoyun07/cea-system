@@ -1,5 +1,7 @@
 # EP-01 网关HTTP协议
 
+OFF-02增量见[终端计算协议](off02-terminal-gateway.md)：新增独立compute入口，不改变本页上传/事件行为；成功terminal_result改经平台已有产物权限链读取，因此支持本次执行的云/边缘JSON，不再限定本网关桶。平台结果API不接受任意URI。
+
 独立网关端口8080，CEA仅映射本机18086。所有业务请求须`Authorization: Bearer <terminal token>`；token映射终端，后端登记检查其归属/启用状态。平台人员Basic账号、S3账号不交给终端。TLS尚未启用，不对公网开放。
 
 | 方法/路径 | 请求 | 成功结果 |

@@ -119,6 +119,11 @@ public final class EdgeAccessService {
         repository.requireExecution(ns,id,execution);
         return executions.get(executionActor(actor),ns,execution);
     }
+    public Map<?,?> terminalResult(Actor actor,String ns,String id,String execution,
+                                  com.project.platform.dataflow.execution.ExecutionOutputService outputs) {
+        result(actor,ns,id,execution); // Registered gateway, terminal ownership and original receipt first.
+        return outputs.terminalResult(executionActor(actor),ns,execution);
+    }
     /** Accepted work retains its authority if ingress is later disabled. No new submission is authorized here. */
     public Origin executionOrigin(Actor actor,String ns,String execution) {
         authorize(actor,ns,Action.CONNECT);

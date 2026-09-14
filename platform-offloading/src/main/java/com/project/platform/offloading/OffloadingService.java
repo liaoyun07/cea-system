@@ -20,8 +20,12 @@ public final class OffloadingService {
     public OffloadingService(JdbcOffloadingRepository repository,AccessPolicy access){this.repository=repository;this.access=access;}
     public Sample get(String ns,String key){return repository.get(ns,key);}
     public Sample decide(Actor actor,String ns,String key,String execution,Workload work,List<Candidate> candidates,String strategy,String modelVersion) {
+        return decide(actor,ns,key,execution,work,candidates,strategy,modelVersion,null);
+    }
+    public Sample decide(Actor actor,String ns,String key,String execution,Workload work,List<Candidate> candidates,String strategy,String modelVersion,Layer fixed) {
         access.require(actor,ns,Action.EXECUTE);
-        if(!"RULE".equals(strategy) || modelVersion!=null)throw WorkflowException.invalid("offload","only RULE is enabled; Double DQN integration is pending");
+        if(!Set.of("RULE","FIXED").contains(strategy) || modelVersion!=null || ("FIXED".equals(strategy)!=(fixed!=null)))
+            throw WorkflowException.invalid("offload","RULE or FIXED with a layer required; Double DQN integration is pending");
         var existing=repository.get(ns,key);if(existing!=null)return existing;
         var layers=new EnumMap<Layer,Candidate>(Layer.class);
         for(var c:candidates) {
@@ -30,6 +34,7 @@ public final class OffloadingService {
         }
         Layer selected=null;double best=Double.POSITIVE_INFINITY;
         for(var c:layers.values()) {
+            if(fixed!=null && c.layer()!=fixed)continue;
             double score=((double)c.active()+c.waiting())/c.capacity();
             if(selected==null || score<best){selected=c.layer();best=score;}
         }

@@ -1110,6 +1110,142 @@ class ImageDistributionTest {
         Path evidence=Path.of("target","offloading-evidence");Files.createDirectories(evidence);
         Files.writeString(evidence.resolve("layer-placement-samples.json"),json.write(samples));
     }
+    @Test void gatewayMetadataThreePathsLocalNoUploadAndScopedCloudResult() throws Exception {
+        String volume="cea-off02-test-"+UUID.randomUUID();
+        var dockerClient=DockerClientFactory.instance().client();dockerClient.createVolumeCmd().withName(volume).exec();
+        var bind=new com.github.dockerjava.api.model.Bind(volume,new com.github.dockerjava.api.model.Volume("/terminal-work"));
+        var engine=new GenericContainer<>("docker:28-dind").withNetwork(network).withNetworkAliases("off02-engine")
+                .withPrivilegedMode(true).withEnv("DOCKER_TLS_CERTDIR","").withCommand("--tls=false","--insecure-registry=target:5000")
+                .withCreateContainerCmdModifier(cmd->cmd.getHostConfig().withBinds(bind));
+        GenericContainer<?> agent=null,gatewayContainer=null;Path control=Files.createTempFile("cea-off02-control-",".txt");
+        Files.writeString(control,"isolated-worker-token");
+        int port=Integer.parseInt(context.getEnvironment().getProperty("local.server.port"));
+        org.testcontainers.Testcontainers.exposeHostPorts(port);
+        String fileId=UUID.randomUUID().toString();byte[] raw="1\n2\n3\n4\n".repeat(128).getBytes(StandardCharsets.UTF_8);
+        var file=Map.of("fileId",fileId,"bytes",raw.length);
+        try {
+            engine.start();await().atMost(Duration.ofSeconds(60)).until(()->engine.execInContainer("docker","info").getExitCode()==0);
+            String agentImage=new org.testcontainers.images.builder.ImageFromDockerfile("cea-agent-test:"+UUID.randomUUID(),true)
+                    .withFileFromPath("Dockerfile",Path.of("../deploy/terminal-agent/Dockerfile"))
+                    .withFileFromPath("compute.py",Path.of("../deploy/terminal-agent/compute.py"))
+                    .withFileFromPath("agent.py",Path.of("../deploy/terminal-agent/agent.py")).get();
+            String centerHost=storage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000";
+            String edgeHost=edgeStorage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000";
+            agent=new GenericContainer<>(agentImage).withNetwork(network).withNetworkAliases("off02-agent")
+                    .withCreateContainerCmdModifier(cmd->cmd.getHostConfig().withBinds(bind))
+                    .withCopyToContainer(Transferable.of(raw),"/data/"+fileId)
+                    .withCopyToContainer(Transferable.of(json.write(Map.of("token","isolated-agent-token","dockerHost","tcp://off02-engine:2375",
+                            "registryHosts",List.of("target:5000"),"registryAuth",Map.of("target:5000",Map.of("username","test","password",password)),
+                            "storageHosts",List.of(centerHost,edgeHost)))),"/run/secrets/agent.json");
+            agent.start();
+            String gatewayImage=new org.testcontainers.images.builder.ImageFromDockerfile("cea-gateway-test:"+UUID.randomUUID(),true)
+                    .withFileFromPath("Dockerfile",Path.of("../deploy/edge-gateway/Dockerfile"))
+                    .withFileFromPath("gateway.py",Path.of("../deploy/edge-gateway/gateway.py"))
+                    .withFileFromPath("terminal.py",Path.of("../deploy/edge-gateway/terminal.py")).get();
+            var configuration=new LinkedHashMap<String,Object>();
+            configuration.putAll(Map.of("namespace","lab","clusterId","edge","bucket","edge-artifacts","backend","http://host.testcontainers.internal:"+port,
+                    "backendUser","gateway","backendPassword","test-api","storageEndpoint","http://"+edgeHost,
+                    "storageUser","s4-test-key","storagePassword","s4-test-secret"));
+            configuration.putAll(Map.of("terminals",Map.of("pc","isolated-terminal-token","other","other-token"),"events",List.of(),
+                    "computeEvents",List.of("off02-terminal","off02-edge","off02-cloud","off02-rule","off02-cancel","off02-failed","off02-takeover"),"controlToken","isolated-worker-token",
+                    "agents",Map.of("pc",Map.of("endpoint","http://off02-agent:8080","token","isolated-agent-token"))));
+            gatewayContainer=new GenericContainer<>(gatewayImage).withNetwork(network).withExposedPorts(8080)
+                    .withCopyToContainer(Transferable.of(json.write(configuration)),"/run/secrets/gateway.json")
+                    .waitingFor(org.testcontainers.containers.wait.strategy.Wait.forHttp("/health"));
+            gatewayContainer.start();String gatewayUrl="http://127.0.0.1:"+gatewayContainer.getMappedPort(8080);
+            var args=new ArrayList<>(applicationArguments);args.removeIf(a->a.startsWith("--server.port=") || a.startsWith("--platform.jobs.terminals.lab.pc.")
+                    || a.startsWith("--platform.jobs.storage.lab.outputs.edge=") || a.startsWith("--platform.jobs.central-clouds.lab="));
+            args.addAll(List.of("--server.port="+port,"--platform.jobs.terminals.lab.pc.gateway.endpoint="+gatewayUrl,
+                    "--platform.jobs.terminals.lab.pc.gateway.token-file="+control,"--platform.jobs.central-clouds.lab=off02-cloud",
+                    "--platform.kubernetes.connections.lab.off02-cloud.kubeconfig="+kubeconfig,
+                    "--platform.kubernetes.connections.lab.off02-cloud.context=default","--platform.kubernetes.connections.lab.off02-cloud.namespace=s4-test",
+                    "--platform.distribution.targets.lab.off02-cloud=target","--platform.jobs.slots.lab.off02-cloud=1",
+                    "--platform.jobs.helpers.lab.off02-cloud="+context.getEnvironment().getProperty("platform.jobs.helpers.lab.edge"),
+                    "--platform.jobs.storage.lab.outputs.edge=edge","--platform.jobs.storage.lab.outputs.off02-cloud=center"));
+            context.close();context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
+            resources().putCluster(actor,"lab","off02-cloud",new Cluster("off02-cloud",Kind.CLOUD,true));
+            edge().putTerminal(actor,"lab","other",new TerminalRegistration("gateway",true));
+            String code="import json,pathlib; x=list(map(float,pathlib.Path('/cea-work/in/data').read_text().split())); pathlib.Path('/cea-work/out/result.json').write_text(json.dumps({'count':len(x),'mean':sum(x)/len(x)}))";
+            var evidence=new ArrayList<Object>();
+            for(String action:List.of("TERMINAL","EDGE","CLOUD","RULE")) {
+                String event="off02-"+action.toLowerCase();saveOff02Policy(event,action,code);
+                var request=Map.of("requestId",UUID.randomUUID().toString(),"eventType",event,"file",file);
+                var accepted=gatewayRequest(gatewayUrl,"POST","/v1/compute",request,"isolated-terminal-token",202);
+                String id=accepted.get("executionId").toString();
+                assertEquals(id,gatewayRequest(gatewayUrl,"POST","/v1/compute",request,"isolated-terminal-token",202).get("executionId"));
+                String key="lab/ingress/pc/offload/"+id+"/"+fileId+"/data";
+                try(var s3=edgeS3()){assertFalse(s3.listObjects(io.minio.ListObjectsArgs.builder().bucket("edge-artifacts").prefix(key).build()).iterator().hasNext());}
+                drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+                var run=executions().tasks(actor,"lab",id).getFirst();String name="cea-"+run.id()+"-a1";
+                boolean local=action.equals("TERMINAL") || action.equals("RULE");
+                try(var s3=edgeS3()) {
+                    if(local)assertFalse(s3.listObjects(io.minio.ListObjectsArgs.builder().bucket("edge-artifacts").prefix(key).build()).iterator().hasNext(),"local raw file must not exist in S3");
+                    else try(var object=s3.getObject(io.minio.GetObjectArgs.builder().bucket("edge-artifacts").object(key).build())) {assertArrayEquals(raw,object.readAllBytes());}
+                }
+                var result=gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"isolated-terminal-token",200);
+                var values=(Map<?,?>)result.get("result");assertEquals(512,((Number)values.get("count")).intValue());assertEquals(2.5,((Number)values.get("mean")).doubleValue());
+                gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"other-token",404);
+                var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
+                assertEquals(local?"TERMINAL":action,sample.target().kind());assertEquals(raw.length,sample.inputBytes());
+                assertTrue(run.outputs().get("result.json").toString().startsWith(action.equals("CLOUD")?"s3://artifacts/":"s3://edge-artifacts/"));
+                if(local)assertEquals(0,engine.execInContainer("docker","inspect",name).getExitCode());
+                evidence.add(Map.of("action",action,"execution",id,"rawUploaded",!local,"result",values,"target",sample.target()));
+            }
+            saveOff02Policy("off02-failed","TERMINAL","raise SystemExit(7)");
+            String failed=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType","off02-failed","file",file),"isolated-terminal-token",202).get("executionId").toString();
+            drive(failed);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",failed).state());
+            var failedRun=executions().tasks(actor,"lab",failed).getFirst();
+            assertEquals(2,executions().attempts(actor,"lab",failed,failedRun.id()).size(),"retry must be a new original-runtime Attempt, not an agent retry");
+            saveOff02Policy("off02-takeover","TERMINAL","import pathlib,time; p=pathlib.Path('/cea-work/out/once'); p.write_text(p.read_text()+'x' if p.exists() else 'x'); time.sleep(5); pathlib.Path('/cea-work/out/result.json').write_text('{\"ok\":true}')");
+            String takeover=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType","off02-takeover","file",file),"isolated-terminal-token",202).get("executionId").toString();
+            awaitDispatch(takeover);String takeoverName=remoteName(takeover);
+            var localWorker=new WorkerEngine(context.getBean(JdbcWorkerStore.class),new com.project.platform.runtime.definition.TemplateRenderer(),1000,context.getBean(TaskRunner.class));
+            try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+                var work=pool.submit(localWorker::runOnce);
+                await().atMost(Duration.ofSeconds(40)).until(()->engine.execInContainer("docker","exec",takeoverName,"test","-f","/cea-work/out/once").getExitCode()==0);
+                String uid=engine.execInContainer("docker","inspect","--format","{{.Id}}",takeoverName).getStdout().trim();
+                localWorker.close();work.get(10,TimeUnit.SECONDS);
+                var run=executions().tasks(actor,"lab",takeover).getFirst();
+                context.getBean(JdbcTemplate.class).update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",run.id());
+                drive(takeover);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",takeover).state());
+                assertEquals(uid,engine.execInContainer("docker","inspect","--format","{{.Id}}",takeoverName).getStdout().trim());
+                assertEquals("x",agent.execInContainer("cat","/terminal-work/"+takeoverName+"/out/once").getStdout());
+                assertEquals(1,executions().attempts(actor,"lab",takeover,run.id()).size());
+            } finally {localWorker.close();}
+            saveOff02Policy("off02-cancel","TERMINAL","import time; time.sleep(60)");
+            String cancelled=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType","off02-cancel","file",file),"isolated-terminal-token",202).get("executionId").toString();
+            awaitDispatch(cancelled);
+            try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+                var running=pool.submit(()->context.getBean(WorkerEngine.class).runOnce());
+                String name=remoteName(cancelled);
+                await().atMost(Duration.ofSeconds(40)).until(()->engine.execInContainer("docker","inspect","--format","{{.State.Status}}",name).getStdout().trim().equals("running"));
+                executions().cancel(actor,"lab",cancelled);context.getBean(FlowExecutor.class).processNext();running.get(20,TimeUnit.SECONDS);drive(cancelled);
+                assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",cancelled).state());
+                assertEquals("exited",engine.execInContainer("docker","inspect","--format","{{.State.Status}}",name).getStdout().trim());
+            }
+            Path evidencePath=Path.of("target","off02-evidence.json");Files.writeString(evidencePath,json.write(evidence));
+        } finally {
+            context.close();context=new SpringApplicationBuilder(BackendApplication.class).run(applicationArguments.toArray(String[]::new));
+            if(gatewayContainer!=null)gatewayContainer.stop();if(agent!=null)agent.stop();engine.stop();
+            dockerClient.removeVolumeCmd(volume).exec();Files.deleteIfExists(control);
+        }
+    }
+    private Map<?,?> gatewayRequest(String base,String method,String path,Object body,String token,int status) throws Exception {
+        var request=HttpRequest.newBuilder(URI.create(base+path)).header("Authorization","Bearer "+token).header("Content-Type","application/json")
+                .method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(json.write(body))).build();
+        var reply=http.send(request,HttpResponse.BodyHandlers.ofString());assertEquals(status,reply.statusCode(),reply.body());return json.read(reply.body(),Map.class);
+    }
+    private void saveOff02Policy(String id,String action,String code) {
+        var offload=action.equals("RULE")?Map.of("strategy","RULE"):Map.of("strategy","FIXED","layer",action);
+        var container=Map.of("applicationId","python","version","v1","execution","TERMINAL","offload",offload,
+                "command",List.of("python","-c",code),"inputFiles",Map.of("data",Map.of("source","INPUT","name","data_file")),"outputFiles",List.of("result.json"));
+        var task=new LinkedHashMap<String,Object>(Map.of("id","process","type","platform.Application","timeout","PT90S","container",container));
+        if(id.equals("off02-failed"))task.put("retry",Map.of("type","constant","maxAttempts",2,"interval","PT0.1S"));
+        var flow=Map.of("schemaVersion",1,"namespace","lab","id",id,"inputs",Map.of("data_file",Map.of("type","OBJECT","required",true)),
+                "tasks",List.of(task),
+                "outputs",Map.of("terminal_result",Map.of("source","TASK_OUTPUT","taskId","process","port","result.json")));
+        edge().putPolicy(actor,"lab",id,new PolicyRequest("edge",id,true,0,json.write(flow)));
+    }
     @Test void terminalQueueCancellationNeverStartsContainerOrLeaksSlot() throws Exception {
         var slots=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);String blocker="wait"+UUID.randomUUID();
         assertTrue(slots.reserveTerminal(actor,"lab",blocker,"edge","pc",1));

@@ -24,11 +24,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Configuration
 @EnableConfigurationProperties(JobConfiguration.Settings.class)
 public class JobConfiguration {
-    public record TerminalConnection(String dockerContext,Integer slots) {
+    public record TerminalConnection(String dockerContext,Integer slots,com.project.platform.dataflow.execution.TerminalGatewayClient.Connection gateway) {
         public TerminalConnection {
             slots=slots==null?1:slots;
-            if(dockerContext==null || !dockerContext.matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}") || slots<1 || slots>100)
-                throw new IllegalArgumentException("terminal Docker context and slots 1..100 required");
+            if((dockerContext==null)==(gateway==null) || dockerContext!=null && !dockerContext.matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}") || slots<1 || slots>100)
+                throw new IllegalArgumentException("exactly one terminal Docker context or gateway connection and slots 1..100 required");
         }
     }
     @ConfigurationProperties("platform.jobs")
@@ -58,8 +58,8 @@ public class JobConfiguration {
             var execution=(Map<?,?>)job.context().get("execution");String namespace=(String)execution.get("namespace");
             var origin=edge.executionOrigin(identities.actor((String)execution.get("submittedBy")),namespace,job.executionId());
             var connection=settings.terminals().getOrDefault(namespace,Map.of()).get(origin.terminalId());
-            if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no Docker context configured for request origin");
-            return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots());
+            if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no terminal connection configured for request origin");
+            return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots(),connection.gateway());
         },offloading,json,bindings,namespaceFiles,settings.helpers());
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
         return context->context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
