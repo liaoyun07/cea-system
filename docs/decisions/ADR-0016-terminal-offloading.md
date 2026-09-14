@@ -1,5 +1,7 @@
 # ADR-0016：终端卸载资格、单次放置决策与真实反馈
 
+2026-09-14 后续变更：选层/Placement 分离见 [ADR-0025](ADR-0025-offloading-layer-placement.md)。offload.candidateClusters 和代表位置评分已撤销，新 DQN 执行暂停；本文件保留原阶段决策，不作为当前协议。
+
 后续修正：S5-04c依据[ADR-0017](ADR-0017-offloading-decoupling.md)停止普通任务观测，资源回收不依赖offloading。下文保留04b原设计决策记录，不应将“全部Application贡献画像”作为当前行为。卸载算法/完整职责拆分后置，原研究能力限制仍有效。
 
 状态：已实施并通过最小闭环验收，见[VER-S5-006](../verification/VER-S5-006-terminal-offloading.md)。用户授权继续S5-04剩余部分；基线fd4e768。仅新backend，不进入S5-05或修改旧服务。当前单步Q简化不代表长期DQN已完成。

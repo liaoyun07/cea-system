@@ -20,7 +20,7 @@ UI-02提供Kestra方向的任务块/配置面板、同源YAML并排编辑、显�
 
 S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing.md)，本轮补充[Namespace Files、Webhook/Checks、SLA和afterExecution](docs/contracts/s6-files-lifecycle.md)，212项Maven及12项Python完整回归通过，见[当前进度](docs/04-progress.md)。沿用唯一Flow和执行链；完整前端未实现，DQN研究与S5计量按用户决定后置。
 
-既有S5-04c最小解耦保持：普通CLUSTER和固定TERMINAL不再访问卸载观测，资源回收依据实际预约；既有显式RULE/单步Q保留但研究扩展后置。S5-05先确认计量口径，当前尚无SDK。见[ADR-0017](docs/decisions/ADR-0017-offloading-decoupling.md)，验证进展见[进度](docs/04-progress.md)。
+OFF-01（2026-09-14）：按新四步计划开始拆分卸载选层与 Placement。普通CLUSTER和固定TERMINAL仍不访问卸载观测；显式RULE只选层，Resource决定所属边缘/系统中心云范围及具体位置。旧单步Q不用于新任务，Double DQN留到OFF-04；S5-05计量SDK继续后置。见[ADR-0025](docs/decisions/ADR-0025-offloading-layer-placement.md)，测试/发布状态见[当前进度](docs/04-progress.md)。以下S5旧批次结果为历史证据。
 
 独立重构工程，旧实现位于同级 `web-platform/`。S1–S4已完成最小验收；S5已有Repeat、Loop、FedAvg/FedProx、网关/终端后端接入、策略管理和Docker执行。S5-04b此前新增显式终端卸载、规则/单步Q网络、画像反馈和终端FIFO，真实三位置执行及训练闭环、188项Maven和12项Python完整回归均通过，见[最新验收](docs/verification/VER-S5-006-terminal-offloading.md)。S5整体仍进行中；计量SDK、网关代理部署、前端及旧数据切换未实现。真实MNIST/K3s/Docker测试为单机隔离环境，不是物理终端、SSH多机或性能验收；单步Q网络不是长期DQN性能结论。
 
@@ -28,7 +28,7 @@ S6后端阶段已完成：[编辑与流程管理](docs/contracts/s6-flow-editing
 
 - [现有系统与申报书功能审查表](docs/07-proposal-audit.md)：逐项覆盖结论、待补功能、指标验收及本期范围差异，作为申报书视角的进度入口。
 
-- [S5-04b终端卸载](docs/contracts/s5-terminal-offloading.md)：显式允许卸载、规则/单步Q模型、真实画像、容量FIFO及配置升级。
+- [终端卸载当前协议](docs/contracts/s5-terminal-offloading.md)：显式资格、RULE选层、Placement范围、容量FIFO及配置升级。
 - [S5-04a终端Docker执行](docs/contracts/s5-terminal-docker.md)：终端本地执行、可信来源、文件传递和失败/取消基础。
 
 - [S5-03网关/终端与策略](docs/contracts/s5-edge-access.md)：账号配置、管理API、事件触发和正常结果查询。需要管理员登记资源/网关/终端及显式策略Flow，不自动初始化业务模板。

@@ -41,15 +41,15 @@ S6包含同一Flow的结构Schema、源校验/输入预览、原子导入/导出
 | platform-deployment | 应用与契约版本、镜像仓库、分发策略及复制、常驻服务生命周期 | 不管理一次性 Flow Job 的业务状态 |
 | platform-resource | 集群能力、资源观测、数据集版本/位置、普通选址与资源预约 | 不定义终端卸载奖励和决策模型 |
 | platform-edge | 网关/终端接入、数据事件、边缘处理策略、结果交付 | 不持有第二套 Execution 状态 |
-| platform-offloading | 原始执行位置为终端且允许卸载的任务决策、画像与反馈 | 不等同于任意子任务选址；请求来自终端不是充分条件 |
+| platform-offloading | 原属终端且允许卸载的任务选层与决策观测 | 不选具体cluster；不处理普通任务画像；请求来自终端不是充分条件 |
 | platform-foundation | 身份权限及少量公共基础能力 | 不收容所有公共业务和 Repository |
 | platform-server | HTTP 协议适配、配置、模块与运行角色装配 | 不在 Controller 中编排或创建 Pod |
 
 ## 当前终端卸载增量
 
-S5-04c最小解耦：普通CLUSTER与固定TERMINAL不再读写卸载观测；资源回收依照Prepared/实际预约，脱离offloading表。既有显式RULE/单步Q保留但研究扩展后置；S5-05按独立计量推进，口径须先确认。见[ADR-0017](decisions/ADR-0017-offloading-decoupling.md)。
+OFF-01：普通CLUSTER与固定TERMINAL仍不读写卸载观测；资源回收依照Prepared/实际预约。显式RULE只决定层，JobPlacementService根据可信归属边缘或服务端central-clouds范围选具体cluster；卸载配置不再含candidateClusters。新DQN决策暂停到OFF-04，S5-05计量继续后置。见[ADR-0025](decisions/ADR-0025-offloading-layer-placement.md)，当前测试/发布状态见[进度](04-progress.md)。
 
-S5-04b只在`TERMINAL + offload`显式授权时调用卸载服务；普通CLUSTER保持原资源选址。ApplicationTaskRunner→OffloadingService冻结同Attempt决策→JobPlacementService准入→原Docker/Kubernetes Runner→记录真实反馈，Executor仍独占运行状态。terminal FIFO归resource，画像/单步Q权重归offloading，dataflow只调用两者公开服务。规则/模型均使用实际容量与观测，没有预装随机模型或静默回退。详见[协议](contracts/s5-terminal-offloading.md)及[验收](verification/VER-S5-006-terminal-offloading.md)。
+ApplicationTaskRunner→Resource汇总合法层负载→OffloadingService冻结同Attempt层决策→JobPlacementService选择/预约具体位置→原Docker/Kubernetes Runner→记录服务端观测，Executor仍独占运行状态。terminal FIFO归resource，决策观测及旧模型存档归offloading，dataflow只调用公开服务。现有服务端观测不是终端端到端反馈；新网关/终端请求链与六维MDP仍待OFF-02/03。详见[协议](contracts/s5-terminal-offloading.md)。
 
 ## 目标执行关系（未全部实现）
 

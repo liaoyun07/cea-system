@@ -60,6 +60,8 @@ platform:
           context: cea
           namespace: cea-lab
   jobs:
+    central-clouds:
+      lab: [cloud]
     slots:
       lab: {cloud: 2, edge-a: 1, edge-b: 1, edge-c: 1}
     storage:

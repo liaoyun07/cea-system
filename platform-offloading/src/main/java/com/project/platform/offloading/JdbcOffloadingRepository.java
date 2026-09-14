@@ -26,18 +26,10 @@ public final class JdbcOffloadingRepository {
     }
     public void started(String ns,String key,long inputBytes){jdbc.update("UPDATE off_task_observation SET started_at=CURRENT_TIMESTAMP(6),input_bytes=? WHERE namespace=? AND allocation_id=? AND started_at IS NULL AND finished_at IS NULL",inputBytes,ns,key);}
     public void finish(String ns,String key,String outcome){jdbc.update("UPDATE off_task_observation SET finished_at=CURRENT_TIMESTAMP(6),outcome=? WHERE namespace=? AND allocation_id=? AND finished_at IS NULL",outcome,ns,key);}
-    public Double estimate(String ns,Workload work,Target target) {
-        // Exact command/parameter identity, nearby actual input sizes, bounded recent successful observations.
-        return jdbc.queryForObject("""
-                SELECT AVG(duration_ms) FROM (
-                  SELECT TIMESTAMPDIFF(MICROSECOND,started_at,finished_at)/1000.0 duration_ms
-                  FROM off_task_observation WHERE namespace=? AND application_id=? AND application_version=?
-                  AND target_kind=? AND target_id=? AND workload_json=? AND input_bytes BETWEEN ? AND ?
-                  AND outcome='SUCCESS' AND started_at IS NOT NULL AND finished_at IS NOT NULL
-                  ORDER BY finished_at DESC LIMIT 100
-                ) samples
-                """,Double.class,ns,work.applicationId(),work.version(),target.kind(),target.id(),workload(work),work.inputBytes()/2,
-                work.inputBytes()>Long.MAX_VALUE/2?Long.MAX_VALUE:work.inputBytes()*2);
+    public void placed(String ns,String key,Target target) {
+        jdbc.update("UPDATE off_task_observation SET target_id=? WHERE namespace=? AND allocation_id=? AND target_kind=? AND target_id IS NULL AND finished_at IS NULL",target.id(),ns,key,target.kind());
+        var saved=get(ns,key);
+        if(saved==null || !saved.target().equals(target))throw WorkflowException.conflict("allocated position must match the frozen layer and position");
     }
     public List<Sample> list(String ns,int limit,int offset){return jdbc.query("SELECT * FROM off_task_observation WHERE namespace=? ORDER BY created_at,allocation_id LIMIT ? OFFSET ?",this::sample,ns,limit,offset);}
     public DqnModel model(String ns,String version) {

@@ -87,6 +87,7 @@ export const catalogs = {
   },
 };
 export const entryId = (row) => row.id || row.applicationId || row.datasetId || row.key;
+export const offloadingTarget = (target) => (target ? `${target.kind} / ${target.id ?? '未分配'}` : '—');
 export const enc = encodeURIComponent;
 export function itemPath(kind, value) {
   const base = catalogs[kind].path;

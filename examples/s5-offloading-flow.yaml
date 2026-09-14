@@ -1,7 +1,7 @@
 schemaVersion: 1
 namespace: lab
 id: terminal-offloading
-description: Explicitly allow a terminal task to move to registered edge or cloud targets. Submit through edge-access.
+description: Allow terminal layer selection; owner edge and central cloud scope are managed by the server. Submit through edge-access.
 inputs:
   message: {type: STRING, defaultValue: hello}
 tasks:
@@ -14,7 +14,6 @@ tasks:
       execution: TERMINAL
       offload:
         strategy: RULE
-        candidateClusters: [edge-a, cloud]
       parameters:
         GREETING: {source: INPUT, name: message}
       command: [sh, -c, 'printf "%s\n" "$GREETING" > /cea-work/out/result.txt']

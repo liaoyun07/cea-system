@@ -7,7 +7,14 @@ import {
   deploymentBody,
   newDraft,
   itemPath,
+  offloadingTarget,
 } from '../../src/management/catalogs.js';
+
+test('offloading target distinguishes a layer decision from an allocated location', () => {
+  assert.equal(offloadingTarget({ kind: 'CLOUD', id: null }), 'CLOUD / 未分配');
+  assert.equal(offloadingTarget({ kind: 'EDGE', id: 'edge-a' }), 'EDGE / edge-a');
+  assert.equal(offloadingTarget(null), '—');
+});
 
 test('application form roundtrip retains defaults, constraints and explicit dataset rules', () => {
   const app = {

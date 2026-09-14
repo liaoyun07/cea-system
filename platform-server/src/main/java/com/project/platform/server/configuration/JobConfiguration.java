@@ -34,15 +34,16 @@ public class JobConfiguration {
     @ConfigurationProperties("platform.jobs")
     public record Settings(Map<String,Map<String,Integer>> slots,Map<String,ObjectStorage.Configuration> storage,Map<String,Map<String,String>> helpers,
                            Map<String,Map<String,CommonTaskRunner.HttpConnection>> http,Map<String,Map<String,CommonTaskRunner.SqlConnection>> sql,
-                           Map<String,Map<String,TerminalConnection>> terminals) {
+                           Map<String,Map<String,TerminalConnection>> terminals,Map<String,java.util.List<String>> centralClouds) {
         public Settings {
             slots=slots==null?Map.of():slots;storage=storage==null?Map.of():storage;http=http==null?Map.of():http;sql=sql==null?Map.of():sql;
             terminals=terminals==null?Map.of():terminals;
             helpers=helpers==null?Map.of():helpers;
+            centralClouds=centralClouds==null?Map.of():centralClouds;
         }
     }
     @Bean JobPlacementService jobPlacementService(ResourceCatalogService resources,KubernetesConnections connections,JdbcTemplate jdbc,
-            TransactionTemplate transactions,Settings settings,AccessPolicy access) {return new JobPlacementService(resources,connections,jdbc,transactions,settings.slots(),access);}
+            TransactionTemplate transactions,Settings settings,AccessPolicy access) {return new JobPlacementService(resources,connections,jdbc,transactions,settings.slots(),settings.centralClouds(),access);}
     @Bean ObjectStorage objectStorage(Settings settings){return new ObjectStorage(settings.storage());}
     @Bean JdbcOffloadingRepository offloadingRepository(JdbcTemplate jdbc,JsonCodec json){return new JdbcOffloadingRepository(jdbc,json);}
     @Bean OffloadingService offloadingService(JdbcOffloadingRepository repository,AccessPolicy access){return new OffloadingService(repository,access);}

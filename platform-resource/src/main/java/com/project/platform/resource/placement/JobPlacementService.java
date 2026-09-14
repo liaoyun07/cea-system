@@ -18,12 +18,24 @@ public final class JobPlacementService {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final Map<String,Map<String,Integer>> slots;
+    private final Map<String,List<String>> centralClouds;
     private final AccessPolicy access;
     public JobPlacementService(ResourceCatalogService catalog,KubernetesConnections connections,JdbcTemplate jdbc,
-                               TransactionTemplate transactions,Map<String,Map<String,Integer>> slots,AccessPolicy access) {
+                               TransactionTemplate transactions,Map<String,Map<String,Integer>> slots,Map<String,List<String>> centralClouds,AccessPolicy access) {
         this.catalog=catalog;this.connections=connections;this.jdbc=jdbc;this.transactions=transactions;this.access=access;
         this.slots=slots.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,e->Map.copyOf(e.getValue())));
+        this.centralClouds=centralClouds.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,e->List.copyOf(e.getValue())));
+        for(var scope:this.centralClouds.values())if(scope.size()>100 || new HashSet<>(scope).size()!=scope.size() || scope.stream().anyMatch(id->id==null || id.isBlank()))
+            throw new IllegalArgumentException("central cloud scope must contain at most 100 distinct cluster IDs");
         for(var clusters:slots.values())for(int value:clusters.values())if(value<1 || value>100)throw new IllegalArgumentException("job slots must be 1..100");
+    }
+    /** Policy scope only: source-owned edge, or administrator-configured central cloud resources. */
+    public List<String> layerScope(Actor actor,String namespace,Kind kind,String ownerEdge) {
+        access.require(actor,namespace,Action.EXECUTE);
+        List<String> scope=kind==Kind.EDGE?List.of(ownerEdge):centralClouds.getOrDefault(namespace,List.of());
+        for(String id:scope)if(catalog.cluster(actor,namespace,id).kind()!=kind)
+            throw ResourceException.invalid("layer scope contains a cluster of the wrong kind");
+        return scope;
     }
     public Allocation get(String namespace,String key) {
         var values=jdbc.query("SELECT cluster_id,released FROM res_job_reservation WHERE namespace=? AND allocation_id=?",(rs,n)->new Allocation(rs.getString(1),rs.getBoolean(2)),namespace,key);

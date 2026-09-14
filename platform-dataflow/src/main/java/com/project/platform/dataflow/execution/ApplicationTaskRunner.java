@@ -146,19 +146,36 @@ public final class ApplicationTaskRunner implements TaskRunner {
                     var candidates=new ArrayList<Candidate>();
                     if(resources.placementOptions(actor,namespace,new PlacementRequest(List.of(origin.clusterId()),requirements)).getFirst().eligible() && docker.available(context,origin.dockerContext())) {
                         var load=placement.terminalLoad(actor,namespace,origin.clusterId(),origin.terminalId(),origin.slots());
-                        candidates.add(new Candidate(new Target("TERMINAL",origin.terminalId()),load.capacity(),load.active(),load.waiting()));
+                        candidates.add(new Candidate(Layer.TERMINAL,load.capacity(),load.active(),load.waiting()));
                     }
-                    var request=new PlacementRequest(FlowValidator.candidateClusters(bindings.resolve(c.offload().candidateClusters(),context.job().context())),requirements);
-                    for(var load:placement.loads(actor,namespace,request))candidates.add(new Candidate(new Target(load.kind().name(),load.clusterId()),load.capacity(),load.active(),load.waiting()));
+                    for(var kind:Kind.values()) {
+                        var scope=placement.layerScope(actor,namespace,kind,origin.clusterId());
+                        if(scope.isEmpty())continue;
+                        var loads=placement.loads(actor,namespace,new PlacementRequest(scope,requirements));
+                        if(!loads.isEmpty())candidates.add(new Candidate(Layer.valueOf(kind.name()),
+                                loads.stream().mapToInt(JobPlacementService.Load::capacity).sum(),
+                                loads.stream().mapToInt(JobPlacementService.Load::active).sum(),
+                                loads.stream().mapToInt(JobPlacementService.Load::waiting).sum()));
+                    }
                     context.check();sample=offloading.decide(actor,namespace,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion());
                 }
-                local="TERMINAL".equals(sample.target().kind());cluster=local?origin.clusterId():sample.target().id();
+                local="TERMINAL".equals(sample.target().kind());
+                if(local)cluster=origin.clusterId();
+                else {
+                    var scope=placement.layerScope(actor,namespace,Kind.valueOf(sample.target().kind()),origin.clusterId());
+                    if(scope.isEmpty())throw ResourceException.invalid("selected layer is no longer configured");
+                    if(!reserve(context,actor,namespace,key,new PlacementRequest(scope,requirements)))return null;
+                    cluster=placement.get(namespace,key).clusterId();
+                }
             }
             if(local) {
                 while(!placement.reserveTerminal(actor,namespace,key,cluster,origin.terminalId(),origin.slots())) {
                     if(context.cancellation()!=null)return null;Thread.sleep(200);
                 }
-            } else if(!reserve(context,actor,namespace,key,new PlacementRequest(List.of(cluster),requirements)))return null;
+            }
+            if(c.offload()!=null) {
+                context.check();offloading.placed(actor,namespace,key,new Target(local?"TERMINAL":resources.cluster(actor,namespace,cluster).kind().name(),local?origin.terminalId():cluster));
+            }
         } else {
             var request=new PlacementRequest(FlowValidator.candidateClusters(bindings.resolve(c.candidateClusters(),context.job().context())),requirements);
             if(!reserve(context,actor,namespace,key,request))return null;

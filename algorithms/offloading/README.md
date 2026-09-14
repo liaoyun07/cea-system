@@ -1,5 +1,7 @@
 # 终端卸载单步 Q 网络
 
+历史研究工具（2026-09-14）：以下流程属于 S5-04b，不是当前部署指南。OFF-01 已暂停新 DQN 执行，删除 offload.candidateClusters；新 RULE 记录不产生旧 13 维 state，不能送入本训练器。旧模型/样本保留，OFF-04 将统一替换为真实 Double DQN，见[当前协议](../../docs/contracts/s5-terminal-offloading.md)。
+
 仅针对Flow显式允许卸载的TERMINAL任务，优化一次任务从决策到完成的耗时。每次决策是一个结束episode；训练目标为实际reward，不伪造next_state或未执行动作的回报。这是DQN方向的单步有意简化（contextual bandit），不是多步长期拥塞优化或已证明优于规则的策略。
 
 流程：先用RULE执行真实任务，分页导出同一namespace的样本，训练并注册不可覆盖模型版本，再将Flow改为DQN并显式指定版本。没有后台自动训练或生产随机模型。

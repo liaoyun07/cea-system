@@ -5647,30 +5647,13 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "strategy",
-          "candidateClusters"
+          "strategy"
         ],
         "properties": {
           "strategy": {
             "type": "string",
             "enum": [
-              "RULE",
-              "DQN"
-            ]
-          },
-          "candidateClusters": {
-            "oneOf": [
-              {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "items": {
-                  "type": "string"
-                }
-              },
-              {
-                "$ref": "#/components/schemas/Binding"
-              }
+              "RULE"
             ]
           },
           "modelVersion": {
@@ -5680,7 +5663,7 @@
             ]
           }
         },
-        "description": "Only execution=TERMINAL. Presence explicitly allows offloading. DQN requires modelVersion; RULE forbids it. Reuses existing Binding scope."
+        "description": "Only execution=TERMINAL. RULE selects a layer; Resource owns the origin edge and server-configured central cloud scope. candidateClusters is forbidden. DQN execution is paused pending Double DQN integration; modelVersion must be absent."
       },
       "DqnModel": {
         "type": "object",
@@ -5758,7 +5741,8 @@
             ]
           },
           "id": {
-            "type": "string"
+            "type": ["string", "null"],
+            "description": "Actual terminal/cluster after Resource allocation; null while only the layer is decided. Never used to choose a cluster."
           }
         }
       },

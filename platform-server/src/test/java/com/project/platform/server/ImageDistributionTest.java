@@ -1080,7 +1080,7 @@ class ImageDistributionTest {
             return new String(input.readAllBytes(),StandardCharsets.UTF_8);
         }
     }
-    @Test void offloadingRealThreeTargetsTrainRegisterAndExecuteDqn() throws Exception {
+    @Test void offloadingSelectsLayerAndPlacementChoosesFreeCloudWithinServerScope() throws Exception {
         prepareFederation();
         var decisions=context.getBean(OffloadingService.class);var slots=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);
         var samples=new ArrayList<OffloadingService.Sample>();
@@ -1089,36 +1089,26 @@ class ImageDistributionTest {
             String blocker="block"+UUID.randomUUID();
             try {
                 if(!target.equals("TERMINAL"))assertTrue(slots.reserveTerminal(actor,"lab",blocker,"edge","pc",1));
-                String candidate=target.equals("CLOUD")?"cloud":"edge";
-                String source=sleeper("PT90S",command).replace("candidateClusters: [edge]","execution: TERMINAL\n      offload: {strategy: RULE, candidateClusters: ["+candidate+"]}")
+                if(target.equals("CLOUD")) {
+                    assertNotNull(slots.reserve(actor,"lab",blocker+"-edge",new PlacementRequest(List.of("edge"),List.of())));
+                    assertNotNull(slots.reserve(actor,"lab",blocker+"-cloud",new PlacementRequest(List.of("cloud"),List.of())));
+                }
+                String source=sleeper("PT90S",command).replace("candidateClusters: [edge]","execution: TERMINAL\n      offload: {strategy: RULE}")
                         .replace("      command:","      outputFiles: [placement.txt]\n      command:");
                 String id=terminalSubmit(source);drive(id);var execution=executions().get(actor,"lab",id);
                 assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
                 var run=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("remote")).findFirst().orElseThrow();
                 var sample=decisions.get("lab",run.id()+"-1");samples.add(sample);
                 assertEquals(target,sample.target().kind());assertNotNull(sample.reward());
+                assertEquals(switch(target){case "TERMINAL"->"pc";case "EDGE"->"edge";default->"cloud-alt";},sample.target().id());
+                assertNull(sample.state());assertNull(sample.modelVersion());
                 assertEquals("offload",artifact(run.outputs().get("placement.txt").toString()));
-                assertNotNull(decisions.estimate(actor,"lab",new OffloadingService.Workload("service","v1",List.of("sh","-c",command),Map.of("GREETING","hello"),0),sample.target()));
-            } finally {slots.releaseTerminal("lab",blocker,"edge","pc");}
+                var allocation=slots.get("lab",run.id()+"-1");
+                if(!target.equals("TERMINAL")){assertEquals(sample.target().id(),allocation.clusterId());assertTrue(allocation.released());}
+            } finally {slots.releaseTerminal("lab",blocker,"edge","pc");slots.release("lab",blocker+"-edge");slots.release("lab",blocker+"-cloud");}
         }
-        federation.copyFileToContainer(MountableFile.forHostPath(Path.of("..","algorithms","offloading","train.py")),"/tmp/offloading/train.py");
-        federation.copyFileToContainer(MountableFile.forHostPath(Path.of("..","algorithms","offloading","test_training.py")),"/tmp/offloading/test_training.py");
-        var unit=federation.execInContainer("python","/tmp/offloading/test_training.py");assertEquals(0,unit.getExitCode(),unit.getStderr());
-        federation.copyFileToContainer(Transferable.of(json.write(samples)),"/tmp/offloading/samples.json");
-        var trained=federation.execInContainer("python","/tmp/offloading/train.py","/tmp/offloading/samples.json","/tmp/offloading/model.json","--updates","300");
-        assertEquals(0,trained.getExitCode(),trained.getStderr());
-        var model=federation.copyFileFromContainer("/tmp/offloading/model.json",input->json.read(new String(input.readAllBytes(),StandardCharsets.UTF_8),DqnModel.class));
-        String version="trained-"+UUID.randomUUID();decisions.register(actor,"lab",version,model);
-        var reference=federation.execInContainer("python","-c","import json,torch; m=json.load(open('/tmp/offloading/model.json')); s=json.load(open('/tmp/offloading/samples.json'))[0]['state']; t=lambda x:torch.tensor(x,dtype=torch.float64); print(json.dumps((t(m['weights2'])@torch.relu(t(m['weights1'])@t(s)+t(m['bias1']))+t(m['bias2'])).tolist()))");
-        assertEquals(0,reference.getExitCode(),reference.getStderr());assertArrayEquals(json.read(reference.getStdout(),double[].class),model.predict(samples.getFirst().state()),1e-9);
-        String source=sleeper("PT90S",command).replace("candidateClusters: [edge]","execution: TERMINAL\n      offload: {strategy: DQN, modelVersion: "+version+", candidateClusters: [edge, cloud]}")
-                .replace("      command:","      outputFiles: [placement.txt]\n      command:");
-        String id=terminalSubmit(source);drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
-        var run=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("remote")).findFirst().orElseThrow();
-        var decision=decisions.get("lab",run.id()+"-1");assertEquals(version,decision.modelVersion());assertEquals(model.choose(decision.state()),decision.action());
         Path evidence=Path.of("target","offloading-evidence");Files.createDirectories(evidence);
-        Files.writeString(evidence.resolve("training.txt"),trained.getStdout());Files.writeString(evidence.resolve("unit-tests.txt"),unit.getStdout()+unit.getStderr());
-        Files.writeString(evidence.resolve("samples.json"),json.write(samples));Files.writeString(evidence.resolve("decision.json"),json.write(decision));
+        Files.writeString(evidence.resolve("layer-placement-samples.json"),json.write(samples));
     }
     @Test void terminalQueueCancellationNeverStartsContainerOrLeaksSlot() throws Exception {
         var slots=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);String blocker="wait"+UUID.randomUUID();
@@ -1373,19 +1363,20 @@ class ImageDistributionTest {
         // Four catalog locations, one isolated K3s: tests locality/parallel Jobs, not physical multi-cloud.
         var args=new ArrayList<>(applicationArguments);
         args.remove("--platform.distribution.timeout=PT30S");args.add("--platform.distribution.timeout=PT3M");
-        for(String cluster:List.of("cloud","edge-a","edge-b","edge-c")) {
+        args.add("--platform.jobs.central-clouds.lab=cloud,cloud-alt");
+        for(String cluster:List.of("cloud","cloud-alt","edge-a","edge-b","edge-c")) {
             args.add("--platform.distribution.targets.lab."+cluster+"=target");
             args.add("--platform.kubernetes.connections.lab."+cluster+".kubeconfig="+kubeconfig);
             args.add("--platform.kubernetes.connections.lab."+cluster+".context=default");
             args.add("--platform.kubernetes.connections.lab."+cluster+".namespace=s4-test");
             args.add("--platform.jobs.slots.lab."+cluster+"=1");
-            args.add("--platform.jobs.storage.lab.outputs."+cluster+"="+(cluster.equals("cloud")?"center":"edge"));
+            args.add("--platform.jobs.storage.lab.outputs."+cluster+"="+(cluster.startsWith("cloud")?"center":"edge"));
             args.add("--platform.jobs.helpers.lab."+cluster+"="+context.getEnvironment().getProperty("platform.jobs.helpers.lab.edge"));
         }
         context.close();applicationArguments=List.copyOf(args);
         context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
-        for(String cluster:List.of("cloud","edge-a","edge-b","edge-c"))
-            resources().putCluster(actor,"lab",cluster,new Cluster(cluster,cluster.equals("cloud")?Kind.CLOUD:Kind.EDGE,true));
+        for(String cluster:List.of("cloud","cloud-alt","edge-a","edge-b","edge-c"))
+            resources().putCluster(actor,"lab",cluster,new Cluster(cluster,cluster.startsWith("cloud")?Kind.CLOUD:Kind.EDGE,true));
         var registration=new ProcessBuilder("powershell","-NoProfile","-ExecutionPolicy","Bypass","-File",
                 Path.of("..","scripts","register-federated.ps1").toString(),"-Image","source:5000/federated:v1",
                 "-BaseUrl","http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port"));

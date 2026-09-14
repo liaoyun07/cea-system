@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+OFF-01 升级：`application.yaml` 的 `platform.jobs.central-clouds.lab: [cloud]` 只限定终端卸载的云层范围，不改变普通 Flow 候选。EDGE 由可信终端归属限定。V25 仅允许卸载观测的 target_id 在预约前为空；新 DQN 执行暂停至 OFF-04。发布前须确认无活动执行/WorkerJob，并检查保存修订和执行快照没有旧 offload.candidateClusters（若有则停止发布，不能悄悄改历史）。备份数据库/配置与旧镜像后，仅更新 backend/frontend 并刷新 nginx；不重启存储、Registry、网关或算法集群。详细边界见[当前卸载协议](../../docs/contracts/s5-terminal-offloading.md)。
+
 FILE-01已于2026-09-13发布并现场验收（见[记录](../../docs/verification/VER-FILE-001-pod-artifacts.md)）：新增 minio-edge-a/b/c 三个服务和独立卷（共16个常驻服务），不新增宿主端口；四集群使用公共文件助手，原算法镜像不变。中心保留 datasets/历史 cea-artifacts，新的边缘 Job 输出写到对应 cea-artifacts-edge-*；不是数据集迁移。新增三个存储的内存上限各512MiB，实际磁盘随产物增长，暂不自动GC。
 
 旧版本现场升级须先获授权、检查无活动Execution/WorkerJob、保存恢复镜像/配置/Role并停止backend（防止旧Runner在pods/exec撤销后继续接任务），再应用新storage配置并执行`setup-files.ps1`；发布测试后的backend镜像，仅`up -d --no-deps --wait backend`，最后`exec -T frontend nginx -s reload`。本次已完成，不必重复初始化。setup-files只增加边缘存储、Bucket权限、助手Registry副本及Secret RBAC，并生成ignored的`secrets/backend/storage-endpoints.yaml`（Pod可达内网IP和助手digest）；它不重启原服务、不提交Flow、不迁移数据。存储容器重建/IP改变后应重新生成并更新backend；新安装的start已调用该步骤。禁用CoreDNS的本地设置不能直接照搬到物理多云。

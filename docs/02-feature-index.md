@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+OFF-01（OFF-001/002 增量，DONE/PASS，已发布）：层决策与资源 Placement 分离，删除卸载候选 Binding；旧单步 Q 暂不用于新任务。242项Maven、51项Node、58项浏览器、实际CEA API/页面与保留数据检查通过，见[验证](verification/VER-OFF-001-layer-placement.md)。OFF-02～04 未完成，不能把历史单步 Q 或本批 RULE 的 PASS 计作 Double DQN 验收。
+
 申报书逐项覆盖及待补进度见[审查表](07-proposal-audit.md)（DOC-02，2026-09-14）。本索引继续汇总实现/验证状态；审查表只判断这些已实现范围与原文要求的差距，不新增领域功能编号，也不把MET-001或完整DQN标为完成。
 
 EP-02（S5-03增量，DONE/PASS，已发布）：边缘处理记录、策略/状态服务端筛选分页、原执行详情与结果；240项Maven、50项Node、最终57项浏览器及实际CEA三记录/三结果JSON验收通过。没有第二套状态/表；原数据及其余15服务保持。见[规格](features/EP-02-processing-records.md)、[API](contracts/ep02-processing-records.md)、[实际验收](verification/VER-EP-002-processing-records.md)。
@@ -80,8 +82,8 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | RUN-001 | Kubernetes Job、终端Docker与产物发布 | S4/S5 | workflow-runtime | IMPLEMENTED | PASS |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | IMPLEMENTED | PASS |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
-| OFF-001 | 终端卸载资格、规则/单步Q决策 | S5 | platform-offloading | IMPLEMENTED | PASS |
-| OFF-002 | 显式卸载任务画像、模型版本与反馈 | S5 | platform-offloading | IMPLEMENTED | PASS |
+| OFF-001 | 终端卸载资格、选层与Placement拆分；Double DQN待做 | S5 | platform-offloading | IN_PROGRESS | OFF-01 PASS；DQN待验收 |
+| OFF-002 | 服务端观测/模型存档；端到端反馈与MDP待做 | S5 | platform-offloading | IN_PROGRESS | 服务端观测PASS；端到端待验收 |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | SEC-001 | 身份、命名空间权限、两角色人员/个人中心与内部通信认证 | S1/S4/UI-10 | platform-foundation/platform-server | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |

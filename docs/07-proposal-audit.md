@@ -69,12 +69,12 @@
 
 ### C. 智能终端任务卸载
 
-来源S3。主责为platform-offloading，resource拥有具体资源与容量，runtime拥有实际执行。映射OFF-001/002、RUN-001。用户已同意DQN研究后置，以下不自动恢复实施。
+来源S3。主责为platform-offloading，resource拥有具体资源与容量，runtime拥有实际执行。映射OFF-001/002、RUN-001。2026-09-14用户授权按OFF-01～04恢复实施：先拆选层/Placement，再终端网关三路径、真实状态反馈，最后Double DQN比较。具体状态以[进度](04-progress.md)为准。
 
 | 审查项 | 申报书要求 | 覆盖结论 | 当前实际能力与验证 | 还需补什么／处理建议 |
 |---|---|---|---|---|
 | C01 | 原属终端的任务可在终端、边缘或云执行 | 完备（当前范围） | 显式TERMINAL及offload资格、可信来源、Docker/Kubernetes执行、真实三位置隔离验收已有；不是当前CEA三种数据去向的同义词。[卸载验收](verification/VER-S5-006-terminal-offloading.md) | 保留资格与执行基础；不能把普通CLUSTER选址称为终端卸载，物理现场另验收 |
-| C02 | 基于DQN的状态、动作、奖励学习卸载决策 | 部分覆盖；研究后置 | 有13维状态、三层动作、观测、模型版本和实际reward拟合；当前是单步Q/contextual bandit，不是完整多步DQN。[实际模型语义](contracts/s5-terminal-offloading.md) | 恢复研究前明确MDP、next_state、Bellman目标、replay和target network及真实样本；同时完成选层与具体Placement边界审查，不加无来源状态 |
+| C02 | 基于DQN的状态、动作、奖励学习卸载决策 | 实施中；完整DQN未完成 | OFF-01拆分选层/Placement，新DQN决策暂停；旧13维模型仅保留存档，不冒充Double DQN。[实际语义](contracts/s5-terminal-offloading.md) | OFF-03补真实状态/next_state和端到端反馈，OFF-04接Bellman目标、replay/target network及五基线比较；未验收前不标达标 |
 | C03 | 联合考虑时延、能耗、成本和服务质量权重 | 未实现；研究后置 | 当前reward主要是实际完成时延及失败惩罚；没有能耗计量、费用模型和QoS权重优化。[reward定义](contracts/s5-terminal-offloading.md) | 能耗须有测量或明确验证过的模型，不能拿CPU百分比代替；未确定数据来源前不加字段 |
 | C04 | 多核任务顺序、传输功率与执行调度优化 | 未实现；范围待确认 | 有并发Job槽和终端FIFO，没有按核调度、传输功率控制或原文遗传算法优化。容器并发不等于该研究模型。[终端容量语义](contracts/s5-terminal-offloading.md) | 与ARM硬件裁剪分开决定；保留原文差异，不把“ARM不做”自动解释成所有多核研究都已豁免 |
 

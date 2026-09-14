@@ -1,5 +1,7 @@
 # 当前进度
 
+OFF-01（2026-09-14，DONE/PASS，已发布）：卸载只选层，Resource/Placement 选具体位置。删除 offload.candidateClusters、代表集群评分和旧画像 estimate 查询；增加管理员 central-clouds 范围，EDGE 取可信终端归属；V25 仅允许预约前 target_id 为空。新 DQN 决策暂停至 OFF-04。15:45:56 完整242项Maven、51项Node/构建/格式、58项浏览器PASS；真实RULE三层与第二云集群Placement通过。15:50:54仅发布前后端，15:51～52实际18080健康/校验/编辑schema/浏览器及历史复核PASS；11份修订、10执行、132任务实例、104次尝试、2数据集、3策略及其余15容器不变。无新增生产Java文件/表/API/SPI，执行状态机不变。OFF-02网关终端三路径、OFF-03真实状态反馈、OFF-04 Double DQN比较仍未实现；下一步需要终端模拟运行环境，新增基础设施另行确认。见[本批验证](verification/VER-OFF-001-layer-placement.md)。
+
 DOC-02（2026-09-14，DONE，文档检查PASS）：建立[现有系统与申报书功能审查表](07-proposal-audit.md)，覆盖26项功能、8项指标/研究成果与8项范围差异，关联原文位置和已有实现/验证；作为申报书视角的进度入口。结构/链接、42个审查项唯一性与引用、10张Markdown表列数及差异检查通过。仅文档，不增加业务能力，不改变DQN/计量等后置决定，不重启CEA；检查范围见[验证记录](verification/VER-DOC-002-proposal-audit.md)。
 
 EP-02（2026-09-13，DONE，已发布）：边缘处理记录页及只读GET，原Execution筛选分页/快照与可信接入归属组成记录，复用现有详情与输出；无新Java文件/DB/状态机。21:35:47完整240项Maven、50项Node/构建/格式/结构通过；修正测试脚本与FILE-01隔离fixture后，21:46最终57项浏览器PASS。21:47只发布前后端，21:48实际18080三策略记录、筛选返回、三份原结果JSON和桌面/390px通过；原2个USER Flow、3个策略、10条执行、2个数据集及其余15个容器不变。未重跑生产算法或改接入/存储配置。见[范围](features/EP-02-processing-records.md)、[验收](verification/VER-EP-002-processing-records.md)。

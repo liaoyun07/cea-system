@@ -118,13 +118,13 @@ S6-01新增FlowSchema从现有FlowDefinition record、Jackson字段别名/Bindin
 
 S5-04c修正：以下offloading调用仅用于显式offload。普通CLUSTER和固定TERMINAL不再创建/读取观测；JobPlacementService新增releaseTerminal(namespace,key)重载，ApplicationTaskRunner在未准备完成的取消/失败路径通过真实预约释放槽位，Prepared存在时使用其实际终端位置。删除observe门面，无新类/字段/表/API/SPI；见[ADR-0017](decisions/ADR-0017-offloading-decoupling.md)。
 
-ApplicationTaskRunner调用offloading公开服务冻结决策、记录画像与反馈，调用resource公开服务进行终端FIFO准入；普通CLUSTER不调用决策。Executor/Worker归并主链不变，无新Runner/SPI。JobConfiguration装配服务及终端context/slots；ObjectStorage.size读取真实对象大小。FlowDefinition.Container增加Offload，仍使用原Binding。完整字段消费者见[卸载协议](contracts/s5-terminal-offloading.md)。
+OFF-01（2026-09-14）更新：ApplicationTaskRunner从Resource获取每层范围并汇总负载，OffloadingService只冻结层；随后JobPlacementService按该层范围选择并预约位置，placed仅回填审计。普通CLUSTER不调用卸载服务，Executor/Worker主链不变。JobConfiguration.Settings新增centralClouds供JobPlacementService.layerScope实际校验；EDGE使用可信owner，CLOUD使用管理员配置。Offload删除candidateClusters，普通Binding不变。无新增/删除生产Java文件、表或SPI；Candidate改为layer/容量，删除Scored代表位置record；V25仅令既有target_id可空。完整消费者见[协议](contracts/s5-terminal-offloading.md)。
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
-| `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 13维单步Q网络校验、推断与不可用动作屏蔽 | validate/predict/choose | 无持久状态 | OFF-001 | OffloadingTest/ImageDistributionTest |
-| `platform-offloading/src/main/java/com/project/platform/offloading/JdbcOffloadingRepository.java` | 画像观测、首次决策和不可覆盖模型版本 | begin/started/finish/estimate/register | 仅off两表；Attempt唯一键、首次反馈条件更新 | OFF-001、OFF-002 | OffloadingTest |
-| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端卸载规则、状态构造、模型选择和反馈门面 | decide/started/finish/samples | 不读写运行或资源表 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 旧13维模型存档校验；新决策不调用推断，待OFF-04替换 | validate；predict/choose仅旧研究工具测试 | 无执行状态 | OFF-001 | OffloadingTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/JdbcOffloadingRepository.java` | 首次层决策、已预约位置审计、服务端反馈与旧模型存档 | begin/placed/started/finish/register | 仅off两表；Attempt唯一键、位置匹配、首次反馈条件更新 | OFF-001、OFF-002 | OffloadingTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端RULE选层；不接收cluster、不构造旧网络state | decide/placed/started/finish/samples | 不读写运行或资源表；无具体位置选择 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
 | `platform-server/src/main/java/com/project/platform/server/api/OffloadingController.java` | 模型注册/查询及真实样本导出 | register/model/samples | 仅服务调用；WRITE/READ授权 | OFF-001、OFF-002 | OffloadingTest/ContractTest |
 
 V14增加resource的res_terminal_reservation，JobPlacementService以既有网关资源行锁串行化FIFO入队/准入/释放。V15增加off_task_observation、off_dqn_model；共22张业务表、V1–V15，42个HTTP操作和47个公开record映射。没有第二份Execution状态表。新增OffloadingTest，测试类共11个。离线训练位于[algorithms/offloading](../algorithms/offloading/README.md)，不是新增服务模块。
@@ -284,7 +284,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 
 - [FlowManagementTest](../platform-server/src/test/java/com/project/platform/server/FlowManagementTest.java)：11项真实MySQL/HTTP编辑Schema、无副作用预览、导出再导入运行、原子批次、反序并发CAS、权限/范围/搜索及全部示例格式往返。
 
-- [OffloadingTest](../platform-server/src/test/java/com/project/platform/server/OffloadingTest.java)：10项真实MySQL/HTTP模型、权限、画像、反馈和终端FIFO并发测试。真实三位置训练/模型执行在ImageDistributionTest中，完整结果以最新验证记录为准；以下旧批次计数是历史入口说明。
+- [OffloadingTest](../platform-server/src/test/java/com/project/platform/server/OffloadingTest.java)：12项真实MySQL/HTTP模型存档、权限、选层/位置分离、范围约束、反馈和终端FIFO测试。ImageDistributionTest验证真实三层RULE及多云Placement；旧单步Q训练/执行测试不再代表当前能力，结果见[OFF-01记录](verification/VER-OFF-001-layer-placement.md)。
 
 - [EdgeAccessTest](../platform-server/src/test/java/com/project/platform/server/EdgeAccessTest.java)：16项真实MySQL/HTTP接入、多节点、管理隔离、权限归属、幂等、事务回滚及进程上下文重启测试；不是物理网关/终端网络验收。
 

@@ -37,6 +37,37 @@ test.beforeEach(async ({ page }) => {
   page.uiErrors = [];
   page.on('pageerror', (e) => page.uiErrors.push(e.message));
 });
+
+test('offloading YAML shares validation and schema without a second cluster binding', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  const source = `schemaVersion: 1\nnamespace: lab\nid: ${id}\ntasks:\n  - id: process\n    type: platform.Application\n    timeout: PT1M\n    container:\n      applicationId: shell\n      version: v1\n      execution: TERMINAL\n      offload: {strategy: RULE}\n      command: [sh, -c, 'true']\n`;
+  await open(page, id, source);
+  await page.locator('[data-task="process"] > .task-card-header .task-select').click();
+  const response = await request.get(`${base}/flows/editor/schema`, { headers });
+  expect(response.status()).toBe(200);
+  const offload = (await response.json()).$defs.Offload.properties;
+  expect(offload.candidateClusters).toBeUndefined();
+  expect(offload.strategy.anyOf.find((shape) => shape.enum).enum).toEqual(['RULE']);
+  await page.getByRole('tab', { name: '源代码', exact: true }).click();
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.offload).toEqual({
+    strategy: 'RULE',
+  });
+  await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('校验通过');
+  for (const invalid of [
+    source.replace('strategy: RULE', 'strategy: RULE, candidateClusters: [edge, cloud]'),
+    source.replace('strategy: RULE', 'strategy: DQN, modelVersion: old-v1'),
+  ]) {
+    const response = await request.post(`${base}/flows/${id}/validate`, {
+      headers,
+      data: { source: invalid },
+    });
+    expect(response.status()).toBe(422);
+  }
+});
 test.afterEach(async ({ page }) => {
   expect(page.uiErrors).toEqual([]);
 });

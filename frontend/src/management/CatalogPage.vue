@@ -5,6 +5,7 @@ import { time } from '../model.js';
 import { readCatalog, readDocument } from '../no-code/document.js';
 import {
   catalogs,
+  offloadingTarget,
   entryId,
   itemPath,
   newDraft,
@@ -319,7 +320,7 @@ function cell(row, key) {
   if (key === 'enabled') return value ? '启用' : '停用';
   if (key.endsWith('At')) return value ? time(value) : '尚无记录';
   if (key === 'locations') return value.map((v) => v.clusterId).join('、');
-  if (key === 'target') return `${value.kind} / ${value.id}`;
+  if (key === 'target') return offloadingTarget(value);
   return value ?? '—';
 }
 onMounted(() => action(loadRows));

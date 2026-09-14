@@ -75,9 +75,7 @@ public record FlowDefinition(
         public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;namespaceFiles=immutable(namespaceFiles);}
     }
     public enum ContainerExecution { CLUSTER, TERMINAL }
-    public record Offload(OffloadStrategy strategy,
-                          @tools.jackson.databind.annotation.JsonDeserialize(using=CandidateClustersDeserializer.class) Binding candidateClusters,
-                          String modelVersion) {}
+    public record Offload(OffloadStrategy strategy,String modelVersion) {}
     public enum OffloadStrategy { RULE, DQN }
     /** Static candidate arrays are syntax sugar for the same Literal Binding, including persisted definitions. */
     public static final class CandidateClustersDeserializer extends tools.jackson.databind.ValueDeserializer<Binding> {
