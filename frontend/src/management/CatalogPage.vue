@@ -544,6 +544,12 @@ onMounted(() => action(loadRows));
       <h2>卸载样本</h2>
       <p class="muted">{{ raw.strategy }} · {{ raw.outcome || '尚未完成' }}</p>
       <button v-if="raw.executionId" @click="emit('execution', raw.executionId)">查看关联执行</button>
+      <dl v-if="raw.strategy === 'DQN'">
+        <dt>模型版本</dt>
+        <dd class="mono">{{ raw.modelVersion }}</dd>
+        <dt>执行位置</dt>
+        <dd>{{ offloadingTarget(raw.target) }}</dd>
+      </dl>
       <template v-if="raw.measurement">
         <h3>{{ measurementStatus(raw.measurement) }}</h3>
         <div class="table-wrap">

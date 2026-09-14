@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+OFF-04（DONE/PASS核心闭环，2026-09-14已发布CEA）：六维网关Double DQN、合法动作/显式探索、真实next回放/目标网络、固定模型五基线比较及模型展示。255项Maven、52项Node、60项浏览器、30项本批Python、114次CEA真实请求及动作/页面核验PASS；[功能](features/OFF-04-double-dqn.md)、[验收](verification/VER-OFF-04-double-dqn.md)。未证明DQN比全终端更快；申报性能、多核/能耗/成本及S5-05不因本批完成而标记达标。以下OFF-03/02段落为对应历史时点。
+
 OFF-03（DONE/PASS，2026-09-14已发布CEA）：新增六维真实观测、工作量/传输事实、终端端到端反馈、按决策顺序next关联与卸载观测页面。完整251项Maven及最终28项定向验证、52项Node、59项浏览器、41项Python和CEA六次实际执行通过；范围见[OFF-03](features/OFF-03-measured-feedback.md)，证据见[验收](verification/VER-OFF-03-measured-feedback.md)。OFF-04未开始。
 
 OFF-02（OFF-001/002、RUN-001、EDGE增量，DONE/PASS，已发布）：元数据compute、网关终端代理、FIXED三层/RULE、小JSON结果返回；单一状态链/Binding、无新增DB表列，新增1个Java客户端及1个受权JSON结果API。244项Maven、51项Node、58项浏览器、25项Python及CEA四路径/存储/数值/页面核验PASS；见[验收](verification/VER-OFF-002-terminal-gateway.md)、[协议](contracts/off02-terminal-gateway.md)。OFF-03/04尚未实现，下列旧批次状态保留为历史。
@@ -86,8 +88,8 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | RUN-001 | Kubernetes Job、终端Docker与产物发布 | S4/S5 | workflow-runtime | IMPLEMENTED | PASS |
 | EDGE-001 | 网关/终端接入、事件和状态同步 | S5 | platform-edge | IMPLEMENTED | PASS |
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
-| OFF-001 | 终端卸载资格、选层与Placement拆分、网关三路径；Double DQN待做 | S5 | platform-offloading | IN_PROGRESS | OFF-01/02 PASS；真实状态和DQN待验收 |
-| OFF-002 | 六维真实状态/端到端反馈/next关联；完整DQN待做 | S5 | platform-offloading | IN_PROGRESS | OFF-03实际状态/乱序反馈及CEA验收PASS；OFF-04未实现 |
+| OFF-001 | 终端卸载资格、选层与Placement拆分、网关三路径 | S5/OFF | platform-offloading | IMPLEMENTED | OFF-01/02/04及CEA三路径PASS |
+| OFF-002 | 六维真实状态、反馈/next、边缘Double DQN和五基线比较 | S5/OFF | platform-offloading | IMPLEMENTED | OFF-03/04核心及CEA PASS；不代表性能优势或多目标/多核完成 |
 | MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
 | SEC-001 | 身份、命名空间权限、两角色人员/个人中心与内部通信认证 | S1/S4/UI-10 | platform-foundation/platform-server | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |

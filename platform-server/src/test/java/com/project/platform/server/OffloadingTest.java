@@ -44,7 +44,7 @@ class OffloadingTest {
     private JobPlacementService slots(){return context.getBean(JobPlacementService.class);}
     private String key(){return UUID.randomUUID().toString();}
     private Workload work(){return new Workload("app","v1",List.of("sh","-c","echo hello"),Map.of("SIZE",1),1024);}
-    static DqnModel model(double... q){return new DqnModel(DqnModel.SCHEMA,new double[2][13],new double[2],new double[3][2],q);}
+    static DqnModel model(double... q){return new DqnModel(DqnModel.SCHEMA,new double[2][6],new double[2],new double[3][2],q);}
     private List<Candidate> options(int busy){return List.of(new Candidate(Layer.TERMINAL,1,busy,0),new Candidate(Layer.EDGE,2,0,0));}
     private com.project.platform.resource.placement.WorkloadLedger ledger(){return context.getBean(com.project.platform.resource.placement.WorkloadLedger.class);}
     private Sample measured(String key,String terminal,String flow,long bytes,Layer layer,Double transfer) {
@@ -176,12 +176,13 @@ class OffloadingTest {
             assertEquals(512,rates.rate("lab","store:"+source,"cluster:edge").bytesPerSecond());
         } finally {ledger().release("lab",a);}
     }
-    @Test void dqnUsesWeightsAndMasksUnavailableActions() {
-        double[] state=new double[13];state[1]=1;state[5]=1;
-        assertEquals(1,model(0,3,100).choose(state));state[5]=0;assertEquals(0,model(0,3,100).choose(state));
-        state[1]=0;assertThrows(WorkflowException.class,()->model(0,3,100).choose(state));
-        var network=new DqnModel(DqnModel.SCHEMA,new double[][]{{2,0,0,0,0,0,0,0,0,0,0,0,0}},new double[]{-1},new double[][]{{1},{2},{3}},new double[]{1,1,1});
-        state[0]=1;assertArrayEquals(new double[]{2,3,4},network.predict(state),1e-12);
+    @Test void edgeDecisionRecordsOnlyLegalLayerAndPinnedModelBeforePlacement() {
+        model(0,3,100).validate();String key=key(),version=key();
+        assertThrows(WorkflowException.class,()->service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),2));
+        assertNull(service().get("lab",key));
+        var selected=service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),1);
+        assertEquals("EDGE",selected.target().kind());assertNull(selected.target().id());assertEquals("DQN",selected.strategy());assertEquals(version,selected.modelVersion());
+        assertEquals(1,service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),0).action());
     }
     @Test void rejectsMalformedNonFiniteAndUnknownSchemaModels() {
         assertThrows(WorkflowException.class,()->model(1,2,Double.NaN).validate());
@@ -195,6 +196,18 @@ class OffloadingTest {
         assertThrows(WorkflowException.class,()->service().register(actor,"lab",version,model(3,2,1)));
         assertThrows(Forbidden.class,()->service().model(actor,"other",version));
         assertThrows(WorkflowException.class,()->service().model(actor,"lab","missing"));
+    }
+    @Test void historicalThirteenStateModelIsReadableButCannotBeRegisteredOrExecutedAsSixState() {
+        String version=key();var legacy=new DqnModel("terminal-slot-cost-v1",new double[1][13],new double[1],new double[3][1],new double[3]);
+        context.getBean(JdbcTemplate.class).update("INSERT INTO off_dqn_model(namespace,version,model_json) VALUES(?,?,?)","lab",version,json.write(legacy));
+        var read=service().model(actor,"lab",version);assertEquals("terminal-slot-cost-v1",read.stateSchema());
+        assertThrows(WorkflowException.class,read::validate);
+        assertThrows(WorkflowException.class,()->service().register(actor,"lab",key(),legacy));
+    }
+    @Test void normalizedSixStateNeverFillsMissingOrMixedInputsForInference() {
+        assertNull(OffloadingService.normalize(new Double[]{1.0,0.0,0.0,0.0,null,1.0},null));
+        assertNull(OffloadingService.normalize(new Double[]{1.0,0.0,0.0,0.0,1.0,1.0},"mixed"));
+        assertThrows(WorkflowException.class,()->OffloadingService.normalize(new Double[]{1.0,0.0,0.0,0.0,-1.0,1.0},null));
     }
     @Test void rulesUseRealLoadAndPersistOneChoicePerAttempt() {
         String key=key();var selected=service().decide(actor,"lab",key,key,work(),options(1),"RULE",null);

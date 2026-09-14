@@ -1,5 +1,7 @@
 # OFF-02/03 三条卸载路径与真实观测
 
+OFF-04新增所属网关Double DQN，使用本例同一算法/文件/Runner；新增独立研究策略而非覆盖下列原4个策略。六维计算仍用OFF-03，不让业务镜像嵌入训练器。主动采样与五策略比较见[研究脚本说明](../../algorithms/offloading/README.md)，结果见[验证记录](../../docs/verification/VER-OFF-04-double-dqn.md)。
+
 OFF-03已发布：三层执行继续使用同一OFF-02算法镜像、文件协议和Flow。终端客户端新增单进程端到端计时/反馈，网关与Pod公共助手报告实际传输，后端记录六维与下一决策关联。18080“卸载观测”可以查看；[计算方法与缺测边界](../../docs/contracts/off03-measurement.md)、[实际验证](../../docs/verification/VER-OFF-03-measured-feedback.md)。初次缺少传输历史的样本只用于标定，后续记录不会倒填它的状态；连续请求的最后一条没有next，不显示可训练。
 
 `deploy/cea/verify-offloading-measurement.mjs`是主动验收脚本：会新建六次请求，并在原终端样本目录生成约63.25MiB的44段重复合成信号用于并发验证；它不是只读巡检，不应反复运行来“检查部署”。现有本批执行及回执已保留。实际测量和反馈只在原客户端进程内有效；重用未完成receipt而原进程计时已丢失时标记UNMEASURED，不伪造全程耗时。算法本身无需增加SDK。

@@ -35,7 +35,7 @@ public final class TerminalGatewayClient {
         context.check();
         String token=Files.readString(Path.of(connection.tokenFile())).trim();
         var request=HttpRequest.newBuilder(URI.create(connection.endpoint()+"/internal/terminals/"+terminal+"/"+operation))
-                .timeout(Duration.ofSeconds(90)).header("Authorization","Bearer "+token).header("Content-Type","application/json")
+                .timeout(Duration.ofSeconds("offloading/decide".equals(operation)?3:90)).header("Authorization","Bearer "+token).header("Content-Type","application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json.write(body))).build();
         var response=http.send(request,HttpResponse.BodyHandlers.ofInputStream());
         byte[] bytes;

@@ -75,7 +75,7 @@ public record FlowDefinition(
         public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;namespaceFiles=immutable(namespaceFiles);}
     }
     public enum ContainerExecution { CLUSTER, TERMINAL }
-    public record Offload(OffloadStrategy strategy,String modelVersion,OffloadLayer layer) {}
+    public record Offload(OffloadStrategy strategy,String modelVersion,OffloadLayer layer,Double exploration) {}
     public enum OffloadStrategy { RULE, FIXED, DQN }
     public enum OffloadLayer { TERMINAL, EDGE, CLOUD }
     /** Static candidate arrays are syntax sugar for the same Literal Binding, including persisted definitions. */

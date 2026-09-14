@@ -10,6 +10,40 @@ const gatewayHeaders = {
 };
 const unique = () => `mg-${randomUUID().slice(0, 8)}`;
 
+test('DQN detail identifies the pinned model and actual execution layer', async ({ page }) => {
+  await login(page);
+  await page.route('**/offloading/samples?*', (route) =>
+    route.fulfill({
+      json: [
+        {
+          key: 'dqn-ui-fixture',
+          applicationId: 'signal',
+          applicationVersion: 'v1',
+          strategy: 'DQN',
+          modelVersion: 'off04-trained-fixture',
+          target: { kind: 'EDGE', id: 'edge-a' },
+          outcome: 'SUCCESS',
+          createdAt: '2026-09-14T01:00:00Z',
+          reward: -0.1,
+          measurement: {
+            inputs: [1, 0, 2, 0, 3, 4],
+            unavailable: null,
+            elapsedSeconds: 12,
+            limitSeconds: 120,
+            feedbackOutcome: 'SUCCESS',
+            trainable: false,
+          },
+        },
+      ],
+    }),
+  );
+  await nav(page, '卸载观测');
+  await page.getByRole('button', { name: '详情 →', exact: true }).click();
+  await expect(page.getByText('off04-trained-fixture', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
+  await expect(page.getByText('12.000 秒', { exact: true })).toBeVisible();
+});
+
 test('measured offloading detail displays missing as unavailable rather than zero', async ({ page }) => {
   await login(page);
   await page.route('**/offloading/samples?*', (route) =>

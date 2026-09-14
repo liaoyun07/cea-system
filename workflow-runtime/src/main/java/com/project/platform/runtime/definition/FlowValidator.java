@@ -95,9 +95,10 @@ public final class FlowValidator {
                     var o=c.offload();
                     if(c.execution()!=ContainerExecution.TERMINAL || o.strategy()==null)
                         throw WorkflowException.invalid("offload","only TERMINAL tasks may explicitly enable offloading");
-                    if(o.strategy()==OffloadStrategy.DQN)
-                        throw WorkflowException.invalid("offload.strategy","Double DQN integration is pending");
-                    if(o.modelVersion()!=null)throw WorkflowException.invalid("modelVersion","RULE/FIXED do not use a DQN model");
+                    if(o.strategy()==OffloadStrategy.DQN) {
+                        if(o.modelVersion()==null || !o.modelVersion().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("modelVersion","DQN requires a pinned model version");
+                        if(o.exploration()!=null && (!Double.isFinite(o.exploration()) || o.exploration()<0 || o.exploration()>1))throw WorkflowException.invalid("exploration","probability 0..1 required");
+                    } else if(o.modelVersion()!=null || o.exploration()!=null)throw WorkflowException.invalid("offload","RULE/FIXED do not use modelVersion or exploration");
                     if((o.strategy()==OffloadStrategy.FIXED)!=(o.layer()!=null))
                         throw WorkflowException.invalid("offload.layer","layer is required only for FIXED");
                 }

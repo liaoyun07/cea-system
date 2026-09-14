@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [OFF-04 边缘Double DQN](off04-double-dqn.md)：真实六维模型、显式探索、合法层掩码、回放/目标网络及五基线口径；无新增平台API或DB。历史单步Q执行协议由本项替代。
+
 - [OFF-03 真实状态与反馈](off03-measurement.md)：六维计算、真实传输、终端单调时钟、决策顺序next及缺测边界；发布状态见进度。
 
 - [OFF-02 终端经网关计算](off02-terminal-gateway.md)：元数据先行、原始文件按需上传、FIXED/RULE、原Worker执行分支及成功JSON返回。
@@ -32,7 +34,7 @@
 
 当前为S3执行协议及S4资源/应用目录、镜像/部署、Job/产物和通用任务协议；S1文档保留历史语义，S2叶子与失败语义仍适用，但顺序游标/单Worker串行已由S3替代，远程取消须等待停止的增量语义以S4协议为准。
 
-- [OpenAPI 3.1](openapi.json)：64个HTTP操作（UI-08增加7个核心运维操作）；没有自动Flow Input派生或第二套绑定接口，字段以此为准。
+- [OpenAPI 3.1](openapi.json)：当前92个HTTP操作，OFF-04无新增API；没有自动Flow Input派生或第二套绑定接口，字段以此为准。
 - [S4-02a应用契约目录](s4-application-catalog.md)：版本、类型/默认值/choices、数据集允许范围；目录本身不派生Flow Inputs或启动任务，真实执行见下方S4-03协议。
 - [S4-01资源目录](s4-resource-catalog.md)：集群/数据集版本/位置、权限、候选拒绝原因与当前边界。
 - [S3控制流与调度](s3-protocol.md)：嵌套控制、DAG/If、准入FIFO、Schedule、字段消费者和锁顺序。

@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+OFF-04（2026-09-14，实施状态见进度）：仍108份生产Java、92个HTTP操作、28张业务表，无新Java/SPI/模块依赖。`FlowDefinition.Offload`仅增加`exploration`，`FlowValidator/FlowSchema`校验并公开DQN模型版本/探索概率。`DqnModel`替换六维模型契约并删除旧Java `predict/choose`；`OffloadingService.edgeDecision`记录网关已选合法层，`normalize`统一真实六维变换。`OffloadingTaskAdapter`在原接纳边界冻结状态，调用`TerminalGatewayClient`的3秒限时决策，再返回原Placement链。网关`deploy/edge-gateway/dqn.py`拥有纯数值推理，`algorithms/offloading/train.py`拥有离线Double DQN训练；两者都不拥有Execution/资源状态。无DB migration；详见[协议](contracts/off04-double-dqn.md)。
+
 OFF-03（2026-09-14已实现、验证并发布CEA）：生产 Java 105→108，HTTP 91→92。新增 V26 两张 resource 表；V27 只给既有卸载观测添加六维/下一决策/终端反馈事实列。计量适配仍在原 ApplicationTaskRunner，通用 Transfers.inputReport 仅返回 Pod 文件传输事实，不让 runtime 依赖 offloading。详见 [ADR-0027](decisions/ADR-0027-offloading-measured-state.md)、[验收](verification/VER-OFF-03-measured-feedback.md)。
 
 | Java 文件 | 当前职责 |
@@ -134,9 +136,9 @@ OFF-01（2026-09-14）更新：ApplicationTaskRunner从Resource获取每层范�
 
 | Java 文件路径（相对 backend） | 职责 | 关键接口 | 状态/事务 | 功能 | 验证入口 |
 |---|---|---|---|---|---|
-| `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 旧13维模型存档校验；新决策不调用推断，待OFF-04替换 | validate；predict/choose仅旧研究工具测试 | 无执行状态 | OFF-001 | OffloadingTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/DqnModel.java` | 六维log1p模型/权重契约；数值推理归边缘网关 | validate；旧predict/choose已删除 | 无执行状态 | OFF-04 | OffloadingTest |
 | `platform-offloading/src/main/java/com/project/platform/offloading/JdbcOffloadingRepository.java` | 首次层决策、已预约位置审计、服务端反馈与旧模型存档 | begin/placed/started/finish/register | 仅off两表；Attempt唯一键、位置匹配、首次反馈条件更新 | OFF-001、OFF-002 | OffloadingTest |
-| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端RULE/FIXED选层；不接收cluster、不构造旧网络state | decide/placed/started/finish/samples | 不读写运行或资源表；无具体位置选择 | OFF-001、OFF-002 | OffloadingTest/ImageDistributionTest |
+| `platform-offloading/src/main/java/com/project/platform/offloading/OffloadingService.java` | 显式终端RULE/FIXED或可信网关DQN选层记录；真实状态/反馈 | decide/edgeDecision/normalize/capture/feedback/placed/started/finish/samples | 不读写运行或资源表；无具体位置选择 | OFF-001、OFF-002、OFF-04 | OffloadingTest/ImageDistributionTest |
 | `platform-server/src/main/java/com/project/platform/server/api/OffloadingController.java` | 模型注册/查询及真实样本导出 | register/model/samples | 仅服务调用；WRITE/READ授权 | OFF-001、OFF-002 | OffloadingTest/ContractTest |
 
 V14增加resource的res_terminal_reservation，JobPlacementService以既有网关资源行锁串行化FIFO入队/准入/释放。V15增加off_task_observation、off_dqn_model；共22张业务表、V1–V15，42个HTTP操作和47个公开record映射。没有第二份Execution状态表。新增OffloadingTest，测试类共11个。离线训练位于[algorithms/offloading](../algorithms/offloading/README.md)，不是新增服务模块。

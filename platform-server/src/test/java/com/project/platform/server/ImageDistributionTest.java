@@ -1141,13 +1141,14 @@ class ImageDistributionTest {
             String gatewayImage=new org.testcontainers.images.builder.ImageFromDockerfile("cea-gateway-test:"+UUID.randomUUID(),true)
                     .withFileFromPath("Dockerfile",Path.of("../deploy/edge-gateway/Dockerfile"))
                     .withFileFromPath("gateway.py",Path.of("../deploy/edge-gateway/gateway.py"))
+                    .withFileFromPath("dqn.py",Path.of("../deploy/edge-gateway/dqn.py"))
                     .withFileFromPath("terminal.py",Path.of("../deploy/edge-gateway/terminal.py")).get();
             var configuration=new LinkedHashMap<String,Object>();
             configuration.putAll(Map.of("namespace","lab","clusterId","edge","bucket","edge-artifacts","backend","http://host.testcontainers.internal:"+port,
                     "backendUser","gateway","backendPassword","test-api","storageEndpoint","http://"+edgeHost,
                     "storageUser","s4-test-key","storagePassword","s4-test-secret"));
             configuration.putAll(Map.of("terminals",Map.of("pc","isolated-terminal-token","other","other-token"),"events",List.of(),
-                    "computeEvents",List.of("off02-terminal","off02-edge","off02-cloud","off02-rule","off02-cancel","off02-failed","off02-takeover"),"controlToken","isolated-worker-token",
+                    "computeEvents",List.of("off02-terminal","off02-edge","off02-cloud","off02-rule","off02-cancel","off02-failed","off02-takeover","off04-dqn-terminal","off04-dqn-edge","off04-dqn-cloud","off04-nohistory"),"controlToken","isolated-worker-token",
                     "agents",Map.of("pc",Map.of("endpoint","http://off02-agent:8080","token","isolated-agent-token"))));
             gatewayContainer=new GenericContainer<>(gatewayImage).withNetwork(network).withExposedPorts(8080)
                     .withCopyToContainer(Transferable.of(json.write(configuration)),"/run/secrets/gateway.json")
@@ -1167,6 +1168,11 @@ class ImageDistributionTest {
             edge().putTerminal(actor,"lab","other",new TerminalRegistration("gateway",true));
             String code="import json,pathlib; x=list(map(float,pathlib.Path('/cea-work/in/data').read_text().split())); pathlib.Path('/cea-work/out/result.json').write_text(json.dumps({'count':len(x),'mean':sum(x)/len(x)}))";
             var evidence=new ArrayList<Object>();
+            context.getBean(OffloadingService.class).register(actor,"lab","off04-nohistory",OffloadingTest.model(0,5,0));
+            saveOff02Policy("off04-nohistory","DQN",code);
+            String uncalibrated=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType","off04-nohistory","file",file),"isolated-terminal-token",202).get("executionId").toString();
+            drive(uncalibrated);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",uncalibrated).state());
+            assertNull(context.getBean(OffloadingService.class).get("lab",executions().tasks(actor,"lab",uncalibrated).getFirst().id()+"-1"),"missing DQN state must not silently select RULE");
             for(String action:List.of("TERMINAL","EDGE","CLOUD","RULE")) {
                 String event="off02-"+action.toLowerCase();saveOff02Policy(event,action,code);
                 long requestStarted=System.nanoTime();
@@ -1203,6 +1209,20 @@ class ImageDistributionTest {
                 if(local)assertEquals(0,engine.execInContainer("docker","inspect",name).getExitCode());
                 evidence.add(Map.of("action",action,"execution",id,"rawUploaded",!local,"result",values,"target",sample.target()));
             }
+            for(String layer:List.of("TERMINAL","EDGE","CLOUD")) {
+                String event="off04-dqn-"+layer.toLowerCase();
+                double[] q={0,0,0};q[OffloadingService.Layer.valueOf(layer).ordinal()]=5;
+                context.getBean(OffloadingService.class).register(actor,"lab",event,OffloadingTest.model(q));
+                saveOff02Policy(event,"DQN",code);
+                String id=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType",event,"file",file),"isolated-terminal-token",202).get("executionId").toString();
+                drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
+                var run=executions().tasks(actor,"lab",id).getFirst();var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
+                assertEquals("DQN",sample.strategy());assertEquals(event,sample.modelVersion());assertEquals(layer,sample.target().kind());assertEquals(6,sample.state().length);
+                var result=gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"isolated-terminal-token",200);
+                assertEquals(512,((Number)((Map<?,?>)result.get("result")).get("count")).intValue());
+                evidence.add(Map.of("dqnFixture",true,"layer",layer,"execution",id,"sample",sample));
+            }
+            gatewayRequest(gatewayUrl,"POST","/internal/terminals/pc/offloading/decide",Map.of(),"isolated-terminal-token",401);
             saveOff02Policy("off02-failed","TERMINAL","raise SystemExit(7)");
             String failed=gatewayRequest(gatewayUrl,"POST","/v1/compute",Map.of("requestId",UUID.randomUUID().toString(),"eventType","off02-failed","file",file),"isolated-terminal-token",202).get("executionId").toString();
             drive(failed);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",failed).state());
@@ -1248,7 +1268,7 @@ class ImageDistributionTest {
         var reply=http.send(request,HttpResponse.BodyHandlers.ofString());assertEquals(status,reply.statusCode(),reply.body());return json.read(reply.body(),Map.class);
     }
     private void saveOff02Policy(String id,String action,String code) {
-        var offload=action.equals("RULE")?Map.of("strategy","RULE"):Map.of("strategy","FIXED","layer",action);
+        var offload=action.equals("DQN")?Map.of("strategy","DQN","modelVersion",id):action.equals("RULE")?Map.of("strategy","RULE"):Map.of("strategy","FIXED","layer",action);
         var container=Map.of("applicationId","python","version","v1","execution","TERMINAL","offload",offload,
                 "command",List.of("python","-c",code),"inputFiles",Map.of("data",Map.of("source","INPUT","name","data_file")),"outputFiles",List.of("result.json"));
         var task=new LinkedHashMap<String,Object>(Map.of("id","process","type","platform.Application","timeout","PT90S","container",container));

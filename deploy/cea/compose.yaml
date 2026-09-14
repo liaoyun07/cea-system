@@ -211,7 +211,7 @@ services:
       timeout: 5s
       retries: 5
   edge-gateway:
-    image: cea/edge-gateway:off03-v1
+    image: cea/edge-gateway:off04-v1
     profiles: [edge-processing]
     build: {context: ../edge-gateway}
     restart: unless-stopped

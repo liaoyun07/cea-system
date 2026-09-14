@@ -50,7 +50,8 @@ test('offloading YAML shares validation and schema without a second cluster bind
   expect(response.status()).toBe(200);
   const offload = (await response.json()).$defs.Offload.properties;
   expect(offload.candidateClusters).toBeUndefined();
-  expect(offload.strategy.anyOf.find((shape) => shape.enum).enum).toEqual(['RULE', 'FIXED']);
+  expect(offload.strategy.anyOf.find((shape) => shape.enum).enum).toEqual(['RULE', 'FIXED', 'DQN']);
+  expect(offload.exploration.anyOf.find((shape) => shape.type === 'number').maximum).toBe(1);
   await page.getByRole('tab', { name: '源代码', exact: true }).click();
   expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].container.offload).toEqual({
     strategy: 'RULE',
@@ -59,7 +60,8 @@ test('offloading YAML shares validation and schema without a second cluster bind
   await expect(page.getByRole('status')).toContainText('校验通过');
   for (const invalid of [
     source.replace('strategy: RULE', 'strategy: RULE, candidateClusters: [edge, cloud]'),
-    source.replace('strategy: RULE', 'strategy: DQN, modelVersion: old-v1'),
+    source.replace('strategy: RULE', 'strategy: DQN'),
+    source.replace('strategy: RULE', 'strategy: DQN, modelVersion: v1, exploration: 2'),
     source.replace('strategy: RULE', 'strategy: FIXED'),
     source.replace('strategy: RULE', 'strategy: RULE, layer: CLOUD'),
   ]) {

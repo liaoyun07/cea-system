@@ -1,5 +1,7 @@
 # OFF-03 观测与终端反馈协议
 
+OFF-04在本协议六维/奖励之上消费真实转移，见[Double DQN增量](off04-double-dqn.md)。持续流批次只训练next同批次且完整的样本；导出尾部是截断，不伪造吸收终态，不新增episode状态表。
+
 状态见 [进度](../04-progress.md)，取舍见 [ADR-0027](../decisions/ADR-0027-offloading-measured-state.md)。不改变 Flow、Binding 或原 Execution 协议。
 
 ## 范围与六维计算

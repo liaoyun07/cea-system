@@ -25,6 +25,10 @@ public final class OffloadingTaskAdapter {
         if(origin.gateway()==null || clouds.size()!=1 || work.inputBytes()<1)return choose.get();
         String cloud=clouds.getFirst();
         boolean capture=origin.singleTask() && context.job().task().retry()==null && context.job().attemptNo()==1 && rawFileOnly;
+        boolean dqn=c.offload().strategy()==com.project.platform.runtime.model.FlowDefinition.OffloadStrategy.DQN;
+        if(dqn && !capture)throw com.project.platform.runtime.model.WorkflowException.invalid("offload","DQN requires a single non-retrying terminal-file task");
+        var model=dqn?offloading.model(actor,ns,c.offload().modelVersion()):null;
+        if(model!=null)model.validate();
         String bucket=capture?(String)gateway.call(context,origin.gateway(),origin.terminalId(),"storage",Map.of()).get("bucket"):null;
         Double edgeSeconds=null,cloudSeconds=null;
         if(capture) {
@@ -38,12 +42,24 @@ public final class OffloadingTaskAdapter {
         String profile=json.write(Map.of("application",work.applicationId(),"version",work.version(),"command",work.command(),"parameters",new TreeMap<>(work.parameters())));
         context.check();
         return workloads.accept(actor,ns,key,origin.terminalId(),origin.clusterId(),cloud,profile,work.inputBytes(),load->{
-            var sample=choose.get();
+            Sample sample;
+            Double[] inputs={work.inputBytes()/1048576.0,load.comparable()?load.terminalBytes()/1048576.0:null,
+                    load.comparable()?load.edgeBytes()/1048576.0:null,load.comparable()?load.cloudBytes()/1048576.0:null,te,tc};
+            String missing=!load.comparable()?"mixed or unmeasured active workload":te==null || tc==null?"transfer calibration incomplete":null;
+            var legal=candidates.stream().map(x->x.layer().ordinal()).sorted().toList();
+            if(dqn) {
+                var state=OffloadingService.normalize(inputs,missing);
+                if(state==null)throw com.project.platform.runtime.model.WorkflowException.invalid("offload","DQN state is incomplete: "+missing);
+                try {
+                    var response=gateway.call(context,origin.gateway(),origin.terminalId(),"offloading/decide",
+                            Map.of("model",model,"state",state,"legalActions",legal,"exploration",c.offload().exploration()==null?0.0:c.offload().exploration()));
+                    if(!(response.get("action") instanceof Number action) || action.doubleValue()!=action.intValue())
+                        throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge action must be an integer");
+                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue());
+                } catch(RuntimeException error) {throw error;} catch(Exception error) {throw new IllegalStateException("edge DQN decision unavailable",error);}
+            } else sample=choose.get();
             if(capture) {
-                Double[] inputs={work.inputBytes()/1048576.0,load.comparable()?load.terminalBytes()/1048576.0:null,
-                        load.comparable()?load.edgeBytes()/1048576.0:null,load.comparable()?load.cloudBytes()/1048576.0:null,te,tc};
-                String missing=!load.comparable()?"mixed or unmeasured active workload":te==null || tc==null?"transfer calibration incomplete":null;
-                sample=offloading.capture(ns,key,origin.clusterId(),origin.terminalId(),origin.flowId(),inputs,candidates.stream().map(x->x.layer().ordinal()).sorted().toList(),missing);
+                sample=offloading.capture(ns,key,origin.clusterId(),origin.terminalId(),origin.flowId(),inputs,legal,missing);
             }
             return new WorkloadLedger.Choice<>(sample.target().kind(),sample);
         });

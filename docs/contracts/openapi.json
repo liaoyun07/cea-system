@@ -940,7 +940,7 @@
       ],
       "get": {
         "operationId": "listOffloadingSamples",
-        "description": "READ. New observations belong only to explicit offload tasks; legacy ordinary observations are not deleted. Only completed RULE/DQN observations supply training episodes. Stable createdAt/key ordering; no outputs or credentials copied.",
+        "description": "READ. New observations belong only to explicit offload tasks; legacy ordinary observations remain readable. FIXED/RULE/DQN measured records can supply complete continuous-stream transitions, subject to measurement.trainable and batch next-key validation; incomplete tails are not terminal episodes. Stable createdAt/key ordering; no outputs or credentials copied.",
         "parameters": [
           {
             "name": "limit",
@@ -5672,10 +5672,11 @@
           "strategy": {
             "type": "string",
             "enum": [
-              "RULE", "FIXED"
+              "RULE", "FIXED", "DQN"
             ]
           },
           "layer": {"type":["string","null"],"enum":["TERMINAL","EDGE","CLOUD",null]},
+          "exploration": {"type":["number","null"],"minimum":0,"maximum":1,"description":"DQN only; default 0. Explicit research exploration, disabled during evaluation."},
           "modelVersion": {
             "type": [
               "string",
@@ -5683,7 +5684,7 @@
             ]
           }
         },
-        "description": "Only execution=TERMINAL. RULE selects a layer; FIXED requires layer and is used for path validation/baselines. RULE forbids layer. Resource owns origin edge and server-configured central cloud scope. candidateClusters is forbidden. DQN execution is paused; modelVersion must be absent."
+        "description": "Only execution=TERMINAL. RULE selects a layer; FIXED requires layer. DQN requires pinned measured six-state modelVersion and trusted gateway/single non-retrying file task; complete state required. Optional exploration defaults to 0. Resource owns layer scope and concrete placement; candidateClusters is forbidden."
       },
       "DqnModel": {
         "type": "object",
@@ -5697,7 +5698,7 @@
         ],
         "properties": {
           "stateSchema": {
-            "const": "terminal-slot-cost-v1"
+            "const": "measured-offload-log1p-v1"
           },
           "weights1": {
             "type": "array",
@@ -5705,8 +5706,8 @@
             "maxItems": 128,
             "items": {
               "type": "array",
-              "minItems": 13,
-              "maxItems": 13,
+              "minItems": 6,
+              "maxItems": 6,
               "items": {
                 "type": "number"
               }

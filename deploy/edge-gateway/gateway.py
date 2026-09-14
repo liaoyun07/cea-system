@@ -192,6 +192,9 @@ class Gateway:
             raise Denied(404, "terminal route not configured")
         if operation == "storage":
             return {"bucket": self.config["bucket"]}
+        if operation == "offloading/decide":
+            from dqn import decide
+            return decide(request)
         if operation == "files/materialize":
             return self.materialize(terminal, request)
         if operation in ("files/check", "attempts/step", "attempts/cancel", "available"):

@@ -27,6 +27,7 @@ public final class FlowSchema {
         if(type==Object.class)return Map.of();
         if(type==String.class)return Map.of("type","string");
         if(type==int.class || type==Integer.class)return Map.of("type","integer");
+        if(type==double.class || type==Double.class)return Map.of("type","number");
         if(type==Boolean.class || type==boolean.class)return Map.of("type","boolean");
         if(!(type instanceof Class<?> cls))throw new IllegalStateException("Unsupported Flow schema type: "+type);
         if(cls.isEnum())return Map.of("type","string","enum",Arrays.stream(cls.getEnumConstants()).map(Object::toString).toList());
@@ -47,7 +48,7 @@ public final class FlowSchema {
                 Map<String,Object> shape=describe(component.getGenericType(),definitions);
                 if(field.equals("candidateClusters"))shape=Map.of("anyOf",List.of(shape,Map.of("type","array","items",Map.of("type","string"))));
                 if(cls==FlowDefinition.Task.class && field.equals("type"))shape=Map.of("type","string","enum",FlowValidator.taskTypes().stream().sorted().toList());
-                if(cls==FlowDefinition.Offload.class && field.equals("strategy"))shape=Map.of("type","string","enum",List.of("RULE","FIXED"));
+                if(cls==FlowDefinition.Offload.class && field.equals("exploration"))shape=Map.of("type","number","minimum",0,"maximum",1);
                 if(cls==FlowDefinition.Input.class && field.equals("values"))shape=Map.of("type","array","items",Map.of("type","string"),"minItems",1,"uniqueItems",true);
                 if(cls==FlowDefinition.class && field.equals("schemaVersion"))shape=Map.of("const",1);
                 if(component.getType().isPrimitive())required.add(field);

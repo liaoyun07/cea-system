@@ -1,5 +1,7 @@
 # 系统总览
 
+OFF-04增量（2026-09-14已发布CEA）：原终端请求链在Resource冻结真实六维后，经可信控制连接交所属边缘网关做Double DQN选层；具体位置继续原Placement，执行/文件/反馈继续原Runner。PyTorch离线消费完整next转移，回放/目标网络/显式探索与固定版本评估已实现。无新Java/API/表/SPI，108个生产Java、92个HTTP操作、28张业务表不变。真实114次请求、五基线比较及实际页面已通过；DQN未优于本次全终端基线，未证明性能达标，见[协议](contracts/off04-double-dqn.md)及[验证](verification/VER-OFF-04-double-dqn.md)。下列各批“待实现”保留为历史状态。
+
 OFF-03增量（2026-09-14已发布CEA）：Resource接纳工作量与传输事实，Offloading冻结六维及下一决策关联，终端经网关反馈本进程端到端时间。原Executor/Worker/Placement/Runner状态所有权不变；新计量不进入普通Flow，不实现Double DQN。六次真实执行、传输/工作量/乱序反馈及页面核验通过，见[验证](verification/VER-OFF-03-measured-feedback.md)。协议见[真实状态与反馈](contracts/off03-measurement.md)，下列OFF-02待做描述为历史时点。
 
 OFF-02增量（2026-09-14已发布CEA）：终端元数据请求复用策略Flow与原执行器；Application适配器新增经网关到终端代理的执行路径。本地原文件不上传，卸载后经网关先入所属边缘存储；Pod助手/Placement保持原职责。成功小JSON通过原产物权限链回到网关。CEA已验证FIXED三层及RULE；无第二套Execution/Binding/数据库状态表。当前RULE仍在后端原适配链内运行，边缘Double DQN与真实六维采集在OFF-03/04，不冒称已完成。见[当前协议](contracts/off02-terminal-gateway.md)、[验收](verification/VER-OFF-002-terminal-gateway.md)。

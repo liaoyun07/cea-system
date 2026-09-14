@@ -30,7 +30,7 @@ public final class OffloadingService {
     public Sample decide(Actor actor,String ns,String key,String execution,Workload work,List<Candidate> candidates,String strategy,String modelVersion,Layer fixed) {
         access.require(actor,ns,Action.EXECUTE);
         if(!Set.of("RULE","FIXED").contains(strategy) || modelVersion!=null || ("FIXED".equals(strategy)!=(fixed!=null)))
-            throw WorkflowException.invalid("offload","RULE or FIXED with a layer required; Double DQN integration is pending");
+            throw WorkflowException.invalid("offload","RULE/FIXED layer selection required here; DQN requires a complete measured edge decision");
         var existing=repository.get(ns,key);if(existing!=null)return existing;
         var layers=new EnumMap<Layer,Candidate>(Layer.class);
         for(var c:candidates) {
@@ -47,6 +47,13 @@ public final class OffloadingService {
         // No cluster identifier or 13-dimensional legacy state is manufactured at the layer boundary.
         return repository.begin(ns,key,execution,work,new Target(selected.name(),null),strategy,null,null,selected.ordinal());
     }
+    /** Persist the authenticated gateway's layer action; concrete placement belongs to Resource. */
+    public Sample edgeDecision(Actor actor,String ns,String key,String execution,Workload work,String modelVersion,List<Integer> legal,int action) {
+        access.require(actor,ns,Action.EXECUTE);version(modelVersion);
+        if(action<0 || action>2 || !legal.contains(action))throw WorkflowException.invalid("offload","edge returned an illegal layer");
+        var existing=repository.get(ns,key);if(existing!=null)return existing;
+        return repository.begin(ns,key,execution,work,new Target(Layer.values()[action].name(),null),"DQN",modelVersion,null,action);
+    }
     /** Record the position already allocated by Resource; never select or reserve it here. */
     public void placed(Actor actor,String ns,String key,Target actual) {
         access.require(actor,ns,Action.EXECUTE);
@@ -56,11 +63,16 @@ public final class OffloadingService {
     public void started(Actor actor,String ns,String key,long inputBytes){access.require(actor,ns,Action.EXECUTE);repository.started(ns,key,inputBytes);}
     /** Called inside the same Resource admission transaction; fixes the actual next decision, never completion order. */
     public Sample capture(String ns,String key,String edge,String terminal,String flowId,Double[] inputs,List<Integer> legal,String unavailable) {
-        if(inputs.length!=6 || legal.isEmpty())throw WorkflowException.invalid("measurement","six values and legal actions required");
+        if(legal.isEmpty())throw WorkflowException.invalid("measurement","legal actions required");
+        double[] state=normalize(inputs,unavailable);
+        return repository.capture(ns,key,edge,terminal,flowId,inputs,legal,unavailable,state,FEEDBACK_LIMIT_SECONDS);
+    }
+    public static double[] normalize(Double[] inputs,String unavailable) {
+        if(inputs.length!=6)throw WorkflowException.invalid("measurement","six values required");
         for(Double value:inputs)if(value!=null && (!Double.isFinite(value) || value<0))throw WorkflowException.invalid("measurement","finite nonnegative values required");
         double[] state=Arrays.stream(inputs).anyMatch(Objects::isNull)?null:Arrays.stream(inputs).mapToDouble(Math::log1p).toArray();
         if(unavailable!=null)state=null;
-        return repository.capture(ns,key,edge,terminal,flowId,inputs,legal,unavailable,state,FEEDBACK_LIMIT_SECONDS);
+        return state;
     }
     /** The ingress caller has already checked original terminal ownership and actual Execution outcome. */
     public void feedback(String ns,String execution,String terminal,Feedback feedback) {

@@ -218,7 +218,9 @@ class DefinitionTest {
         assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: DQN")));
         assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: RULE, modelVersion: v1")));
         assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: RULE, candidateClusters: [edge, cloud]")));
-        assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE","strategy: DQN, modelVersion: v1")));
+        assertEquals(OffloadStrategy.DQN,parser.parse(source.replace("strategy: RULE","strategy: DQN, modelVersion: v1, exploration: 0.2")).tasks().getFirst().container().offload().strategy());
+        for(String invalid:List.of("strategy: RULE, exploration: 0.1","strategy: DQN, modelVersion: v1, exploration: -1","strategy: DQN, modelVersion: v1, exploration: 2"))
+            assertThrows(WorkflowException.class,()->parser.parse(source.replace("strategy: RULE",invalid)));
         var schema=(Map<?,?>)((Map<?,?>)new FlowSchema().generate().get("$defs")).get("Offload");
         assertFalse(((Map<?,?>)schema.get("properties")).containsKey("candidateClusters"));
     }

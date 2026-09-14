@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+OFF-04发布入口为`release-offloading-dqn.ps1 -Capture/-Publish/-Verify`，测试后只更新backend/frontend/edge-gateway，保持19个常驻服务、原16个无关服务和业务对象；无DB migration。`run-offloading-dqn.ps1`是**主动实验**，会新增6个研究策略、模型与114条执行，不是普通健康检查，遇错不能直接重跑覆盖。操作和边界见[研究说明](../../algorithms/offloading/README.md)，实际上线状态与结果见[验证](../../docs/verification/VER-OFF-04-double-dqn.md)。下列批次状态为历史。
+
 OFF-03于2026-09-14已发布，仍为19个常驻服务。测试后`upgrade-offloading-measurement.ps1`仅更新backend/frontend/edge-gateway/terminal-agent与edge-a/cloud公共文件助手；V26/V27已应用，发布前完整备份数据库并保留旧镜像/私有存储配置。原15个无关服务、Flow、策略、历史和数据集不变；不需要再次初始化或升级。旧edge-b/c助手不参与本批终端卸载测量，若将来扩展其卸载入口，需要更新对应助手。六次实际执行/乱序关联及18080“卸载观测”已验证，见[证据与回退边界](../../docs/verification/VER-OFF-03-measured-feedback.md)。
 
 OFF-02于2026-09-14已发布，当前19个常驻服务；真实三层/RULE、文件存储、结果和页面验证通过，见[发布证据](../../docs/verification/VER-OFF-002-terminal-gateway.md)。下列安装脚本不是日常重复运行任务的入口，回放请使用示例中的terminal-compute命令。

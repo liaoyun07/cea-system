@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+OFF-04已于2026-09-14发布CEA：所属网关运行六维Double DQN，原Placement/Runner继续执行；真实48次探索→47条完整转移→固定模型→五基线各12次比较通过。255项Maven、52项Node、60项浏览器和30项本批Python测试PASS，实际18080“卸载观测”可查看模型/层/六维/端到端时间。仅更新前后端/网关，无DB migration，原业务对象与16个其他服务保留。本次DQN平均4.005s，全终端2.207s，未证明优化收益或30ms达标；[完整结果](docs/verification/VER-OFF-04-double-dqn.md)、[计算与职责](docs/contracts/off04-double-dqn.md)。以下批次是历史时点，以本批和进度为准。
+
 OFF-03已于2026-09-14发布CEA：六维真实观测、接纳后未完成工作量、近期传输估计、终端端到端反馈和按决策顺序的next关联已接通。18080“卸载观测”可看状态/耗时/奖励/样本完整性。完整251项Maven、最终28项定向回归、52项Node、59项浏览器、41项Python及CEA六次真实执行/乱序完成核验PASS。原执行链不变，新增3份Java、2张资源事实表和1个反馈API；Double DQN与五基线比较留OFF-04。[计算协议](docs/contracts/off03-measurement.md)、[验证与限制](docs/verification/VER-OFF-03-measured-feedback.md)。以下批次记录保留其当时状态，以本批及进度为准。
 
 OFF-02已于2026-09-14发布CEA：终端先经网关只发文件元数据，FIXED/RULE选层后，本地执行不上传原始文件，边缘/云执行才经网关上传到所属边缘；同一镜像沿原Worker执行，小JSON结果经网关返回。加入终端代理和独立DinD（不挂宿主Docker socket），仅更新backend/gateway，frontend只reload。244项Maven、51项Node、58项浏览器、25项Python及CEA四条真实路径/存储数值/页面核验PASS。18080“边缘处理记录”可看offload-terminal/edge/cloud/rule；[示例与回放](examples/offloading/README.md)、[验收与限制](docs/verification/VER-OFF-002-terminal-gateway.md)。六维状态、端到端反馈和Double DQN仍待OFF-03/04。

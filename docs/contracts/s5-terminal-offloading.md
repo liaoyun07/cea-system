@@ -1,5 +1,7 @@
 # OFF-01：终端卸载选层与 Placement
 
+OFF-04已实现六维边缘Double DQN，显式`modelVersion`/可选`exploration`及当前资格见[最新协议](off04-double-dqn.md)。下文DQN暂停属于OFF-01历史限制，由OFF-04替代；不恢复旧13维单步Q。部署/验证以进度为准。
+
 OFF-02新增元数据compute、网关终端代理及FIXED.layer三路径，见[增量协议](off02-terminal-gateway.md)。以下OFF-01关于“只允许RULE”的限制由该增量更新；DQN仍不执行。当前测试/部署状态以进度为准。
 
 2026-09-14 开始按四步方案实施；本批只做第 1 步，验证/发布状态见[验收记录](../verification/VER-OFF-001-layer-placement.md)。原 S5-04b 的单步 Q 训练结果是历史事实，不等于当前 Double DQN 能力。
