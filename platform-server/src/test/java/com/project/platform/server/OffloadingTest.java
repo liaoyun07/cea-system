@@ -46,6 +46,136 @@ class OffloadingTest {
     private Workload work(){return new Workload("app","v1",List.of("sh","-c","echo hello"),Map.of("SIZE",1),1024);}
     static DqnModel model(double... q){return new DqnModel(DqnModel.SCHEMA,new double[2][13],new double[2],new double[3][2],q);}
     private List<Candidate> options(int busy){return List.of(new Candidate(Layer.TERMINAL,1,busy,0),new Candidate(Layer.EDGE,2,0,0));}
+    private com.project.platform.resource.placement.WorkloadLedger ledger(){return context.getBean(com.project.platform.resource.placement.WorkloadLedger.class);}
+    private Sample measured(String key,String terminal,String flow,long bytes,Layer layer,Double transfer) {
+        return ledger().accept(actor,"lab",key,terminal,"edge","cloud-a",flow,bytes,load->{
+            service().decide(actor,"lab",key,key,work(),List.of(new Candidate(layer,1,0,0)),"FIXED",null,layer);
+            var sample=service().capture("lab",key,"edge",terminal,flow,new Double[]{bytes/1048576.0,load.terminalBytes()/1048576.0,
+                    load.edgeBytes()/1048576.0,load.cloudBytes()/1048576.0,transfer,transfer},List.of(layer.ordinal()),
+                    !load.comparable()?"mixed or unmeasured active workload":transfer==null?"transfer calibration incomplete":null);
+            return new com.project.platform.resource.placement.WorkloadLedger.Choice<>(layer.name(),sample);
+        });
+    }
+    @Test void nextStateIsNextDecisionNotOutOfOrderCompletionAndFeedbackIsImmutable() {
+        String a=key(),b=key(),c=key(),terminal=key(),flow=key();
+        try {
+            measured(a,terminal,flow,2097152,Layer.TERMINAL,2.0);
+            var second=measured(b,terminal,flow,1048576,Layer.EDGE,1.0);
+            assertEquals(2.0,second.measurement().inputs()[1]);
+            assertEquals(b,service().get("lab",a).measurement().nextKey());
+            service().finish("lab",b,"SUCCESS");ledger().release("lab",b);
+            service().feedback("lab",b,terminal,new Feedback("SUCCESS",12.0));
+            assertFalse(service().get("lab",b).measurement().trainable(),"tail lacks next decision");
+            measured(c,terminal,flow,524288,Layer.CLOUD,0.5);
+            assertTrue(service().get("lab",b).measurement().trainable());
+            service().finish("lab",a,"SUCCESS");ledger().release("lab",a);
+            service().feedback("lab",a,terminal,new Feedback("SUCCESS",60.0));
+            var first=service().get("lab",a);
+            assertTrue(first.measurement().trainable());assertEquals(-0.5,first.reward());
+            assertArrayEquals(second.state(),first.measurement().nextState());assertEquals(b,first.measurement().nextKey());
+            assertEquals(Math.log1p(2.0),first.measurement().nextState()[1]);
+            service().feedback("lab",a,terminal,new Feedback("SUCCESS",60.0));
+            assertThrows(WorkflowException.class,()->service().feedback("lab",a,terminal,new Feedback("SUCCESS",61.0)));
+            assertThrows(WorkflowException.class,()->service().feedback("lab",a,"other",new Feedback("SUCCESS",60.0)));
+        } finally {for(String k:List.of(a,b,c))ledger().release("lab",k);}
+    }
+    @Test void calibrationMissingFeedbackAndCancelledSamplesAreNotTrainable() {
+        String a=key(),b=key(),c=key(),terminal=key(),flow=key();
+        try {
+            assertNull(measured(a,terminal,flow,1024,Layer.TERMINAL,null).state());
+            measured(b,terminal,flow,1024,Layer.TERMINAL,1.0);measured(c,terminal,flow,1024,Layer.TERMINAL,1.0);
+            service().finish("lab",a,"SUCCESS");service().feedback("lab",a,terminal,new Feedback("SUCCESS",1.0));
+            assertFalse(service().get("lab",a).measurement().trainable());
+            service().finish("lab",b,"SUCCESS");assertNull(service().get("lab",b).reward());
+            service().feedback("lab",b,terminal,new Feedback("UNMEASURED",null));
+            assertFalse(service().get("lab",b).measurement().trainable());
+            service().finish("lab",c,"CANCELLED");service().feedback("lab",c,terminal,new Feedback("CANCELLED",2.0));
+            assertNull(service().get("lab",c).reward());
+        } finally {for(String k:List.of(a,b,c))ledger().release("lab",k);}
+    }
+    @Test void workloadTakeoverDoesNotDoubleCountAndReleaseCannotResurrect() {
+        String a=key(),b=key(),terminal=key(),flow=key();
+        try {
+            var first=measured(a,terminal,flow,2048,Layer.EDGE,1.0);
+            var takeover=measured(a,terminal,flow,2048,Layer.EDGE,3.0);
+            assertArrayEquals(first.state(),takeover.state(),"decision snapshot is frozen");
+            assertEquals(2048/1048576.0,measured(b,terminal,flow,1024,Layer.CLOUD,1.0).measurement().inputs()[2]);
+            ledger().release("lab",a);ledger().release("lab",a);
+            assertThrows(ResourceException.class,()->measured(a,terminal,flow,2048,Layer.EDGE,1.0));
+        } finally {ledger().release("lab",a);ledger().release("lab",b);}
+    }
+    @Test void concurrentAdmissionCountsEveryUnfinishedWorkloadOnce() throws Exception {
+        String terminal=key(),flow=key();var keys=new ArrayList<String>();for(int i=0;i<8;i++)keys.add(key());
+        try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending=new ArrayList<Future<Sample>>();for(String k:keys)pending.add(pool.submit(()->measured(k,terminal,flow,1048576,Layer.TERMINAL,1.0)));
+            var loads=new TreeSet<Double>();for(var p:pending)loads.add(p.get().measurement().inputs()[1]);
+            assertEquals(new TreeSet<>(List.of(0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0)),loads);
+        } finally {keys.forEach(k->ledger().release("lab",k));}
+    }
+    @Test void unknownOrDifferentActiveWorkloadDoesNotBecomeZeroQueue() {
+        String a=key(),b=key(),terminal=key();
+        try {
+            measured(a,terminal,key(),1024,Layer.EDGE,1.0);
+            var mixed=measured(b,terminal,key(),1024,Layer.CLOUD,1.0);
+            assertNull(mixed.state());assertTrue(mixed.measurement().unavailable().contains("mixed"));
+            ledger().release("lab",a);ledger().release("lab",b);
+            String untracked=key(),next=key();
+            try {
+                slots().reserveTerminal(actor,"lab",untracked,"edge",terminal,1);
+                assertNull(measured(next,terminal,key(),1024,Layer.TERMINAL,1.0).state());
+            } finally {slots().releaseTerminal("lab",untracked);ledger().release("lab",next);}
+        } finally {ledger().release("lab",a);ledger().release("lab",b);}
+    }
+    @Test void transferRatesUseLastTwentyCompleteUniqueTransfersAndMeasuredSeconds() {
+        var transfers=context.getBean(com.project.platform.resource.storage.TransferMeasurements.class);
+        String source=key(),target=key(),first=key();
+        assertNull(transfers.seconds("lab",source,target,100));
+        transfers.record("lab",first,"UPLOAD","data",source,target,1000,1);
+        transfers.record("lab",first,"UPLOAD","data",source,target,9999,0.1);
+        assertEquals(1000,transfers.rate("lab",source,target).bytesPerSecond());
+        for(int i=0;i<20;i++)transfers.record("lab",key(),"UPLOAD","data",source,target,200,2);
+        assertEquals(20,transfers.rate("lab",source,target).transfers());assertEquals(5,transfers.seconds("lab",source,target,500));
+        for(double invalid:new double[]{0,-1,Double.NaN,Double.POSITIVE_INFINITY})assertThrows(ResourceException.class,()->transfers.record("lab",key(),"UPLOAD","data",source,target,100,invalid));
+    }
+    @Test void feedbackValidatesClockAndDeadlineBeforeWriting() {
+        for(Feedback invalid:Arrays.asList(null,new Feedback(null,1.0),new Feedback("SUCCESS",Double.NaN),new Feedback("SUCCESS",0.0),new Feedback("UNMEASURED",1.0),new Feedback("TIMEOUT",1.0)))
+            assertThrows(WorkflowException.class,()->service().feedback("lab",key(),key(),invalid));
+        String a=key(),terminal=key();
+        try {
+            measured(a,terminal,key(),1024,Layer.TERMINAL,1.0);
+            service().feedback("lab",a,terminal,new Feedback("SUCCESS",121.0));
+            assertEquals("TIMEOUT",service().get("lab",a).measurement().feedbackOutcome());assertEquals(-2.0,service().get("lab",a).reward());
+            assertFalse(service().get("lab",a).measurement().trainable(),"feedback does not mean remote completion");
+        } finally {ledger().release("lab",a);}
+    }
+    @Test void waitingAndRunningReservationsBothRemainInQueueUntilConfirmedRelease() {
+        String a=key(),b=key(),c=key(),terminal=key(),flow=key();
+        try {
+            measured(a,terminal,flow,1048576,Layer.TERMINAL,1.0);
+            assertTrue(slots().reserveTerminal(actor,"lab",a,"edge",terminal,1));
+            measured(b,terminal,flow,2097152,Layer.TERMINAL,1.0);
+            assertFalse(slots().reserveTerminal(actor,"lab",b,"edge",terminal,1));
+            assertEquals(1,slots().terminalLoad(actor,"lab","edge",terminal,1).waiting());
+            var third=measured(c,terminal,flow,1024,Layer.TERMINAL,1.0);
+            assertEquals(3.0,third.measurement().inputs()[1],"includes the running 1MiB and waiting 2MiB");
+            slots().releaseTerminal("lab",a);ledger().release("lab",a);
+            assertTrue(slots().reserveTerminal(actor,"lab",b,"edge",terminal,1));
+        } finally {for(String k:List.of(a,b,c)){slots().releaseTerminal("lab",k);ledger().release("lab",k);}}
+    }
+    @Test void inputReportsUseVerifiedSingleFileBytesAndDoNotRequireAnotherStorageCall() throws Exception {
+        String a=key(),terminal=key(),source=key();
+        try {
+            measured(a,terminal,key(),1024,Layer.EDGE,1.0);
+            var adapter=context.getBean(com.project.platform.dataflow.execution.OffloadingTaskAdapter.class);
+            var rates=context.getBean(com.project.platform.resource.storage.TransferMeasurements.class);
+            var inputs=Map.of("data","s3://"+source+"/lab/file");
+            adapter.downloaded("lab",a,"edge",inputs,"not-json");
+            adapter.downloaded("lab",a,"edge",inputs,"{\"transfers\":[{\"name\":\"data\",\"bytes\":2,\"seconds\":1}]}");
+            assertNull(rates.rate("lab","store:"+source,"cluster:edge"));
+            adapter.downloaded("lab",a,"edge",inputs,"{\"transfers\":[{\"name\":\"data\",\"bytes\":1024,\"seconds\":2}]}");
+            assertEquals(512,rates.rate("lab","store:"+source,"cluster:edge").bytesPerSecond());
+        } finally {ledger().release("lab",a);}
+    }
     @Test void dqnUsesWeightsAndMasksUnavailableActions() {
         double[] state=new double[13];state[1]=1;state[5]=1;
         assertEquals(1,model(0,3,100).choose(state));state[5]=0;assertEquals(0,model(0,3,100).choose(state));

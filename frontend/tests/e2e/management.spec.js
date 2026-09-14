@@ -10,6 +10,43 @@ const gatewayHeaders = {
 };
 const unique = () => `mg-${randomUUID().slice(0, 8)}`;
 
+test('measured offloading detail displays missing as unavailable rather than zero', async ({ page }) => {
+  await login(page);
+  await page.route('**/offloading/samples?*', (route) =>
+    route.fulfill({
+      json: [
+        {
+          key: 'measurement-ui-fixture',
+          applicationId: 'signal',
+          applicationVersion: 'v1',
+          strategy: 'FIXED',
+          target: { kind: 'EDGE', id: 'edge-a' },
+          outcome: 'SUCCESS',
+          createdAt: '2026-09-14T01:00:00Z',
+          reward: -0.1,
+          measurement: {
+            inputs: [1, 0, 2, 0, null, null],
+            unavailable: 'transfer calibration incomplete',
+            elapsedSeconds: 12,
+            limitSeconds: 120,
+            feedbackOutcome: 'SUCCESS',
+            nextKey: null,
+            nextState: null,
+            trainable: false,
+          },
+        },
+      ],
+    }),
+  );
+  await nav(page, '卸载观测');
+  await expect(page.locator('tbody tr')).toContainText('待传输标定');
+  await page.getByRole('button', { name: '详情 →', exact: true }).click();
+  await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
+  await expect(page.getByRole('table', { name: '卸载六维状态' }).getByText('未测得')).toHaveCount(2);
+  await expect(page.getByText('12.000 秒', { exact: true })).toBeVisible();
+  await expect(page.getByText('尚无下一决策', { exact: true })).toBeVisible();
+});
+
 test('all candidate pages are read and management navigation protects drafts on narrow screens', async ({
   page,
   request,

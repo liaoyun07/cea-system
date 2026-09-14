@@ -14,6 +14,7 @@ import urllib.request
 
 ROOT = Path("/cea-work")
 PLAN = Path("/cea-files/plan.json")
+REPORT = Path("/dev/termination-log")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -49,6 +50,7 @@ def open_output(name):
 
 def transfer(phase, name):
     filename(name)
+    started = time.perf_counter_ns()
     deadline = time.monotonic() + 300
     delay = 1
     while True:
@@ -75,7 +77,10 @@ def transfer(phase, name):
                     with HTTP.open(request, timeout=30) as response:
                         if response.status not in (200, 201, 204):
                             raise ValueError("unexpected upload response")
-            return
+            if phase == "inputs":
+                return {"name": name, "bytes": (ROOT / "in" / name).stat().st_size,
+                        "seconds": (time.perf_counter_ns() - started) / 1e9}
+            return None
         except urllib.error.HTTPError as error:
             if error.code not in (403, 408, 429, 500, 502, 503, 504):
                 raise
@@ -97,8 +102,9 @@ def run(phase):
         data = plan()
         for name, content in data["inline"].items():
             (ROOT / "in" / filename(name)).write_text(content, encoding="utf-8")
-        for name in data["inputs"]:
-            transfer("inputs", name)
+        measured = [transfer("inputs", name) for name in data["inputs"]]
+        if data.get("measureInputs") is True and len(measured) == 1:
+            REPORT.write_text(json.dumps({"transfers": measured}, allow_nan=False), encoding="utf-8")
         (ROOT / "start").touch()
     elif phase == "output":
         while not (ROOT / "exit").exists():

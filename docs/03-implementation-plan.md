@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-14 OFF-03：用户授权第3步。依赖OFF-02，按[ADR-0027](decisions/ADR-0027-offloading-measured-state.md)实现真实工作量、最近20次传输估计、六维快照、终端单调时钟反馈及决策顺序next关联；验证等待/取消/接管/混合负载/缺测和乱序重复反馈。测试后备份CEA数据库并迁移，只更新后端/网关/终端客户端/必要前端和公共助手，不新建服务、不改变现有Flow或算法镜像。Double DQN、实验episode关闭和性能对比留OFF-04。
+
 2026-09-14 OFF-02：用户明确开始第2步并允许加入CEA。依赖OFF-01；实现元数据compute入口、原始文件留终端/卸载后经网关上传、三层与RULE、成功小JSON经原产物权限返回、幂等/取消/Worker接管回归。新增终端代理和独立DinD模拟服务；独立socket卷、不挂宿主Docker socket、不开放Docker TCP端口。保留普通Flow及原3策略/历史；无DB migration。测试后更新backend/gateway和新增服务，frontend只需reload，新示例注册不覆盖现有定义；不进入OFF-03/04。决策见[ADR-0026](decisions/ADR-0026-terminal-gateway-runner.md)。
 
 2026-09-14 OFF：按用户授权分四个可独立验收批次推进。OFF-01 先拆选层/Placement，删除 offload.candidateClusters，保留普通 Flow 与原执行链；OFF-02 再做终端元数据请求/按需上传/三路径与结果返回；OFF-03 补真实六维状态、端到端反馈及乱序样本关联；OFF-04 接边缘 Double DQN 并完成五基线比较。OFF-01 依赖现有 S5-04c，验收多云范围内实际 Placement、可信归属限制、普通流程/取消/重试/接管回归与 CEA 发布。新服务、状态字段和研究性能结论不得提前算作完成。范围及数据库消费者见 [ADR-0025](decisions/ADR-0025-offloading-layer-placement.md)。
@@ -10,7 +12,7 @@
 
 2026-09-13 EP-01：用户授权终端容器真实上传，经网关写本域对象存储后触发三个实际策略，分别留边缘/返回终端/摘要到中心。依赖S5-03和FILE-01，复用原Java接入及执行链；新增网关/回放容器与算法示例、数据/模型准备和验证脚本，不新增Java/DB/DSL。验收与边界见[EP-01](features/EP-01-terminal-edge-examples.md)。测试后部署新增服务及必要CONNECT配置，保留原流程和历史。
 
-计划版本：0.44。建立日期：2026-09-08。实际状态只在[当前进度](04-progress.md)维护；本文件记录计划、依赖、退出条件与变更历史，不维护第二份完成百分比。
+计划版本：0.45。建立日期：2026-09-08。实际状态只在[当前进度](04-progress.md)维护；本文件记录计划、依赖、退出条件与变更历史，不维护第二份完成百分比。
 
 2026-09-13 FILE-01：依赖 S4 Job/S5 联邦流程与现有产物读取，将 K8s 文件搬运移至 Pod 公共助手；输出按已选 cluster 固定存储、输入按 URI 直读。验收真实跨存储/缺失文件/取消/恢复、历史读取及 FedAvg/FedProx；测试后部署，新增基础设施及 Secret 权限另确认。不扩大 DSL、调度、终端上传、DQN、计量或数据迁移，详见 [规格](features/FILE-01-pod-artifacts.md)。
 

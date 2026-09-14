@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+OFF-03于2026-09-14已发布，仍为19个常驻服务。测试后`upgrade-offloading-measurement.ps1`仅更新backend/frontend/edge-gateway/terminal-agent与edge-a/cloud公共文件助手；V26/V27已应用，发布前完整备份数据库并保留旧镜像/私有存储配置。原15个无关服务、Flow、策略、历史和数据集不变；不需要再次初始化或升级。旧edge-b/c助手不参与本批终端卸载测量，若将来扩展其卸载入口，需要更新对应助手。六次实际执行/乱序关联及18080“卸载观测”已验证，见[证据与回退边界](../../docs/verification/VER-OFF-03-measured-feedback.md)。
+
 OFF-02于2026-09-14已发布，当前19个常驻服务；真实三层/RULE、文件存储、结果和页面验证通过，见[发布证据](../../docs/verification/VER-OFF-002-terminal-gateway.md)。下列安装脚本不是日常重复运行任务的入口，回放请使用示例中的terminal-compute命令。
 
 OFF-02新增可选`terminal-offloading`服务组：terminal-agent、独立terminal-engine，以及一次性terminal-compute工具。引擎只监听专用Unix socket卷、不挂宿主Docker socket、不开放Docker TCP端口；仅engine特权。当前安装状态见进度。运行前先测试/保存CEA基线和回退镜像；`setup-offloading-paths.ps1`仅生成私有待发布配置与合成终端信号，`-Publish`才更新backend/gateway及新增服务、注册4个新策略。原17服务中只重建backend/gateway；frontend只reload，不改原3策略或FedAvg/FedProx。新增4个卷承载独立Docker缓存、socket、工作文件与取消标记，暂不自动GC。示例操作见[三路径说明](../../examples/offloading/README.md)。

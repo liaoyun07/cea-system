@@ -17,6 +17,7 @@ public final class ContainerTask {
     public interface Transfers {
         String authorization() throws Exception;
         String published(String name) throws Exception;
+        default void inputReport(String report) throws Exception {}
     }
     static final String WRAPPER="""
             mkdir -p /cea-work/in /cea-work/out

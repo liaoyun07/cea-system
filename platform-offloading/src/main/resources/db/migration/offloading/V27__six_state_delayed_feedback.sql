@@ -1,0 +1,15 @@
+ALTER TABLE off_task_observation
+ ADD COLUMN sample_no BIGINT NOT NULL AUTO_INCREMENT,
+ ADD UNIQUE KEY uq_off_sample_order(sample_no),
+ ADD COLUMN origin_edge VARCHAR(100) NULL,
+ ADD COLUMN origin_terminal VARCHAR(100) NULL,
+ ADD COLUMN flow_id VARCHAR(100) NULL,
+ ADD COLUMN state_inputs_json JSON NULL,
+ ADD COLUMN legal_actions_json JSON NULL,
+ ADD COLUMN unavailable_reason VARCHAR(250) NULL,
+ ADD COLUMN next_allocation_id VARCHAR(60) NULL,
+ ADD COLUMN elapsed_seconds DOUBLE NULL,
+ ADD COLUMN limit_seconds DOUBLE NULL,
+ ADD COLUMN feedback_outcome VARCHAR(12) NULL,
+ ADD COLUMN feedback_reward DOUBLE NULL,
+ ADD KEY ix_off_stream(namespace,origin_edge,flow_id,sample_no);

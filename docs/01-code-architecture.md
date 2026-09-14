@@ -1,5 +1,15 @@
 # 项目结构与 Java 文件索引
 
+OFF-03（2026-09-14已实现、验证并发布CEA）：生产 Java 105→108，HTTP 91→92。新增 V26 两张 resource 表；V27 只给既有卸载观测添加六维/下一决策/终端反馈事实列。计量适配仍在原 ApplicationTaskRunner，通用 Transfers.inputReport 仅返回 Pod 文件传输事实，不让 runtime 依赖 offloading。详见 [ADR-0027](decisions/ADR-0027-offloading-measured-state.md)、[验收](verification/VER-OFF-03-measured-feedback.md)。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-resource/src/main/java/com/project/platform/resource/placement/WorkloadLedger.java` | 接纳时事务锁、按层/来源范围累计未完成输入量，接管去重和已确认释放；不是调度器 |
+| `platform-resource/src/main/java/com/project/platform/resource/storage/TransferMeasurements.java` | 实际成功传输事实去重、最近20次总字节/总秒数估计；不填造缺失速率 |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/OffloadingTaskAdapter.java` | 对接可信 origin、resource 工作量/传输、offloading 决策与六维快照；不选择 cluster |
+
+既有 OffloadingService/JdbcOffloadingRepository 拥有卸载观测和延迟反馈；EdgeAccessController 先授权来源再接收反馈；JobConfiguration 装配服务。无新 SPI、Executor、Worker 或算法 SDK；无生产类删除。
+
 OFF-02：生产Java104→105，新增`TerminalGatewayClient`，平台HTTP操作90→91。`ApplicationTaskRunner`在原Worker内识别终端本地文件、FIXED/RULE选层及网关执行，Prepared只保存稳定描述；`JobConfiguration`装配互斥的gateway/dockerContext连接。`ExecutionOutputService.terminalResult`把成功Flow输出反查为本Execution成功Attempt声明JSON，`EdgeAccessService/Controller`先做原来源授权再读取。原Binding/Executor/Worker/Placement状态所有权不变，无新增DB/表/列/SPI。Python代理及独立DinD只承担终端容器副作用，见[验收](verification/VER-OFF-002-terminal-gateway.md)。下列各批数字为历史时点。
 
 EP-02：仍104份生产Java，无文件新增/删除。`EdgeController`增加GET processing-records与ProcessingView；`EdgeAccess`增加SubmissionOrigin/ProcessingRecord，只读响应不持久化；`EdgeAccessService`组合策略/可信来源及原Execution。`JdbcEdgeRepository`只查本模块策略和接入归属；`FlowExecutionService` → `ExecutionService` → `JdbcExecutionStore`增加listForFlows，runtime仅按namespace/flowIds/state在自己表内筛选后分页，不引用edge表或类型。无DB/模块依赖/引擎状态所有权变化；新增前端`management/EdgeProcessingPage.vue`，详情继续ExecutionDetail。平台HTTP操作89→90。见[规格](features/EP-02-processing-records.md)。

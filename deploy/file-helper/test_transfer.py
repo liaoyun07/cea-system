@@ -15,7 +15,8 @@ class HelperTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.plan = self.root / "plan.json"
-        self.patches = [patch.object(transfer, "ROOT", self.root), patch.object(transfer, "PLAN", self.plan)]
+        self.patches = [patch.object(transfer, "ROOT", self.root), patch.object(transfer, "PLAN", self.plan),
+                        patch.object(transfer, "REPORT", self.root / "termination.log")]
         for p in self.patches:
             p.start()
         self.received = {}
@@ -70,6 +71,21 @@ class HelperTests(unittest.TestCase):
         with self.assertRaises(Exception):
             transfer.run("input")
         self.assertFalse((self.root / "start").exists())
+
+    def test_report_measures_complete_binary_input_without_urls(self):
+        self.write_plan(inputs={"data": self.base + "/data"})
+        data = json.loads(self.plan.read_text())
+        data["measureInputs"] = True
+        self.plan.write_text(json.dumps(data))
+        transfer.run("input")
+        report = json.loads(transfer.REPORT.read_text())
+        self.assertEqual(len(b"real-input\x00\xff"), report["transfers"][0]["bytes"])
+        self.assertGreater(report["transfers"][0]["seconds"], 0)
+        self.assertEqual({"name", "bytes", "seconds"}, set(report["transfers"][0]))
+
+    def test_ordinary_input_does_not_report_offloading_measurement(self):
+        transfer.run("input")
+        self.assertFalse(transfer.REPORT.exists())
 
     def test_outputs_include_empty_file_and_release_algorithm(self):
         transfer.run("input")

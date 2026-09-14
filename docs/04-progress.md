@@ -1,5 +1,7 @@
 # 当前进度
 
+OFF-03（2026-09-14，DONE/PASS，已发布）：真实六维状态、接纳后未完成工作量、最近20次传输估计、终端单调时钟端到端反馈、决策顺序next关联及卸载观测展示已闭环。17:58:42完整251项Maven PASS；最终移除额外源S3 HEAD并补两项测试后，18:03:01定向28项PASS；52项Node、59项浏览器、41项Python及构建/格式/结构通过。18:04:05发布CEA backend/frontend/gateway/terminal-agent及edge-a/cloud公共助手，备份数据库后应用V26/V27；不新增服务，原15个无关服务不变。六次真实执行均SUCCESS，8条传输事实/独立数值复核、同值反馈及乱序关联通过：大请求仍未完成时小请求记录QC=63.2494MiB，小请求6.578秒先完成、大请求8.638秒后完成，next仍按决策顺序。原14条执行/4条卸载历史、2个USER Flow、7策略、2数据集保留；新增6条执行，不重跑联邦训练。18:07:52实际18080桌面/390px页面PASS。新增3份生产Java、2张资源事实表、1个反馈API；无新Executor/Worker/SPI或算法SDK。OFF-04 Double DQN、五基线比较和正式性能验收未开始，详见[验证与限制](verification/VER-OFF-03-measured-feedback.md)、[ADR-0027](decisions/ADR-0027-offloading-measured-state.md)。
+
 OFF-02（2026-09-14，DONE/PASS，已发布）：终端元数据compute、网关派发、固定三层/RULE及成功小JSON返回已闭环。本地原始文件不上传，EDGE/CLOUD按需上传所属边缘；沿原Worker/Placement/Pod助手执行。16:37:23完整244项Maven、51项Node/构建/格式、58项浏览器、25项Python通过，包含原Attempt接管、取消确认、失败重试和权限回归。16:44:42更新CEA backend/gateway，新增terminal-agent及独立DinD（无宿主Docker socket/无Docker TCP），frontend只reload。16:45四次真实执行均SUCCESS，六项结果与独立参考一致；local/RULE原文件上传0字节，EDGE/CLOUD各1507314字节且内容一致。16:47实际18080记录/来源/详情/结果、桌面与390px通过；原2流程、3策略、10执行和2数据集不变，其余15服务ID/镜像/启动时间保持。新增1份Java和1个GET，无DB migration/新运行状态机。OFF-03真实六维/端到端反馈及OFF-04 Double DQN未开始。见[验收](verification/VER-OFF-002-terminal-gateway.md)、[ADR-0026](decisions/ADR-0026-terminal-gateway-runner.md)。以下条目中的未实现描述为对应历史批次状态。
 
 OFF-01（2026-09-14，DONE/PASS，已发布）：卸载只选层，Resource/Placement 选具体位置。删除 offload.candidateClusters、代表集群评分和旧画像 estimate 查询；增加管理员 central-clouds 范围，EDGE 取可信终端归属；V25 仅允许预约前 target_id 为空。新 DQN 决策暂停至 OFF-04。15:45:56 完整242项Maven、51项Node/构建/格式、58项浏览器PASS；真实RULE三层与第二云集群Placement通过。15:50:54仅发布前后端，15:51～52实际18080健康/校验/编辑schema/浏览器及历史复核PASS；11份修订、10执行、132任务实例、104次尝试、2数据集、3策略及其余15容器不变。无新增生产Java文件/表/API/SPI，执行状态机不变。OFF-02网关终端三路径、OFF-03真实状态反馈、OFF-04 Double DQN比较仍未实现；下一步需要终端模拟运行环境，新增基础设施另行确认。见[本批验证](verification/VER-OFF-001-layer-placement.md)。
@@ -68,20 +70,20 @@ S6基线：剩余02–04已完成。2026-09-11 00:02:08 +08:00完整verify通过
 
 - S6-01：从同一FlowDefinition生成编辑Schema；校验/输入预览不创建执行；批量导入复用修订CAS和事务，搜索/导出维持USER管理范围。JSON和YAML共享解析/校验/保存，不存在独立No-code绑定；完整前端未实现。
 
-- S5-04：用户确认终端Docker；显式TERMINAL+offload才进行规则或已注册单步Q模型决策及观测。04c中普通CLUSTER和固定TERMINAL不再读写卸载画像；终端FIFO以同Attempt预约并在确认停止后按实际资源预约释放，不重复派发；详情见[协议](contracts/s5-terminal-offloading.md)。
+- S5-04/OFF-01至03：显式TERMINAL+offload才进行FIXED/RULE层决策及观测，Placement决定具体位置；旧单步Q保留存档，新DQN执行暂停至OFF-04。普通CLUSTER和固定TERMINAL不读写卸载画像；终端FIFO以同Attempt预约并在确认停止后释放。符合采样条件的卸载请求新增真实六维和端到端反馈，详情见[计量协议](contracts/off03-measurement.md)。
 
 - S5-03/EP-01：CONNECT网关身份、终端归属及心跳；USER/EDGE_POLICY管理隔离，事件提交原Execution。EP-01已部署HTTP网关/真实终端文件回放，未复制Executor/Binding/执行状态；不含MQTT、物理设备代理或离线自治。详见ADR-0014/0024及接入协议。
 
 - S5-02b：Loop支持有界数组、ITEM上下文、并发任务组、显式有序输出；动态candidateClusters和集合文件清单与真实Application闭环。40项/重启/失败/取消、两种客户端数量和清单接管已测试。没有新增业务表/列/状态或第二套执行链；Kestra差异见[ADR-0013](decisions/ADR-0013-loop.md)。
 
-- 独立8模块，UI-10源码共104份生产Java（含8份包声明）；文件及测试入口见架构索引。BuildkitTestBridge/SkopeoTestBridge仅为隔离测试传输辅助，不进入生产执行链。模块依赖未增加，runtime仍不依赖业务模块。
+- 独立8模块，OFF-03当前共108份生产Java（含8份包声明）；文件及测试入口见架构索引。BuildkitTestBridge/SkopeoTestBridge仅为隔离测试传输辅助，不进入生产执行链。模块依赖未增加，runtime仍不依赖业务模块。
 - 单一Flow/Binding/Execution/TaskRun/Attempt模型；显式Flow Input和Task来源，不派生Input，不存在alias/plan/resolve第二套绑定。
 - 主链：统一提交Checks → Executor派发 → Worker租约执行 → 持久结果 → Executor归并/重试/Errors/Finally → 主终态 → 同链afterExecution。Application适配资源/应用公开接口，按显式目标选择KubernetesJobRunner或DockerTaskRunner；没有第二套Executor。
 - 叶子支持Log/Sleep、真实Application Job或终端Docker、HTTP GET/POST、MySQL只读参数化SELECT。Shell/Python在Application容器内执行，不在宿主执行。HTTP POST结果不明时不重发，自动retry禁止；SQL写入未支持。
 - 资源目录预览仍只检查声明。执行时另外检查Ready可调度节点、数据集本地性，原子占用平台Job槽；不是CPU/内存物理预约，不使用终端卸载DQN。
 - 镜像按digest准备；Job按TaskRun/Attempt固定命名。Worker中断/强杀后接管同Job。取消/超时等待Pod停止才释放名额并进入Finally。Kubernetes命名输入、数据集文件和输出由Pod公共助手按授权URI直接读写源/本域S3，算法镜像不带存储凭据；中心仅控制、确认对象及限量读取JSON，终端Docker保留原文件搬运路径。
-- UI-10源码V1–V24共26张业务表；V20–V23为目录/Flow/Execution/Dataset逻辑删除列，V24人员表用于登录和权限。V18/V19分发/部署记录保持；无构建历史或新执行状态表，既有prepared_json和TaskRun作用域语义保持。
-- UI-10源码89个HTTP操作、94个公开record映射。无新Worker端点、Binding、Runner或SPI；本批API/字段消费者见UI-10协议。
+- OFF-03当前V1–V27共28张业务表；V26两张资源事实表，V27只扩充原卸载观测，未新建执行状态表。原逻辑删除/人员/分发/部署表保持，prepared_json和TaskRun作用域语义保持。
+- 当前92个HTTP操作；OFF-03新增受原CONNECT来源授权的反馈API并扩充样本查询。无新Worker端点、Binding、Runner或SPI；字段消费者见OFF-03协议。
 - S6历史verify通过212项：runtime33、持久化86、接入18、编辑/文件/生命周期21、容器/联邦33、卸载10、HTTP/SQL6、协议3、架构1、实际JAR1；另Python7+5项通过。后续UI-06基线216项通过，当前批次以顶部及VER-UI-008为准，不把历史结果当本批结果。
 - Repeat由原Executor持久推进显式状态反馈，每轮新TaskRun；整轮子图成功后才进入下一轮。重试仍增加同轮Attempt，轮间重启不重复已完成任务；当前支持固定1..100轮，可以内含Loop，不支持Repeat嵌套或条件循环。
 - 真实环境仅单机Docker中的隔离MySQL/Registry/K3s/MinIO及独立JVM，未动旧web-platform/amis、旧DB、旧集群或旧镜像。不是实际跨地域多云性能/容灾验收。

@@ -8,6 +8,7 @@ import re
 import socket
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -61,7 +62,7 @@ class Gateway:
                 raw = response.read(MAX_JSON + 1)
                 if len(raw) > MAX_JSON:
                     raise Denied(502, "platform response exceeds limit")
-                return json.loads(raw)
+                return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as error:
             raise Denied(error.code if error.code in (400, 401, 403, 404, 409, 422) else 502,
                          "platform rejected request") from None
@@ -145,6 +146,7 @@ class Gateway:
             raise Denied(400, "execution and terminal file required")
         file = self.agent_request(terminal, "files/check", request["file"])
         key = f'{self.config["namespace"]}/ingress/{terminal}/offload/{request["executionId"]}/{file["fileId"]}/data'
+        measured = None
         try:
             prior = self.s3.head_object(Bucket=self.config["bucket"], Key=key)
             if prior["ContentLength"] != file["bytes"]:
@@ -158,6 +160,7 @@ class Gateway:
             if not self.slots.acquire(blocking=False):
                 raise Denied(429, "upload capacity reached")
             try:
+                started = time.perf_counter_ns()
                 digest = hashlib.md5()  # Content-MD5 checks the actual terminal→gateway→S3 transfer.
                 with self.agent_request(terminal, "files/read", file, binary=True) as source, tempfile.TemporaryFile() as spool:
                     if int(source.headers.get("Content-Length", -1)) != file["bytes"]:
@@ -173,9 +176,13 @@ class Gateway:
                     spool.seek(0)
                     self.s3.put_object(Bucket=self.config["bucket"], Key=key, Body=spool, ContentLength=file["bytes"],
                         ContentMD5=base64.b64encode(digest.digest()).decode(), ContentType="application/octet-stream")
+                measured = {"bytes": file["bytes"], "seconds": (time.perf_counter_ns() - started) / 1e9}
             finally:
                 self.slots.release()
-        return {"uri": f's3://{self.config["bucket"]}/{key}'}
+        response = {"uri": f's3://{self.config["bucket"]}/{key}'}
+        if measured is not None:
+            response["transfer"] = measured
+        return response
 
     def internal(self, header, terminal, operation, request):
         secret = self.config.get("controlToken")
@@ -183,6 +190,8 @@ class Gateway:
             raise Denied(401, "worker control authentication required")
         if terminal not in self.config.get("agents", {}):
             raise Denied(404, "terminal route not configured")
+        if operation == "storage":
+            return {"bucket": self.config["bucket"]}
         if operation == "files/materialize":
             return self.materialize(terminal, request)
         if operation in ("files/check", "attempts/step", "attempts/cancel", "available"):
@@ -210,6 +219,11 @@ class Gateway:
                 # including cloud output. No extra cloud credentials or arbitrary URI proxy here.
                 response["result"] = self.backend(terminal, "executions/" + execution_id + "/result")
         return response
+
+    def feedback(self, terminal, execution_id, body):
+        if not re.fullmatch(UUID, execution_id) or set(body) != {"outcome", "elapsedSeconds"}:
+            raise Denied(400, "execution and measured feedback required")
+        return self.backend(terminal, "executions/" + execution_id + "/feedback", body)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -260,6 +274,11 @@ class Handler(BaseHTTPRequestHandler):
                     if not 0 < length <= 4096:
                         raise Denied(413, "compute request exceeds limit")
                     return self.reply(202, gateway.compute(terminal, json.loads(self.rfile.read(length))))
+                feedback = re.fullmatch(r"/v1/executions/(" + UUID + r")/feedback", self.path)
+                if feedback:
+                    if not 0 < length <= 4096:
+                        raise Denied(413, "feedback exceeds limit")
+                    return self.reply(200, gateway.feedback(terminal, feedback[1], json.loads(self.rfile.read(length))))
             elif self.path.startswith("/v1/executions/"):
                 return self.reply(200, gateway.result(terminal, self.path.removeprefix("/v1/executions/")))
             raise Denied(404, "route not found")

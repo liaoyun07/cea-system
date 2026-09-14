@@ -10,6 +10,10 @@ import com.project.platform.offloading.*;
 import com.project.platform.resource.catalog.ResourceCatalogService;
 import com.project.platform.resource.kubernetes.KubernetesConnections;
 import com.project.platform.resource.placement.JobPlacementService;
+import com.project.platform.resource.placement.WorkloadLedger;
+import com.project.platform.resource.storage.TransferMeasurements;
+import com.project.platform.dataflow.execution.OffloadingTaskAdapter;
+import com.project.platform.dataflow.execution.FlowExecutionService;
 import com.project.platform.resource.storage.ObjectStorage;
 import com.project.platform.runtime.definition.*;
 import com.project.platform.runtime.worker.TaskRunner;
@@ -45,11 +49,14 @@ public class JobConfiguration {
     @Bean JobPlacementService jobPlacementService(ResourceCatalogService resources,KubernetesConnections connections,JdbcTemplate jdbc,
             TransactionTemplate transactions,Settings settings,AccessPolicy access) {return new JobPlacementService(resources,connections,jdbc,transactions,settings.slots(),settings.centralClouds(),access);}
     @Bean ObjectStorage objectStorage(Settings settings){return new ObjectStorage(settings.storage());}
-    @Bean JdbcOffloadingRepository offloadingRepository(JdbcTemplate jdbc,JsonCodec json){return new JdbcOffloadingRepository(jdbc,json);}
+    @Bean JdbcOffloadingRepository offloadingRepository(JdbcTemplate jdbc,JsonCodec json,TransactionTemplate transactions){return new JdbcOffloadingRepository(jdbc,json,transactions);}
     @Bean OffloadingService offloadingService(JdbcOffloadingRepository repository,AccessPolicy access){return new OffloadingService(repository,access);}
+    @Bean WorkloadLedger workloadLedger(JdbcTemplate jdbc,TransactionTemplate transactions,AccessPolicy access){return new WorkloadLedger(jdbc,transactions,access);}
+    @Bean TransferMeasurements transferMeasurements(JdbcTemplate jdbc){return new TransferMeasurements(jdbc);}
+    @Bean OffloadingTaskAdapter offloadingTaskAdapter(WorkloadLedger ledger,TransferMeasurements transfers,OffloadingService offloading,JsonCodec json){return new OffloadingTaskAdapter(ledger,transfers,offloading,json);}
     @Bean TaskRunner applicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,IdentityDirectory identities,EdgeAccessService edge,JsonCodec json,BindingResolver bindings,Settings settings,OffloadingService offloading,
-            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles) {
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,FlowExecutionService executions,OffloadingTaskAdapter measurements) {
         var applicationsRunner=new ApplicationTaskRunner(applications,resources,images,placement,connections,storage,job->{
             var execution=(Map<?,?>)job.context().get("execution");
             var actor=identities.actor((String)execution.get("submittedBy"));
@@ -59,8 +66,9 @@ public class JobConfiguration {
             var origin=edge.executionOrigin(identities.actor((String)execution.get("submittedBy")),namespace,job.executionId());
             var connection=settings.terminals().getOrDefault(namespace,Map.of()).get(origin.terminalId());
             if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no terminal connection configured for request origin");
-            return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots(),connection.gateway());
-        },offloading,json,bindings,namespaceFiles,settings.helpers());
+            var definition=executions.get(edge.workerActor(identities.actor((String)execution.get("submittedBy")),namespace,job.executionId()),namespace,job.executionId()).definition();
+            return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots(),connection.gateway(),definition.id(),definition.allTasks().size()==1);
+        },offloading,json,bindings,namespaceFiles,settings.helpers(),measurements);
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
         return context->context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
     }

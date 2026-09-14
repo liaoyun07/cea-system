@@ -21,7 +21,8 @@ def run(config, event, file, receipt):
     uuid.UUID(file.name, version=4)
     receipt = Path(receipt)
     receipt.parent.mkdir(parents=True, exist_ok=True)
-    if receipt.exists():
+    resumed = receipt.exists()
+    if resumed:
         saved = json.loads(receipt.read_text())
         if saved["eventType"] != event or saved["file"] != descriptor:
             raise ValueError("receipt belongs to a different request")
@@ -30,6 +31,14 @@ def run(config, event, file, receipt):
         # Persist BEFORE sending. A lost reply must never cause a new request identity.
         with receipt.open("x") as target:
             json.dump(saved, target)
+    if "feedback" in saved:
+        send_feedback(config, saved, receipt)
+        if "response" in saved:
+            if saved["response"]["state"] != "SUCCESS":
+                raise RuntimeError("compute failed: " + saved["response"]["state"])
+            return saved["response"]
+        raise TimeoutError("request already timed out; original feedback retained")
+    started = time.perf_counter_ns()
     accepted = request(config, "/v1/compute", {key: saved[key] for key in ("requestId", "eventType", "file")})
     saved.update(accepted)
     receipt.write_text(json.dumps(saved, indent=2))
@@ -37,13 +46,35 @@ def run(config, event, file, receipt):
     while time.monotonic() < deadline:
         result = request(config, "/v1/executions/" + saved["executionId"])
         if result["state"] in ("SUCCESS", "FAILED", "KILLED"):
+            elapsed = (time.perf_counter_ns() - started) / 1e9
             saved["response"] = result
+            outcome = {"SUCCESS": "SUCCESS", "FAILED": "FAILED", "KILLED": "CANCELLED"}[result["state"]]
+            saved["feedback"] = {"outcome": "UNMEASURED" if resumed else outcome,
+                                 "elapsedSeconds": None if resumed else elapsed}
             receipt.write_text(json.dumps(saved, indent=2))
+            send_feedback(config, saved, receipt)
             if result["state"] != "SUCCESS":
                 raise RuntimeError("compute failed: " + result["state"])
             return result
         time.sleep(0.5)
+    if not resumed:
+        saved["feedback"] = {"outcome": "TIMEOUT", "elapsedSeconds": (time.perf_counter_ns() - started) / 1e9}
+        receipt.write_text(json.dumps(saved, indent=2))
+        send_feedback(config, saved, receipt)
     raise TimeoutError("result not complete; retain receipt and query the same execution")
+
+
+def send_feedback(config, saved, receipt):
+    # Persisted once before POST: retries must not replace original elapsed time with a new clock.
+    try:
+        request(config, "/v1/executions/" + saved["executionId"] + "/feedback", saved["feedback"])
+        saved["feedbackAccepted"] = True
+        saved.pop("feedbackError", None)
+    except Exception as error:
+        # Measurement failure does not change an algorithm's successful result.
+        saved["feedbackAccepted"] = False
+        saved["feedbackError"] = type(error).__name__
+    receipt.write_text(json.dumps(saved, indent=2))
 
 
 if __name__ == "__main__":

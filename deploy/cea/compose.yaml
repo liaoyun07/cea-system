@@ -211,7 +211,7 @@ services:
       timeout: 5s
       retries: 5
   edge-gateway:
-    image: cea/edge-gateway:off02-v1
+    image: cea/edge-gateway:off03-v1
     profiles: [edge-processing]
     build: {context: ../edge-gateway}
     restart: unless-stopped
@@ -249,7 +249,7 @@ services:
       timeout: 5s
       retries: 12
   terminal-agent:
-    image: cea/terminal-agent:off02-v1
+    image: cea/terminal-agent:off03-v1
     profiles: [terminal-offloading]
     build: {context: ../terminal-agent}
     restart: unless-stopped
@@ -273,7 +273,7 @@ services:
       timeout: 5s
       retries: 6
   terminal-compute:
-    image: cea/terminal-agent:off02-v1
+    image: cea/terminal-agent:off03-v1
     profiles: [tools]
     entrypoint: [python, /app/compute.py]
     read_only: true

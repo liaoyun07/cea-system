@@ -15,7 +15,12 @@ public final class OffloadingService {
     public record Candidate(Layer layer,int capacity,int active,int waiting) {}
     public record Sample(String key,String executionId,String applicationId,String applicationVersion,Map<String,Object> workload,long inputBytes,
                          Target target,String strategy,String modelVersion,double[] state,Integer action,
-                         Instant createdAt,Instant startedAt,Instant finishedAt,String outcome,Double reward) {}
+                         Instant createdAt,Instant startedAt,Instant finishedAt,String outcome,Double reward,Measurement measurement) {}
+    public record Measurement(String edge,String terminal,String flowId,Double[] inputs,List<Integer> legalActions,String unavailable,
+                              String nextKey,double[] nextState,List<Integer> nextLegalActions,Double elapsedSeconds,double limitSeconds,
+                              String feedbackOutcome,boolean trainable) {}
+    public record Feedback(String outcome,Double elapsedSeconds) {}
+    public static final double FEEDBACK_LIMIT_SECONDS=120;
     private final JdbcOffloadingRepository repository;private final AccessPolicy access;
     public OffloadingService(JdbcOffloadingRepository repository,AccessPolicy access){this.repository=repository;this.access=access;}
     public Sample get(String ns,String key){return repository.get(ns,key);}
@@ -49,6 +54,26 @@ public final class OffloadingService {
         repository.placed(ns,key,actual);
     }
     public void started(Actor actor,String ns,String key,long inputBytes){access.require(actor,ns,Action.EXECUTE);repository.started(ns,key,inputBytes);}
+    /** Called inside the same Resource admission transaction; fixes the actual next decision, never completion order. */
+    public Sample capture(String ns,String key,String edge,String terminal,String flowId,Double[] inputs,List<Integer> legal,String unavailable) {
+        if(inputs.length!=6 || legal.isEmpty())throw WorkflowException.invalid("measurement","six values and legal actions required");
+        for(Double value:inputs)if(value!=null && (!Double.isFinite(value) || value<0))throw WorkflowException.invalid("measurement","finite nonnegative values required");
+        double[] state=Arrays.stream(inputs).anyMatch(Objects::isNull)?null:Arrays.stream(inputs).mapToDouble(Math::log1p).toArray();
+        if(unavailable!=null)state=null;
+        return repository.capture(ns,key,edge,terminal,flowId,inputs,legal,unavailable,state,FEEDBACK_LIMIT_SECONDS);
+    }
+    /** The ingress caller has already checked original terminal ownership and actual Execution outcome. */
+    public void feedback(String ns,String execution,String terminal,Feedback feedback) {
+        if(feedback==null || feedback.outcome()==null || !Set.of("SUCCESS","FAILED","TIMEOUT","CANCELLED","UNMEASURED").contains(feedback.outcome()))
+            throw WorkflowException.invalid("feedback","valid outcome required");
+        Double elapsed=feedback.elapsedSeconds();
+        if("UNMEASURED".equals(feedback.outcome()) ? elapsed!=null : elapsed==null || !Double.isFinite(elapsed) || elapsed<=0 || elapsed>86400)
+            throw WorkflowException.invalid("elapsedSeconds","positive monotonic elapsed required; UNMEASURED requires null");
+        if("TIMEOUT".equals(feedback.outcome()) && elapsed<FEEDBACK_LIMIT_SECONDS)throw WorkflowException.invalid("elapsedSeconds","deadline has not elapsed");
+        String outcome="SUCCESS".equals(feedback.outcome()) && elapsed>FEEDBACK_LIMIT_SECONDS?"TIMEOUT":feedback.outcome();
+        Double reward=switch(outcome) {case "SUCCESS"->-elapsed/FEEDBACK_LIMIT_SECONDS;case "FAILED","TIMEOUT"->-2.0;default->null;};
+        repository.feedback(ns,execution,terminal,outcome,elapsed,reward);
+    }
     /** Internal worker feedback, not an HTTP write endpoint. */
     public void finish(String ns,String key,String outcome) {
         if(!Set.of("SUCCESS","FAILED","CANCELLED").contains(outcome))throw WorkflowException.invalid("outcome","invalid observation outcome");repository.finish(ns,key,outcome);

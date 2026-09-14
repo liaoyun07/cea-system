@@ -14,10 +14,20 @@ public final class KubernetesJobRunner {
     public WorkerJob.Result run(TaskContext context,KubernetesClient client,Spec spec,String helperImage,Transfers files) throws Exception {
         String name=ContainerTask.name(context.job());
         long lastRefresh=0;
+        boolean reported=false;
         while(true) {
             context.check();
             String cancellation=context.cancellation();
             Job job=ensure(client,name,spec,helperImage,cancellation!=null);
+            var pods=client.pods().withLabel("job-name",name).list().getItems();
+            if(!reported) {
+                if(pods.size()==1 && pods.getFirst().getStatus()!=null && pods.getFirst().getStatus().getInitContainerStatuses()!=null)
+                    for(var init:pods.getFirst().getStatus().getInitContainerStatuses())if("files-in".equals(init.getName()) && init.getState()!=null && init.getState().getTerminated()!=null) {
+                        var done=init.getState().getTerminated();String message=done.getMessage();
+                        if(done.getExitCode()==0 && message!=null && message.length()<=4096)files.inputReport(message);
+                        reported=true;
+                    }
+            }
             if(cancellation!=null) {
                 if(!Boolean.TRUE.equals(job.getSpec().getSuspend()))client.batch().v1().jobs().withName(name).edit(j->{j.getSpec().setSuspend(true);return j;});
                 if(stopped(client,name)){removeAuthorization(client,job);return WorkerJob.Result.failed(cancellation);}
@@ -35,7 +45,6 @@ public final class KubernetesJobRunner {
                     context.check();authorize(client,job,files.authorization());
                     lastRefresh=System.nanoTime();
                 }
-                var pods=client.pods().withLabel("job-name",name).list().getItems();
                 if(pods.size()>1)throw new IllegalStateException("more than one Pod for a non-retrying Attempt");
                 if(!pods.isEmpty() && failedContainer(pods.getFirst())) {
                     // A killed main cannot write its exit marker; don't leave the output helper waiting forever.

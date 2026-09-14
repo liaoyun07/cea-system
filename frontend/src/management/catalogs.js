@@ -83,11 +83,23 @@ export const catalogs = {
       ['strategy', '策略'],
       ['outcome', '结果'],
       ['createdAt', '决策时间'],
+      ['measurement', '样本状态'],
     ],
   },
 };
 export const entryId = (row) => row.id || row.applicationId || row.datasetId || row.key;
 export const offloadingTarget = (target) => (target ? `${target.kind} / ${target.id ?? '未分配'}` : '—');
+export function measurementStatus(value) {
+  if (!value) return '未采集六维状态';
+  if (value.unavailable === 'transfer calibration incomplete') return '待传输标定';
+  if (value.unavailable) return '工作负载不可比';
+  if (value.feedbackOutcome === 'CANCELLED') return '已取消，不用于训练';
+  if (value.feedbackOutcome === 'UNMEASURED') return '缺少原始计时';
+  if (!value.feedbackOutcome) return '待终端反馈';
+  if (value.nextKey && !value.nextState) return '下一状态不完整';
+  if (!value.nextState) return '待下一决策';
+  return value.trainable ? '样本完整' : '待执行确认';
+}
 export const enc = encodeURIComponent;
 export function itemPath(kind, value) {
   const base = catalogs[kind].path;

@@ -1169,6 +1169,7 @@ class ImageDistributionTest {
             var evidence=new ArrayList<Object>();
             for(String action:List.of("TERMINAL","EDGE","CLOUD","RULE")) {
                 String event="off02-"+action.toLowerCase();saveOff02Policy(event,action,code);
+                long requestStarted=System.nanoTime();
                 var request=Map.of("requestId",UUID.randomUUID().toString(),"eventType",event,"file",file);
                 var accepted=gatewayRequest(gatewayUrl,"POST","/v1/compute",request,"isolated-terminal-token",202);
                 String id=accepted.get("executionId").toString();
@@ -1184,9 +1185,20 @@ class ImageDistributionTest {
                 }
                 var result=gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"isolated-terminal-token",200);
                 var values=(Map<?,?>)result.get("result");assertEquals(512,((Number)values.get("count")).intValue());assertEquals(2.5,((Number)values.get("mean")).doubleValue());
+                double elapsed=(System.nanoTime()-requestStarted)/1e9;
                 gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"other-token",404);
                 var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
                 assertEquals(local?"TERMINAL":action,sample.target().kind());assertEquals(raw.length,sample.inputBytes());
+                assertNotNull(sample.measurement());
+                var feedback=Map.of("outcome","SUCCESS","elapsedSeconds",elapsed);
+                gatewayRequest(gatewayUrl,"POST","/v1/executions/"+id+"/feedback",feedback,"other-token",404);
+                gatewayRequest(gatewayUrl,"POST","/v1/executions/"+id+"/feedback",Map.of("outcome","FAILED","elapsedSeconds",elapsed),"isolated-terminal-token",422);
+                gatewayRequest(gatewayUrl,"POST","/v1/executions/"+id+"/feedback",feedback,"isolated-terminal-token",200);
+                gatewayRequest(gatewayUrl,"POST","/v1/executions/"+id+"/feedback",feedback,"isolated-terminal-token",200);
+                gatewayRequest(gatewayUrl,"POST","/v1/executions/"+id+"/feedback",Map.of("outcome","SUCCESS","elapsedSeconds",elapsed+1),"isolated-terminal-token",409);
+                sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
+                assertEquals(elapsed,sample.measurement().elapsedSeconds());
+                if(action.equals("RULE"))assertNotNull(sample.state(),"prior real edge/cloud transfers must calibrate both estimates: "+sample.measurement());
                 assertTrue(run.outputs().get("result.json").toString().startsWith(action.equals("CLOUD")?"s3://artifacts/":"s3://edge-artifacts/"));
                 if(local)assertEquals(0,engine.execInContainer("docker","inspect",name).getExitCode());
                 evidence.add(Map.of("action",action,"execution",id,"rawUploaded",!local,"result",values,"target",sample.target()));

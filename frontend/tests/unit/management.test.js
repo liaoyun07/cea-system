@@ -8,12 +8,24 @@ import {
   newDraft,
   itemPath,
   offloadingTarget,
+  measurementStatus,
 } from '../../src/management/catalogs.js';
 
 test('offloading target distinguishes a layer decision from an allocated location', () => {
   assert.equal(offloadingTarget({ kind: 'CLOUD', id: null }), 'CLOUD / 未分配');
   assert.equal(offloadingTarget({ kind: 'EDGE', id: 'edge-a' }), 'EDGE / edge-a');
   assert.equal(offloadingTarget(null), '—');
+});
+test('offloading measurement distinguishes calibration, missing feedback, next decision and complete sample', () => {
+  assert.equal(measurementStatus(null), '未采集六维状态');
+  assert.equal(measurementStatus({ unavailable: 'transfer calibration incomplete' }), '待传输标定');
+  assert.equal(measurementStatus({}), '待终端反馈');
+  assert.equal(measurementStatus({ feedbackOutcome: 'SUCCESS' }), '待下一决策');
+  assert.equal(measurementStatus({ feedbackOutcome: 'UNMEASURED' }), '缺少原始计时');
+  assert.equal(
+    measurementStatus({ feedbackOutcome: 'SUCCESS', nextState: [1, 0, 0, 0, 1, 1], trainable: true }),
+    '样本完整',
+  );
 });
 
 test('application form roundtrip retains defaults, constraints and explicit dataset rules', () => {

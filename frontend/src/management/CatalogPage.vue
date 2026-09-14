@@ -6,6 +6,7 @@ import { readCatalog, readDocument } from '../no-code/document.js';
 import {
   catalogs,
   offloadingTarget,
+  measurementStatus,
   entryId,
   itemPath,
   newDraft,
@@ -321,6 +322,7 @@ function cell(row, key) {
   if (key.endsWith('At')) return value ? time(value) : '尚无记录';
   if (key === 'locations') return value.map((v) => v.clusterId).join('、');
   if (key === 'target') return offloadingTarget(value);
+  if (key === 'measurement') return measurementStatus(value);
   return value ?? '—';
 }
 onMounted(() => action(loadRows));
@@ -542,7 +544,63 @@ onMounted(() => action(loadRows));
       <h2>卸载样本</h2>
       <p class="muted">{{ raw.strategy }} · {{ raw.outcome || '尚未完成' }}</p>
       <button v-if="raw.executionId" @click="emit('execution', raw.executionId)">查看关联执行</button>
-      <pre class="record-json">{{ JSON.stringify(raw, null, 2) }}</pre>
+      <template v-if="raw.measurement">
+        <h3>{{ measurementStatus(raw.measurement) }}</h3>
+        <div class="table-wrap">
+          <table aria-label="卸载六维状态">
+            <thead>
+              <tr>
+                <th>决策时观测</th>
+                <th>值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(label, index) in [
+                  '输入量 D（MiB）',
+                  '终端未完成量 QL（MiB）',
+                  '边缘未完成量 QE（MiB）',
+                  '云未完成量 QC（MiB）',
+                  '预计边缘传输 TE（秒）',
+                  '预计云传输 TC（秒）',
+                ]"
+                :key="label"
+              >
+                <td>{{ label }}</td>
+                <td>
+                  {{
+                    raw.measurement.inputs[index] == null
+                      ? '未测得'
+                      : Number(raw.measurement.inputs[index]).toFixed(4)
+                  }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <dl>
+          <dt>终端端到端耗时</dt>
+          <dd>
+            {{
+              raw.measurement.elapsedSeconds == null
+                ? '未测得'
+                : raw.measurement.elapsedSeconds.toFixed(3) + ' 秒'
+            }}
+          </dd>
+          <dt>反馈</dt>
+          <dd>{{ raw.measurement.feedbackOutcome || '待上报' }}</dd>
+          <dt>奖励</dt>
+          <dd>{{ raw.reward == null ? '—' : raw.reward.toFixed(4) }}</dd>
+          <dt>奖励时限</dt>
+          <dd>{{ raw.measurement.limitSeconds }} 秒</dd>
+          <dt>下一决策样本</dt>
+          <dd class="mono">{{ raw.measurement.nextKey || '尚无下一决策' }}</dd>
+        </dl>
+      </template>
+      <details class="raw-detail">
+        <summary>原始记录</summary>
+        <pre class="record-json">{{ JSON.stringify(raw, null, 2) }}</pre>
+      </details>
     </section>
     <template v-else>
       <div class="list-toolbar">

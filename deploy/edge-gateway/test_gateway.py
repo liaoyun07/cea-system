@@ -151,7 +151,10 @@ class GatewayTest(unittest.TestCase):
         self.gateway.agent_request = Mock(side_effect=[file, stream, file])
         first = self.gateway.materialize("t1", request)
         second = self.gateway.materialize("t1", request)
-        self.assertEqual(first, second)
+        self.assertEqual(first["uri"], second["uri"])
+        self.assertEqual(4, first["transfer"]["bytes"])
+        self.assertGreater(first["transfer"]["seconds"], 0)
+        self.assertNotIn("transfer", second)
         self.assertEqual([b"data"], list(self.gateway.s3.objects.values()))
         self.assertEqual(1, sum(call.args[1] == "files/read" for call in self.gateway.agent_request.call_args_list))
 
@@ -168,6 +171,15 @@ class GatewayTest(unittest.TestCase):
         self.gateway.backend.side_effect = Denied(403, "not owner")
         with self.assertRaises(Denied):
             self.gateway.result("t2", str(uuid.uuid4()))
+
+    def test_feedback_uses_authenticated_terminal_and_no_arbitrary_destination(self):
+        execution = str(uuid.uuid4())
+        body = {"outcome": "SUCCESS", "elapsedSeconds": 1.5}
+        self.gateway.feedback("t1", execution, body)
+        self.gateway.backend.assert_called_once_with("t1", "executions/" + execution + "/feedback", body)
+        for extra in ({**body, "terminal": "t2"}, {**body, "reward": 100}):
+            with self.assertRaises(Denied):
+                self.gateway.feedback("t1", execution, extra)
 
     def test_http_upload_event_result(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

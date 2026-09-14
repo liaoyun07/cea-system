@@ -16,6 +16,16 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/edge-access/terminals/{id}/executions/{executionId}/feedback": {
+      "parameters": [
+        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"id","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"executionId","in":"path","required":true,"schema":{"type":"string"}}
+      ],
+      "post": {"operationId":"terminalFeedback","description":"CONNECT and original receipt owner only. Same-process monotonic end-to-end elapsed, never algorithm-only time. Immutable idempotent feedback for one measured non-retrying offload task; does not alter Execution.",
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/OffloadingFeedback"}}}},
+        "responses":{"204":{"description":"Accepted or identical duplicate"},"401":{"description":"Unauthenticated"},"403":{"description":"Forbidden"},"404":{"description":"Not owned or not found"},"409":{"description":"Different feedback already fixed"},"422":{"description":"Invalid, ineligible or mismatched execution outcome"}}}
+    },
     "/api/namespaces/{namespace}/edge-access/terminals/{id}/executions/{executionId}/result": {
       "parameters": [
         {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
@@ -5790,6 +5800,7 @@
             ],
             "enum": [
               "RULE",
+              "FIXED",
               "DQN",
               null
             ]
@@ -5852,9 +5863,27 @@
               "number",
               "null"
             ]
-          }
+          },
+          "measurement": {"anyOf":[{"$ref":"#/components/schemas/OffloadingMeasurement"},{"type":"null"}]}
         },
-        "description": "One observation per Attempt; not an Execution state mirror. Timings include platform service overhead, not algorithm-only SDK timing."
+        "description": "One observation per Attempt. measurement=null for historical/ineligible records; never convert legacy 13D into six-dimensional samples. New state is log1p(measurement.inputs); reward comes only from terminal feedback."
+      },
+      "OffloadingFeedback": {
+        "type":"object","additionalProperties":false,"required":["outcome","elapsedSeconds"],
+        "properties":{"outcome":{"type":"string","enum":["SUCCESS","FAILED","TIMEOUT","CANCELLED","UNMEASURED"]},"elapsedSeconds":{"type":["number","null"],"description":"Positive monotonic seconds; null only for UNMEASURED after original process timing was lost."}}
+      },
+      "OffloadingMeasurement": {
+        "type":"object","additionalProperties":false,
+        "properties": {
+          "edge":{"type":"string"},"terminal":{"type":"string"},"flowId":{"type":"string"},
+          "inputs":{"type":"array","minItems":6,"maxItems":6,"items":{"type":["number","null"]},"description":"D, QL, QE, QC in MiB; TE, TC in seconds. Missing is null, never zero."},
+          "legalActions":{"type":"array","items":{"type":"integer","minimum":0,"maximum":2}},
+          "unavailable":{"type":["string","null"]},"nextKey":{"type":["string","null"]},
+          "nextState":{"type":["array","null"],"items":{"type":"number"}},
+          "nextLegalActions":{"type":"array","items":{"type":"integer","minimum":0,"maximum":2}},
+          "elapsedSeconds":{"type":["number","null"]},"limitSeconds":{"type":"number"},
+          "feedbackOutcome":{"type":["string","null"]},"trainable":{"type":"boolean","description":"Both decision states, terminal reward and confirmed non-cancelled task completion exist; not evidence of a trained DQN. Continuous-stream tail remains incomplete."}
+        }
       },
       "GatewayRegistration": {
         "type": "object",

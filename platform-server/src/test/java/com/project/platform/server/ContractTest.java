@@ -99,6 +99,8 @@ class ContractTest {
                 Map.entry("Offload",FlowDefinition.Offload.class),
                 Map.entry("DqnModel",com.project.platform.offloading.DqnModel.class),
                 Map.entry("OffloadingSample",com.project.platform.offloading.OffloadingService.Sample.class),
+                Map.entry("OffloadingMeasurement",com.project.platform.offloading.OffloadingService.Measurement.class),
+                Map.entry("OffloadingFeedback",com.project.platform.offloading.OffloadingService.Feedback.class),
                 Map.entry("OffloadingTarget",com.project.platform.offloading.OffloadingService.Target.class),
                 Map.entry("GatewayRegistration",com.project.platform.edge.EdgeAccess.GatewayRegistration.class),
                 Map.entry("Gateway",com.project.platform.edge.EdgeAccess.Gateway.class),

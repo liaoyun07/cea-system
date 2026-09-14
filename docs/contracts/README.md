@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [OFF-03 真实状态与反馈](off03-measurement.md)：六维计算、真实传输、终端单调时钟、决策顺序next及缺测边界；发布状态见进度。
+
 - [OFF-02 终端经网关计算](off02-terminal-gateway.md)：元数据先行、原始文件按需上传、FIXED/RULE、原Worker执行分支及成功JSON返回。
 
 - [EP-02 边缘处理记录](ep02-processing-records.md)：namespace READ、策略/状态筛选和服务端分页，复用原Execution与产物权限。

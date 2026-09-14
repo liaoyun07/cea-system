@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+OFF-03已于2026-09-14发布CEA：六维真实观测、接纳后未完成工作量、近期传输估计、终端端到端反馈和按决策顺序的next关联已接通。18080“卸载观测”可看状态/耗时/奖励/样本完整性。完整251项Maven、最终28项定向回归、52项Node、59项浏览器、41项Python及CEA六次真实执行/乱序完成核验PASS。原执行链不变，新增3份Java、2张资源事实表和1个反馈API；Double DQN与五基线比较留OFF-04。[计算协议](docs/contracts/off03-measurement.md)、[验证与限制](docs/verification/VER-OFF-03-measured-feedback.md)。以下批次记录保留其当时状态，以本批及进度为准。
+
 OFF-02已于2026-09-14发布CEA：终端先经网关只发文件元数据，FIXED/RULE选层后，本地执行不上传原始文件，边缘/云执行才经网关上传到所属边缘；同一镜像沿原Worker执行，小JSON结果经网关返回。加入终端代理和独立DinD（不挂宿主Docker socket），仅更新backend/gateway，frontend只reload。244项Maven、51项Node、58项浏览器、25项Python及CEA四条真实路径/存储数值/页面核验PASS。18080“边缘处理记录”可看offload-terminal/edge/cloud/rule；[示例与回放](examples/offloading/README.md)、[验收与限制](docs/verification/VER-OFF-002-terminal-gateway.md)。六维状态、端到端反馈和Double DQN仍待OFF-03/04。
 
 EP-02已于2026-09-13发布CEA前后端：18080“边缘与终端 → 边缘处理记录”支持策略/状态筛选、分页、可信来源和原执行详情/结果。240项Maven、50项Node、最终57项浏览器回归PASS；实际三策略记录及summary/diagnosis/report JSON预览通过，原流程/10条执行/数据集和其余15服务不变。新增1个只读API，无新Java文件/DB/执行状态链；[范围与边界](docs/features/EP-02-processing-records.md)、[验证](docs/verification/VER-EP-002-processing-records.md)。
@@ -59,7 +61,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1 -JavaHo
 
 ## 本地启动
 
-先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。UI-10源码中Flyway依序运行V1–V24，创建26张业务表及迁移历史表；本批验收/发布状态见进度。
+先准备**新后端专用的空 MySQL 8 数据库**和对应账号，不能指向旧系统库。当前Flyway依序运行V1–V27，创建28张业务表及迁移历史表；本批验收/发布状态见进度。
 测试库是一次性的，不能用于日常保存数据。最小部署及单机故障验证已完成，步骤见[部署说明](docs/operations/s4-minimal-deployment.md)；UI-10补两角色账号管理，TLS、自动备份恢复仍后置。
 
 在已配置 JDK 21 的 PowerShell 中设置：

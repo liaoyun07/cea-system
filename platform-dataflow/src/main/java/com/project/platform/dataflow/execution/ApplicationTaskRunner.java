@@ -19,9 +19,9 @@ import java.util.function.Function;
 
 /** Application/resource adaptation only; lifecycle and lease ownership stay in runtime. */
 public final class ApplicationTaskRunner implements TaskRunner {
-    public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots,TerminalGatewayClient.Connection gateway) {}
+    public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots,TerminalGatewayClient.Connection gateway,String flowId,boolean singleTask) {}
     public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,Map<String,String> outputUris,String helperImage,String dockerContext,String terminalId,
-                           Map<String,TerminalGatewayClient.LocalFile> terminalFiles,boolean gatewayTerminal) {}
+                           Map<String,TerminalGatewayClient.LocalFile> terminalFiles,boolean gatewayTerminal,boolean collectTransfers) {}
     private final ApplicationCatalogService applications;
     private final ResourceCatalogService resources;
     private final ImageDistributionService images;
@@ -38,15 +38,17 @@ public final class ApplicationTaskRunner implements TaskRunner {
     private final KubernetesJobRunner runner=new KubernetesJobRunner();
     private final DockerTaskRunner docker=new DockerTaskRunner();
     private final TerminalGatewayClient gateway;
+    private final OffloadingTaskAdapter measurements;
     public ApplicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,Function<WorkerJob,Actor> identities,
             Function<WorkerJob,TerminalTarget> terminals,OffloadingService offloading,JsonCodec json,BindingResolver bindings,
-            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,Map<String,Map<String,String>> helpers) {
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,Map<String,Map<String,String>> helpers,OffloadingTaskAdapter measurements) {
         this.applications=applications;this.resources=resources;this.images=images;this.placement=placement;this.connections=connections;
         this.storage=storage;this.identities=identities;this.terminals=terminals;this.offloading=offloading;this.json=json;this.bindings=bindings;
         this.namespaceFiles=namespaceFiles;
         this.helpers=helpers;
         this.gateway=new TerminalGatewayClient(json);
+        this.measurements=measurements;
     }
     @Override public WorkerJob.Result run(TaskContext context) throws Exception {
         var job=context.job();var execution=(Map<?,?>)job.context().get("execution");
@@ -78,6 +80,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
                 var result=runner.run(context,client,plan.spec(),plan.helperImage(),new ContainerTask.Transfers() {
                     public String authorization() throws Exception {return grants(namespace,plan);}
                     public String published(String name) throws Exception {return storage.published(namespace,plan.outputUris().get(name));}
+                    public void inputReport(String report) throws Exception {if(plan.collectTransfers())measurements.downloaded(namespace,key,plan.clusterId(),plan.inputUris(),report);}
                 });
                 complete(context,namespace,key,result);return result;
             }
@@ -101,6 +104,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         else if(!placement.releaseTerminal(ns,key)
                 && (container.offload()!=null || container.execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.CLUSTER))placement.release(ns,key);
         if(container.offload()!=null) {
+            measurements.complete(ns,key);
             context.check();offloading.finish(ns,key,"cancelled".equals(context.cancellation())?"CANCELLED":result!=null && result.success()?"SUCCESS":"FAILED");
         }
     }
@@ -147,6 +151,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
             } else throw WorkflowException.invalid("inputFiles","S3 URI or array of at most 1000 S3 URIs required");
         }
         inputUris.values().forEach(uri->storage.validateInput(namespace,uri));
+        boolean rawFileOnly=terminalFiles.size()==1 && inputUris.isEmpty() && inlineFiles.isEmpty() && requirements.isEmpty();
         String cluster;boolean local=false;
         if(origin!=null) {
             if(c.offload()==null) {local=true;cluster=origin.clusterId();}
@@ -172,8 +177,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
                                 loads.stream().mapToInt(JobPlacementService.Load::active).sum(),
                                 loads.stream().mapToInt(JobPlacementService.Load::waiting).sum()));
                     }
-                    context.check();sample=offloading.decide(actor,namespace,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion(),
-                            c.offload().layer()==null?null:Layer.valueOf(c.offload().layer().name()));
+                    context.check();sample=measurements.decide(context,actor,namespace,key,origin,work,candidates,placement.layerScope(actor,namespace,Kind.CLOUD,origin.clusterId()),rawFileOnly);
                 }
                 local="TERMINAL".equals(sample.target().kind());
                 if(local)cluster=origin.clusterId();
@@ -214,6 +218,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
                         Map.of("executionId",context.job().executionId(),"file",entry.getValue()));
                 String uri=(String)reply.get("uri");storage.validateInput(namespace,uri);
                 if(storage.size(namespace,uri)!=entry.getValue().bytes())throw WorkflowException.invalid("inputFiles","uploaded terminal size mismatch");
+                measurements.uploaded(namespace,key,origin.terminalId(),entry.getKey(),entry.getValue().bytes(),reply);
                 inputUris.put(entry.getKey(),uri);
             }
             terminalFiles.clear();
@@ -233,7 +238,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         for(String name:c.outputFiles())outputs.put(name,storage.outputUri(namespace,cluster,local && !remoteTerminal,context.job().executionId(),context.job().taskRunId(),context.job().attemptNo(),name));
         String helper=local?null:helpers.getOrDefault(namespace,Map.of()).get(cluster);
         if(!local && (helper==null || helper.isBlank()))throw WorkflowException.invalid("helperImage","file helper is not configured for cluster");
-        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,outputs,helper,local?origin.dockerContext():null,local?origin.terminalId():null,terminalFiles,remoteTerminal);
+        var plan=new Prepared(cluster,new ContainerTask.Spec(image.image(),c.command(),env,List.copyOf(files),c.outputFiles()),inputUris,inlineFiles,outputs,helper,local?origin.dockerContext():null,local?origin.terminalId():null,terminalFiles,remoteTerminal,!local && c.offload()!=null && rawFileOnly);
         if(!local && grants(namespace,plan).getBytes(java.nio.charset.StandardCharsets.UTF_8).length>900_000)throw WorkflowException.invalid("inputFiles","file plan exceeds 900000 bytes");
         context.prepare(json.write(plan));return plan;
     }
@@ -267,7 +272,9 @@ public final class ApplicationTaskRunner implements TaskRunner {
         var inputs=new LinkedHashMap<String,String>();var outputs=new LinkedHashMap<String,String>();
         for(var entry:plan.inputUris().entrySet())inputs.put(entry.getKey(),storage.grant(namespace,entry.getValue(),false));
         for(var entry:plan.outputUris().entrySet())outputs.put(entry.getKey(),storage.grant(namespace,entry.getValue(),true));
-        return json.write(Map.of("inputs",inputs,"outputs",outputs,"inline",plan.inlineFiles()));
+        var value=new LinkedHashMap<String,Object>(Map.of("inputs",inputs,"outputs",outputs,"inline",plan.inlineFiles()));
+        if(plan.collectTransfers())value.put("measureInputs",true);
+        return json.write(value);
     }
     private boolean reserve(TaskContext context,Actor actor,String ns,String key,PlacementRequest request) throws Exception {
         JobPlacementService.Allocation allocation;
