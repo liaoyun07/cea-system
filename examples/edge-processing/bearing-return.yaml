@@ -16,6 +16,6 @@ tasks:
       inputFiles:
         data: {source: INPUT, name: data_uri}
         model: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/edge-models/ep01-v1/bearing.joblib'}
-      outputFiles: [diagnosis.json, metrics.json]
+      outputFiles: [diagnosis.json, metrics.json, cea-measurement.json]
 outputs:
   terminal_result: {source: TASK_OUTPUT, taskId: diagnose, port: diagnosis.json}

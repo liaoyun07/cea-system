@@ -23,7 +23,7 @@ tasks:
       parameters:
         ALGORITHM: {source: LITERAL, value: fedprox}
         MODEL: {source: INPUT, name: model}
-      outputFiles: [model.pt]
+      outputFiles: [model.pt, cea-measurement.json]
   - id: rounds
     type: core.Repeat
     repeat:
@@ -63,7 +63,7 @@ tasks:
                 PROX_MU: {source: INPUT, name: prox_mu}
               inputFiles:
                 global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
-              outputFiles: [model.pt]
+              outputFiles: [model.pt, cea-measurement.json]
       - id: aggregate
         type: platform.Application
         timeout: PT5M
@@ -74,7 +74,7 @@ tasks:
           command: [python, /app/app.py, aggregate, --clients-manifest, /cea-work/in/client_models.json]
           inputFiles:
             client_models: {source: TASK_OUTPUT, taskId: clients, port: models}
-          outputFiles: [model.pt]
+          outputFiles: [model.pt, cea-measurement.json]
       - id: evaluate
         type: platform.Application
         timeout: PT5M
@@ -88,7 +88,7 @@ tasks:
             BATCH_SIZE: {source: INPUT, name: batch_size}
           inputFiles:
             global_model: {source: TASK_OUTPUT, taskId: aggregate, port: model.pt}
-          outputFiles: [metrics.json]
+          outputFiles: [metrics.json, cea-measurement.json]
 outputs:
   global_model: {source: TASK_OUTPUT, taskId: rounds, port: global_model}
   completed_rounds: {source: TASK_OUTPUT, taskId: rounds, port: iterationCount}

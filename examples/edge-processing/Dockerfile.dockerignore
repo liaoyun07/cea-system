@@ -1,0 +1,8 @@
+**
+!examples/
+!examples/edge-processing/
+!examples/edge-processing/app.py
+!examples/edge-processing/prepare.py
+!sdk/
+!sdk/python/
+!sdk/python/cea_measurement.py

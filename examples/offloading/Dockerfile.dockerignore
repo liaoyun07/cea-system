@@ -1,0 +1,7 @@
+**
+!examples/
+!examples/offloading/
+!examples/offloading/app.py
+!sdk/
+!sdk/python/
+!sdk/python/cea_measurement.py

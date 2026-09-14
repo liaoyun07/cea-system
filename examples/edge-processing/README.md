@@ -17,7 +17,7 @@
 New-Item -ItemType Directory -Force .local/cea/edge-processing/raw
 curl.exe -L --fail -o .local/cea/edge-processing/raw/hydraulic.zip https://archive.ics.uci.edu/static/public/447/condition+monitoring+of+hydraulic+systems.zip
 curl.exe -L --fail -o .local/cea/edge-processing/raw/tile.tar.xz https://www.mydrive.ch/shares/150462/5479f0fdc97bc6fa16eab0cb0cf0109f/download/420938133-1629960456/tile.tar.xz
-docker build -t cea/edge-processing:ep01-v1 examples/edge-processing
+docker build -f examples/edge-processing/Dockerfile -t cea/edge-processing:ep01-v1 .
 docker build -t cea/edge-gateway:ep01-v1 deploy/edge-gateway
 docker run --rm --memory 2g --cpus 2 -e TORCH_HOME=/data/torch-cache -v "${PWD}/.local/cea/edge-processing:/data" cea/edge-processing:ep01-v1 python /app/prepare.py all
 ```

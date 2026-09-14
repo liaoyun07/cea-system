@@ -31,8 +31,14 @@ public final class ExecutionController {
     private final FlowExecutionService executions;
     private final IdentityDirectory identities;
     private final com.project.platform.dataflow.execution.ExecutionOutputService outputs;
-    public ExecutionController(FlowExecutionService executions, IdentityDirectory identities,com.project.platform.dataflow.execution.ExecutionOutputService outputs) {
-        this.executions = executions; this.identities = identities; this.outputs=outputs;
+    private final com.project.platform.dataflow.execution.ExecutionMeasurementService measurement;
+    public ExecutionController(FlowExecutionService executions, IdentityDirectory identities,com.project.platform.dataflow.execution.ExecutionOutputService outputs,
+            com.project.platform.dataflow.execution.ExecutionMeasurementService measurement) {
+        this.executions = executions; this.identities = identities; this.outputs=outputs;this.measurement=measurement;
+    }
+    @GetMapping("/{id}/measurement")
+    public com.project.platform.dataflow.execution.ExecutionMeasurementService.View measurement(Principal principal,@PathVariable String namespace,@PathVariable String id) {
+        return measurement.get(identities.actor(principal.getName()),namespace,id);
     }
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)

@@ -49,6 +49,7 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("ExecutionMeasurement",com.project.platform.dataflow.execution.ExecutionMeasurementService.View.class),
                 Map.entry("UserProfile",com.project.platform.server.security.IdentityDirectory.Profile.class),
                 Map.entry("UserCreate",com.project.platform.server.security.IdentityDirectory.Create.class),
                 Map.entry("UserUpdate",com.project.platform.server.security.IdentityDirectory.Update.class),

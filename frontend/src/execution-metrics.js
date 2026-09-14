@@ -1,8 +1,19 @@
 // Metrics are read from named artifacts, never guessed from logs or recomputed from task durations.
 export function metricSources(declarations) {
   return declarations
-    .map((entry) => ({ ...entry, ports: entry.ports.filter((port) => port.endsWith('.json')) }))
+    .map((entry) => ({
+      ...entry,
+      ports: entry.ports.filter((port) => port.endsWith('.json') && port !== 'cea-measurement.json'),
+    }))
     .filter((entry) => entry.ports.length);
+}
+
+export function processingRate(measurement) {
+  const value = measurement?.bytesPerSecond;
+  if (measurement?.status !== 'AVAILABLE' || !Number.isFinite(value) || value < 0) return '—';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
+  const index = value < 1000 ? 0 : Math.min(units.length - 1, Math.floor(Math.log10(value) / 3));
+  return `${(value / 1000 ** index).toFixed(2)} ${units[index]}`;
 }
 
 export function instanceLabel(task, tasks) {

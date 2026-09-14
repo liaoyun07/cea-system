@@ -9,6 +9,9 @@ spring:
       max-file-size: 2GB
       max-request-size: 2050MB
 platform:
+  measurement:
+    # CEA backend, K3s and terminal Docker share a verified host kernel clock (MET-001).
+    clock-synchronized: true
   image-upload:
     centers: {lab: center}
     directory: /var/lib/cea/uploads/import

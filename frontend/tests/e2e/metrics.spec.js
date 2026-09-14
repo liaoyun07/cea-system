@@ -52,6 +52,7 @@ test('real Job JSON artifacts display per-instance numeric metrics, errors, pinn
   await createAndStart(page, id, yaml);
   await expect(page.locator('h1 .status')).toHaveText('SUCCESS', { timeout: 90000 });
   const executionId = (await page.locator('.execution-id').textContent()).trim();
+  await expect(page.getByTestId('processing-rate')).toHaveText('—');
   result = await request.post(`${base}/flows/${id}/revisions`, {
     headers,
     data: {

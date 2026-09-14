@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+MET-001（2026-09-15已实现，验证见[记录](verification/VER-MET-001-algorithm-measurement.md)）：新增 `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionMeasurementService.java`，负责已授权Execution的SDK报告校验、活动区间并集和单一速率查询，不持有执行状态。`ExecutionOutputService`复用成功Attempt的有界产物读取，`ExecutionController`增加GET measurement，`RuntimeConfiguration`装配时钟确认配置。共109份生产Java、93个HTTP操作、仍28张业务表；无DB迁移、列、SPI或Executor/Worker改动。[协议](contracts/algorithm-measurement.md)。
+
 OFF-04（2026-09-14，实施状态见进度）：仍108份生产Java、92个HTTP操作、28张业务表，无新Java/SPI/模块依赖。`FlowDefinition.Offload`仅增加`exploration`，`FlowValidator/FlowSchema`校验并公开DQN模型版本/探索概率。`DqnModel`替换六维模型契约并删除旧Java `predict/choose`；`OffloadingService.edgeDecision`记录网关已选合法层，`normalize`统一真实六维变换。`OffloadingTaskAdapter`在原接纳边界冻结状态，调用`TerminalGatewayClient`的3秒限时决策，再返回原Placement链。网关`deploy/edge-gateway/dqn.py`拥有纯数值推理，`algorithms/offloading/train.py`拥有离线Double DQN训练；两者都不拥有Execution/资源状态。无DB migration；详见[协议](contracts/off04-double-dqn.md)。
 
 OFF-03（2026-09-14已实现、验证并发布CEA）：生产 Java 105→108，HTTP 91→92。新增 V26 两张 resource 表；V27 只给既有卸载观测添加六维/下一决策/终端反馈事实列。计量适配仍在原 ApplicationTaskRunner，通用 Transfers.inputReport 仅返回 Pod 文件传输事实，不让 runtime 依赖 offloading。详见 [ADR-0027](decisions/ADR-0027-offloading-measured-state.md)、[验收](verification/VER-OFF-03-measured-feedback.md)。
@@ -227,6 +229,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowService.java` | 定义管理及编辑门面 | save/get/history/list/search/rollback/schema/validate/preview/export/importFlows | WRITE/READ授权；启用Schedule另需EXECUTE；修订/并发配置/Schedule同事务，批量全有或全无 | WF-003、WF-015、WF-016、SEC-001 | I/FlowManagementTest |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | 提交、取消与运行查询门面 | submit/get/list/tasks/attempts/logs/cancel | 授权；原始请求hash优先查幂等，解析版本后委托runtime | WF-004、WF-006、SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionOutputService.java` | 授权读取已有JSON及快照输出声明，解析terminal_result | readJson/declarations/terminalResult/OutputSource/Unavailable | 真实TaskRun/成功Attempt/执行固定快照；JSON 256KiB；禁止任意URI；无写入 | UI-06/07、OFF-02 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionMeasurementService.java` | SDK报告完整性校验与单一速率查询 | get/View | READ授权、成功Attempt，输入输出累计与活动区间并集；无DB写入 | MET-001 | J |
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | 有限批次内置消息推进 | poll | 每步由Executor独立事务；DB故障下次再试 | WF-005 | I |

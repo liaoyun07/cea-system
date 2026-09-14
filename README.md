@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+MET-001（2026-09-15，验证/发布状态见[进度](docs/04-progress.md)）：算法镜像使用同一[轻量SDK](sdk/python/README.md)，完整输入输出文件长度与算法起止时间通过原产物链发布；执行概览只显示一个数据处理速率。不扫文件内容、不乘epoch、不用Pod耗时兜底；历史无报告显示“—”。[准确口径](docs/contracts/algorithm-measurement.md)。以下旧批次“计量后置”为历史时点。
+
 MET-04（2026-09-14）：小/中/大三个真实用途HTTP示例已部署CEA edge-a，18080“应用部署”可看`met04-*`及各5条历史。12次测量全部≤30s并核对业务输出；首次约2.19/4.37/12.32s，热缓存平均约1.64/1.90/3.38s。只代表当前单宿主缓存条件，完整冷缓存尚未测试；平台前后端未改动/重启。[完整结果](docs/verification/VER-M04-edge-deployment.md)、[示例与复测](examples/deployment-benchmark/README.md)。
 
 OFF-04已于2026-09-14发布CEA：所属网关运行六维Double DQN，原Placement/Runner继续执行；真实48次探索→47条完整转移→固定模型→五基线各12次比较通过。255项Maven、52项Node、60项浏览器和30项本批Python测试PASS，实际18080“卸载观测”可查看模型/层/六维/端到端时间。仅更新前后端/网关，无DB migration，原业务对象与16个其他服务保留。本次DQN平均4.005s，全终端2.207s，未证明优化收益或30ms达标；[完整结果](docs/verification/VER-OFF-04-double-dqn.md)、[计算与职责](docs/contracts/off04-double-dqn.md)。以下批次是历史时点，以本批和进度为准。

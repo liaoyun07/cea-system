@@ -7,6 +7,7 @@ import ExecutionGraph from './ExecutionGraph.vue';
 import TaskRunDetail from './TaskRunDetail.vue';
 import ExecutionMetrics from './ExecutionMetrics.vue';
 import ExecutionArtifacts from './ExecutionArtifacts.vue';
+import { processingRate } from './execution-metrics.js';
 
 const props = defineProps({ api: Function, executionId: String });
 const run = ref(null),
@@ -14,6 +15,7 @@ const run = ref(null),
   logs = ref([]),
   attempts = ref([]),
   selectedTaskId = ref(null);
+const measurement = ref(null);
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value));
 const sortedTasks = computed(() => tasksByStartTime(tasks.value));
 const tab = ref('overview'),
@@ -67,6 +69,14 @@ async function refresh() {
     if (!alive) return;
     run.value = value;
     tasks.value = rows;
+    if (!measurement.value && value.state === 'SUCCESS' && rows.every((task) => terminal(task.state))) {
+      try {
+        const result = await props.api(`${base}/measurement`);
+        if (alive) measurement.value = result;
+      } catch {
+        if (alive) measurement.value = null;
+      }
+    }
     logs.value = mergeLogs(logs.value, entries);
     totalLogs.value += entries.length;
     if (entries.length) cursor = entries.at(-1).id;
@@ -117,7 +127,14 @@ onBeforeUnmount(() => {
         <p class="mono muted execution-id">{{ executionId }}</p>
       </div>
       <div class="actions">
-        <button :disabled="loading" @click="refresh">{{ loading ? '刷新中…' : '↻ 刷新' }}</button
+        <button
+          :disabled="loading"
+          @click="
+            measurement = null;
+            refresh();
+          "
+        >
+          {{ loading ? '刷新中…' : '↻ 刷新' }}</button
         ><button v-if="run && !terminal(run.state)" class="danger" :disabled="cancelling" @click="cancel">
           {{ cancelling ? '正在请求…' : '取消执行' }}
         </button>
@@ -172,6 +189,8 @@ onBeforeUnmount(() => {
             <dd>{{ time(run.endedAt) }}</dd>
             <dt>主执行耗时</dt>
             <dd>{{ elapsed }}</dd>
+            <dt>数据处理速率</dt>
+            <dd data-testid="processing-rate">{{ processingRate(measurement) }}</dd>
           </dl>
         </section>
         <section class="panel">

@@ -15,7 +15,7 @@ tasks:
       command: [python, /app/app.py, hydraulic]
       inputFiles:
         data: {source: INPUT, name: data_uri}
-      outputFiles: [cleaned.npz, summary.json, metrics.json]
+      outputFiles: [cleaned.npz, summary.json, metrics.json, cea-measurement.json]
 outputs:
   cleaned: {source: TASK_OUTPUT, taskId: clean, port: cleaned.npz}
   summary: {source: TASK_OUTPUT, taskId: clean, port: summary.json}

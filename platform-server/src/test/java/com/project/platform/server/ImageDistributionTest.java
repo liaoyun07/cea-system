@@ -46,7 +46,8 @@ import com.project.platform.offloading.*;
 class ImageDistributionTest {
     private final Network network=Network.newNetwork();
     private final MySQLContainer<?> mysql=new MySQLContainer<>("mysql:8.0").withDatabaseName("s4_distribution")
-            .withUsername("backend_test").withPassword("isolated-test-only").withUrlParam("socketTimeout","1500").withUrlParam("connectTimeout","1500");
+            .withUsername("backend_test").withPassword("isolated-test-only").withUrlParam("connectionTimeZone","UTC")
+            .withUrlParam("socketTimeout","1500").withUrlParam("connectTimeout","1500");
     private final String password="isolated-registry-test";
     private final String auth=Base64.getEncoder().encodeToString(("test:"+password).getBytes(StandardCharsets.UTF_8));
     private final GenericContainer<?> source=registry("source"),target=registry("target");
@@ -249,6 +250,7 @@ class ImageDistributionTest {
                     "--platform.jobs.storage.lab.stores.edge.artifact-bucket=edge-artifacts"));
             var command=List.of(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-cp",Path.of("target","test-classes").toAbsolutePath().toString(),SkopeoTestBridge.class.getName(),tool.getContainerId());
             for(int i=0;i<command.size();i++) args.add("--platform.distribution.command["+i+"]="+command.get(i));
+            args.add("--platform.measurement.clock-synchronized=true");
             applicationArguments=List.copyOf(args);context=new SpringApplicationBuilder(BackendApplication.class).run(args.toArray(String[]::new));
             resources().putCluster(actor,"lab","edge",new Cluster("edge",Kind.EDGE,true));
             resources().registerDataset(actor,"lab","sample","v1",new DatasetVersion("sample","v1","txt",List.of(new Location("edge","s3://datasets/sample/v1/data.txt"))));
@@ -1494,7 +1496,7 @@ class ImageDistributionTest {
         String image="cea-federated-test:"+UUID.randomUUID();
         // Always build current sources; Docker CLI uses the same BuildKit dependency cache as documented builds.
         var build=new ProcessBuilder("docker","build","--progress","plain","-t",image,
-                Path.of("..","algorithms","federated").toString())
+                "-f",Path.of("..","algorithms","federated","Dockerfile").toString(),"..")
                 .redirectErrorStream(true).redirectOutput(evidence.resolve("image-build.txt").toFile()).start();
         try {
             assertTrue(build.waitFor(10,TimeUnit.MINUTES),"federated image build must complete");
@@ -1576,10 +1578,13 @@ class ImageDistributionTest {
                 +"head -c 262145 /dev/zero > /cea-work/out/big.json";
         String id=submit("tasks:\n  - id: measure\n    type: platform.Application\n    timeout: PT60S\n    container:\n      applicationId: service\n      version: v1\n      candidateClusters: [edge]\n      command: "+json.write(List.of("sh","-c",command))+"\n      outputFiles: [metrics.json, array.json, trailing.json, duplicate.json, invalid.json, big.json]\n");
         var reader=context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class);
+        var measurement=context.getBean(com.project.platform.dataflow.execution.ExecutionMeasurementService.class);
+        assertEquals("NOT_SUCCESSFUL",measurement.get(actor,"lab",id).status());
         var run=executions().tasks(actor,"lab",id).getFirst();
         assertEquals(WorkflowException.Kind.CONFLICT,assertThrows(WorkflowException.class,()->reader.readJson(actor,"lab",id,run.id(),"metrics.json")).kind());
         drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state());
         var value=reader.readJson(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab",id,run.id(),"metrics.json");
+        assertEquals("INCOMPLETE",measurement.get(actor,"lab",id).status(),"successful legacy applications must not get a fallback rate");
         assertEquals(0.25,value.get("loss"));assertEquals(0.8,value.get("accuracy"));
         assertThrows(Forbidden.class,()->reader.readJson(new Actor("foreign",Set.of("other"),Set.of(Action.READ)),"lab",id,run.id(),"metrics.json"));
         assertEquals(WorkflowException.Kind.NOT_FOUND,assertThrows(WorkflowException.class,()->reader.readJson(actor,"lab",id,"foreign-task","metrics.json")).kind());
@@ -1621,6 +1626,11 @@ class ImageDistributionTest {
         var execution=executions().get(actor,"lab",id);
         assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
         assertEquals(2,((Number)execution.outputs().get("completed_rounds")).intValue());
+        var measurement=context.getBean(com.project.platform.dataflow.execution.ExecutionMeasurementService.class);
+        var measured=measurement.get(actor,"lab",id);
+        assertEquals("AVAILABLE",measured.status());assertTrue(measured.inputBytes()>0);assertTrue(measured.outputBytes()>0);assertTrue(measured.bytesPerSecond()>0);
+        assertEquals("CLOCK_UNCONFIRMED",new com.project.platform.dataflow.execution.ExecutionMeasurementService(executions(),context.getBean(com.project.platform.dataflow.execution.ExecutionOutputService.class),false).get(actor,"lab",id).status());
+        assertThrows(Forbidden.class,()->measurement.get(new Actor("foreign",Set.of("other"),Set.of(Action.READ)),"lab",id));
         var runs=executions().tasks(actor,"lab",id);
         var leaves=runs.stream().filter(r->execution.definition().allTasks().stream().anyMatch(t->t.id().equals(r.taskId())&&t.container()!=null)).toList();
         int expectedLeaves=1+2*(letters.size()+2);
@@ -1632,7 +1642,7 @@ class ImageDistributionTest {
             int round=run.taskId().equals("train")?parent.orElseThrow().iteration():run.iteration();
             String task=run.taskId().equals("train")?"client-"+letters.get(run.iteration()-1):run.taskId();
             String file=task.equals("init")?"init.pt":task+"-r"+round+(task.equals("evaluate")?".json":".pt");
-            String uri=run.outputs().values().iterator().next().toString();
+            String uri=run.outputs().get(run.taskId().equals("evaluate")?"metrics.json":"model.pt").toString();
             assertEquals(run.taskId().equals("train")?"edge-artifacts":"artifacts",URI.create(uri).getHost());
             try(var client=URI.create(uri).getHost().equals("edge-artifacts")?edgeS3():s3();var input=client.getObject(io.minio.GetObjectArgs.builder().bucket(URI.create(uri).getHost()).object(URI.create(uri).getPath().substring(1)).build())) {
                 byte[] content=input.readAllBytes();Files.write(evidence.resolve(file),content);

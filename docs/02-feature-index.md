@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+MET-001（2026-09-15，计量功能DONE/PASS，已发布CEA）：公共SDK/算法适配、受权查询和单一速率展示已实现，完整262项Maven、11项SDK、53项Node、60项浏览器及现场文件/区间/页面核验通过。2GB/s未达标，M03暂缓；现场失败及修复边界如实保留在[验证](verification/VER-MET-001-algorithm-measurement.md)。[功能](features/S5-05-measurement.md)、[协议](contracts/algorithm-measurement.md)。下列旧批次的计量“后置/未实现”是历史时点。
+
 MET-04（DEP-002/M04验证增量，2026-09-14）：三个不同体量的常驻边缘HTTP示例已部署edge-a；24项镜像测试、12/12部署测量和3次展示业务核验、18080历史/页面PASS。首次2.190/4.372/12.318s，热缓存平均1.641/1.904/3.379s；仅对当前单宿主缓存条件有效。无平台Java/表/API/执行链新增，不新增功能编号；未完成无缓存或物理WAN验收，不改变MET-001等未完成状态。[示例规格](../examples/deployment-benchmark/README.md)、[验证](verification/VER-M04-edge-deployment.md)。
 
 OFF-04（DONE/PASS核心闭环，2026-09-14已发布CEA）：六维网关Double DQN、合法动作/显式探索、真实next回放/目标网络、固定模型五基线比较及模型展示。255项Maven、52项Node、60项浏览器、30项本批Python、114次CEA真实请求及动作/页面核验PASS；[功能](features/OFF-04-double-dqn.md)、[验收](verification/VER-OFF-04-double-dqn.md)。未证明DQN比全终端更快；申报性能、多核/能耗/成本及S5-05不因本批完成而标记达标。以下OFF-03/02段落为对应历史时点。
@@ -92,7 +94,7 @@ UI-01新增独立前端最小闭环，归WF-016编辑协议的当前消费者；
 | EDGE-002 | 边缘数据处理策略与结果交付 | S5 | platform-edge | IMPLEMENTED | PASS |
 | OFF-001 | 终端卸载资格、选层与Placement拆分、网关三路径 | S5/OFF | platform-offloading | IMPLEMENTED | OFF-01/02/04及CEA三路径PASS |
 | OFF-002 | 六维真实状态、反馈/next、边缘Double DQN和五基线比较 | S5/OFF | platform-offloading | IMPLEMENTED | OFF-03/04核心及CEA PASS；不代表性能优势或多目标/多核完成 |
-| MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | NOT_STARTED | NOT_RUN |
+| MET-001 | SDK 样本、完整性与单一处理速率口径 | S5 | platform-dataflow | DONE | PASS |
 | SEC-001 | 身份、命名空间权限、两角色人员/个人中心与内部通信认证 | S1/S4/UI-10 | platform-foundation/platform-server | IMPLEMENTED | PASS |
 | MIG-001 | 旧功能/模板转换与切换 | S7 | platform-server | NOT_STARTED | NOT_RUN |
 | OPS-001 | 最小部署与单机恢复验收 | S4/S7 | platform-server | IN_PROGRESS | PARTIAL |

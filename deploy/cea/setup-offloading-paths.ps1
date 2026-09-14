@@ -45,7 +45,7 @@ foreach($taskCopy in @(
     @('terminal-gateway.yaml','secrets/backend/terminal-gateway.yaml'),@('control-token','secrets/backend/terminal-control-token'))) {
     Write-CeaGeneratedFile (Join-Path $PSScriptRoot $taskCopy[1]) (Get-Content (Join-Path $taskPending $taskCopy[0]) -Raw)
 }
-& docker build -t cea/offload-signal:off02-v1 (Join-Path $taskRepository 'examples/offloading')
+& docker build -f (Join-Path $taskRepository 'examples/offloading/Dockerfile') -t cea/offload-signal:off02-v1 $taskRepository
 if($LASTEXITCODE) { throw 'Signal image build failed' }
 & docker image save --output (Join-Path $taskRoot 'signal-image.tar') cea/offload-signal:off02-v1
 if($LASTEXITCODE) { throw 'Image archive failed' }
@@ -64,7 +64,7 @@ foreach($taskLayer in @('TERMINAL','EDGE','CLOUD','RULE')) {
     $taskFlow=[ordered]@{schemaVersion=1;namespace='lab';id=$taskId;description="OFF-02 振动窗口特征：$taskLayer（三路径验证，合成信号）";
         inputs=[ordered]@{data_file=[ordered]@{type='OBJECT';required=$true}};
         tasks=@([ordered]@{id='features';type='platform.Application';timeout='PT2M';container=[ordered]@{applicationId='offload-signal';version='off02-v1';execution='TERMINAL';offload=$taskOffload;
-            command=@('python','/app/app.py');inputFiles=[ordered]@{'signal.csv'=[ordered]@{source='INPUT';name='data_file'}};outputFiles=@('result.json')}});
+            command=@('python','/app/app.py');inputFiles=[ordered]@{'signal.csv'=[ordered]@{source='INPUT';name='data_file'}};outputFiles=@('result.json','cea-measurement.json')}});
         outputs=[ordered]@{terminal_result=[ordered]@{source='TASK_OUTPUT';taskId='features';port='result.json'}}}
     $taskSource=$taskFlow | ConvertTo-Json -Depth 30
     $taskExisting=Invoke-RestMethod "$taskApi/edge/policies?limit=100" -Headers $taskHeaders

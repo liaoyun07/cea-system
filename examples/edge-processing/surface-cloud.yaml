@@ -16,7 +16,7 @@ tasks:
       inputFiles:
         data: {source: INPUT, name: data_uri}
         model: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/edge-models/ep01-v1/tile.pt'}
-      outputFiles: [inspection.json, heatmaps.zip, metrics.json]
+      outputFiles: [inspection.json, heatmaps.zip, metrics.json, cea-measurement.json]
   - id: report
     type: platform.Application
     timeout: PT5M
@@ -27,7 +27,7 @@ tasks:
       command: [python, /app/app.py, report]
       inputFiles:
         data: {source: TASK_OUTPUT, taskId: inspect, port: inspection.json}
-      outputFiles: [report.json, metrics.json]
+      outputFiles: [report.json, metrics.json, cea-measurement.json]
 outputs:
   cloud_report: {source: TASK_OUTPUT, taskId: report, port: report.json}
   edge_heatmaps: {source: TASK_OUTPUT, taskId: inspect, port: heatmaps.zip}

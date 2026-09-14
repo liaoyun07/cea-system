@@ -3,7 +3,7 @@
   "info": {
     "title": "Cloud Edge Backend API",
     "version": "2.4.0",
-    "description": "S1-S6 workflow backend and UI-10 management: execution snapshots, guarded logical deletion, ADMIN/USER accounts, image upload/build/distribution, deployments and managed resources. One execution chain; no throughput SDK, long-horizon DQN, physical purge or full Kestra feature parity."
+    "description": "S1-S6 workflow backend, management and MET-001 algorithm measurement: execution snapshots, guarded logical deletion, ADMIN/USER accounts, image build/distribution, deployments and committed SDK reports. One execution chain; no pod-duration throughput fallback, physical purge or full Kestra feature parity."
   },
   "servers": [
     {
@@ -16,6 +16,11 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/executions/{id}/measurement": {
+      "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}],
+      "get": {"operationId":"executionMeasurement","description":"READ. Sum committed algorithm whole-file input/output bytes divided by the union of complete SDK activity intervals. Requires successful complete execution and confirmed synchronized clocks. No old-execution or pod-duration fallback. Reports are bounded authorized artifacts, not new database records.",
+        "responses":{"200":{"description":"Available rate or explicit unavailability with null values","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExecutionMeasurement"}}}},"401":{"description":"Unauthenticated"},"403":{"description":"Namespace READ denied"},"404":{"description":"Execution not found"}}}
+    },
     "/api/namespaces/{namespace}/edge-access/terminals/{id}/executions/{executionId}/feedback": {
       "parameters": [
         {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
@@ -5564,6 +5569,7 @@
       "KubernetesNodeUsage": {"type":"object","properties":{"name":{"type":"string"},"usage":{"$ref":"#/components/schemas/KubernetesUsage"}},"required":["name","usage"]},
       "KubernetesClusterUsage": {"type":"object","properties":{"namespace":{"type":"string"},"nodes":{"type":"array","items":{"$ref":"#/components/schemas/KubernetesNodeUsage"}},"cpuPercent":{"type":["number","null"]},"memoryPercent":{"type":["number","null"]}},"required":["namespace","nodes","cpuPercent","memoryPercent"]},
       "KubernetesContainerUsage": {"type":"object","properties":{"pod":{"type":"string"},"container":{"type":"string"},"usage":{"$ref":"#/components/schemas/KubernetesUsage"}},"required":["pod","container","usage"]},
+      "ExecutionMeasurement": {"type":"object","properties":{"status":{"type":"string","enum":["AVAILABLE","NOT_SUCCESSFUL","INCOMPLETE","NO_ALGORITHM","CLOCK_UNCONFIRMED","STORAGE_UNAVAILABLE","INVALID"]},"inputBytes":{"type":["integer","null"],"minimum":0},"outputBytes":{"type":["integer","null"],"minimum":0},"activeSeconds":{"type":["number","null"]},"bytesPerSecond":{"type":["number","null"]}},"required":["status","inputBytes","outputBytes","activeSeconds","bytesPerSecond"]},
       "ExecutionOutputSource": {"type":"object","properties":{"id":{"type":"string"},"ports":{"type":"array","items":{"type":"string"}}},"required":["id","ports"]},
       "ExecutionOverview": {"type":"object","properties":{"from":{"type":"string","format":"date-time"},"to":{"type":"string","format":"date-time"},"days":{"type":"array","items":{"$ref":"#/components/schemas/ExecutionDayCount"}},"recent":{"type":"array","items":{"$ref":"#/components/schemas/ExecutionRecent"}}},"required":["from","to","days","recent"]},
       "ExecutionDayCount": {"type":"object","properties":{"date":{"type":"string","format":"date"},"state":{"type":"string","enum":["CREATED","QUEUED","RUNNING","RETRYING","KILLING","SUCCESS","FAILED","KILLED","SKIPPED"]},"count":{"type":"integer","minimum":0}},"required":["date","state","count"]},

@@ -17,5 +17,10 @@ def features(samples, window=1024):
 
 
 if __name__ == "__main__":
-    values = [float(line) for line in Path("/cea-work/in/signal.csv").read_text().splitlines()]
-    Path("/cea-work/out/result.json").write_text(json.dumps(features(values), allow_nan=False))
+    from cea_measurement import Measurement, REPORT_NAME
+    with Measurement(Path("/cea-work/out") / REPORT_NAME) as measurement:
+        with measurement.input("/cea-work/in/signal.csv") as source:
+            values = [float(line) for line in source.read_text().splitlines()]
+        result = Path("/cea-work/out/result.json")
+        result.write_text(json.dumps(features(values), allow_nan=False))
+        measurement.output(result)

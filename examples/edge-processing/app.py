@@ -167,11 +167,30 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, default=Path("/cea-work/out"))
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    if args.operation == "hydraulic":
-        hydraulic(args.input, args.output)
-    elif args.operation == "bearing":
-        bearing(args.input, args.model, args.output)
-    elif args.operation == "surface":
-        surface(args.input, args.model, args.output)
-    else:
-        report(args.input, args.output)
+    from contextlib import ExitStack
+    from cea_measurement import Measurement, REPORT_NAME
+    with Measurement(args.output / REPORT_NAME) as measurement:
+        # NPZ is lazy: whole-file accounting requires every member to be consumed.
+        if args.operation in ("hydraulic", "bearing"):
+            expected = {"PS1", "FS1", "TS1"} if args.operation == "hydraulic" else {"signal", "sample_rate"}
+            with load_samples(args.input) as data:
+                if set(data.files) != expected or len(data.files) != len(expected):
+                    raise ValueError("whole-file measurement requires exactly the algorithm's input fields")
+        with ExitStack() as files:
+            files.enter_context(measurement.input(args.input))
+            if args.operation in ("bearing", "surface"):
+                files.enter_context(measurement.input(args.model))
+            if args.operation == "hydraulic":
+                hydraulic(args.input, args.output)
+                outputs = ["cleaned.npz", "summary.json", "metrics.json"]
+            elif args.operation == "bearing":
+                bearing(args.input, args.model, args.output)
+                outputs = ["diagnosis.json", "metrics.json"]
+            elif args.operation == "surface":
+                surface(args.input, args.model, args.output)
+                outputs = ["inspection.json", "heatmaps.zip", "metrics.json"]
+            else:
+                report(args.input, args.output)
+                outputs = ["report.json", "metrics.json"]
+        for name in outputs:
+            measurement.output(args.output / name)

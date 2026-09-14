@@ -9,7 +9,7 @@ if (@($taskExisting | Where-Object { $_.flowId -in @('fedavg','fedprox') }).Coun
     throw 'FedAvg/FedProx already registered. Edit Flow revisions explicitly; this first-install script will not replace versions.'
 }
 $taskImage = 'cea/federated:deploy-v1'
-& docker build -t $taskImage (Join-Path $taskRepository 'algorithms/federated')
+& docker build -f (Join-Path $taskRepository 'algorithms/federated/Dockerfile') -t $taskImage $taskRepository
 if ($LASTEXITCODE -ne 0) { throw 'Federated image build failed' }
 & docker run --rm --label com.docker.compose.project=cea $taskImage python -m unittest -v test_federated
 if ($LASTEXITCODE -ne 0) { throw 'Federated unit tests failed' }

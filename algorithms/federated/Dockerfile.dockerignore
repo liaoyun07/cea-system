@@ -1,0 +1,7 @@
+**
+!algorithms/
+!algorithms/federated/
+!algorithms/federated/*.py
+!sdk/
+!sdk/python/
+!sdk/python/cea_measurement.py

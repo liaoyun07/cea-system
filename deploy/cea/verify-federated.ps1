@@ -44,7 +44,8 @@ foreach ($taskRun in $taskLeaves) {
         $taskCluster = "edge-$taskLetter"
     }
     $taskFile = if($taskName -eq 'init') {'init.pt'} elseif($taskName -eq 'evaluate') {"evaluate-r$taskRound.json"} else {"$taskName-r$taskRound.pt"}
-    $taskUri = [uri](@($taskRun.outputs.PSObject.Properties.Value)[0])
+    $taskPort = if ($taskRun.taskId -eq 'evaluate') { 'metrics.json' } else { 'model.pt' }
+    $taskUri = [uri]$taskRun.outputs.$taskPort
     $taskBucket = if ($taskCluster -eq 'cloud') { 'cea-artifacts' } else { "cea-artifacts-$taskCluster" }
     $taskAlias = if ($taskCluster -eq 'cloud') { 'local' } else { $taskCluster }
     if ($taskUri.Scheme -ne 's3' -or $taskUri.Host -ne $taskBucket) { throw "Expected artifact in actual execution store $taskBucket" }

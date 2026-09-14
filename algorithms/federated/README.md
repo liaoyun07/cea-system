@@ -1,6 +1,6 @@
 # FedAvg / FedProx应用
 
-仅本地文件输入输出；没有MinIO客户端、平台SDK、旧FLOW_*环境变量或隐藏模板注册。运行语义见[S5-02规格](../../docs/features/S5-02-federated.md)。
+仅本地文件输入输出；没有MinIO客户端、平台网络回调、旧FLOW_*环境变量或隐藏模板注册。MET-001使用同一标准库计量SDK记录文件长度与完整算法区间，报告沿原产物链发布。运行语义见[S5-02规格](../../docs/features/S5-02-federated.md)。
 
 两个Flow示例在inputs中显式声明training_dataset/test_dataset为SELECT，当前选项为mnist-train/v1和mnist-test/v1，启动页直接下拉选择。新增可用数据集时，由Flow作者调整values并确保Application DatasetRule与实际Location满足要求；平台不自动派生Flow Input或合并契约选项。
 
@@ -18,7 +18,7 @@
 在backend根目录执行：
 
 ```powershell
-docker build -t cea-federated:s5-loop-v1 algorithms/federated
+docker build -f algorithms/federated/Dockerfile -t cea-federated:s5-loop-v1 .
 docker run --rm cea-federated:s5-loop-v1 python -m unittest -v test_federated
 New-Item -ItemType Directory -Force .local/mnist
 $taskData = (Resolve-Path .local/mnist).Path

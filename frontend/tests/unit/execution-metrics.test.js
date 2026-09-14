@@ -7,10 +7,11 @@ import {
   metricSources,
   metricTags,
   numericMetrics,
+  processingRate,
 } from '../../src/execution-metrics.js';
 
 test('metrics filter JSON ports from authoritative execution declarations without looking up a current Flow', () => {
-  const task = (id) => ({ id, ports: ['metrics.json', 'model.pt'] });
+  const task = (id) => ({ id, ports: ['metrics.json', 'model.pt', 'cea-measurement.json'] });
   assert.deepEqual(
     metricSources([task('train'), task('evaluate'), task('cleanup'), { id: 'model', ports: ['model.pt'] }]),
     [
@@ -19,6 +20,19 @@ test('metrics filter JSON ports from authoritative execution declarations withou
       { id: 'cleanup', ports: ['metrics.json'] },
     ],
   );
+});
+test('single processing rate uses decimal units and never converts missing measurement to zero', () => {
+  for (const value of [
+    null,
+    {},
+    { status: 'INVALID', bytesPerSecond: 100 },
+    { status: 'AVAILABLE', bytesPerSecond: Infinity },
+    { status: 'AVAILABLE', bytesPerSecond: null },
+  ])
+    assert.equal(processingRate(value), '—');
+  assert.equal(processingRate({ status: 'AVAILABLE', bytesPerSecond: 0 }), '0.00 B/s');
+  assert.equal(processingRate({ status: 'AVAILABLE', bytesPerSecond: 2000000000 }), '2.00 GB/s');
+  assert.equal(processingRate({ status: 'AVAILABLE', bytesPerSecond: 12345678 }), '12.35 MB/s');
 });
 test('instance labels keep round and item scopes instead of merging equal task IDs', () => {
   const rounds = { id: 'r', taskId: 'rounds', iteration: 0 };

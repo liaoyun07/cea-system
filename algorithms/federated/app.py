@@ -15,6 +15,16 @@ def main():
     parser.add_argument("--clients-manifest")
     parser.add_argument("--output", default="/cea-work/out/model.pt")
     args = parser.parse_args()
+    from cea_measurement import Measurement, REPORT_NAME
+    with Measurement(Path(args.output).parent / REPORT_NAME) as measurement:
+        run(args, measurement)
+
+
+def run(args, measurement):
+    def measured_load(path):
+        with measurement.input(path):
+            return load(path)
+
     if args.stage == "init":
         algorithm = os.environ["ALGORITHM"]
         if algorithm not in ("fedavg", "fedprox"):
@@ -27,11 +37,11 @@ def main():
         paths = json.loads(Path(args.clients_manifest).read_text())
         if not isinstance(paths, list) or not paths or not all(isinstance(path, str) for path in paths):
             raise ValueError("client manifest must be a non-empty array of local file paths")
-        result = aggregate([load(path) for path in paths])
+        result = aggregate([measured_load(path) for path in paths])
     else:
-        previous = load(args.input)
+        previous = measured_load(args.input)
         model = checked_model(previous)
-        data = load(os.environ["DATASET_PATH" if args.stage == "train" else "TEST_DATASET_PATH"])
+        data = measured_load(os.environ["DATASET_PATH" if args.stage == "train" else "TEST_DATASET_PATH"])
         check_data(data, previous)
         if data["split"] != ("train" if args.stage == "train" else "test"):
             raise ValueError("training and global test datasets must not be interchanged")
@@ -39,6 +49,7 @@ def main():
             result = evaluate(model, data, int(os.environ["BATCH_SIZE"]))
             result.update(round=previous["round"], algorithm=previous["algorithm"])
             Path(args.output).write_text(json.dumps(result, allow_nan=False))
+            measurement.output(args.output)
             print(json.dumps(result, allow_nan=False), flush=True)
             return
         algorithm = os.environ["ALGORITHM"]
@@ -53,6 +64,7 @@ def main():
                       clientId=os.environ["CLIENT_ID"], samples=len(data["y"]),
                       state=model.state_dict())
     torch.save(result, args.output)
+    measurement.output(args.output)
     print(json.dumps({key: value for key, value in result.items() if key != "state"}), flush=True)
 
 

@@ -4,6 +4,7 @@ import com.project.platform.foundation.identity.AccessPolicy.Actor;
 import com.project.platform.resource.catalog.ResourceException;
 import com.project.platform.resource.storage.ObjectStorage;
 import com.project.platform.runtime.model.ExecutionState;
+import com.project.platform.runtime.model.ExecutionRecord;
 import com.project.platform.runtime.model.WorkflowException;
 import java.util.Map;
 import tools.jackson.core.StreamReadFeature;
@@ -28,15 +29,21 @@ public final class ExecutionOutputService {
         var execution=executions.get(actor,namespace,executionId);
         var task=executions.tasks(actor,namespace,executionId).stream().filter(t->t.id().equals(taskRunId)).findFirst()
                 .orElseThrow(()->new WorkflowException(WorkflowException.Kind.NOT_FOUND,"task run not found in execution"));
+        if(task.state()!=ExecutionState.SUCCESS)throw new WorkflowException(WorkflowException.Kind.CONFLICT,"task output is not committed successfully");
+        int attempt=executions.attempts(actor,namespace,executionId,taskRunId).stream().filter(a->a.state()==ExecutionState.SUCCESS)
+                .mapToInt(a->a.attemptNo()).max().orElseThrow(()->new WorkflowException(WorkflowException.Kind.NOT_FOUND,"successful attempt not found"));
+        return readCommittedJson(execution,task,attempt,port);
+    }
+    /** Package-local reuse after namespace authorization and successful-attempt lookup, never an arbitrary URI. */
+    Map<?,?> readCommittedJson(ExecutionRecord execution,ExecutionRecord.TaskRun task,int attempt,String port) {
         var definition=execution.definition().allTasks().stream().filter(t->t.id().equals(task.taskId())).findFirst().orElseThrow();
+        if(!execution.id().equals(task.executionId()))throw WorkflowException.invalid("task","execution mismatch");
         if(port==null || !port.endsWith(".json") || definition.container()==null || !definition.container().outputFiles().contains(port))
             throw WorkflowException.invalid("port","must be a declared JSON output file");
         if(task.state()!=ExecutionState.SUCCESS)throw new WorkflowException(WorkflowException.Kind.CONFLICT,"task output is not committed successfully");
         if(!(task.outputs().get(port) instanceof String uri))throw new WorkflowException(WorkflowException.Kind.NOT_FOUND,"output port has no published file");
-        int attempt=executions.attempts(actor,namespace,executionId,taskRunId).stream().filter(a->a.state()==ExecutionState.SUCCESS)
-                .mapToInt(a->a.attemptNo()).max().orElseThrow(()->new WorkflowException(WorkflowException.Kind.NOT_FOUND,"successful attempt not found"));
         byte[] bytes;
-        try {bytes=storage.readPublished(namespace,executionId,taskRunId,attempt,port,uri,MAX_JSON_BYTES);}
+        try {bytes=storage.readPublished(execution.namespace(),execution.id(),task.id(),attempt,port,uri,MAX_JSON_BYTES);}
         catch(ResourceException ex){throw ex;}
         catch(Exception ex){throw new Unavailable(ex);}
         try {

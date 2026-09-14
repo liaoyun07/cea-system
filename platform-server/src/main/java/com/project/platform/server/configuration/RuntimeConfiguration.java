@@ -70,6 +70,10 @@ public class RuntimeConfiguration {
                                                   BindingResolver bindings, JsonCodec json, AccessPolicy access) {
         return new FlowExecutionService(flows, executions, bindings, json, access);
     }
+    @Bean com.project.platform.dataflow.execution.ExecutionMeasurementService executionMeasurementService(FlowExecutionService executions,
+            com.project.platform.dataflow.execution.ExecutionOutputService outputs,@Value("${platform.measurement.clock-synchronized:false}") boolean synchronizedClocks) {
+        return new com.project.platform.dataflow.execution.ExecutionMeasurementService(executions,outputs,synchronizedClocks);
+    }
     private TransactionTemplate transactionTemplate(PlatformTransactionManager manager) {
         var template=new TransactionTemplate(manager);
         template.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_READ_COMMITTED);
