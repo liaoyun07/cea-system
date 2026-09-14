@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+MET-04（DEP-002/M04验证增量，2026-09-14）：三个不同体量的常驻边缘HTTP示例已部署edge-a；24项镜像测试、12/12部署测量和3次展示业务核验、18080历史/页面PASS。首次2.190/4.372/12.318s，热缓存平均1.641/1.904/3.379s；仅对当前单宿主缓存条件有效。无平台Java/表/API/执行链新增，不新增功能编号；未完成无缓存或物理WAN验收，不改变MET-001等未完成状态。[示例规格](../examples/deployment-benchmark/README.md)、[验证](verification/VER-M04-edge-deployment.md)。
+
 OFF-04（DONE/PASS核心闭环，2026-09-14已发布CEA）：六维网关Double DQN、合法动作/显式探索、真实next回放/目标网络、固定模型五基线比较及模型展示。255项Maven、52项Node、60项浏览器、30项本批Python、114次CEA真实请求及动作/页面核验PASS；[功能](features/OFF-04-double-dqn.md)、[验收](verification/VER-OFF-04-double-dqn.md)。未证明DQN比全终端更快；申报性能、多核/能耗/成本及S5-05不因本批完成而标记达标。以下OFF-03/02段落为对应历史时点。
 
 OFF-03（DONE/PASS，2026-09-14已发布CEA）：新增六维真实观测、工作量/传输事实、终端端到端反馈、按决策顺序next关联与卸载观测页面。完整251项Maven及最终28项定向验证、52项Node、59项浏览器、41项Python和CEA六次实际执行通过；范围见[OFF-03](features/OFF-03-measured-feedback.md)，证据见[验收](verification/VER-OFF-03-measured-feedback.md)。OFF-04未开始。
