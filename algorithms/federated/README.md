@@ -2,15 +2,15 @@
 
 仅本地文件输入输出；没有MinIO客户端、平台网络回调、旧FLOW_*环境变量或隐藏模板注册。MET-001使用同一标准库计量SDK记录文件长度与完整算法区间，报告沿原产物链发布。运行语义见[S5-02规格](../../docs/features/S5-02-federated.md)。
 
-两个Flow示例在inputs中显式声明training_dataset/test_dataset为SELECT，当前选项为mnist-train/v1和mnist-test/v1，启动页直接下拉选择。新增可用数据集时，由Flow作者调整values并确保Application DatasetRule与实际Location满足要求；平台不自动派生Flow Input或合并契约选项。
+两个Flow在inputs中显式声明training_dataset/test_dataset为SELECT，支持MNIST、CIFAR-10、CIFAR-100的train/test v1，默认仍为MNIST。两项必须选择同系列：例如cifar100-train/v1与cifar100-test/v1。init读取这两个版本引用确定模型维度并拒绝不匹配，不下载数据；train/evaluate仍由DatasetRule注入本地文件。平台不自动派生Flow Input或合并契约选项。[数据契约](../../docs/contracts/federated-datasets.md)。
 
 ## 文件职责
 
 - model.py：MLP/CNN、SGD/FedProx、样本数加权聚合和评估。
 - app.py：init/train/aggregate/evaluate CLI，读写平台准备的本地文件。
-- seed.py：在任务外下载真实MNIST并生成不重叠训练分片和独立测试文件。
-- test_federated.py：7项数值/错误输入/数据完整性测试（单元样本是明确的随机张量）。
-- verify_run.py：重算集成测试导出的真实MNIST训练模型、聚合与评估。
+- seed.py：在任务外下载真实MNIST/CIFAR并生成不重叠训练分片和独立测试文件。
+- test_federated.py：11项数值/错误输入/数据完整性测试（单元样本是明确的随机张量或手工二进制记录）。
+- verify_run.py：重算导出的实际训练模型、聚合与评估；可用--data-directory复用只读数据目录。
 - Dockerfile：Python3.11.15、Torch2.2.2+cpu、NumPy1.26.4；不包含数据集。沿用旧算法依赖主版本便于核对数值，不宣称这是最新或已做安全审计的依赖栈。
 
 ## 准备数据与镜像
@@ -18,20 +18,22 @@
 在backend根目录执行：
 
 ```powershell
-docker build -f algorithms/federated/Dockerfile -t cea-federated:s5-loop-v1 .
-docker run --rm cea-federated:s5-loop-v1 python -m unittest -v test_federated
+docker build -f algorithms/federated/Dockerfile -t cea/federated:cf01-v1 .
+docker run --rm cea/federated:cf01-v1 python -m unittest -v test_federated
 New-Item -ItemType Directory -Force .local/mnist
 $taskData = (Resolve-Path .local/mnist).Path
-docker run --rm --mount "type=bind,source=$taskData,target=/data" cea-federated:s5-loop-v1 python /app/seed.py --output /data
+docker run --rm --mount "type=bind,source=$taskData,target=/data" cea/federated:cf01-v1 python /app/seed.py --output /data
 ```
 
 默认生成真实MNIST训练60000条（按标签排序后1:2:3分为10000/20000/30000）和独立测试10000条。显式传--train-samples 768 --test-samples 256可复现集成验收规模；不代表完整数据集精度测试。下载失败即失败，不回退合成数据。manifest.json记录来源和样本数，数据只写.local且不提交Git。
+
+CIFAR使用同一命令，增加`--dataset cifar10`或`--dataset cifar100`，分别挂载独立输出目录，不能覆盖MNIST目录。默认各50000训练、10000测试；训练分片8333/16667/25000，标签排序后的非IID分区，不做自动平衡或客户端抽样。使用[作者发布的binary归档与MD5](https://www.cs.toronto.edu/~kriz/cifar.html)，不反序列化下载的pickle、不解压任意归档路径；CIFAR-100使用fine标签而不是20类coarse标签。RGB保持3×32×32，按`(pixel/255-0.5)/0.5`归一化为float32；无数据增强、无测试集统计拟合。MLP/CNN分类头随数据系列自动取10/100类。
 
 下载文件及已有raw文件均按[torchvision官方MNIST资源校验值](https://github.com/pytorch/vision/blob/v0.17.2/torchvision/datasets/mnist.py)检查完整性，不通过则拒绝生成分片。这仅是数据下载完整性校验，不是领域对象hash。集成测试在target/federated-data/raw复用已校验原始文件，缺失时仍需下载；不缓存执行结果或跳过实际训练。
 
 把edge-a.pt、edge-b.pt、edge-c.pt、test.pt分别上传到你配置的对象存储datasets桶下mnist/v1/同名文件；使用管理员现有存储工具，不把密钥写进Flow。文件位置和版本须与[数据目录](../../examples/federated/datasets.json)一致。切换真实站点存储位置时编辑目录数据，不能谎报数据已落地。
 
-按你的Registry地址另行tag/push该新镜像；不要覆盖旧gateway镜像标签。本批测试只推送隔离Registry，不替你发布到已有Harbor。后端的Registry/Kubernetes/S3配置沿用[S4部署](../../docs/contracts/s4-job-execution.md)，需要cloud、edge-a/b/c四个连接和对应资源目录项，且有足够平台Job槽。无需修改Java。
+按你的Registry地址另行tag/push该新镜像；不要覆盖旧gateway镜像标签。FLDATA-01已发布当前独立CEA Registry，未操作旧系统Harbor。后端的Registry/Kubernetes/S3配置沿用[S4部署](../../docs/contracts/s4-job-execution.md)，需要cloud、edge-a/b/c四个连接和对应资源目录项，且有足够平台Job槽。无需修改Java。
 
 ## 首次注册与执行
 
@@ -41,13 +43,13 @@ docker run --rm --mount "type=bind,source=$taskData,target=/data" cea-federated:
 powershell -ExecutionPolicy Bypass -File scripts/register-federated.ps1 -Image '你的仓库/lab/cea-federated:s5-loop-v1'
 ```
 
-脚本读取JSON契约和YAML，依次登记两个数据集版本、五个应用版本、两个Flow首版，不触碰已有集群配置、不自动执行任务。已存在的Flow会因expectedRevision=0拒绝覆盖；编辑使用既有revision API，不通过脚本强制重置。应用/数据集已有版本按后端不可变版本语义处理，修改内容须使用新版本并同步Flow。
+脚本读取JSON契约和YAML，依次登记六个数据集版本、五个应用版本、两个Flow首版；数据实物必须先上传。已存在的Flow会因expectedRevision=0拒绝覆盖。已有CEA使用`scripts/upgrade-federated-datasets.mjs --capture/--publish/--verify`分别捕获基线、显式更新、核验历史；发布前要求已验证数据实物与新镜像，不能覆盖既有不可变版本。步骤见[验证记录](../../docs/verification/VER-FLDATA-01-cifar.md)。
 
-通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。客户端集合在Loop.values中编辑并保存新修订，不再提供clients启动参数。契约仅允许mnist-train/v1、mnist-test/v1，不能输入任意名称绕过。
+通过既有Execution提交API执行flowId=fedavg或fedprox，默认两轮；输入可覆盖rounds、model、training_dataset、test_dataset、local_epochs、batch_size、learning_rate，FedProx另有prox_mu。客户端集合在Loop.values中编辑并保存新修订，不再提供clients启动参数。契约只允许已声明的三个系列train/test v1，不能输入任意名称绕过。
 
-每轮evaluate的TaskRun outputs.metrics.json是该轮全局损失/准确率产物，最终Flow输出global_model和completed_rounds。执行历史保留全部轮次，没有新增图表、指标数据库或吞吐计算。
+每轮evaluate的TaskRun outputs.metrics.json是该轮全局损失/准确率产物，最终Flow输出global_model和completed_rounds。执行历史保留全部轮次，复用当前Metrics及MET-001计量；新增数据集不改变速率口径，不代表精度或2GB/s达标。
 
-已有S5-02注册数据不会自动改变：本批aggregate CLI改为清单协议，需将新构建镜像登记为新的ApplicationVersion（例如v2），同步编辑Flow中的版本和Loop定义并保存新修订，再提交新Execution。首次注册示例在空目录仍用v1；不得覆盖已有版本或只更新Flow却继续用旧聚合镜像。
+已有S5-02注册数据不会自动改变：早期S5-02b已把aggregate CLI改为清单协议，本次不再修改该协议。FLDATA-01需新镜像及不可变ApplicationVersion（本次cf01-v1），同步两个Flow的参数和版本并保存修订。首次注册示例在空目录仍用v1；不得覆盖已有版本或只更新Flow却继续用旧模型镜像。
 
 ## 文件契约
 

@@ -21,13 +21,18 @@ if (Test-Path -LiteralPath $taskRawCache) {
         if (-not (Test-Path -LiteralPath (Join-Path $taskData "raw/$($_.Name)"))) { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $taskData 'raw') }
     }
 }
-& docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskData,target=/data" $taskImage python /app/seed.py --output /data --train-samples $TrainSamples --test-samples $TestSamples
-if ($LASTEXITCODE -ne 0) { throw 'Real MNIST preparation failed' }
+foreach ($taskDataset in @('mnist','cifar10','cifar100')) {
+    $taskData = Join-Path $taskRepository ".local/cea/$taskDataset"
+    [IO.Directory]::CreateDirectory($taskData) | Out-Null
+    $taskCount = if ($taskDataset -eq 'mnist') { $TrainSamples } else { [Math]::Min($TrainSamples,50000) }
+    & docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskData,target=/data" $taskImage python /app/seed.py --dataset $taskDataset --output /data --train-samples $taskCount --test-samples $TestSamples
+    if ($LASTEXITCODE -ne 0) { throw "Real $taskDataset preparation failed" }
+}
 $taskArchive = Join-Path $taskRepository '.local/cea/federated.tar'
 & docker image save --output $taskArchive $taskImage
 if ($LASTEXITCODE -ne 0) { throw 'Federated image archive failed' }
 Invoke-CeaCompose run --rm --no-deps image-tool --command-timeout=300s copy --dest-tls-verify=false --dest-authfile=/run/secrets/registry-auth.json docker-archive:/data/federated.tar docker://registry-center:5000/lab/cea-federated:deploy-v1
-Invoke-CeaCompose run --rm --no-deps storage-tool -ec 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; for f in edge-a.pt edge-b.pt edge-c.pt test.pt; do mc cp "/data/mnist/$f" "local/datasets/mnist/v1/$f"; done'
+Invoke-CeaCompose run --rm --no-deps storage-tool -ec 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; for d in mnist cifar10 cifar100; do for f in edge-a.pt edge-b.pt edge-c.pt test.pt; do mc cp "/data/$d/$f" "local/datasets/$d/v1/$f"; done; done'
 foreach ($taskCluster in @('cloud','edge-a','edge-b','edge-c')) {
     $taskKind = if ($taskCluster -eq 'cloud') { 'CLOUD' } else { 'EDGE' }
     $taskBody = @{id=$taskCluster;kind=$taskKind;enabled=$true} | ConvertTo-Json
@@ -43,4 +48,4 @@ try {
     $env:BACKEND_USER = $taskPreviousUser
     $env:BACKEND_PASSWORD = $taskPreviousPassword
 }
-Write-Output 'Real MNIST objects, four locations, five Applications and two Flow revisions registered. No executions submitted.'
+Write-Output 'Real MNIST/CIFAR-10/CIFAR-100 objects, six dataset versions, five Applications and two Flow revisions registered. No executions submitted.'

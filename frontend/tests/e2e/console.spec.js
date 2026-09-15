@@ -328,6 +328,12 @@ test('both federated flows expose explicit dataset SELECT controls without execu
     await page.getByRole('button', { name: '▷ 执行', exact: true }).click();
     await expect(page.locator('select#input-training_dataset')).toHaveValue('mnist-train/v1');
     await expect(page.locator('select#input-test_dataset')).toHaveValue('mnist-test/v1');
+    for (const dataset of ['cifar10', 'cifar100']) {
+      await page.locator('select#input-training_dataset').selectOption(`${dataset}-train/v1`);
+      await page.locator('select#input-test_dataset').selectOption(`${dataset}-test/v1`);
+      await expect(page.locator('select#input-training_dataset')).toHaveValue(`${dataset}-train/v1`);
+      await expect(page.locator('select#input-test_dataset')).toHaveValue(`${dataset}-test/v1`);
+    }
     await page.getByRole('button', { name: '关闭执行参数', exact: true }).click();
     await page
       .getByRole('navigation', { name: '主导航' })

@@ -28,5 +28,37 @@
         "uri": "s3://datasets/mnist/v1/test.pt"
       }
     ]
+  },
+  {
+    "datasetId": "cifar10-train",
+    "version": "v1",
+    "format": "pt",
+    "locations": [
+      {"clusterId": "edge-a", "uri": "s3://datasets/cifar10/v1/edge-a.pt"},
+      {"clusterId": "edge-b", "uri": "s3://datasets/cifar10/v1/edge-b.pt"},
+      {"clusterId": "edge-c", "uri": "s3://datasets/cifar10/v1/edge-c.pt"}
+    ]
+  },
+  {
+    "datasetId": "cifar10-test",
+    "version": "v1",
+    "format": "pt",
+    "locations": [{"clusterId": "cloud", "uri": "s3://datasets/cifar10/v1/test.pt"}]
+  },
+  {
+    "datasetId": "cifar100-train",
+    "version": "v1",
+    "format": "pt",
+    "locations": [
+      {"clusterId": "edge-a", "uri": "s3://datasets/cifar100/v1/edge-a.pt"},
+      {"clusterId": "edge-b", "uri": "s3://datasets/cifar100/v1/edge-b.pt"},
+      {"clusterId": "edge-c", "uri": "s3://datasets/cifar100/v1/edge-c.pt"}
+    ]
+  },
+  {
+    "datasetId": "cifar100-test",
+    "version": "v1",
+    "format": "pt",
+    "locations": [{"clusterId": "cloud", "uri": "s3://datasets/cifar100/v1/test.pt"}]
   }
 ]

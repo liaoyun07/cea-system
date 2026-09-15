@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import torch
-from model import aggregate, build_model, checked_model, check_data, evaluate, load, train
+from model import aggregate, build_model, checked_model, check_data, dataset_from_refs, evaluate, load, train
 
 
 def main():
@@ -30,7 +30,8 @@ def run(args, measurement):
         if algorithm not in ("fedavg", "fedprox"):
             raise ValueError("ALGORITHM must be fedavg or fedprox")
         torch.manual_seed(int(os.environ["SEED"]))
-        dataset, name = os.environ["DATASET_NAME"], os.environ["MODEL"]
+        dataset = dataset_from_refs(os.environ["TRAINING_DATASET"], os.environ["TEST_DATASET"])
+        name = os.environ["MODEL"]
         result = {"algorithm": algorithm, "dataset": dataset, "model": name, "round": 0,
                   "state": build_model(dataset, name).state_dict()}
     elif args.stage == "aggregate":

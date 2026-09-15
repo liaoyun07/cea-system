@@ -1,5 +1,7 @@
 # 当前进度
 
+FLDATA-01（2026-09-15，DONE/PASS，已发布CEA）：接入CIFAR-10/CIFAR-100完整数据、100类模型/标签校验、两个Flow的SELECT与init显式版本校验。262项Maven、11项Python、3项升级保留、53项前端单测、60项浏览器PASS。五个应用新增cf01-v1、四个数据集版本/八个Location、FedAvg r8/FedProx r6已生效；两算法×两新数据集各两轮和MNIST回归全部成功，11个Job/本位置产物/独立数值重算及实际18080选项核验PASS。首次现场任务因Docker重启遗留的存储IP过期失败；刷新现有transfer-endpoint并只重启backend后通过，失败记录保留。无Java/DB/API/执行链变化，旧版本/策略和19个常驻服务身份保留；未借本批改变速率口径或宣称精度达标。范围/结果见[数据协议](contracts/federated-datasets.md)、[验证](verification/VER-FLDATA-01-cifar.md)。
+
 MET-001（2026-09-15，计量功能DONE/PASS，已发布CEA）：公共标准库SDK记录实际完整业务文件输入/输出长度与完整算法区间，沿原产物链发布；新增只读汇总API和执行概览单一“数据处理速率”。FedAvg/FedProx四阶段、三种边缘策略及终端/边缘/云卸载路径已实际计量，报告与物理文件长度、纳秒区间并集及页面独立核验一致。最终完整262项Maven、11项SDK、53项Node、60项浏览器及算法测试通过。首次FedAvg现场失败未复现且根因未定，报告权限导致的终端超时已修复并复测；两条失败保留且不返回有效速率，详见[完整证据](verification/VER-MET-001-algorithm-measurement.md)。无DB迁移/表/列/SPI或执行链变化；原历史、DQN实验及17个无关服务保留。当前实测未达到2GB/s，M03继续暂缓，不能把功能完成写成性能指标通过。
 
 MET-04（2026-09-14，当前CEA条件测试PASS，三服务已部署）：新增独立振动统计/轴承随机森林/表面PaDiM HTTP镜像，加载及预热后才就绪；复用原上传、分发和Deployment计时。镜像仓库层大小123.06/393.71/1205.10MiB；edge-a首次新服务部署2.190/4.372/12.318s，三次热缓存均值1.641/1.904/3.379s，12/12有效且业务结果正确。24项镜像测试、15次实际部署业务核验（12测试＋3展示）、22:53实际18080三部署及各5条历史/桌面窄屏PASS。仅清理本批12个测试Deployment，镜像/历史和最终3展示保留；19个CEA服务及原Flow/Execution/策略/Dataset/卸载记录快照不变。无Java/表/API/执行链变化，未重启前后端、未重跑Maven。完整冷缓存环境等待单独确认，不把当前结果说成物理WAN或无缓存达标。[结果与限制](verification/VER-M04-edge-deployment.md)、[复测及使用](../examples/deployment-benchmark/README.md)。固定指标主线不变，M03尚未开始本批验证。

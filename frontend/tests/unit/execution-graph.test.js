@@ -71,7 +71,11 @@ test('FedAvg/FedProx explicitly declare dataset SELECT options without clients i
       ['training_dataset', 'mnist-train/v1'],
       ['test_dataset', 'mnist-test/v1'],
     ]) {
-      assert.deepEqual(flow.inputs[key], { type: 'SELECT', values: [dataset], defaultValue: dataset });
+      assert.deepEqual(flow.inputs[key], {
+        type: 'SELECT',
+        values: [dataset, dataset.replace('mnist', 'cifar10'), dataset.replace('mnist', 'cifar100')],
+        defaultValue: dataset,
+      });
     }
     assert.equal(flow.inputs.clients, undefined);
   }

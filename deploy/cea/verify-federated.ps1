@@ -1,4 +1,6 @@
-param([ValidateSet('fedavg','fedprox')][string]$Algorithm='fedavg', [string]$ExecutionId)
+param([ValidateSet('fedavg','fedprox')][string]$Algorithm='fedavg', [string]$ExecutionId,
+      [ValidateSet('mnist','cifar10','cifar100')][string]$Dataset='mnist',
+      [string]$Image='cea/federated:deploy-v1')
 . (Join-Path $PSScriptRoot 'common.ps1')
 $taskSettings = Read-CeaSettings
 $taskHeaders = Get-CeaHeaders $taskSettings
@@ -7,10 +9,12 @@ if ($ExecutionId) {
     $taskExecutionId = ([guid]$ExecutionId).ToString()
 } else {
     $taskHeaders['Idempotency-Key'] = [guid]::NewGuid().ToString()
-    $taskSubmission = Invoke-RestMethod -Method Post -Uri "$taskApi/executions" -Headers $taskHeaders -ContentType 'application/json' -Body (@{flowId=$Algorithm;inputs=@{rounds=2}} | ConvertTo-Json)
+    $taskInputs = @{rounds=2;model='mlp';training_dataset="$Dataset-train/v1";test_dataset="$Dataset-test/v1";local_epochs=1;batch_size=32;learning_rate=0.01}
+    if ($Algorithm -eq 'fedprox') { $taskInputs.prox_mu=0.1 }
+    $taskSubmission = Invoke-RestMethod -Method Post -Uri "$taskApi/executions" -Headers $taskHeaders -ContentType 'application/json' -Body (@{flowId=$Algorithm;inputs=$taskInputs} | ConvertTo-Json)
     $taskExecutionId = $taskSubmission.executionId
 }
-Write-Output "$Algorithm execution: $taskExecutionId"
+Write-Output "$Algorithm $Dataset execution: $taskExecutionId"
 $taskDeadline = (Get-Date).AddMinutes(20)
 $taskLastState = ''
 do {
@@ -28,6 +32,7 @@ $taskRuns = Invoke-RestMethod -Uri "$taskApi/executions/$taskExecutionId/tasks" 
 Write-CeaGeneratedFile (Join-Path $taskEvidence 'tasks.json') ($taskRuns | ConvertTo-Json -Depth 60)
 if ($taskExecution.state -ne 'SUCCESS') { throw "Execution failed: $($taskExecution.error). Evidence: $taskEvidence" }
 if ($taskExecution.outputs.completed_rounds -ne 2) { throw 'Expected two completed rounds' }
+if ($taskExecution.inputs.training_dataset -ne "$Dataset-train/v1" -or $taskExecution.inputs.test_dataset -ne "$Dataset-test/v1") { throw 'Execution dataset differs from verification dataset' }
 $taskLeaves = @($taskRuns | Where-Object { $_.taskId -in @('init','train','aggregate','evaluate') })
 if ($taskLeaves.Count -ne 11) { throw 'Expected init plus two rounds of three clients, aggregate and evaluate' }
 $taskCopies = @()
@@ -59,7 +64,7 @@ foreach ($taskRun in $taskLeaves) {
     if ($taskSecretName) { throw 'Completed task still retains file authorization Secret' }
     Write-CeaGeneratedFile (Join-Path $taskEvidence "$taskName-r$taskRound-job.json") ($taskJob | ConvertTo-Json -Depth 60)
 }
-foreach ($taskFile in @('edge-a.pt','edge-b.pt','edge-c.pt','test.pt')) { Copy-Item -LiteralPath (Join-Path $taskRepository ".local/cea/mnist/$taskFile") -Destination $taskEvidence }
+$taskDatasetDirectory = (Resolve-Path -LiteralPath (Join-Path $taskRepository ".local/cea/$Dataset")).Path
 $taskRelative = "evidence/$Algorithm/$taskExecutionId"
 # Paths come from platform-owned S3 URIs and generated UUIDs, not arbitrary Flow shell content.
 $taskFetch = 'mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null; '
@@ -69,7 +74,7 @@ foreach ($taskCopy in $taskCopies) {
     $taskFetch += 'mc cp "' + $taskCopy.source + '" "/data/' + $taskRelative + '/' + $taskCopy.destination + '"; '
 }
 Invoke-CeaCompose run --rm --no-deps storage-tool -ec $taskFetch
-$taskAudit = & docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskEvidence,target=/audit,readonly" cea/federated:deploy-v1 python /app/verify_run.py /audit $Algorithm
+$taskAudit = & docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskEvidence,target=/audit,readonly" --mount "type=bind,source=$taskDatasetDirectory,target=/datasets,readonly" $Image python /app/verify_run.py /audit $Algorithm --data-directory /datasets
 if ($LASTEXITCODE -ne 0) { throw "Numerical verification failed for $taskExecutionId" }
 Write-CeaGeneratedFile (Join-Path $taskEvidence 'numerical-audit.json') ($taskAudit -join "`n")
 Write-Output ($taskAudit -join "`n")

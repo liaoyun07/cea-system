@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLDATA-01（FL-001/RES-001数据增量，2026-09-15，DONE/PASS，已发布CEA）：接入完整CIFAR-10/CIFAR-100与100类模型，保留MNIST；现有数据目录、契约和两个Flow显式SELECT生效。262项Maven、11项Python、3项升级保留、53项前端单测、60项浏览器及四次CIFAR/一次MNIST真实两轮数值核验PASS。无新增功能域、Java/表/API/执行链；不是精度或2GB/s验收。[规格](features/S5-02-federated.md)、[协议](contracts/federated-datasets.md)、[验证](verification/VER-FLDATA-01-cifar.md)。
+
 MET-001（2026-09-15，计量功能DONE/PASS，已发布CEA）：公共SDK/算法适配、受权查询和单一速率展示已实现，完整262项Maven、11项SDK、53项Node、60项浏览器及现场文件/区间/页面核验通过。2GB/s未达标，M03暂缓；现场失败及修复边界如实保留在[验证](verification/VER-MET-001-algorithm-measurement.md)。[功能](features/S5-05-measurement.md)、[协议](contracts/algorithm-measurement.md)。下列旧批次的计量“后置/未实现”是历史时点。
 
 MET-04（DEP-002/M04验证增量，2026-09-14）：三个不同体量的常驻边缘HTTP示例已部署edge-a；24项镜像测试、12/12部署测量和3次展示业务核验、18080历史/页面PASS。首次2.190/4.372/12.318s，热缓存平均1.641/1.904/3.379s；仅对当前单宿主缓存条件有效。无平台Java/表/API/执行链新增，不新增功能编号；未完成无缓存或物理WAN验收，不改变MET-001等未完成状态。[示例规格](../examples/deployment-benchmark/README.md)、[验证](verification/VER-M04-edge-deployment.md)。

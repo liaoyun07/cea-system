@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLDATA-01（2026-09-15）：新增CIFAR-10/CIFAR-100数据准备及10/100类模型，训练/测试SELECT与init显式引用同步更新，复用现有文件助手和计量SDK。准确语义见[数据协议](../contracts/federated-datasets.md)，实际结果见[验证](../verification/VER-FLDATA-01-cifar.md)。以下初次迁移范围保留其历史含义，不代表当前只有MNIST。
+
 本批仅这两个算法，其他旧流任务暂不迁移；不进入网关/终端卸载/计量批次。初次迁移S5-02没有新增Java/表/API；后续S5-02b通过通用Loop替代重复train定义，变更见[Loop协议](../contracts/s5-loop.md)，仍无第二套执行链。
 
 ## 行为与范围

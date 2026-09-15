@@ -1,5 +1,7 @@
 # 系统总览
 
+FLDATA-01（2026-09-15已发布CEA）：FedAvg/FedProx增加CIFAR-10/CIFAR-100，沿原Flow SELECT→显式参数→DatasetRule/Placement→Pod文件助手→算法本地文件的链路。init仅校验训练/测试版本引用来确定模型形状，不下载数据；原数据仍在中心存储，任务产物仍按实际执行位置写入。无平台模块/Java/API/数据库结构变化；[协议](contracts/federated-datasets.md)、[实际验收](verification/VER-FLDATA-01-cifar.md)。
+
 MET-001（2026-09-15，发布状态见[进度](04-progress.md)）：公共SDK记录完整算法输入/输出文件大小与活动时点，原文件助手发布报告，dataflow从成功Attempt受权读取后汇总区间并集。概览只显示一个数据处理速率。不增加表、计量服务或第二执行链；历史无报告不回填。[协议](contracts/algorithm-measurement.md)。后文旧阶段“计量未实现”为对应历史时点。
 
 OFF-04增量（2026-09-14已发布CEA）：原终端请求链在Resource冻结真实六维后，经可信控制连接交所属边缘网关做Double DQN选层；具体位置继续原Placement，执行/文件/反馈继续原Runner。PyTorch离线消费完整next转移，回放/目标网络/显式探索与固定版本评估已实现。无新Java/API/表/SPI，108个生产Java、92个HTTP操作、28张业务表不变。真实114次请求、五基线比较及实际页面已通过；DQN未优于本次全终端基线，未证明性能达标，见[协议](contracts/off04-double-dqn.md)及[验证](verification/VER-OFF-04-double-dqn.md)。下列各批“待实现”保留为历史状态。

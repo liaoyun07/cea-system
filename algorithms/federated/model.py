@@ -5,17 +5,27 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+DATASETS = {"mnist": (1, 28, 10), "cifar10": (3, 32, 10), "cifar100": (3, 32, 100)}
+
+
+def dataset_from_refs(training, test):
+    """Init consumes selected version names, not dataset files or storage URLs."""
+    for dataset in DATASETS:
+        if training == f"{dataset}-train/v1" and test == f"{dataset}-test/v1":
+            return dataset
+    raise ValueError("training and test dataset versions must be a matching supported pair")
+
 
 def build_model(dataset, name):
-    channels, size = {"mnist": (1, 28), "cifar10": (3, 32)}[dataset]
+    channels, size, classes = DATASETS[dataset]
     if name == "mlp":
         return nn.Sequential(nn.Flatten(), nn.Linear(channels * size * size, 128),
-                             nn.ReLU(), nn.Linear(128, 10))
+                             nn.ReLU(), nn.Linear(128, classes))
     if name == "cnn":
         return nn.Sequential(
             nn.Conv2d(channels, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Flatten(), nn.Linear(32 * (size // 4) ** 2, 64), nn.ReLU(), nn.Linear(64, 10))
+            nn.Flatten(), nn.Linear(32 * (size // 4) ** 2, 64), nn.ReLU(), nn.Linear(64, classes))
     raise ValueError("MODEL must be mlp or cnn")
 
 
@@ -32,13 +42,14 @@ def checked_model(payload):
 
 
 def check_data(data, model_payload):
-    shape = {"mnist": (1, 28, 28), "cifar10": (3, 32, 32)}[model_payload["dataset"]]
+    channels, size, classes = DATASETS[model_payload["dataset"]]
+    shape = (channels, size, size)
     x, y = data["x"], data["y"]
     if data["dataset"] != model_payload["dataset"] or tuple(x.shape[1:]) != shape:
         raise ValueError("dataset does not match model")
     if not len(y) or len(x) != len(y) or y.ndim != 1 or y.dtype != torch.long:
         raise ValueError("dataset must contain nonempty matching images and labels")
-    if not torch.isfinite(x).all() or int(y.min()) < 0 or int(y.max()) >= 10:
+    if not torch.isfinite(x).all() or int(y.min()) < 0 or int(y.max()) >= classes:
         raise ValueError("invalid dataset values")
 
 

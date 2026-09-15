@@ -5,8 +5,8 @@ description: Dynamic edge clients, weighted aggregation and global evaluation in
 inputs:
   rounds: {type: INTEGER, defaultValue: 2}
   model: {type: STRING, defaultValue: mlp}
-  training_dataset: {type: SELECT, values: [mnist-train/v1], defaultValue: mnist-train/v1}
-  test_dataset: {type: SELECT, values: [mnist-test/v1], defaultValue: mnist-test/v1}
+  training_dataset: {type: SELECT, values: [mnist-train/v1, cifar10-train/v1, cifar100-train/v1], defaultValue: mnist-train/v1}
+  test_dataset: {type: SELECT, values: [mnist-test/v1, cifar10-test/v1, cifar100-test/v1], defaultValue: mnist-test/v1}
   local_epochs: {type: INTEGER, defaultValue: 1}
   batch_size: {type: INTEGER, defaultValue: 32}
   learning_rate: {type: NUMBER, defaultValue: 0.01}
@@ -22,6 +22,8 @@ tasks:
       parameters:
         ALGORITHM: {source: LITERAL, value: fedavg}
         MODEL: {source: INPUT, name: model}
+        TRAINING_DATASET: {source: INPUT, name: training_dataset}
+        TEST_DATASET: {source: INPUT, name: test_dataset}
       outputFiles: [model.pt, cea-measurement.json]
   - id: rounds
     type: core.Repeat

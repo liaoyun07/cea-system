@@ -12,12 +12,24 @@
         "fedprox"
       ]
     },
-    "DATASET_NAME": {
+    "TRAINING_DATASET": {
       "type": "STRING",
       "required": true,
-      "defaultValue": "mnist",
+      "defaultValue": "mnist-train/v1",
       "choices": [
-        "mnist"
+        "mnist-train/v1",
+        "cifar10-train/v1",
+        "cifar100-train/v1"
+      ]
+    },
+    "TEST_DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-test/v1",
+      "choices": [
+        "mnist-test/v1",
+        "cifar10-test/v1",
+        "cifar100-test/v1"
       ]
     },
     "MODEL": {

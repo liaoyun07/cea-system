@@ -13,6 +13,14 @@
           {
             "datasetId": "mnist-test",
             "version": "v1"
+          },
+          {
+            "datasetId": "cifar10-test",
+            "version": "v1"
+          },
+          {
+            "datasetId": "cifar100-test",
+            "version": "v1"
           }
         ]
       }

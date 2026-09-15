@@ -12,14 +12,16 @@ def main():
     parser.add_argument("directory")
     parser.add_argument("algorithm", choices=["fedavg", "fedprox"])
     parser.add_argument("--clients", nargs="+", default=list("abc"))
+    parser.add_argument("--data-directory")
     args = parser.parse_args()
     root = Path(args.directory)
-    shards = [load(root / f"edge-{letter}.pt") for letter in args.clients]
+    data_root = Path(args.data_directory) if args.data_directory else root
+    shards = [load(data_root / f"edge-{letter}.pt") for letter in args.clients]
     indices = torch.cat([shard["indices"] for shard in shards])
     expected_samples = sum(len(shard["y"]) for shard in shards)
     assert len(indices.unique()) == len(indices) == expected_samples
     assert all(shard["split"] == "train" for shard in shards)
-    assert load(root / "test.pt")["split"] == "test"
+    assert load(data_root / "test.pt")["split"] == "test"
     previous = load(root / "init.pt")
     assert previous["round"] == 0 and previous["algorithm"] == args.algorithm
     report = []
@@ -31,7 +33,7 @@ def main():
         assert total == expected_samples and [u["samples"] for u in updates] == [len(s["y"]) for s in shards]
         for letter, update in zip(args.clients, updates):
             assert update["baseRound"] == round_no - 1 and update["round"] == round_no
-            data = load(root / f"edge-{letter}.pt")
+            data = load(data_root / f"edge-{letter}.pt")
             expected = checked_model(previous)
             train(expected, data, 1, 32, 0.01, 0.1 if args.algorithm == "fedprox" else 0,
                   13 + round_no - 1)
@@ -42,14 +44,15 @@ def main():
             torch.testing.assert_close(value.double(), expected, rtol=1e-5, atol=1e-6)
         assert any(not torch.equal(v, previous["state"][k]) for k, v in merged["state"].items())
         metrics = json.loads((root / f"evaluate-r{round_no}.json").read_text())
-        reference = evaluate(checked_model(merged), load(root / "test.pt"), 32)
+        reference = evaluate(checked_model(merged), load(data_root / "test.pt"), 32)
         assert metrics["round"] == round_no and metrics["algorithm"] == args.algorithm
-        assert metrics["samples"] == len(load(root / "test.pt")["y"])
+        assert metrics["samples"] == len(load(data_root / "test.pt")["y"])
         assert abs(metrics["loss"] - reference["loss"]) < 1e-6
         assert metrics["accuracy"] == reference["accuracy"]
         report.append(metrics)
         previous = merged
-    print(json.dumps({"algorithm": args.algorithm, "rounds": report, "numericalAudit": "PASS"}))
+    print(json.dumps({"algorithm": args.algorithm, "dataset": previous["dataset"], "trainSamples": expected_samples,
+                      "rounds": report, "numericalAudit": "PASS"}))
 
 
 if __name__ == "__main__":
