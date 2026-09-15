@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '../../../frontend/node_modules/yaml/dist/index.js';
-import { makeFlow, makeReplicatedFlow, makeBatchFlow, intervals } from './run.mjs';
+import { makeFlow, makeReplicatedFlow, makeBatchFlow, makeBulkFlow, intervals } from './run.mjs';
 
 test('three and six client experiment definitions preserve mathematical and file chain', () => {
   for (const algorithm of ['fedavg', 'fedprox']) for (const dataset of ['cifar10', 'cifar100']) {
@@ -66,4 +66,19 @@ test('one-round batch comparison preserves nine clients, training chain and fixe
     assert.deepEqual(flow.outputs, baseline.outputs);
   }
   assert.throws(() => makeBatchFlow(source, 0));
+});
+
+test('bulk-fetch A/B changes only training version and entrypoint, not data, sampler parameters or SDK outputs', () => {
+  const source = readFileSync(new URL('../fedavg.yaml', import.meta.url), 'utf8');
+  const baseline = makeBulkFlow(source, 'baseline');
+  const candidate = makeBulkFlow(source, 'bulk');
+  assert.deepEqual(baseline.inputs, candidate.inputs);
+  const train = candidate.tasks[1].tasks[0].tasks[0].container;
+  assert.equal(train.version, 'par04-bulk-v1');
+  assert.deepEqual(train.command, ['python', '/app/bulk_app.py', 'train']);
+  train.version = baseline.tasks[1].tasks[0].tasks[0].container.version;
+  train.command = baseline.tasks[1].tasks[0].tasks[0].container.command;
+  assert.deepEqual(candidate.tasks, baseline.tasks);
+  assert.deepEqual(candidate.outputs, baseline.outputs);
+  assert.throws(() => makeBulkFlow(source, 'unknown'));
 });

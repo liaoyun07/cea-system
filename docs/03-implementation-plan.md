@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-15 FLPAR-04（实验完成，未证明加速）：用户授权整批取样与诊断测试；固定9客户端FedAvg/CIFAR10/MLP、batch1024/1轮，沿原采样器仅将逐样本取出/拼接换成index_select整批，原算法源码不变。4项新增/11项原Python、18次诊断、各1次预热＋3次正式CEA、96份SDK和实际模型数值核验PASS。均值358.2→362.6MB/s但平均活动时间均5.638秒，未证明稳定收益或2GB/s；17:43恢复原容量，原对象保持，仅保留隔离测试版本/Flow，不默认推广。[方案](../examples/federated/parallel-benchmark/BULK.md)、[验证](verification/VER-FLPAR-04-bulk.md)。
+
 2026-09-15 FLPAR-03（实验完成）：用户要求增大batch并只跑一轮。固定FedAvg/CIFAR10/MLP、9客户端重复原分片、1轮/epoch1/评估batch32，训练batch32/256/1024/16384各3次，12/12成功；均值376.6/454.3/484.3/444.1MB/s，1024提高28.6%但accuracy降至21.24%，不是2GB/s或精度验收。144份SDK/108个完整训练输入、四档48个Job及模型/聚合/评估审计PASS。17:12恢复临时Worker/槽位，原Flow/数据/19服务保持、只重启backend；无生产链/Java/表/字段/API变化。[方案](../examples/federated/parallel-benchmark/BATCH.md)、[结果](verification/VER-FLPAR-03-batch.md)。
 
 2026-09-15 FLPAR-02（实验完成，非全部运行PASS）：用户允许重复数据，改测增加客户端同时增加累计处理量。FedAvg/CIFAR10的3/6/9/12客户端各3次，原边缘分片不切小，每个新增客户端完整读取并训练相同所属分片；每轮累计5/10/15/20万条，独立样本始终5万。保持2轮/MLP/epoch1/原SDK口径，四档共同暂用Worker14/边缘槽4后已恢复，不扩容宿主或改原Flow。12次中11成功，十二客户端第3次失败保留、未补替代样本；均值216.5/257.8/315.5/291.0MB/s，九客户端本次最快，仍未达2GB/s。211份SDK报告与156次完整训练文件输入核对、四档80个Job/模型审计PASS。不新增Java/表/API/生产链；[方案](../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[结果与失败边界](verification/VER-FLPAR-02-repeated-load.md)。

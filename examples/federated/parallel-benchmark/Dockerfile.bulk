@@ -1,0 +1,2 @@
+FROM cea/federated:cf01-v1
+COPY bulk_loader.py bulk_app.py /app/

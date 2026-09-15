@@ -1,7 +1,8 @@
 # Run only AFTER timing trials; local numerical recomputation must not contend with them.
-param([switch]$Replicated, [switch]$Batch)
+param([switch]$Replicated, [switch]$Batch, [switch]$Bulk)
 . (Join-Path $PSScriptRoot '../../../deploy/cea/common.ps1')
-$taskBatch=if($Batch){'par03'}elseif($Replicated){'par02'}else{'par01'}
+if($Bulk){$Batch=$true}
+$taskBatch=if($Bulk){'par04'}elseif($Batch){'par03'}elseif($Replicated){'par02'}else{'par01'}
 if($Batch) {$Replicated=$true}
 $taskRoot=Join-Path $taskRepository ".local/cea/$taskBatch"
 $taskCases=Get-Content (Join-Path $taskRoot 'cases.json') -Raw | ConvertFrom-Json

@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-04（2026-09-15，CEA整批取样实验完成）：固定batch1024/单轮9客户端，原方式与整批取样各3次正式运行均成功，平均358.2/362.6MB/s，但平均算法活动时间均5.638秒，未测出稳定收益。批次/RNG与实际模型逐值一致，原业务Flow不改、临时容量已恢复；候选仅留隔离测试，不是2GB/s达标。[结果](docs/verification/VER-FLPAR-04-bulk.md)、[复测](examples/federated/parallel-benchmark/BULK.md)。
+
 FLPAR-03（2026-09-15，CEA单轮batch实验完成）：9客户端CIFAR10/MLP，batch32/256/1024/16384各3次全部成功，平均376.6/454.3/484.3/444.1MB/s。1024比32提高28.6%，但单轮accuracy降至21.24%；不是2GB/s或精度达标。四档模型复核PASS，原Flow不变、临时配置已恢复。[结果](docs/verification/VER-FLPAR-03-batch.md)、[复测](examples/federated/parallel-benchmark/BATCH.md)。
 
 FLPAR-02（2026-09-15，CEA重复负载实验完成）：按用户允许重复数据的要求，FedAvg/CIFAR10每轮累计5/10/15/20万条（唯一样本始终5万），3/6/9/12客户端平均216.5/257.8/315.5/291.0MB/s；九客户端比三客户端提高45.7%，十二客户端2/3成功且未进一步提高。四档模型复核PASS，配置已恢复、原Flow不变，无生产代码/DB改动。不是独立大数据集或2GB/s验收。[结果](docs/verification/VER-FLPAR-02-repeated-load.md)、[复测](examples/federated/parallel-benchmark/REPEATED-LOAD.md)。

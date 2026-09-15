@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const batchExperiment = process.argv.includes('--batch');
+const bulkExperiment = process.argv.includes('--bulk');
+const batchExperiment = bulkExperiment || process.argv.includes('--batch');
 const replicated = batchExperiment || process.argv.includes('--replicated');
-const folder = resolve(import.meta.dirname, `../../../.local/cea/${batchExperiment ? 'par03' : replicated ? 'par02' : 'par01'}`);
+const folder = resolve(import.meta.dirname, `../../../.local/cea/${bulkExperiment ? 'par04' : batchExperiment ? 'par03' : replicated ? 'par02' : 'par01'}`);
 const cases = JSON.parse(await readFile(resolve(folder, 'cases.json')));
 const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
 const summaries = [];
@@ -36,6 +37,7 @@ for (const current of cases) {
     clients: current.clients, concurrency: current.concurrency, runs: runs.map(r => r.executionId),
     ...(batchExperiment ? { batchSize: current.batchSize, rounds: current.rounds,
       evaluation: success.map(r => r.evaluation) } : {}),
+    ...(bulkExperiment ? { loader: current.loader } : {}),
     ...(replicated ? { workload: current.workload, uniqueTrainSamples: current.uniqueTrainSamples,
       processedTrainSamplesPerRound: current.processedTrainSamplesPerRound } : {}),
     attempted: runs.length, successful: success.length, failures: runs.filter(r => r.measurement.status !== 'AVAILABLE').map(r => ({ id: r.executionId, error: r.error })),
@@ -45,8 +47,9 @@ for (const current of cases) {
     trainingPeakByRound: success.map(r => r.training.map(t => t.peak)),
     meanTrainingParallel: mean(success.flatMap(r => r.training.map(t => t.meanParallel))) });
 }
-for (const row of summaries.filter(r => batchExperiment ? r.batchSize !== 32 : replicated ? r.clients > 3 : r.clients === 6 && r.concurrency === 6)) {
-  const base = summaries.find(r => r.algorithm === row.algorithm && r.dataset === row.dataset && (batchExperiment ? r.batchSize === 32 : r.clients === 3));
+for (const row of summaries.filter(r => bulkExperiment ? r.loader === 'bulk' : batchExperiment ? r.batchSize !== 32 : replicated ? r.clients > 3 : r.clients === 6 && r.concurrency === 6)) {
+  const base = summaries.find(r => r.algorithm === row.algorithm && r.dataset === row.dataset &&
+    (bulkExperiment ? r.loader === 'baseline' : batchExperiment ? r.batchSize === 32 : r.clients === 3));
   row.gainPercent = 100 * (row.meanMBps / base.meanMBps - 1);
   row.activeTimeReductionPercent = 100 * (1 - row.meanActiveSeconds / base.meanActiveSeconds);
   row.byteIncreasePercent = 100 * (row.meanBytes / base.meanBytes - 1);

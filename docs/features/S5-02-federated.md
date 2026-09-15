@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-04（2026-09-15，整批取样实验）：保持DataLoader采样器和RNG，仅通过TensorDataset整批接口替代逐样本取出/拼接；原app/model/SDK不变，候选只用于独立训练版本和Flow。FedAvg/FedProx×三数据集×两模型局部更新逐值相等，CEA FedAvg/CIFAR10实际模型也逐值相等。正式均值358.2→362.6MB/s但活动时间均5.638秒、第三组倒退，未证明稳定收益，不推广原业务Flow。未新增生产能力/通用语义，临时配置恢复。[范围与复测](../../examples/federated/parallel-benchmark/BULK.md)、[完整证据](../verification/VER-FLPAR-04-bulk.md)。
+
 FLPAR-03（2026-09-15，单轮batch实验）：固定9客户端重复CIFAR10原分片、MLP、epoch1/1轮，评估batch32，只改变训练batch；32/256/1024/16384均值376.6/454.3/484.3/444.1MB/s，12次全成功、四档模型审计PASS。每轮完整样本处理不变但SGD更新次数减少，accuracy分别31.59%/25.35%/21.24%/10.59%；性能提高不等于训练质量保持。不改算法/SDK/业务Flow，4个隔离Flow可在CEA查看，容量恢复。[复测](../../examples/federated/parallel-benchmark/BATCH.md)、[结果](../verification/VER-FLPAR-03-batch.md)。
 
 FLPAR-02（2026-09-15，重复负载验证）：普通Loop支持同集群多个唯一客户端ID读取同一完整原分片，不需要新DatasetVersion或第二套执行链。按用户要求测试FedAvg/CIFAR10的3/6/9/12客户端，累计工作量增加但唯一样本不变；均值216.5/257.8/315.5/291.0MB/s，12次中11成功。四档训练/聚合/评估审计PASS，默认业务Flow与容量配置保持；不把该实验称为更大的独立数据集或已达2GB/s。[复测](../../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[全部结果与限制](../verification/VER-FLPAR-02-repeated-load.md)。

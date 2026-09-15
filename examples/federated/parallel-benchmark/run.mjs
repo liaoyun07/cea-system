@@ -1,4 +1,4 @@
-// FLPAR-01/02/03 experiment driver. Uses existing APIs; does not implement an execution engine.
+// FLPAR-01..04 experiment driver. Uses existing APIs; does not implement an execution engine.
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -74,6 +74,20 @@ export function makeBatchFlow(source, batchSize) {
   return flow;
 }
 
+export function makeBulkFlow(source, loader) {
+  assert(['baseline', 'bulk'].includes(loader));
+  const flow = makeBatchFlow(source, 1024);
+  flow.id = `par04-fedavg-cifar10-c9-${loader}`;
+  flow.description = `FLPAR-04 ${loader} training fetch; same sampler, MLP, batch1024, one round and full SDK interval`;
+  flow.labels.benchmark = 'FLPAR-04';
+  if (loader === 'bulk') {
+    const train = flow.tasks[1].tasks[0].tasks[0].container;
+    train.version = 'par04-bulk-v1';
+    train.command = ['python', '/app/bulk_app.py', 'train'];
+  }
+  return flow;
+}
+
 function nanos(text) {
   const match = /^(.*?)(?:\.(\d+))?Z$/.exec(text);
   assert(match, 'UTC timestamp required');
@@ -100,9 +114,10 @@ export function intervals(reports) {
 async function main() {
   const mode = process.argv[2];
   assert(['--register', '--run', '--preserved'].includes(mode));
-  const batchExperiment = process.argv.includes('--batch');
+  const bulkExperiment = process.argv.includes('--bulk');
+  const batchExperiment = bulkExperiment || process.argv.includes('--batch');
   const replicated = batchExperiment || process.argv.includes('--replicated');
-  const folder = resolve(root, `.local/cea/${batchExperiment ? 'par03' : replicated ? 'par02' : 'par01'}`);
+  const folder = resolve(root, `.local/cea/${bulkExperiment ? 'par04' : batchExperiment ? 'par03' : replicated ? 'par02' : 'par01'}`);
   const activeDatasets = replicated ? ['cifar10'] : datasets;
   const activeAlgorithms = replicated ? ['fedavg'] : algorithms;
   await mkdir(folder, { recursive: true });
@@ -124,6 +139,15 @@ async function main() {
   if (mode === '--register') {
     const originals = await Promise.all(algorithms.map(name => api(`/flows/${name}`)));
     await save('before.json', { originals, datasets: await api('/resources/datasets'), policies: await api('/edge/policies'), services: services() }, { flag: 'wx' });
+    if (bulkExperiment) {
+      const published = JSON.parse(await readFile(resolve(folder, 'image.json')));
+      assert.match(published.image, /^registry-center:5000\/lab\/federated-bulk@sha256:[a-f0-9]{64}$/);
+      const application = await api('/applications/fedavg-train/versions/cf01-v1');
+      await save('application-before.json', application);
+      application.version = 'par04-bulk-v1';
+      application.image = published.image;
+      await api('/applications/fedavg-train/versions/par04-bulk-v1', 'PUT', application);
+    }
     if (!replicated) {
       const ready = JSON.parse(await readFile(resolve(folder, 'uploaded.json')));
       assert.equal(ready.length, 12);
@@ -148,12 +172,13 @@ async function main() {
     }
     const cases = [];
     for (const dataset of activeDatasets) for (const algorithm of activeAlgorithms) {
-      const variants = batchExperiment ? [32, 256, 1024, 16384].map(batch => [9, 9, batch])
+      const variants = bulkExperiment ? ['baseline', 'bulk'].map(loader => [9, 9, 1024, loader])
+        : batchExperiment ? [32, 256, 1024, 16384].map(batch => [9, 9, batch])
         : replicated ? [[3, 3], [6, 6], [9, 9], [12, 12]] : [[3, 3], [6, 6]];
       if (!replicated && algorithm === 'fedavg' && dataset === 'cifar10') variants.push([6, 3]);
-      for (const [clients, concurrency, batchSize] of variants) {
+      for (const [clients, concurrency, batchSize, loader] of variants) {
         const original = originals.find(f => f.flowId === algorithm).source;
-        const flow = batchExperiment ? makeBatchFlow(original, batchSize)
+        const flow = bulkExperiment ? makeBulkFlow(original, loader) : batchExperiment ? makeBatchFlow(original, batchSize)
           : replicated ? makeReplicatedFlow(original, clients) : makeFlow(original, algorithm, dataset, clients, concurrency);
         const source = stringify(flow);
         await api(`/flows/${flow.id}/validate`, 'POST', { source });
@@ -161,7 +186,8 @@ async function main() {
         await writeFile(resolve(folder, `${flow.id}.yaml`), source);
         cases.push({ flowId: flow.id, algorithm, dataset, clients, concurrency, items: flow.tasks[1].tasks[0].loop.values.value,
           ...(replicated ? { workload: 'REPEATED_SOURCE', uniqueTrainSamples: 50000, processedTrainSamplesPerRound: 50000 * clients / 3 } : {}),
-          ...(batchExperiment ? { rounds: 1, batchSize, evaluationBatchSize: 32 } : {}) });
+          ...(batchExperiment ? { rounds: 1, batchSize, evaluationBatchSize: 32 } : {}),
+          ...(bulkExperiment ? { loader } : {}) });
       }
     }
     await save('cases.json', cases);
@@ -173,6 +199,8 @@ async function main() {
     for (const original of before.originals) assert.deepEqual(await api(`/flows/${original.flowId}`), original);
     for (const dataset of before.datasets) assert.deepEqual(await api(`/resources/datasets/${dataset.datasetId}/versions/${dataset.version}`), dataset);
     assert.deepEqual(await api('/edge/policies'), before.policies);
+    if (bulkExperiment) assert.deepEqual(await api('/applications/fedavg-train/versions/cf01-v1'),
+      JSON.parse(await readFile(resolve(folder, 'application-before.json'))));
     const after = services();
     for (const old of before.services) {
       const current = after.find(row => row.name === old.name);
@@ -186,8 +214,9 @@ async function main() {
   const cases = JSON.parse(await readFile(resolve(folder, 'cases.json')));
   for (const dataset of activeDatasets) for (const algorithm of activeAlgorithms) {
     const variants = cases.filter(c => c.dataset === dataset && c.algorithm === algorithm);
-    for (let repeat = 1; repeat <= 3; repeat++) {
-      const order = variants.map((_, index) => variants[(index + repeat - 1) % variants.length]);
+    // FLPAR-04 repeat zero is an explicit warmup, retained but excluded from summaries.
+    for (let repeat = bulkExperiment ? 0 : 1; repeat <= 3; repeat++) {
+      const order = variants.map((_, index) => variants[(index + Math.max(1, repeat) - 1) % variants.length]);
       for (const current of order) {
         const key = `${current.flowId}-r${repeat}`, directory = resolve(folder, key);
         await mkdir(directory, { recursive: true });
