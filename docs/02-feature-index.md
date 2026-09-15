@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLPAR-02（FL-001/M01验证增量，2026-09-15）：完成用户允许重复数据的3/6/9/12客户端扩量对照；FedAvg/CIFAR10九客户端均值315.5MB/s，比三客户端提高45.7%，十二客户端均值291.0且2/3成功。211份SDK、156次完整训练数据输入、四档模型核验PASS；重复数据不作为新增独立样本，不是2GB/s验收。无新生产功能域、Java/表/API/链，CEA配置恢复。[规格](../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[结果](verification/VER-FLPAR-02-repeated-load.md)。
+
 FLPAR-01（FL-001/M01验证增量，2026-09-15）：真实CEA固定数据3/6并行对照完成，四组平均提高12.3%–45.9%，未达2GB/s；27次中26成功，额外控制失败保留。原业务定义及运行配置恢复，五组数值审计PASS；不新增功能域、Java/表/API/执行链。[规格](../examples/federated/parallel-benchmark/README.md)、[验证](verification/VER-FLPAR-01-parallel-clients.md)。
 
 FLDATA-01（FL-001/RES-001数据增量，2026-09-15，DONE/PASS，已发布CEA）：接入完整CIFAR-10/CIFAR-100与100类模型，保留MNIST；现有数据目录、契约和两个Flow显式SELECT生效。262项Maven、11项Python、3项升级保留、53项前端单测、60项浏览器及四次CIFAR/一次MNIST真实两轮数值核验PASS。无新增功能域、Java/表/API/执行链；不是精度或2GB/s验收。[规格](features/S5-02-federated.md)、[协议](contracts/federated-datasets.md)、[验证](verification/VER-FLDATA-01-cifar.md)。

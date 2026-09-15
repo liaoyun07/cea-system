@@ -2,6 +2,8 @@
 
 只做现有执行链的真实对照，不修改算法、SDK、Java、数据库结构或原FedAvg/FedProx。结果见[验证记录](../../../docs/verification/VER-FLPAR-01-parallel-clients.md)。
 
+用户后续允许重复数据的扩量实验是独立[FLPAR-02](REPEATED-LOAD.md)，用`--replicated`选择。它不会覆盖下方FLPAR-01的数据、配置或结论；默认命令仍指向原固定总量对照。
+
 ## 固定条件与变量
 
 - 当前CEA四个K3s仍共享同一台Docker Desktop：16CPU/约15.39GiB，边缘K3s服务容器配置仍为3CPU/2GiB。这是服务容器配置，不据此断言其所有算法Pod都受同一个父cgroup配额约束。测试不扩容硬件或集群。

@@ -1,5 +1,7 @@
 # 现有系统与申报书功能审查表
 
+FLPAR-02增量（2026-09-15，源码基线5748e01）：用户允许重复数据扩量，FedAvg/CIFAR10的3/6/9/12客户端均值216.5/257.8/315.5/291.0MB/s，唯一样本仍5万；12次中11成功。当前新增的是重复负载测试证据，未达到M01的2GB/s，也不作为独立大数据集或精度收益。[结果与失败](verification/VER-FLPAR-02-repeated-load.md)。
+
 FLPAR-01增量（2026-09-15，系统源码基线c9d9e0b）：M01已有同总数据3/6客户端真实对照，四组平均提高12.3%–45.9%，六客户端均值175–280MB/s，仍未达到2GB/s。主对照24/24成功，额外控制2/3成功；不改变其他功能/指标状态，详见[全部记录与限制](verification/VER-FLPAR-01-parallel-clients.md)。下方DOC-02日期/基线描述该表初建时点。
 
 MET-04增量（2026-09-14）：M04已完成CEA edge-a小/中/大三个实际用途服务的12次条件测量，全部有效≤30秒且业务结果正确；首次2.190/4.372/12.318s，热缓存均值1.641/1.904/3.379s，详见[证据](verification/VER-M04-edge-deployment.md)。三服务已保留供18080查看。当前不是完整无缓存或物理多云验收，不改变其他功能/指标状态。
@@ -108,7 +110,7 @@ OFF-02增量：2026-09-14已在CEA验证终端经网关元数据请求、三层�
 
 | 审查项 | 原文指标及出处 | 当前进度 | 补齐证据的退出条件 |
 |---|---|---|---|
-| M01 | 边云协同数据流处理算法达到2 GB/s；S6 | MET-001计量已实现并部署；FLPAR-01六客户端均值175–280MB/s，仍未达门槛，性能未验收 | 累计成功算法输入＋输出文件字节／完整活动区间并集，非原始数据去重或系统端到端吞吐；不乘epoch、不挑最快片段。见[计量验证](verification/VER-MET-001-algorithm-measurement.md)、[3/6客户端完整对照](verification/VER-FLPAR-01-parallel-clients.md)，不能把SDK上线或局部提升等同于2GB/s通过 |
+| M01 | 边云协同数据流处理算法达到2 GB/s；S6 | MET-001计量已实现并部署；FLPAR-02各档中最高均值315.5MB/s（9客户端），仍未达门槛，性能未验收 | 累计成功算法输入＋输出文件字节／完整活动区间并集，非原始数据去重或系统端到端吞吐；不乘epoch、不挑最快片段。见[计量验证](verification/VER-MET-001-algorithm-measurement.md)、[固定总量对照](verification/VER-FLPAR-01-parallel-clients.md)、[重复负载对照](verification/VER-FLPAR-02-repeated-load.md)，不能把SDK上线或局部提升等同于2GB/s通过 |
 | M02 | 基于深度强化学习的任务卸载算法，系统总时延不高于30 ms；S6 | 当前CEA样例不达标；正式性能场景待确认 | OFF-04计终端请求前至结果接收解析后的真实端到端时长；DQN均值4.005s/P95 6.472s（12例），不满足30ms。120秒只是奖励阈值，不能以纯推理时间替代总时延。[实测](verification/VER-OFF-04-double-dqn.md) |
 | M03 | 系统资源CPU、内存开销70%以下；S6 | 用户2026-09-15要求暂缓，未判通过；已有近期节点采样 | 需明确组件、分母、代表负载、窗口和统计规则；不挑空闲截图，不累加同宿主四K3s容量。[用量协议](contracts/ui08-deployment-operations.md) |
 | M04 | 容器化边缘服务30 s部署完成；S6 | CEA已测条件达标：三服务12/12通过；完整冷缓存/正式环境待验证 | MET-04固定单副本、HTTP就绪和模型预热，首次新服务2.190/4.372/12.318s，热缓存各3次全部通过。镜像层123.06/393.71/1205.10MiB；单宿主无WAN限速，基础层/快照可能复用，不能称全冷启动。保留全部原始记录，SCALE不混入。[完整证据](verification/VER-M04-edge-deployment.md)、[计时协议](contracts/ui08-deployment-operations.md) |
@@ -161,6 +163,7 @@ Registry替代Harbor、Kubernetes容器替代原文虚拟机表述、对象存�
 
 | 日期 | 批次 | 变更 | 验证 |
 |---|---|---|---|
+| 2026-09-15 | FLPAR-02 | M01新增重复数据扩量对照，各档中最高均值315.5MB/s（9客户端）；明确唯一样本不变、12客户端失败及未达标 | [重复负载结果](verification/VER-FLPAR-02-repeated-load.md) |
 | 2026-09-15 | FLPAR-01 | M01新增固定数据3/6并行对照，均值提高但未达2GB/s；保留失败及单宿主波动边界 | [并行对照](verification/VER-FLPAR-01-parallel-clients.md) |
 | 2026-09-14 | MET-04 | M04新增三体量服务的12次条件达标实测，仍保留完整冷缓存/正式环境缺口；其余指标不变 | [M04验证](verification/VER-M04-edge-deployment.md) |
 | 2026-09-14 | MET-PLAN | 固定指标M04→M03→M01→M02优先，M05–M07相对提升后置，M08另列；不修改指标阈值和覆盖结论 | [MET-PLAN文档验证](verification/VER-DOC-002-proposal-audit.md#met-plan优先级调整) |

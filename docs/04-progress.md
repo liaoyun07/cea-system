@@ -1,5 +1,7 @@
 # 当前进度
 
+FLPAR-02（2026-09-15，实验完成）：重复数据真实扩量，FedAvg/CIFAR10每轮累计5/10/15/20万条（唯一样本5万），3/6/9/12客户端平均216.531/257.845/315.535/290.998MB/s。前3档各3/3成功，12客户端2/3成功且未超过9客户端；失败根因未定，检查环境后只完成原定剩余较低负载次数，未补跑替换。3项Node、语法/旧汇总保留、211份SDK/156次完整文件输入及四档80个Job/模型训练聚合评估复核PASS。16:04恢复Worker4/边缘槽1并仅重启backend，健康UP；原2业务Flow、10数据集/策略和19常驻服务身份资源不变。只新增4个测试Flow和工具/记录，无生产代码/DB/API/执行链变化；不代表新增独立样本、精度提升或2GB/s达标。[完整证据](verification/VER-FLPAR-02-repeated-load.md)。
+
 FLPAR-01（2026-09-15，实验完成）：同一CEA、固定总数据/MLP/2轮，3→6客户端并行的四组平均速率分别为FedAvg/CIFAR10 227.405→280.419、FedProx/CIFAR10 137.573→175.121、FedAvg/CIFAR100 222.543→250.014、FedProx/CIFAR100 129.265→188.589MB/s。主对照24/24成功，额外六客户端并行3控制2/3成功，失败根因未定且未补跑替换；27次完整记录保留。两项单测、分片/上传核验、26组SDK字节/时间复算、五组真实Job/模型训练/聚合评估重算PASS。15:33恢复Worker4/边缘槽1并仅重启backend，健康UP；原FedAvg r8/FedProx r6、原6数据集/策略/19常驻服务身份资源不变。无生产Java/前端/DB/API/执行链变化；未默认切6、未通过2GB/s，Maven/浏览器本批未重跑。详见[全部原始结果与限制](verification/VER-FLPAR-01-parallel-clients.md)。
 
 FLDATA-01（2026-09-15，DONE/PASS，已发布CEA）：接入CIFAR-10/CIFAR-100完整数据、100类模型/标签校验、两个Flow的SELECT与init显式版本校验。262项Maven、11项Python、3项升级保留、53项前端单测、60项浏览器PASS。五个应用新增cf01-v1、四个数据集版本/八个Location、FedAvg r8/FedProx r6已生效；两算法×两新数据集各两轮和MNIST回归全部成功，11个Job/本位置产物/独立数值重算及实际18080选项核验PASS。首次现场任务因Docker重启遗留的存储IP过期失败；刷新现有transfer-endpoint并只重启backend后通过，失败记录保留。无Java/DB/API/执行链变化，旧版本/策略和19个常驻服务身份保留；未借本批改变速率口径或宣称精度达标。范围/结果见[数据协议](contracts/federated-datasets.md)、[验证](verification/VER-FLDATA-01-cifar.md)。

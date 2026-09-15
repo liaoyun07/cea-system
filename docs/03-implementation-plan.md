@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-15 FLPAR-02（实验完成，非全部运行PASS）：用户允许重复数据，改测增加客户端同时增加累计处理量。FedAvg/CIFAR10的3/6/9/12客户端各3次，原边缘分片不切小，每个新增客户端完整读取并训练相同所属分片；每轮累计5/10/15/20万条，独立样本始终5万。保持2轮/MLP/epoch1/原SDK口径，四档共同暂用Worker14/边缘槽4后已恢复，不扩容宿主或改原Flow。12次中11成功，十二客户端第3次失败保留、未补替代样本；均值216.5/257.8/315.5/291.0MB/s，九客户端本次最快，仍未达2GB/s。211份SDK报告与156次完整训练文件输入核对、四档80个Job/模型审计PASS。不新增Java/表/API/生产链；[方案](../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[结果与失败边界](verification/VER-FLPAR-02-repeated-load.md)。
+
 2026-09-15 FLPAR-01（实验完成，非全部运行PASS）：按用户要求验证增加并行客户端是否提高数据处理速率。沿现有cf01-v1镜像、DatasetRule、Loop、聚合与计量链，创建独立par01测试Flow/契约/数据记录；原三分片逐一分成两份独立文件，保持50000训练/10000测试、MLP、2轮、epoch1、batch32、学习率和原始数据不变。两算法×CIFAR10/100对比3客户端并行3与6客户端并行6，各3次；另以FedAvg/CIFAR10的6客户端并行3隔离分片影响。27次中26成功：主对照24/24、额外控制2/3；没有补成功样本替换失败。四组平均提升12.3%–45.9%，实际峰值5–6并行，26组SDK计量及五组模型重算核验PASS。暂调Worker8/边缘槽2后已恢复Worker4/边缘槽1，仅backend重启；原业务定义、CPU/内存/集群数量不变，不改计量口径，不宣称2GB/s达标。[结果及失败限制](verification/VER-FLPAR-01-parallel-clients.md)。
 
 2026-09-15 FLDATA-01（DONE/PASS，已发布CEA）：按用户要求接入CIFAR-10/CIFAR-100，保留MNIST。复用DatasetVersion/Location、DatasetRule、Loop和文件助手；新增官方二进制数据准备、100类模型/标签校验，将两个Flow的训练/测试SELECT及五个角色契约更新。init从显式训练/测试版本参数校验匹配并确定模型维度，不下载数据，不新增类型输入/绑定机制。验收：官方完整数据及不重叠分片、数值单测、原MNIST回归、两算法×两新数据集各两轮真实CEA执行/聚合评估核验、实际选项可见、旧版本和其他服务保持，均已通过。发布新不可变镜像/契约与Flow修订，不修改Java/DB/前端源码；现场发现Docker重启遗留的存储IP过期，刷新原配置并只重启backend后复测通过。失败证据保留，详见[验证](verification/VER-FLDATA-01-cifar.md)；不借接入宣称精度或2GB/s达标。

@@ -1,8 +1,10 @@
 # Run only AFTER timing trials; local numerical recomputation must not contend with them.
+param([switch]$Replicated)
 . (Join-Path $PSScriptRoot '../../../deploy/cea/common.ps1')
-$taskRoot=Join-Path $taskRepository '.local/cea/par01'
+$taskBatch=if($Replicated){'par02'}else{'par01'}
+$taskRoot=Join-Path $taskRepository ".local/cea/$taskBatch"
 $taskCases=Get-Content (Join-Path $taskRoot 'cases.json') -Raw | ConvertFrom-Json
-foreach($taskCase in $taskCases | Where-Object clients -eq 6) {
+foreach($taskCase in $taskCases | Where-Object {$Replicated -or $_.clients -eq 6}) {
     $taskKey="$($taskCase.flowId)-r1"
     $taskEvidence=Join-Path $taskRoot $taskKey
     $taskResult=Get-Content (Join-Path $taskEvidence 'result.json') -Raw | ConvertFrom-Json
@@ -27,18 +29,24 @@ foreach($taskCase in $taskCases | Where-Object clients -eq 6) {
         $taskAlias=if($taskCluster -eq 'cloud') {'local'} else {$taskCluster}
         $taskSource="$taskAlias/$($taskUri.Host)$($taskUri.AbsolutePath)"
         if($taskSource -notmatch '^(local/cea-artifacts|edge-[abc]/cea-artifacts-edge-[abc])/[A-Za-z0-9/._-]+$') {throw 'Unexpected artifact key'}
-        $taskFetch+='mc cp "'+$taskSource+'" "/data/par01/'+$taskKey+'/'+$taskFile+'" >/dev/null; '
+        $taskFetch+='mc cp "'+$taskSource+'" "/data/'+$taskBatch+'/'+$taskKey+'/'+$taskFile+'" >/dev/null; '
         $taskJob=(Invoke-CeaCompose exec -T $taskCluster kubectl get job "cea-$($taskRun.id)-a1" -n cea-lab -o json) | ConvertFrom-Json
         if($taskJob.status.succeeded -ne 1) {throw 'Expected a completed Job'}
         if(@($taskJob.spec.template.spec.initContainers.name) -notcontains 'files-in' -or @($taskJob.spec.template.spec.containers.name) -notcontains 'files-out') {throw 'Expected common file helpers'}
     }
     Invoke-CeaCompose run --rm --no-deps storage-tool -ec $taskFetch
-    $taskDatasetDirectory=Join-Path $taskRoot $taskCase.dataset
-    $taskTest=Join-Path $taskDatasetDirectory 'test.pt'
-    if(!(Test-Path -LiteralPath $taskTest)) { Copy-Item -LiteralPath (Join-Path $taskRepository ".local/cea/$($taskCase.dataset)/test.pt") -Destination $taskTest }
-    $taskAudit=& docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskEvidence,target=/audit,readonly" --mount "type=bind,source=$taskDatasetDirectory,target=/datasets,readonly" cea/federated:cf01-v1 python /app/verify_run.py /audit $taskCase.algorithm --clients a1 a2 b1 b2 c1 c2 --data-directory /datasets
+    if($Replicated) {
+        $taskDatasetDirectory=Join-Path $taskRepository ".local/cea/$($taskCase.dataset)"
+        $taskScripts=$PSScriptRoot
+        $taskAudit=& docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskEvidence,target=/audit,readonly" --mount "type=bind,source=$taskDatasetDirectory,target=/datasets,readonly" --mount "type=bind,source=$taskScripts,target=/benchmark,readonly" cea/federated:cf01-v1 python /benchmark/audit-replicated.py
+    } else {
+        $taskDatasetDirectory=Join-Path $taskRoot $taskCase.dataset
+        $taskTest=Join-Path $taskDatasetDirectory 'test.pt'
+        if(!(Test-Path -LiteralPath $taskTest)) { Copy-Item -LiteralPath (Join-Path $taskRepository ".local/cea/$($taskCase.dataset)/test.pt") -Destination $taskTest }
+        $taskAudit=& docker run --rm --label com.docker.compose.project=cea --memory 2g --mount "type=bind,source=$taskEvidence,target=/audit,readonly" --mount "type=bind,source=$taskDatasetDirectory,target=/datasets,readonly" cea/federated:cf01-v1 python /app/verify_run.py /audit $taskCase.algorithm --clients a1 a2 b1 b2 c1 c2 --data-directory /datasets
+    }
     if($LASTEXITCODE -ne 0) {throw "Numerical audit failed: $taskKey"}
     Write-CeaGeneratedFile (Join-Path $taskEvidence 'numerical-audit.json') ($taskAudit -join "`n")
-    Write-Output "$taskKey PASS: 17 Jobs, actual stores, six independent clients and numerical recomputation"
+    Write-Output "$taskKey PASS: $($taskCase.clients * 2 + 5) Jobs, actual stores and numerical recomputation"
     Write-Output $taskAudit
 }

@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-02（2026-09-15，重复负载验证）：普通Loop支持同集群多个唯一客户端ID读取同一完整原分片，不需要新DatasetVersion或第二套执行链。按用户要求测试FedAvg/CIFAR10的3/6/9/12客户端，累计工作量增加但唯一样本不变；均值216.5/257.8/315.5/291.0MB/s，12次中11成功。四档训练/聚合/评估审计PASS，默认业务Flow与容量配置保持；不把该实验称为更大的独立数据集或已达2GB/s。[复测](../../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[全部结果与限制](../verification/VER-FLPAR-02-repeated-load.md)。
+
 FLPAR-01（2026-09-15，验证增量）：沿已有Loop/DatasetRule按ITEM为六个客户端选择不重叠分片，同一边缘可并行两个train，无新增算法或调度模型。四组3→6并行平均速率提高12.3%–45.9%，五组数值复核通过；27次中26成功、不是稳定性或2GB/s验收。原两个Flow及原运行容量保持，独立测试对象留存；[定义与复测](../../examples/federated/parallel-benchmark/README.md)、[全部结果/失败/边界](../verification/VER-FLPAR-01-parallel-clients.md)。
 
 FLDATA-01（2026-09-15）：新增CIFAR-10/CIFAR-100数据准备及10/100类模型，训练/测试SELECT与init显式引用同步更新，复用现有文件助手和计量SDK。准确语义见[数据协议](../contracts/federated-datasets.md)，实际结果见[验证](../verification/VER-FLDATA-01-cifar.md)。以下初次迁移范围保留其历史含义，不代表当前只有MNIST。

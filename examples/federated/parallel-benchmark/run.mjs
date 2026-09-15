@@ -1,4 +1,4 @@
-// FLPAR-01 experiment driver. Uses existing APIs; does not implement an execution engine.
+// FLPAR-01/02 experiment driver. Uses existing APIs; does not implement an execution engine.
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -8,7 +8,6 @@ import { randomUUID } from 'node:crypto';
 import { parse, stringify } from '../../../frontend/node_modules/yaml/dist/index.js';
 
 const root = resolve(import.meta.dirname, '../../..');
-const folder = resolve(root, '.local/cea/par01');
 const datasets = ['cifar10', 'cifar100'];
 const algorithms = ['fedavg', 'fedprox'];
 const letters = ['a', 'b', 'c'];
@@ -38,6 +37,28 @@ export function makeFlow(source, algorithm, dataset, clients, concurrency) {
   return flow;
 }
 
+// FLPAR-02: every added client reads its cluster's ORIGINAL complete shard.
+// More real processing of repeated data, not more unique training examples.
+export function makeReplicatedFlow(source, clients) {
+  assert([3, 6, 9, 12].includes(clients));
+  const flow = parse(source);
+  assert.equal(flow.id, 'fedavg');
+  flow.id = `par02-fedavg-cifar10-c${clients}-p${clients}`;
+  flow.description = 'FLPAR-02 repeated-data load test; 50000 unique source samples, not a larger independent dataset';
+  flow.labels = { ...flow.labels, benchmark: 'FLPAR-02' };
+  for (const [name, split] of [['training_dataset', 'train'], ['test_dataset', 'test']]) {
+    flow.inputs[name].values = [`cifar10-${split}/v1`];
+    flow.inputs[name].defaultValue = `cifar10-${split}/v1`;
+  }
+  const loop = flow.tasks[1].tasks[0];
+  assert.equal(loop.type, 'core.Loop');
+  loop.loop.concurrency = clients;
+  loop.loop.values = { source: 'LITERAL', value: Array.from({ length: clients / 3 }, (_, copy) =>
+    letters.map(letter => ({ id: `edge-${letter}${copy + 1}`, clusters: [`edge-${letter}`] }))).flat() };
+  assert.deepEqual(loop.tasks[0].container.parameters.DATASET, { source: 'INPUT', name: 'training_dataset' });
+  return flow;
+}
+
 function nanos(text) {
   const match = /^(.*?)(?:\.(\d+))?Z$/.exec(text);
   assert(match, 'UTC timestamp required');
@@ -64,6 +85,10 @@ export function intervals(reports) {
 async function main() {
   const mode = process.argv[2];
   assert(['--register', '--run', '--preserved'].includes(mode));
+  const replicated = process.argv.includes('--replicated');
+  const folder = resolve(root, `.local/cea/${replicated ? 'par02' : 'par01'}`);
+  const activeDatasets = replicated ? ['cifar10'] : datasets;
+  const activeAlgorithms = replicated ? ['fedavg'] : algorithms;
   await mkdir(folder, { recursive: true });
   const settings = Object.fromEntries((await readFile(resolve(root, 'deploy/cea/.env'), 'utf8')).split(/\r?\n/)
     .filter(line => /^[A-Z_0-9]+=/.test(line)).map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
@@ -83,37 +108,41 @@ async function main() {
   if (mode === '--register') {
     const originals = await Promise.all(algorithms.map(name => api(`/flows/${name}`)));
     await save('before.json', { originals, datasets: await api('/resources/datasets'), policies: await api('/edge/policies'), services: services() }, { flag: 'wx' });
-    const ready = JSON.parse(await readFile(resolve(folder, 'uploaded.json')));
-    assert.equal(ready.length, 12);
-    for (const dataset of datasets) {
-      const manifest = JSON.parse(await readFile(resolve(folder, dataset, 'manifest.json')));
-      assert.equal(manifest.reduce((sum, row) => sum + row.samples, 0), 50000);
-      for (const row of manifest) assert.equal(ready.find(r => r.dataset === dataset && r.client === row.client)?.bytes, row.bytes);
-      for (const part of [1, 2]) {
-        const id = `${dataset}-par01-part${part}`;
-        const definition = { datasetId: id, version: 'v1', format: 'pt', locations: letters.map(letter => ({ clusterId: `edge-${letter}`,
-          uri: `s3://datasets/par01/${dataset}/edge-${letter}${part}.pt` })) };
-        await api(`/resources/datasets/${id}/versions/v1`, 'PUT', definition);
+    if (!replicated) {
+      const ready = JSON.parse(await readFile(resolve(folder, 'uploaded.json')));
+      assert.equal(ready.length, 12);
+      for (const dataset of datasets) {
+        const manifest = JSON.parse(await readFile(resolve(folder, dataset, 'manifest.json')));
+        assert.equal(manifest.reduce((sum, row) => sum + row.samples, 0), 50000);
+        for (const row of manifest) assert.equal(ready.find(r => r.dataset === dataset && r.client === row.client)?.bytes, row.bytes);
+        for (const part of [1, 2]) {
+          const id = `${dataset}-par01-part${part}`;
+          const definition = { datasetId: id, version: 'v1', format: 'pt', locations: letters.map(letter => ({ clusterId: `edge-${letter}`,
+            uri: `s3://datasets/par01/${dataset}/edge-${letter}${part}.pt` })) };
+          await api(`/resources/datasets/${id}/versions/v1`, 'PUT', definition);
+        }
+      }
+      for (const algorithm of algorithms) {
+        const application = await api(`/applications/${algorithm}-train/versions/cf01-v1`);
+        application.version = 'par01-v1';
+        for (const dataset of datasets) for (const part of [1, 2])
+          application.parameters.DATASET.dataset.allowed.push({ datasetId: `${dataset}-par01-part${part}`, version: 'v1' });
+        await api(`/applications/${algorithm}-train/versions/par01-v1`, 'PUT', application);
       }
     }
-    for (const algorithm of algorithms) {
-      const application = await api(`/applications/${algorithm}-train/versions/cf01-v1`);
-      application.version = 'par01-v1';
-      for (const dataset of datasets) for (const part of [1, 2])
-        application.parameters.DATASET.dataset.allowed.push({ datasetId: `${dataset}-par01-part${part}`, version: 'v1' });
-      await api(`/applications/${algorithm}-train/versions/par01-v1`, 'PUT', application);
-    }
     const cases = [];
-    for (const dataset of datasets) for (const algorithm of algorithms) {
-      const variants = [[3, 3], [6, 6]];
-      if (algorithm === 'fedavg' && dataset === 'cifar10') variants.push([6, 3]);
+    for (const dataset of activeDatasets) for (const algorithm of activeAlgorithms) {
+      const variants = replicated ? [[3, 3], [6, 6], [9, 9], [12, 12]] : [[3, 3], [6, 6]];
+      if (!replicated && algorithm === 'fedavg' && dataset === 'cifar10') variants.push([6, 3]);
       for (const [clients, concurrency] of variants) {
-        const flow = makeFlow(originals.find(f => f.flowId === algorithm).source, algorithm, dataset, clients, concurrency);
+        const original = originals.find(f => f.flowId === algorithm).source;
+        const flow = replicated ? makeReplicatedFlow(original, clients) : makeFlow(original, algorithm, dataset, clients, concurrency);
         const source = stringify(flow);
         await api(`/flows/${flow.id}/validate`, 'POST', { source });
         await api(`/flows/${flow.id}/revisions`, 'POST', { expectedRevision: 0, source });
         await writeFile(resolve(folder, `${flow.id}.yaml`), source);
-        cases.push({ flowId: flow.id, algorithm, dataset, clients, concurrency, items: flow.tasks[1].tasks[0].loop.values.value });
+        cases.push({ flowId: flow.id, algorithm, dataset, clients, concurrency, items: flow.tasks[1].tasks[0].loop.values.value,
+          ...(replicated ? { workload: 'REPEATED_SOURCE', uniqueTrainSamples: 50000, processedTrainSamplesPerRound: 50000 * clients / 3 } : {}) });
       }
     }
     await save('cases.json', cases);
@@ -136,7 +165,7 @@ async function main() {
     return;
   }
   const cases = JSON.parse(await readFile(resolve(folder, 'cases.json')));
-  for (const dataset of datasets) for (const algorithm of algorithms) {
+  for (const dataset of activeDatasets) for (const algorithm of activeAlgorithms) {
     const variants = cases.filter(c => c.dataset === dataset && c.algorithm === algorithm);
     for (let repeat = 1; repeat <= 3; repeat++) {
       const order = variants.map((_, index) => variants[(index + repeat - 1) % variants.length]);
@@ -173,6 +202,7 @@ async function main() {
             wallSeconds: (Date.parse(execution.endedAt) - Date.parse(execution.startedAt)) / 1000 };
           await writeFile(resolve(directory, 'result.json'), JSON.stringify(failure, null, 2));
           console.log(`FAILED (retained, no replacement trial) ${key} ${id}: ${execution.error}`);
+          if (replicated) throw new Error('Repeated-load trial failed; inspect capacity before explicitly resuming. No replacement trial.');
           continue;
         }
         assert.equal(execution.outputs.completed_rounds, 2);

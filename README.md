@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-02（2026-09-15，CEA重复负载实验完成）：按用户允许重复数据的要求，FedAvg/CIFAR10每轮累计5/10/15/20万条（唯一样本始终5万），3/6/9/12客户端平均216.5/257.8/315.5/291.0MB/s；九客户端比三客户端提高45.7%，十二客户端2/3成功且未进一步提高。四档模型复核PASS，配置已恢复、原Flow不变，无生产代码/DB改动。不是独立大数据集或2GB/s验收。[结果](docs/verification/VER-FLPAR-02-repeated-load.md)、[复测](examples/federated/parallel-benchmark/REPEATED-LOAD.md)。
+
 FLPAR-01（2026-09-15，真实CEA对照完成）：固定全量数据/2轮/原计量口径，3→6并行客户端使FedAvg的CIFAR10/100平均速率提升23.3%/12.3%，FedProx提升27.3%/45.9%；尚未达到2GB/s。27次中26成功，额外控制失败保留；五组模型数值复核PASS。原业务Flow不变、临时Worker/槽位配置已恢复、仅backend重启；无生产代码/DB修改。[全部结果与限制](docs/verification/VER-FLPAR-01-parallel-clients.md)、[复测工具](examples/federated/parallel-benchmark/README.md)。
 
 FLDATA-01（2026-09-15，已验证并发布CEA）：FedAvg/FedProx现支持MNIST、CIFAR-10、CIFAR-100，18080启动参数可选配套训练/测试版本，默认MNIST不变。新镜像与5个应用版本、4个数据集版本及FedAvg r8/FedProx r6已生效；四组CIFAR两轮训练及MNIST回归/独立数值核验PASS。复用原DatasetRule、文件助手、计量和执行链，无Java/DB/API新增。[数据协议](docs/contracts/federated-datasets.md)、[测试/部署与限制](docs/verification/VER-FLDATA-01-cifar.md)。

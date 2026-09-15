@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '../../../frontend/node_modules/yaml/dist/index.js';
-import { makeFlow, intervals } from './run.mjs';
+import { makeFlow, makeReplicatedFlow, intervals } from './run.mjs';
 
 test('three and six client experiment definitions preserve mathematical and file chain', () => {
   for (const algorithm of ['fedavg', 'fedprox']) for (const dataset of ['cifar10', 'cifar100']) {
@@ -26,4 +26,25 @@ test('interval evidence uses union and actual peak, including touching boundarie
   const report = (start, end) => ({ startedAt: `2026-09-15T00:00:0${start}Z`, endedAt: `2026-09-15T00:00:0${end}Z` });
   assert.deepEqual(intervals([report(1, 4), report(2, 6), report(7, 9)]), { activeSeconds: 7, peak: 2, meanParallel: 9 / 7 });
   assert.equal(intervals([report(1, 2), report(2, 3)]).peak, 1);
+});
+
+test('repeated-load clients keep complete original dataset binding and unchanged algorithm/file chain', () => {
+  const source = readFileSync(new URL('../fedavg.yaml', import.meta.url), 'utf8');
+  const original = parse(source);
+  for (const clients of [3, 6, 9, 12]) {
+    const flow = makeReplicatedFlow(source, clients);
+    const loop = flow.tasks[1].tasks[0], items = loop.loop.values.value;
+    assert.equal(items.length, clients);
+    assert.equal(new Set(items.map(item => item.id)).size, clients);
+    assert.equal(loop.loop.concurrency, clients);
+    assert.deepEqual(loop.tasks, original.tasks[1].tasks[0].tasks);
+    assert.deepEqual(flow.tasks[0], original.tasks[0]);
+    assert.deepEqual(flow.tasks[1].repeat, original.tasks[1].repeat);
+    assert.deepEqual(flow.tasks[1].tasks.slice(1), original.tasks[1].tasks.slice(1));
+    assert.deepEqual(items.slice(0, 3).map(item => item.clusters[0]), ['edge-a', 'edge-b', 'edge-c']);
+    for (const letter of 'abc') assert.equal(items.filter(item => item.clusters[0] === `edge-${letter}`).length, clients / 3);
+    assert.equal(flow.inputs.training_dataset.defaultValue, 'cifar10-train/v1');
+    assert.equal(flow.inputs.local_epochs.defaultValue, 1);
+  }
+  assert.throws(() => makeReplicatedFlow(source, 15));
 });
