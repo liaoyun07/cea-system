@@ -1,4 +1,4 @@
-"""FLPAR-02 output audit; repeated source samples are deliberate and reported explicitly."""
+"""FLPAR-02/03 output audit; repeated source samples are deliberate and reported explicitly."""
 import json
 import sys
 from pathlib import Path
@@ -25,12 +25,16 @@ assert len(test['y']) == 10000 and test['split'] == 'test'
 previous = load(root / 'init.pt')
 assert previous['round'] == 0 and previous['algorithm'] == 'fedavg'
 metrics = []
-for round_no in (1, 2):
+rounds, batch_size = case.get('rounds', 2), case.get('batchSize', 32)
+assert rounds in (1, 2) and batch_size in (32, 256, 1024, 16384)
+evaluation_batch = case.get('evaluationBatchSize', 32)
+assert evaluation_batch == 32
+for round_no in range(1, rounds + 1):
     # Recompute each distinct full shard once, then check EVERY submitted client result.
     expected_states = {}
     for cluster, data in shards.items():
         expected = checked_model(previous)
-        train(expected, data, 1, 32, 0.01, 0, 13 + round_no - 1)
+        train(expected, data, 1, batch_size, 0.01, 0, 13 + round_no - 1)
         expected_states[cluster] = expected.state_dict()
     updates = []
     for item in case['items']:
@@ -50,7 +54,7 @@ for round_no in (1, 2):
         expected = sum(update['state'][key].double() * update['samples'] for update in updates) / total
         torch.testing.assert_close(value.double(), expected, rtol=1e-5, atol=1e-6)
     actual = json.loads((root / f'evaluate-r{round_no}.json').read_text())
-    reference = evaluate(checked_model(merged), test, 32)
+    reference = evaluate(checked_model(merged), test, evaluation_batch)
     assert actual['round'] == round_no and actual['samples'] == 10000
     assert abs(actual['loss'] - reference['loss']) < 1e-6
     assert actual['accuracy'] == reference['accuracy']

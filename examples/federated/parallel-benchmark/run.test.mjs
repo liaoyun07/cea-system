@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '../../../frontend/node_modules/yaml/dist/index.js';
-import { makeFlow, makeReplicatedFlow, intervals } from './run.mjs';
+import { makeFlow, makeReplicatedFlow, makeBatchFlow, intervals } from './run.mjs';
 
 test('three and six client experiment definitions preserve mathematical and file chain', () => {
   for (const algorithm of ['fedavg', 'fedprox']) for (const dataset of ['cifar10', 'cifar100']) {
@@ -47,4 +47,23 @@ test('repeated-load clients keep complete original dataset binding and unchanged
     assert.equal(flow.inputs.local_epochs.defaultValue, 1);
   }
   assert.throws(() => makeReplicatedFlow(source, 15));
+});
+
+test('one-round batch comparison preserves nine clients, training chain and fixed evaluation batch', () => {
+  const source = readFileSync(new URL('../fedavg.yaml', import.meta.url), 'utf8');
+  const baseline = makeReplicatedFlow(source, 9);
+  for (const batchSize of [32, 256, 1024, 16384]) {
+    const flow = makeBatchFlow(source, batchSize);
+    assert.equal(flow.id, `par03-fedavg-cifar10-c9-b${batchSize}`);
+    assert.equal(flow.inputs.rounds.defaultValue, 1);
+    assert.equal(flow.inputs.batch_size.defaultValue, batchSize);
+    assert.equal(flow.inputs.local_epochs.defaultValue, 1);
+    assert.deepEqual(flow.tasks[0], baseline.tasks[0]);
+    assert.deepEqual(flow.tasks[1].repeat, baseline.tasks[1].repeat);
+    assert.deepEqual(flow.tasks[1].tasks.slice(0, 2), baseline.tasks[1].tasks.slice(0, 2));
+    assert.deepEqual(flow.tasks[1].tasks[2].container.parameters.BATCH_SIZE, { source: 'LITERAL', value: 32 });
+    assert.deepEqual(flow.tasks[1].tasks[2].container.inputFiles, baseline.tasks[1].tasks[2].container.inputFiles);
+    assert.deepEqual(flow.outputs, baseline.outputs);
+  }
+  assert.throws(() => makeBatchFlow(source, 0));
 });

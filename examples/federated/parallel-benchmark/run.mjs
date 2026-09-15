@@ -1,4 +1,4 @@
-// FLPAR-01/02 experiment driver. Uses existing APIs; does not implement an execution engine.
+// FLPAR-01/02/03 experiment driver. Uses existing APIs; does not implement an execution engine.
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -59,6 +59,21 @@ export function makeReplicatedFlow(source, clients) {
   return flow;
 }
 
+// FLPAR-03 changes training batch only; evaluation stays at batch 32.
+export function makeBatchFlow(source, batchSize) {
+  assert([32, 256, 1024, 16384].includes(batchSize));
+  const flow = makeReplicatedFlow(source, 9);
+  flow.id = `par03-fedavg-cifar10-c9-b${batchSize}`;
+  flow.description = 'FLPAR-03 one-round MLP training batch comparison; repeated source data, evaluation batch 32';
+  flow.labels.benchmark = 'FLPAR-03';
+  flow.inputs.rounds.defaultValue = 1;
+  flow.inputs.batch_size.defaultValue = batchSize;
+  const evaluation = flow.tasks[1].tasks.find(task => task.id === 'evaluate');
+  assert(evaluation);
+  evaluation.container.parameters.BATCH_SIZE = { source: 'LITERAL', value: 32 };
+  return flow;
+}
+
 function nanos(text) {
   const match = /^(.*?)(?:\.(\d+))?Z$/.exec(text);
   assert(match, 'UTC timestamp required');
@@ -85,8 +100,9 @@ export function intervals(reports) {
 async function main() {
   const mode = process.argv[2];
   assert(['--register', '--run', '--preserved'].includes(mode));
-  const replicated = process.argv.includes('--replicated');
-  const folder = resolve(root, `.local/cea/${replicated ? 'par02' : 'par01'}`);
+  const batchExperiment = process.argv.includes('--batch');
+  const replicated = batchExperiment || process.argv.includes('--replicated');
+  const folder = resolve(root, `.local/cea/${batchExperiment ? 'par03' : replicated ? 'par02' : 'par01'}`);
   const activeDatasets = replicated ? ['cifar10'] : datasets;
   const activeAlgorithms = replicated ? ['fedavg'] : algorithms;
   await mkdir(folder, { recursive: true });
@@ -132,17 +148,20 @@ async function main() {
     }
     const cases = [];
     for (const dataset of activeDatasets) for (const algorithm of activeAlgorithms) {
-      const variants = replicated ? [[3, 3], [6, 6], [9, 9], [12, 12]] : [[3, 3], [6, 6]];
+      const variants = batchExperiment ? [32, 256, 1024, 16384].map(batch => [9, 9, batch])
+        : replicated ? [[3, 3], [6, 6], [9, 9], [12, 12]] : [[3, 3], [6, 6]];
       if (!replicated && algorithm === 'fedavg' && dataset === 'cifar10') variants.push([6, 3]);
-      for (const [clients, concurrency] of variants) {
+      for (const [clients, concurrency, batchSize] of variants) {
         const original = originals.find(f => f.flowId === algorithm).source;
-        const flow = replicated ? makeReplicatedFlow(original, clients) : makeFlow(original, algorithm, dataset, clients, concurrency);
+        const flow = batchExperiment ? makeBatchFlow(original, batchSize)
+          : replicated ? makeReplicatedFlow(original, clients) : makeFlow(original, algorithm, dataset, clients, concurrency);
         const source = stringify(flow);
         await api(`/flows/${flow.id}/validate`, 'POST', { source });
         await api(`/flows/${flow.id}/revisions`, 'POST', { expectedRevision: 0, source });
         await writeFile(resolve(folder, `${flow.id}.yaml`), source);
         cases.push({ flowId: flow.id, algorithm, dataset, clients, concurrency, items: flow.tasks[1].tasks[0].loop.values.value,
-          ...(replicated ? { workload: 'REPEATED_SOURCE', uniqueTrainSamples: 50000, processedTrainSamplesPerRound: 50000 * clients / 3 } : {}) });
+          ...(replicated ? { workload: 'REPEATED_SOURCE', uniqueTrainSamples: 50000, processedTrainSamplesPerRound: 50000 * clients / 3 } : {}),
+          ...(batchExperiment ? { rounds: 1, batchSize, evaluationBatchSize: 32 } : {}) });
       }
     }
     await save('cases.json', cases);
@@ -177,8 +196,8 @@ async function main() {
         try { accepted = JSON.parse(await readFile(resolve(directory, 'accepted.json'))); }
         catch (error) {
           if (error.code !== 'ENOENT') throw error;
-          const inputs = { rounds: 2, model: 'mlp', training_dataset: `${dataset}-train/v1`, test_dataset: `${dataset}-test/v1`,
-            local_epochs: 1, batch_size: 32, learning_rate: 0.01 };
+          const inputs = { rounds: current.rounds ?? 2, model: 'mlp', training_dataset: `${dataset}-train/v1`, test_dataset: `${dataset}-test/v1`,
+            local_epochs: 1, batch_size: current.batchSize ?? 32, learning_rate: 0.01 };
           if (algorithm === 'fedprox') inputs.prox_mu = 0.1;
           accepted = await api('/executions', 'POST', { flowId: current.flowId, inputs }, { 'Idempotency-Key': randomUUID() });
           await writeFile(resolve(directory, 'accepted.json'), JSON.stringify(accepted));
@@ -205,10 +224,12 @@ async function main() {
           if (replicated) throw new Error('Repeated-load trial failed; inspect capacity before explicitly resuming. No replacement trial.');
           continue;
         }
-        assert.equal(execution.outputs.completed_rounds, 2);
+        const rounds = current.rounds ?? 2;
+        assert.equal(execution.outputs.completed_rounds, rounds);
         const leaves = tasks.filter(t => ['init', 'train', 'aggregate', 'evaluate'].includes(t.taskId));
-        assert.equal(leaves.length, 5 + 2 * current.clients);
+        assert.equal(leaves.length, 1 + rounds * (2 + current.clients));
         const reports = [];
+        const evaluation = [];
         for (const task of leaves) {
           assert.equal(task.state, 'SUCCESS');
           const report = await api(`/executions/${id}/tasks/${task.id}/output-json?port=cea-measurement.json`);
@@ -217,6 +238,7 @@ async function main() {
           if (task.taskId === 'evaluate') {
             const metrics = await api(`/executions/${id}/tasks/${task.id}/output-json?port=metrics.json`);
             assert.equal(metrics.samples, 10000);
+            evaluation.push({ round, ...metrics });
             await writeFile(resolve(directory, `evaluate-r${round}.json`), JSON.stringify(metrics));
           }
         }
@@ -228,8 +250,10 @@ async function main() {
         const activity = intervals(reports);
         assert.equal(input, measurement.inputBytes); assert.equal(output, measurement.outputBytes);
         assert(Math.abs(activity.activeSeconds - measurement.activeSeconds) < 1e-8);
-        const training = [1, 2].map(round => ({ round, ...intervals(reports.filter(r => r.taskId === 'train' && r.round === round)) }));
+        const training = Array.from({ length: rounds }, (_, index) => index + 1)
+          .map(round => ({ round, ...intervals(reports.filter(r => r.taskId === 'train' && r.round === round)) }));
         const result = { ...current, repeat, executionId: id, measurement, training,
+          ...(batchExperiment ? { evaluation } : {}),
           wallSeconds: (Date.parse(execution.endedAt) - Date.parse(execution.startedAt)) / 1000 };
         await writeFile(resolve(directory, 'result.json'), JSON.stringify(result, null, 2));
         console.log(JSON.stringify({ flow: current.flowId, repeat, id, MBps: measurement.bytesPerSecond / 1e6,

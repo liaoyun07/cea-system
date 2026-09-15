@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-15 FLPAR-03（实验完成）：用户要求增大batch并只跑一轮。固定FedAvg/CIFAR10/MLP、9客户端重复原分片、1轮/epoch1/评估batch32，训练batch32/256/1024/16384各3次，12/12成功；均值376.6/454.3/484.3/444.1MB/s，1024提高28.6%但accuracy降至21.24%，不是2GB/s或精度验收。144份SDK/108个完整训练输入、四档48个Job及模型/聚合/评估审计PASS。17:12恢复临时Worker/槽位，原Flow/数据/19服务保持、只重启backend；无生产链/Java/表/字段/API变化。[方案](../examples/federated/parallel-benchmark/BATCH.md)、[结果](verification/VER-FLPAR-03-batch.md)。
+
 2026-09-15 FLPAR-02（实验完成，非全部运行PASS）：用户允许重复数据，改测增加客户端同时增加累计处理量。FedAvg/CIFAR10的3/6/9/12客户端各3次，原边缘分片不切小，每个新增客户端完整读取并训练相同所属分片；每轮累计5/10/15/20万条，独立样本始终5万。保持2轮/MLP/epoch1/原SDK口径，四档共同暂用Worker14/边缘槽4后已恢复，不扩容宿主或改原Flow。12次中11成功，十二客户端第3次失败保留、未补替代样本；均值216.5/257.8/315.5/291.0MB/s，九客户端本次最快，仍未达2GB/s。211份SDK报告与156次完整训练文件输入核对、四档80个Job/模型审计PASS。不新增Java/表/API/生产链；[方案](../examples/federated/parallel-benchmark/REPEATED-LOAD.md)、[结果与失败边界](verification/VER-FLPAR-02-repeated-load.md)。
 
 2026-09-15 FLPAR-01（实验完成，非全部运行PASS）：按用户要求验证增加并行客户端是否提高数据处理速率。沿现有cf01-v1镜像、DatasetRule、Loop、聚合与计量链，创建独立par01测试Flow/契约/数据记录；原三分片逐一分成两份独立文件，保持50000训练/10000测试、MLP、2轮、epoch1、batch32、学习率和原始数据不变。两算法×CIFAR10/100对比3客户端并行3与6客户端并行6，各3次；另以FedAvg/CIFAR10的6客户端并行3隔离分片影响。27次中26成功：主对照24/24、额外控制2/3；没有补成功样本替换失败。四组平均提升12.3%–45.9%，实际峰值5–6并行，26组SDK计量及五组模型重算核验PASS。暂调Worker8/边缘槽2后已恢复Worker4/边缘槽1，仅backend重启；原业务定义、CPU/内存/集群数量不变，不改计量口径，不宣称2GB/s达标。[结果及失败限制](verification/VER-FLPAR-01-parallel-clients.md)。

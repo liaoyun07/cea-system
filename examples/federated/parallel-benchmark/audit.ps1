@@ -1,7 +1,8 @@
 # Run only AFTER timing trials; local numerical recomputation must not contend with them.
-param([switch]$Replicated)
+param([switch]$Replicated, [switch]$Batch)
 . (Join-Path $PSScriptRoot '../../../deploy/cea/common.ps1')
-$taskBatch=if($Replicated){'par02'}else{'par01'}
+$taskBatch=if($Batch){'par03'}elseif($Replicated){'par02'}else{'par01'}
+if($Batch) {$Replicated=$true}
 $taskRoot=Join-Path $taskRepository ".local/cea/$taskBatch"
 $taskCases=Get-Content (Join-Path $taskRoot 'cases.json') -Raw | ConvertFrom-Json
 foreach($taskCase in $taskCases | Where-Object {$Replicated -or $_.clients -eq 6}) {
@@ -47,6 +48,7 @@ foreach($taskCase in $taskCases | Where-Object {$Replicated -or $_.clients -eq 6
     }
     if($LASTEXITCODE -ne 0) {throw "Numerical audit failed: $taskKey"}
     Write-CeaGeneratedFile (Join-Path $taskEvidence 'numerical-audit.json') ($taskAudit -join "`n")
-    Write-Output "$taskKey PASS: $($taskCase.clients * 2 + 5) Jobs, actual stores and numerical recomputation"
+    $taskRounds=if($Batch){$taskCase.rounds}else{2}
+    Write-Output "$taskKey PASS: $(1 + $taskRounds * ($taskCase.clients + 2)) Jobs, actual stores and numerical recomputation"
     Write-Output $taskAudit
 }
