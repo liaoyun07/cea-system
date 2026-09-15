@@ -13,6 +13,8 @@
 
 Job 身份、租约、取消和 retry 不变：一个 Attempt 一个 Job，backoffLimit=0，Never。
 
+FLPAR-11 启动顺序：Runner 创建 `suspend: true` 的 Job，附 `cea.platform/files-pending: "true"`，先写入该 Job UID 所有的文件授权 Secret，然后在一次 Job 更新中删除 annotation 并解除挂起；因此 Pod 创建前 Secret 已存在。Worker 在准备断点恢复时沿原 Job UID 继续，不新建第二个 Job。annotation 的唯一消费者是 Runner，用于区分“准备尚未完成”与外部暂停；无 marker 的挂起 Job 仍按原暂停/停止语义处理，不能自动复活。准备前及解除挂起前检查取消；观察到取消不解除挂起，跨数据库/Kubernetes的最后一刻竞态仍由原取消轮询停止，不声称跨系统原子取消。无数据库字段/状态机或授权旁路。
+
 - `files-in` init：建立共享目录，内联小文本落盘，流式 GET 输入；全部完成后写 start。失败不会启动算法。
 - `task`：原镜像/command/env，读 in、写 out；原 wrapper 执行命令一次，记录 exit，再等待 published。
 - `files-out` 普通伴随容器：等待 exit；算法成功才 PUT 全部声明输出，完成或失败均释放 wrapper；其自身失败使 Job 失败。Runner 检测任一容器异常退出（包括 OOM/被杀、没有 exit 标记）后 suspend 并等其停止，避免助手无限等待。

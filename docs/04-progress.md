@@ -1,5 +1,7 @@
 # 当前进度
 
+FLPAR-11（2026-09-16，修复已部署）：四K3s独立cgroup-root；后端挂起Job→owned文件Secret→启动，主执行链和算法/SDK不变。264项Java与8项Node通过，18客户端预热＋正式3次全成功；正式平均52.136秒/566.49MB/s，训练主容器峰11～14、算法峰5～7，未达18路或2GB/s。156 Job/SDK、80模型320张量核验PASS，启动Warning为0，files-in最长启动等待由原32秒降到3秒。原245执行/28Flow/数据集/42个K8s业务定义保持，仅backend及4K3s重建；其余14服务保持，01:57:29检查249执行全终态、18080/后端健康。Worker24/每edge6槽保留；无新Java类/表/API，不宣称历史其他SDK故障已解决。[记录](verification/VER-FLPAR-11-startup.md)。
+
 FLPAR-04（2026-09-15，实验完成）：同batch1024/单轮9客户端FedAvg/CIFAR10，原方式和整批取样各3次正式均成功，速率均值358.153/362.615MB/s（+1.246%），但平均算法活动时间均5.638秒，配对+10.7%/+4.2%/−11.6%，未证明稳定收益或2GB/s。4项新增Python/11项原回归、18次本地诊断、5项Node/历史三批汇总保持、96份SDK及72次完整训练文件输入（含预热）、24个实际Job/模型数值审计、跨方式11份模型44张量逐值一致均PASS。17:43恢复Worker4/边缘槽1，backendUP/18080正常，原2业务Flow/10数据集/策略/19服务保持，仅backend重启。实验版本和2个测试Flow/8条执行留CEA，不改原业务链、不推广候选。[复测](../examples/federated/parallel-benchmark/BULK.md)、[全部结果与限制](verification/VER-FLPAR-04-bulk.md)。
 
 FLPAR-03（2026-09-15，实验完成）：单轮9客户端、CIFAR10/MLP，训练batch32/256/1024/16384各3次全部成功，均值376.623/454.338/484.335/444.123MB/s。1024提高28.6%但单轮accuracy从31.59%降至21.24%，16384为10.59%；未达2GB/s。144份SDK、108次完整训练输入及四档48个Job/36客户端模型/聚合评估数值审计PASS；4项Node、语法及两组历史汇总回归PASS。17:12恢复Worker4/边缘槽1，原业务Flow/10数据集/策略/19服务保持，只有backend重启，healthUP/前端200；新4个par03 Flow和12条历史留CEA，无生产代码/DB改变。[方案](../examples/federated/parallel-benchmark/BATCH.md)、[完整结果](verification/VER-FLPAR-03-batch.md)。

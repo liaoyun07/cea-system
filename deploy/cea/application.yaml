@@ -20,7 +20,7 @@ platform:
   deployment:
     timeout: PT10M
   worker:
-    concurrency: 4
+    concurrency: 24
   distribution:
     command: [skopeo]
     timeout: PT5M
@@ -66,7 +66,7 @@ platform:
     central-clouds:
       lab: [cloud]
     slots:
-      lab: {cloud: 2, edge-a: 1, edge-b: 1, edge-c: 1}
+      lab: {cloud: 2, edge-a: 6, edge-b: 6, edge-c: 6}
     storage:
       lab:
         outputs: {cloud: center, edge-a: edge-a, edge-b: edge-b, edge-c: edge-c}

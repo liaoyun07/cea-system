@@ -15,6 +15,7 @@ x-registry: &registry
     REGISTRY_STORAGE_DELETE_ENABLED: "true"
 x-k3s: &k3s
   image: rancher/k3s:v1.30.6-k3s1
+  entrypoint: [/bin/sh, /config/k3s-entrypoint.sh]
   privileged: true
   cgroup: host
   restart: unless-stopped
@@ -111,6 +112,7 @@ services:
       - cloud-kubelet:/var/lib/kubelet
       - cloud-cni:/var/lib/cni
       - cloud-log:/var/log
+      - ./k3s-entrypoint.sh:/config/k3s-entrypoint.sh:ro
       - ./secrets/registries/cloud.yaml:/etc/rancher/k3s/registries.yaml:ro
       - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
   edge-a:
@@ -121,6 +123,7 @@ services:
       - edge-a-kubelet:/var/lib/kubelet
       - edge-a-cni:/var/lib/cni
       - edge-a-log:/var/log
+      - ./k3s-entrypoint.sh:/config/k3s-entrypoint.sh:ro
       - ./secrets/registries/edge-a.yaml:/etc/rancher/k3s/registries.yaml:ro
       - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
   edge-b:
@@ -131,6 +134,7 @@ services:
       - edge-b-kubelet:/var/lib/kubelet
       - edge-b-cni:/var/lib/cni
       - edge-b-log:/var/log
+      - ./k3s-entrypoint.sh:/config/k3s-entrypoint.sh:ro
       - ./secrets/registries/edge-b.yaml:/etc/rancher/k3s/registries.yaml:ro
       - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
   edge-c:
@@ -141,6 +145,7 @@ services:
       - edge-c-kubelet:/var/lib/kubelet
       - edge-c-cni:/var/lib/cni
       - edge-c-log:/var/log
+      - ./k3s-entrypoint.sh:/config/k3s-entrypoint.sh:ro
       - ./secrets/registries/edge-c.yaml:/etc/rancher/k3s/registries.yaml:ro
       - ./secrets/images:/var/lib/rancher/k3s/agent/images:ro
   builder:

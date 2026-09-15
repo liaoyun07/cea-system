@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-11（2026-09-16，启动修复已部署）：四K3s独立cgroup根目录，后端先准备文件授权再启动Pod；264项Java回归通过。18客户端正式3/3成功，耗时51～53秒（原单次77秒），平均566.49MB/s；训练主容器峰11～14、算法峰5～7，启动Warning为0。原算法/SDK/数据不改，156 Job/SDK、80模型320张量一致，旧对象及14非目标服务保留。未达18路同时计算或2GB/s。[完整证据](docs/verification/VER-FLPAR-11-startup.md)。
+
 FLPAR-04（2026-09-15，CEA整批取样实验完成）：固定batch1024/单轮9客户端，原方式与整批取样各3次正式运行均成功，平均358.2/362.6MB/s，但平均算法活动时间均5.638秒，未测出稳定收益。批次/RNG与实际模型逐值一致，原业务Flow不改、临时容量已恢复；候选仅留隔离测试，不是2GB/s达标。[结果](docs/verification/VER-FLPAR-04-bulk.md)、[复测](examples/federated/parallel-benchmark/BULK.md)。
 
 FLPAR-03（2026-09-15，CEA单轮batch实验完成）：9客户端CIFAR10/MLP，batch32/256/1024/16384各3次全部成功，平均376.6/454.3/484.3/444.1MB/s。1024比32提高28.6%，但单轮accuracy降至21.24%；不是2GB/s或精度达标。四档模型复核PASS，原Flow不变、临时配置已恢复。[结果](docs/verification/VER-FLPAR-03-batch.md)、[复测](examples/federated/parallel-benchmark/BATCH.md)。

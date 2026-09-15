@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLPAR-11（2026-09-16，RUN-001/FILE-01修复DONE/PASS，已部署）：独立cgroup管理范围、授权先于Pod；264 Java测试/156 Job与SDK/80模型通过，启动Warning为0。18客户端正式平均52.136秒/566.49MB/s、训练主容器峰11～14、算法峰5～7，M01/18路同时计算未通过。原主链/算法/数据不变，无新Java类/DB/API。[验证](verification/VER-FLPAR-11-startup.md)。
+
 FLPAR-04（FL-001/M01验证增量，2026-09-15）：隔离整批取样候选、4项Python一致性/11项原回归、18次本地诊断、6次正式CEA对照及2次预热全部完成。原/候选速率均值358.2/362.6MB/s，平均活动时间均5.638秒，未证明收益或2GB/s；96份SDK和实际模型审计通过。原业务定义/计量/容量保持，无生产Java/DB/API/执行链变化。[方案](../examples/federated/parallel-benchmark/BULK.md)、[验证](verification/VER-FLPAR-04-bulk.md)。
 
 FLPAR-03（FL-001/M01验证增量，2026-09-15）：真实CEA单轮9客户端MLP训练batch对照12/12成功，32/256/1024/16384均值376.6/454.3/484.3/444.1MB/s；1024提高28.6%但accuracy下降，未达2GB/s。144份SDK/108个训练文件输入、四档数值审计PASS，原Flow与临时容量配置恢复；只扩展实验工具，无生产功能/Java/DB/API新增。[复测](../examples/federated/parallel-benchmark/BATCH.md)、[验证](verification/VER-FLPAR-03-batch.md)。

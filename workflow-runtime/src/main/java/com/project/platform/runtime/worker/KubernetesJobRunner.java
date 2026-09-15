@@ -11,6 +11,7 @@ import static com.project.platform.runtime.worker.ContainerTask.WRAPPER;
 /** Owns one remote Job per Attempt. It never writes Execution/TaskRun state. */
 public final class KubernetesJobRunner {
     private static final String ROOT="/cea-work";
+    private static final String FILES_PENDING="cea.platform/files-pending";
     public WorkerJob.Result run(TaskContext context,KubernetesClient client,Spec spec,String helperImage,Transfers files) throws Exception {
         String name=ContainerTask.name(context.job());
         long lastRefresh=0;
@@ -18,7 +19,7 @@ public final class KubernetesJobRunner {
         while(true) {
             context.check();
             String cancellation=context.cancellation();
-            Job job=ensure(client,name,spec,helperImage,cancellation!=null);
+            Job job=ensure(client,name,spec,helperImage);
             var pods=client.pods().withLabel("job-name",name).list().getItems();
             if(!reported) {
                 if(pods.size()==1 && pods.getFirst().getStatus()!=null && pods.getFirst().getStatus().getInitContainerStatuses()!=null)
@@ -31,6 +32,18 @@ public final class KubernetesJobRunner {
             if(cancellation!=null) {
                 if(!Boolean.TRUE.equals(job.getSpec().getSuspend()))client.batch().v1().jobs().withName(name).edit(j->{j.getSpec().setSuspend(true);return j;});
                 if(stopped(client,name)){removeAuthorization(client,job);return WorkerJob.Result.failed(cancellation);}
+            } else if("true".equals(job.getMetadata().getAnnotations()==null?null:job.getMetadata().getAnnotations().get(FILES_PENDING))) {
+                if(!Boolean.TRUE.equals(job.getSpec().getSuspend()))throw new IOException("file preparation Job must remain suspended");
+                context.check();authorize(client,job,files.authorization());
+                context.check();
+                if(context.cancellation()==null)client.batch().v1().jobs().withName(name).edit(j->{
+                    if(!job.getMetadata().getUid().equals(j.getMetadata().getUid()))throw new IllegalStateException("Job replaced during file preparation");
+                    if("true".equals(j.getMetadata().getAnnotations()==null?null:j.getMetadata().getAnnotations().get(FILES_PENDING))) {
+                        j.getSpec().setSuspend(false);j.getMetadata().getAnnotations().remove(FILES_PENDING);
+                    }
+                    return j;
+                });
+                lastRefresh=System.nanoTime();
             } else if(Boolean.TRUE.equals(job.getSpec().getSuspend())) {
                 if(stopped(client,name)){removeAuthorization(client,job);return WorkerJob.Result.failed("remote Job was suspended");}
             } else if(condition(job,"Complete")) {
@@ -56,12 +69,12 @@ public final class KubernetesJobRunner {
             Thread.sleep(200);
         }
     }
-    private Job ensure(KubernetesClient client,String name,Spec spec,String helperImage,boolean suspended) {
+    private Job ensure(KubernetesClient client,String name,Spec spec,String helperImage) {
         var existing=client.batch().v1().jobs().withName(name).get();if(existing!=null)return existing;
         var args=new ArrayList<>(List.of("-c",WRAPPER,"cea-task"));args.addAll(spec.command());
         var env=spec.environment().entrySet().stream().map(e->new EnvVar(e.getKey(),e.getValue(),null)).toList();
-        var job=new JobBuilder().withNewMetadata().withName(name).endMetadata().withNewSpec()
-                .withBackoffLimit(0).withSuspend(suspended).withNewTemplate().withNewMetadata().endMetadata().withNewSpec()
+        var job=new JobBuilder().withNewMetadata().withName(name).addToAnnotations(FILES_PENDING,"true").endMetadata().withNewSpec()
+                .withBackoffLimit(0).withSuspend(true).withNewTemplate().withNewMetadata().endMetadata().withNewSpec()
                 .withRestartPolicy("Never").withTerminationGracePeriodSeconds(5L).withAutomountServiceAccountToken(false)
                 .addNewVolume().withName("work").withNewEmptyDir().endEmptyDir().endVolume()
                 .addNewVolume().withName("file-plan").withNewSecret().withSecretName(name+"-files").withDefaultMode(256).endSecret().endVolume()

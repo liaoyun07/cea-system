@@ -1320,6 +1320,58 @@ class ImageDistributionTest {
     }
     private String remoteName(String id) {return "cea-"+executions().tasks(actor,"lab",id).getFirst().id()+"-a1";}
     private boolean activePod(String name) {return admin.pods().inNamespace("s4-test").withLabel("job-name",name).list().getItems().stream().anyMatch(p->"Running".equals(p.getStatus().getPhase()));}
+    @Test void fileAuthorizationPrecedesPodAndPreparationRecoversWithoutAnotherJob() throws Exception {
+        String id=dispatch(sleeper("PT90S","true")),name=remoteName(id);
+        var store=context.getBean(JdbcWorkerStore.class);
+        var lease=store.claim("file-preparation-test",90_000);assertNotNull(lease);assertEquals(id,lease.job().executionId());
+        var taskContext=new TaskContext(store,lease);
+        var spec=new ContainerTask.Spec(distribution().prepare(actor,"lab","service","v1","edge").image(),List.of("sh","-c","true"),Map.of(),List.of(),List.of());
+        String helper=context.getEnvironment().getProperty("platform.jobs.helpers.lab.edge");
+        var calls=new java.util.concurrent.atomic.AtomicInteger();
+        var files=new ContainerTask.Transfers() {
+            public String authorization() throws Exception {
+                var job=admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get();
+                assertTrue(job.getSpec().getSuspend());assertEquals("true",job.getMetadata().getAnnotations().get("cea.platform/files-pending"));
+                assertTrue(admin.pods().inNamespace("s4-test").withLabel("job-name",name).list().getItems().isEmpty(),"No Pod may start before authorization");
+                if(calls.incrementAndGet()==1)throw new java.io.IOException("simulated interruption before file authorization");
+                return json.write(Map.of("inline",Map.of(),"inputs",Map.of(),"outputs",Map.of()));
+            }
+            public String published(String output) {throw new AssertionError("no declared outputs");}
+        };
+        try(var client=new KubernetesClientBuilder().withConfig(new ConfigBuilder(admin.getConfiguration()).withNamespace("s4-test").build()).build()) {
+            var runner=new KubernetesJobRunner();
+            assertThrows(java.io.IOException.class,()->runner.run(taskContext,client,spec,helper,files));
+            String uid=client.batch().v1().jobs().withName(name).get().getMetadata().getUid();
+            assertNull(client.secrets().withName(name+"-files").get());
+            var result=runner.run(new TaskContext(store,lease),client,spec,helper,files);
+            assertTrue(result.success(),result.error());assertEquals(2,calls.get());
+            var job=client.batch().v1().jobs().withName(name).get();assertEquals(uid,job.getMetadata().getUid());
+            assertFalse(Boolean.TRUE.equals(job.getSpec().getSuspend()));assertTrue(job.getMetadata().getAnnotations()==null||!job.getMetadata().getAnnotations().containsKey("cea.platform/files-pending"));
+            assertNull(client.secrets().withName(name+"-files").get());
+            var pods=client.pods().withLabel("job-name",name).list().getItems();assertEquals(1,pods.size());
+            assertTrue(client.v1().events().list().getItems().stream().noneMatch(e->pods.getFirst().getMetadata().getUid().equals(e.getInvolvedObject().getUid())&&"FailedMount".equals(e.getReason())));
+            assertTrue(store.finish(lease,result));
+        }
+        drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state());
+    }
+    @Test void cancellationDuringFilePreparationNeverLaunchesPod() throws Exception {
+        String id=dispatch(sleeper("PT90S","true")),name=remoteName(id);
+        var store=context.getBean(JdbcWorkerStore.class);var lease=store.claim("file-preparation-cancel",90_000);
+        assertNotNull(lease);assertEquals(id,lease.job().executionId());var taskContext=new TaskContext(store,lease);
+        var files=new ContainerTask.Transfers() {
+            public String authorization() throws Exception {taskContext.stop("cancelled during file preparation");return json.write(Map.of("inline",Map.of(),"inputs",Map.of(),"outputs",Map.of()));}
+            public String published(String output) {throw new AssertionError("cancelled Job cannot publish");}
+        };
+        try(var client=new KubernetesClientBuilder().withConfig(new ConfigBuilder(admin.getConfiguration()).withNamespace("s4-test").build()).build()) {
+            var result=new KubernetesJobRunner().run(taskContext,client,new ContainerTask.Spec("target:5000/alpine@"+fixtureDigest,List.of("true"),Map.of(),List.of(),List.of()),
+                    context.getEnvironment().getProperty("platform.jobs.helpers.lab.edge"),files);
+            assertFalse(result.success());assertEquals("cancelled during file preparation",result.error());
+            assertTrue(client.batch().v1().jobs().withName(name).get().getSpec().getSuspend());
+            assertTrue(client.pods().withLabel("job-name",name).list().getItems().isEmpty());
+            assertNull(client.secrets().withName(name+"-files").get());assertTrue(store.finish(lease,result));
+        }
+        drive(id);assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",id).state());
+    }
     @Test void applicationWorkerTakeoverKeepsJobUidAndAttempt() throws Exception {
         String id=dispatch(sleeper("PT60S","sleep 5"));String name=remoteName(id);
         var local=new WorkerEngine(context.getBean(JdbcWorkerStore.class),new com.project.platform.runtime.definition.TemplateRenderer(),1000,context.getBean(TaskRunner.class));

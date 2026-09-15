@@ -200,7 +200,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 |---|---|---|---|---|---|
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskRunner.java` | 被Worker真实消费的外部任务执行边界 | run | 不定义第二套状态 | RUN-001 | J/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/TaskContext.java` | 租约作用域的冻结计划及停止请求 | job/check/prepared/prepare/cancellation/stop | 只访问Worker传输表；旧owner禁止写计划 | RUN-001 | J |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管、init/main/output助手、Secret授权刷新/移除、远程停止 | run；使用ContainerTask.Spec/Transfers | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管；挂起Job→owned Secret→解除挂起；init/main/output助手、授权刷新/移除、远程停止 | run；使用ContainerTask.Spec/Transfers；files-pending annotation区分初始化与外部暂停 | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
 | `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
 | `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace/bucket定位存储、按执行位置确定URI、签名授权、HEAD/限量读取；终端文件传输 | Configuration/Connection；outputUri/grant/download/publish/published/readPublished | 管理员凭据文件；产物前缀隔离；不自动中心回退 | RES-001、RUN-001 | J |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到Kubernetes、Docker或网关终端的适配 | run/TerminalTarget | prepared_json冻结位置/镜像/文件计划；网关新签授权，不改Execution状态 | RUN-001、DEP-001 | J/A |
