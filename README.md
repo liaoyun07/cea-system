@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-01（2026-09-15，真实CEA对照完成）：固定全量数据/2轮/原计量口径，3→6并行客户端使FedAvg的CIFAR10/100平均速率提升23.3%/12.3%，FedProx提升27.3%/45.9%；尚未达到2GB/s。27次中26成功，额外控制失败保留；五组模型数值复核PASS。原业务Flow不变、临时Worker/槽位配置已恢复、仅backend重启；无生产代码/DB修改。[全部结果与限制](docs/verification/VER-FLPAR-01-parallel-clients.md)、[复测工具](examples/federated/parallel-benchmark/README.md)。
+
 FLDATA-01（2026-09-15，已验证并发布CEA）：FedAvg/FedProx现支持MNIST、CIFAR-10、CIFAR-100，18080启动参数可选配套训练/测试版本，默认MNIST不变。新镜像与5个应用版本、4个数据集版本及FedAvg r8/FedProx r6已生效；四组CIFAR两轮训练及MNIST回归/独立数值核验PASS。复用原DatasetRule、文件助手、计量和执行链，无Java/DB/API新增。[数据协议](docs/contracts/federated-datasets.md)、[测试/部署与限制](docs/verification/VER-FLDATA-01-cifar.md)。
 
 MET-001（2026-09-15，验证/发布状态见[进度](docs/04-progress.md)）：算法镜像使用同一[轻量SDK](sdk/python/README.md)，完整输入输出文件长度与算法起止时间通过原产物链发布；执行概览只显示一个数据处理速率。不扫文件内容、不乘epoch、不用Pod耗时兜底；历史无报告显示“—”。[准确口径](docs/contracts/algorithm-measurement.md)。以下旧批次“计量后置”为历史时点。
