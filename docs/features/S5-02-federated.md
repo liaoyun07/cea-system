@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-12（2026-09-16）：新增三个隔离par12预处理实验Flow，分别只取原Loop前1/2/3个客户端（edge-a/b/c），沿用原数据分片，累计8333/25000/50000条；非固定总量重新分片，原FedAvg/FedProx及所有既有Flow不变。每档正式3/3成功，494.85/546.14/540.08MB/s，三档实际训练峰1、1～2、2；不能由配置并发推定三个训练区间完全重叠。84 Job/SDK及48模型192张量/聚合评估核验通过；算法、SDK、DatasetRule、文件助手、执行链和容量不变，未实现常驻任务或通过2GB/s。见[验证](../verification/VER-FLPAR-12-low-clients.md)。
+
 FLPAR-04（2026-09-15，整批取样实验）：保持DataLoader采样器和RNG，仅通过TensorDataset整批接口替代逐样本取出/拼接；原app/model/SDK不变，候选只用于独立训练版本和Flow。FedAvg/FedProx×三数据集×两模型局部更新逐值相等，CEA FedAvg/CIFAR10实际模型也逐值相等。正式均值358.2→362.6MB/s但活动时间均5.638秒、第三组倒退，未证明稳定收益，不推广原业务Flow。未新增生产能力/通用语义，临时配置恢复。[范围与复测](../../examples/federated/parallel-benchmark/BULK.md)、[完整证据](../verification/VER-FLPAR-04-bulk.md)。
 
 FLPAR-03（2026-09-15，单轮batch实验）：固定9客户端重复CIFAR10原分片、MLP、epoch1/1轮，评估batch32，只改变训练batch；32/256/1024/16384均值376.6/454.3/484.3/444.1MB/s，12次全成功、四档模型审计PASS。每轮完整样本处理不变但SGD更新次数减少，accuracy分别31.59%/25.35%/21.24%/10.59%；性能提高不等于训练质量保持。不改算法/SDK/业务Flow，4个隔离Flow可在CEA查看，容量恢复。[复测](../../examples/federated/parallel-benchmark/BATCH.md)、[结果](../verification/VER-FLPAR-03-batch.md)。

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-16 FLPAR-12（实测DONE/PASS，M01未达标）：按用户要求减少到1/2/3客户端；复用par10单轮FedAvg/CIFAR10预处理Flow、par08镜像、batch1024、epoch1、MLP和原SDK，只改三个新实验Flow的Loop成员与并发上限。原分片累计8333/25000/50000条，不是固定总量加速比。每档预热1次＋交错正式3次全部成功，均值494.85/546.14/540.08MB/s，30.92/32.45/34.54秒；84 Job/SDK、48模型192张量、完整测试集评估及9项Node测试PASS，启动Warning为0。原249执行/28Flow/数据集/19服务及Worker24/edge槽6/cloud槽2不变，新3Flow通过18080可见；没有前后端生产修改或服务重启。未发现减少客户端明显提升速率，不改变2GB/s验收结论。见[FLPAR-12](verification/VER-FLPAR-12-low-clients.md)。
+
 2026-09-16 FLPAR-11（修复DONE/PASS，已部署，18路同时训练未达成）：隔离四个CEA kubelet cgroup-root；Runner挂起Job→owned Secret→启动，单annotation区分准备/外部暂停，无新Java类/DB/API/执行链。264项Java、8项Node、原42个Kubernetes对象与245执行/28Flow/数据集保留验证通过。固定算法/SDK/数据/Loop18/Worker24/槽6，预热＋3次正式全成功，156 Job/SDK/80模型320张量通过，启动Warning为0；正式平均52.136秒、566.49MB/s，主容器峰11～14、算法峰5～7。没有屏障、补样本或数学减量，不把本批视为18路/2GB/s或其他历史SDK问题全部解决。[完整结果](verification/VER-FLPAR-11-startup.md)。
 
 2026-09-15 FLPAR-04（实验完成，未证明加速）：用户授权整批取样与诊断测试；固定9客户端FedAvg/CIFAR10/MLP、batch1024/1轮，沿原采样器仅将逐样本取出/拼接换成index_select整批，原算法源码不变。4项新增/11项原Python、18次诊断、各1次预热＋3次正式CEA、96份SDK和实际模型数值核验PASS。均值358.2→362.6MB/s但平均活动时间均5.638秒，未证明稳定收益或2GB/s；17:43恢复原容量，原对象保持，仅保留隔离测试版本/Flow，不默认推广。[方案](../examples/federated/parallel-benchmark/BULK.md)、[验证](verification/VER-FLPAR-04-bulk.md)。

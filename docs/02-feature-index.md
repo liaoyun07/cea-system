@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLPAR-12（2026-09-16，FL-001低负载实测PASS，M01未通过）：1/2/3客户端正式各3/3成功，494.85/546.14/540.08MB/s，平均总耗时30.92/32.45/34.54秒。分片累计8333/25000/50000条，不是固定总量加速比；84 Job/SDK、48模型192张量核验通过。3个隔离Flow已在CEA可见，原对象/服务/计量保持，不新增生产能力、Java或DB结构。[验证](verification/VER-FLPAR-12-low-clients.md)。
+
 FLPAR-11（2026-09-16，RUN-001/FILE-01修复DONE/PASS，已部署）：独立cgroup管理范围、授权先于Pod；264 Java测试/156 Job与SDK/80模型通过，启动Warning为0。18客户端正式平均52.136秒/566.49MB/s、训练主容器峰11～14、算法峰5～7，M01/18路同时计算未通过。原主链/算法/数据不变，无新Java类/DB/API。[验证](verification/VER-FLPAR-11-startup.md)。
 
 FLPAR-04（FL-001/M01验证增量，2026-09-15）：隔离整批取样候选、4项Python一致性/11项原回归、18次本地诊断、6次正式CEA对照及2次预热全部完成。原/候选速率均值358.2/362.6MB/s，平均活动时间均5.638秒，未证明收益或2GB/s；96份SDK和实际模型审计通过。原业务定义/计量/容量保持，无生产Java/DB/API/执行链变化。[方案](../examples/federated/parallel-benchmark/BULK.md)、[验证](verification/VER-FLPAR-04-bulk.md)。
