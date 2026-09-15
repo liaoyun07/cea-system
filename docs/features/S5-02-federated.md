@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-13（2026-09-16）：当前CIFAR-10预处理数据新增均分版本raw v2，edge-a/b/c分别16667/16667/16666条；只移动原分片边界，保留样本内容/原标签排序。par08/par10/par12五个预处理Flow r2只更新数据引用与同镜像契约，不改客户端、并发、算法/SDK。原三客户端完整执行、三份存储回读与5模型20张量/10000条测试评估通过；原主FedAvg/FedProx、CIFAR-100/MNIST与旧数据/Flow修订保持。未重做固定总量分档实验，未宣称稳定性能改善。[验证](../verification/VER-FLPAR-13-balanced-shards.md)。
+
 FLPAR-12（2026-09-16）：新增三个隔离par12预处理实验Flow，分别只取原Loop前1/2/3个客户端（edge-a/b/c），沿用原数据分片，累计8333/25000/50000条；非固定总量重新分片，原FedAvg/FedProx及所有既有Flow不变。每档正式3/3成功，494.85/546.14/540.08MB/s，三档实际训练峰1、1～2、2；不能由配置并发推定三个训练区间完全重叠。84 Job/SDK及48模型192张量/聚合评估核验通过；算法、SDK、DatasetRule、文件助手、执行链和容量不变，未实现常驻任务或通过2GB/s。见[验证](../verification/VER-FLPAR-12-low-clients.md)。
 
 FLPAR-04（2026-09-15，整批取样实验）：保持DataLoader采样器和RNG，仅通过TensorDataset整批接口替代逐样本取出/拼接；原app/model/SDK不变，候选只用于独立训练版本和Flow。FedAvg/FedProx×三数据集×两模型局部更新逐值相等，CEA FedAvg/CIFAR10实际模型也逐值相等。正式均值358.2→362.6MB/s但活动时间均5.638秒、第三组倒退，未证明稳定收益，不推广原业务Flow。未新增生产能力/通用语义，临时配置恢复。[范围与复测](../../examples/federated/parallel-benchmark/BULK.md)、[完整证据](../verification/VER-FLPAR-04-bulk.md)。

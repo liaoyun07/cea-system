@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-16 FLPAR-13（DONE/PASS，已发布）：按用户澄清，只均分当前CIFAR-10三个边缘集群分片，撤销误解的固定总量1/2/3客户端新实验。保留原样本及顺序，8333/16667/25000改为16667/16667/16666；新raw v2及同镜像契约，当前par08/par10/par12五个预处理Flow r2只改数据引用，不改成员、并发、轮数或batch。分片无重叠/遗漏、原存储路径上传回读、一次原三客户端执行与5模型20张量/完整评估及CEA健康通过；3项Python、10项Node、脚本语法/结构检查PASS。旧版本/261执行/非目标Flow与19服务保留，无生产执行逻辑/SDK/DB变更或服务重启。单次冒烟686.60MB/s不是性能对比结论。[验证](verification/VER-FLPAR-13-balanced-shards.md)。
+
 2026-09-16 FLPAR-12（实测DONE/PASS，M01未达标）：按用户要求减少到1/2/3客户端；复用par10单轮FedAvg/CIFAR10预处理Flow、par08镜像、batch1024、epoch1、MLP和原SDK，只改三个新实验Flow的Loop成员与并发上限。原分片累计8333/25000/50000条，不是固定总量加速比。每档预热1次＋交错正式3次全部成功，均值494.85/546.14/540.08MB/s，30.92/32.45/34.54秒；84 Job/SDK、48模型192张量、完整测试集评估及9项Node测试PASS，启动Warning为0。原249执行/28Flow/数据集/19服务及Worker24/edge槽6/cloud槽2不变，新3Flow通过18080可见；没有前后端生产修改或服务重启。未发现减少客户端明显提升速率，不改变2GB/s验收结论。见[FLPAR-12](verification/VER-FLPAR-12-low-clients.md)。
 
 2026-09-16 FLPAR-11（修复DONE/PASS，已部署，18路同时训练未达成）：隔离四个CEA kubelet cgroup-root；Runner挂起Job→owned Secret→启动，单annotation区分准备/外部暂停，无新Java类/DB/API/执行链。264项Java、8项Node、原42个Kubernetes对象与245执行/28Flow/数据集保留验证通过。固定算法/SDK/数据/Loop18/Worker24/槽6，预热＋3次正式全成功，156 Job/SDK/80模型320张量通过，启动Warning为0；正式平均52.136秒、566.49MB/s，主容器峰11～14、算法峰5～7。没有屏障、补样本或数学减量，不把本批视为18路/2GB/s或其他历史SDK问题全部解决。[完整结果](verification/VER-FLPAR-11-startup.md)。

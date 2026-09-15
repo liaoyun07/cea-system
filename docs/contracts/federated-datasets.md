@@ -1,5 +1,7 @@
 # 联邦图像数据集契约（FLDATA-01）
 
+FLPAR-13（2026-09-16）：下述标准v1数据保持历史原样；当前CIFAR-10预处理流程另用`cifar10-raw-train/v2`，三个Location为`s3://datasets/par13/raw/edge-{a,b,c}.pt`，样本16667/16667/16666（总50000），raw x仍uint8，保留源内容/标签排序与pt字段。`fl-preprocess/par13-v1`复用原镜像、DatasetRule只允许raw v2；五个当前预处理Flow r2切换引用，不改客户端/训练/SDK。原中心datasets桶→对应边缘文件助手的物理路径保持，旧v1、MNIST/CIFAR-100及标准训练/测试目录不动。init的training_dataset仍为模型系列引用，实际raw数据版本由preprocess决定，无新接口/表/字段。[验证](../verification/VER-FLPAR-13-balanced-shards.md)。
+
 适用：同一FedAvg/FedProx执行链上的MNIST、CIFAR-10、CIFAR-100。实际发布/测试以[验证记录](../verification/VER-FLDATA-01-cifar.md)为准。
 
 ## 选择与执行
