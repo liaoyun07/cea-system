@@ -112,7 +112,7 @@ OFF-02增量：2026-09-14已在CEA验证终端经网关元数据请求、三层�
 
 | 审查项 | 原文指标及出处 | 当前进度 | 补齐证据的退出条件 |
 |---|---|---|---|
-| M01 | 边云协同数据流处理算法达到2 GB/s；S6 | MET-001计量已实现并部署；FLPAR-03单轮batch1024均值484.3MB/s但精度下降，FLPAR-04整批对照未证明稳定收益；仍未达门槛，性能未验收 | 累计成功算法输入＋输出文件字节／完整活动区间并集，非原始数据去重或系统端到端吞吐；不乘epoch、不挑最快片段。见[计量验证](verification/VER-MET-001-algorithm-measurement.md)、[固定总量](verification/VER-FLPAR-01-parallel-clients.md)、[重复负载](verification/VER-FLPAR-02-repeated-load.md)、[batch](verification/VER-FLPAR-03-batch.md)、[整批对照](verification/VER-FLPAR-04-bulk.md)，不能把SDK上线或局部提升等同于2GB/s通过 |
+| M01 | 边云协同数据流处理算法达到2 GB/s；S6 | MET-001计量已部署；2026-09-16 FLPAR-22线性FedAvg累计10万/唯一5万样本，干净批次8/8成功，六客户端/三个双份客户端正式均速1.289/1.299GB/s，最好1.410GB/s；2GB/s仍未达到，性能未验收 | 真实成功算法输入＋输出文件字节／完整活动区间并集，非唯一原始数据或系统端到端吞吐；不乘epoch、不挑片段。首批受测试观察器干扰及两次时钟失败保留，干净批次单独统计，不声称原MLP等价加速或底层时钟已修复。见[计量口径](contracts/algorithm-measurement.md)、[最新完整对照](verification/VER-FLPAR-22-coarse.md) |
 | M02 | 基于深度强化学习的任务卸载算法，系统总时延不高于30 ms；S6 | 当前CEA样例不达标；正式性能场景待确认 | OFF-04计终端请求前至结果接收解析后的真实端到端时长；DQN均值4.005s/P95 6.472s（12例），不满足30ms。120秒只是奖励阈值，不能以纯推理时间替代总时延。[实测](verification/VER-OFF-04-double-dqn.md) |
 | M03 | 系统资源CPU、内存开销70%以下；S6 | 用户2026-09-15要求暂缓，未判通过；已有近期节点采样 | 需明确组件、分母、代表负载、窗口和统计规则；不挑空闲截图，不累加同宿主四K3s容量。[用量协议](contracts/ui08-deployment-operations.md) |
 | M04 | 容器化边缘服务30 s部署完成；S6 | CEA已测条件达标：三服务12/12通过；完整冷缓存/正式环境待验证 | MET-04固定单副本、HTTP就绪和模型预热，首次新服务2.190/4.372/12.318s，热缓存各3次全部通过。镜像层123.06/393.71/1205.10MiB；单宿主无WAN限速，基础层/快照可能复用，不能称全冷启动。保留全部原始记录，SCALE不混入。[完整证据](verification/VER-M04-edge-deployment.md)、[计时协议](contracts/ui08-deployment-operations.md) |

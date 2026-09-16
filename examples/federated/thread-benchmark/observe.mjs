@@ -1,6 +1,6 @@
 // Bounded read-only observation of newly created CEA algorithm Pods.
 import {createWriteStream} from 'node:fs';
-import {spawn} from 'node:child_process';
+import {spawn,execFileSync} from 'node:child_process';
 
 export function observe(directory) {
   const started=Date.now()-2000, processes=[], streams=[], tracked=new Set();
@@ -8,11 +8,28 @@ export function observe(directory) {
   const stream=path=>{const result=createWriteStream(`${directory}/${path}`,{flags:'a'});streams.push(result);return result;};
   const events=stream('pod-events.jsonl');
   const redact=text=>text.replace(/(https?:\/\/[^\s"'?]+)\?[^\s"']+/g,'$1?[REDACTED]');
-  for(const cluster of ['cloud','edge-a','edge-b','edge-c']) {
-    const child=spawn('docker',['exec',`cea-${cluster}-1`,'kubectl','get','pods','-n','cea-lab','--watch','--output-watch-events','-o','json','--request-timeout=600s'],{windowsHide:true});
-    processes.push(child);const errors=stream(`${cluster}-watch.log`);
+  function command(cluster,args,errors){
+    // Killing the Docker client does not stop its remote exec. Record the exact
+    // remote PID/start tick, then terminate only that process before closing.
+    const script=`printf 'CEA_OBSERVER_PID %s %s\\n' "$$" "$(awk '{print $22}' /proc/$$/stat)" >&2; exec "$@"`;
+    const child=spawn('docker',['exec',`cea-${cluster}-1`,'sh','-c',script,'cea-observer',...args],{windowsHide:true});
+    const record={child,cluster,pid:null,tick:null,closed:false};processes.push(record);
+    record.done=new Promise(resolve=>{child.once('close',()=>{record.closed=true;resolve();});});
     child.on('error',error=>{if(!stopped)errors.write(error.message);});
-    child.stderr.on('data',b=>{if(!stopped)errors.write(redact(b.toString()));});
+    let buffer='';
+    child.stderr.on('data',bytes=>{
+      buffer+=bytes.toString();let at;
+      while((at=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,at);buffer=buffer.slice(at+1);
+        const pid=line.match(/^CEA_OBSERVER_PID (\d+) (\d+)\r?$/);
+        if(pid){record.pid=pid[1];record.tick=pid[2];}
+        else if(!stopped)errors.write(redact(line)+'\n');
+      }
+    });
+    return child;
+  }
+  for(const cluster of ['cloud','edge-a','edge-b','edge-c']) {
+    const errors=stream(`${cluster}-watch.log`);
+    const child=command(cluster,['kubectl','get','pods','-n','cea-lab','--watch','--output-watch-events','-o','json','--request-timeout=600s'],errors);
     let buffer='',depth=0,quote=false,escaped=false,start=-1,position=0;
     child.stdout.on('data',chunk=>{
       if(stopped)return;
@@ -36,10 +53,22 @@ export function observe(directory) {
       if(status.name!=='task'||(!status.state?.running&&!status.state?.terminated))continue;
       const key=`${cluster}-${pod.metadata.name}-task`;if(tracked.has(key))continue;tracked.add(key);
       const output=stream(`${key}.log`);
-      const logger=spawn('docker',['exec',`cea-${cluster}-1`,'kubectl','logs','-n','cea-lab',pod.metadata.name,'-c','task','--follow','--timestamps','--request-timeout=580s'],{windowsHide:true});
-      processes.push(logger);logger.on('error',e=>{if(!stopped)output.write(e.message);});
-      for(const pipe of [logger.stdout,logger.stderr])pipe.on('data',b=>{if(!stopped)output.write(redact(b.toString()));});
+      const logger=command(cluster,['kubectl','logs','-n','cea-lab',pod.metadata.name,'-c','task','--follow','--timestamps','--request-timeout=580s'],output);
+      logger.stdout.on('data',b=>{if(!stopped)output.write(redact(b.toString()));});
     }
   }
-  return {async stop(){stopped=true;for(const child of processes)child.kill();await new Promise(r=>setTimeout(r,400));await Promise.all(streams.map(s=>new Promise(r=>s.end(r))));}};
+  return {async stop(){
+    stopped=true;const deadline=Date.now()+10000;
+    while(processes.some(p=>!p.closed&&!p.pid)&&Date.now()<deadline)await new Promise(r=>setTimeout(r,50));
+    try{
+      for(const p of processes){if(p.closed)continue;if(!p.pid)throw Error('Observer remote PID unavailable; stop and inspect');
+        const script=`test -r /proc/$1/stat || exit 0; tick=$(awk '{print $22}' /proc/$1/stat); test "$tick" = "$2" || exit 0; kill -TERM "$1"`;
+        execFileSync('docker',['exec',`cea-${p.cluster}-1`,'sh','-c',script,'cea-observer-stop',p.pid,p.tick],{timeout:10000});
+      }
+      await Promise.race([Promise.all(processes.map(p=>p.done)),new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error('Observer did not exit after remote TERM')),10000);timer.unref();})]);
+    }finally{
+      for(const p of processes)if(!p.closed)p.child.kill();
+      await Promise.all(streams.map(s=>new Promise(r=>s.end(r))));
+    }
+  }};
 }

@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-22（2026-09-16）：隔离负载包装实验将六份客户端工作合成每边缘一份真实双份数据，累计10万/唯一5万不变；只新增数据版本、同预处理镜像的契约及两实验Flow，原算法/业务/SDK不变。客户端SGD轨迹不同，分别独立核验，不宣称等价模型。修正测试观察器残留后，干净八次全成功，52模型104张量一致，完整10000条评估accuracy26.94%/29.25%；正式均速1289.25/1298.95MB/s（+0.75%，无明显提速），端到端46.90/35.96秒。没有生产新类/表/API/调度器，当前新增的是可复测实验与观察器退出修复，非2GB/s或时钟修复。[验证](../verification/VER-FLPAR-22-coarse.md)。
+
 FLPAR-21（2026-09-16）：新增隔离线性FedAvg实验，真实线性分类器3072→10（30730参数），沿原SGD/聚合/SDK，通过mmap和DataLoader整批取样执行，完整评估batch1024。原业务的MLP/CNN/FedProx定义不变；新模型是显式Application版本/Flow输入选项，不是新DSL或执行链。八次全成功，独立原SGD重训/64模型192张量通过；正式均速860.84MB/s、accuracy0.2694，只适用于此次单轮CIFAR10负载，不宣称2GB/s或原MLP等价加速。[验证](../verification/VER-FLPAR-21-linear.md)。
 
 FLPAR-16（已部署）：aggregate用model_state_shapes直接检查权重名称、Tensor形状及客户端间dtype一致，保留算法/模型/数据集/轮次/样本数/重复客户端检查；不再为每个输入和结果调用checked_model分配模型、初始化和复制权重。训练/评估仍正常构建加载模型，聚合算式/顺序、SDK及文件读写不变。显式shape表通过MNIST/CIFAR10/CIFAR100 × MLP/CNN实际模型元数据测试防止漂移；不扫描权重数值。18项Python、48组数值对照及实际FedAvg/FedProx两轮独立数值复核通过；仅聚合镜像/应用版本更新，旧版本保留。[验收](../verification/VER-FLPAR-16-aggregate-reuse.md)。
