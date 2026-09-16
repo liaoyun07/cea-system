@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+PRIO-02（2026-09-17，实测完成）：cloud保持2槽，启动A/B（持续60/180秒）并确认两者运行后，提交Parallel low10/high90。low先入队25、high后入队26；A结束后high先启动，high结束后low启动，B持续运行。两Execution/四Job单Attempt全SUCCESS，预约全部释放、原346执行/42Flow及19服务保持。新增两测试Flow已在CEA，无生产代码/配置变更或服务重启。[实际时间与证据](verification/VER-PRIO-02-live-priority.md)。
+
 PRIO-01（2026-09-17，完成并部署）：非抢占子任务优先级与资源准入。priority 0..100/默认0，同级FIFO；无槽不占Worker执行名额，跨实例准入协调，不新增第二套队列。保持原Attempt/超时/依赖/Loop/Runner/SDK与终端FIFO。竞争顺序、满载集群绕行、取消/恢复、275项Java及60项浏览器验收通过；已备份DB、发布CEA前后端，FedAvg/FedProx各两轮数值复核通过。未扩展为物理CPU/内存预算、抢占或防饥饿。见[ADR-0029](decisions/ADR-0029-priority-admission.md)、[验收](verification/VER-PRIO-01-priority-admission.md)。
 
 2026-09-16 FLPAR-22（实验DONE，2GB/s未达标）：按授权完成“三个客户端、每个两倍负载”与六客户端对照，33334/33334/33332真实拼接分片，累计100000/唯一50000保持。只新增数据版本、同镜像预处理契约和两Flow；原业务/算法/SDK/容量不动。修正观察器后的独立干净批次各预热＋AB/BA/AB八次全成功，正式均速1289.25/1298.95MB/s（+0.75%，不能认定明显提速）。上传回读、6Node/1Python、3轮观察器启停、96Job、52模型104张量及336执行/40Flow/19服务保留检查通过。[验收](verification/VER-FLPAR-22-coarse.md)。

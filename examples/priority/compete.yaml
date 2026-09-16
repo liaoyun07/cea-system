@@ -1,0 +1,38 @@
+schemaVersion: 1
+namespace: lab
+id: priority-compete
+description: Priority test - low is declared and queued before high, both need cloud.
+tasks:
+  - id: competitors
+    type: core.Parallel
+    tasks:
+      - id: low
+        type: platform.Application
+        priority: 10
+        timeout: PT5M
+        container:
+          applicationId: httpserver
+          version: v1
+          candidateClusters: [cloud]
+          command:
+            [
+              python,
+              -u,
+              -c,
+              "import time; print('low START', time.time(), flush=True); time.sleep(10); print('low END', time.time(), flush=True)",
+            ]
+      - id: high
+        type: platform.Application
+        priority: 90
+        timeout: PT5M
+        container:
+          applicationId: httpserver
+          version: v1
+          candidateClusters: [cloud]
+          command:
+            [
+              python,
+              -u,
+              -c,
+              "import time; print('high START', time.time(), flush=True); time.sleep(10); print('high END', time.time(), flush=True)",
+            ]

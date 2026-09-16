@@ -1,0 +1,36 @@
+schemaVersion: 1
+namespace: lab
+id: priority-occupy
+description: Priority test - occupy the two cloud job slots.
+tasks:
+  - id: occupants
+    type: core.Parallel
+    tasks:
+      - id: hold_a
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: httpserver
+          version: v1
+          candidateClusters: [cloud]
+          command:
+            [
+              python,
+              -u,
+              -c,
+              "import time; print('hold_a START', time.time(), flush=True); time.sleep(60); print('hold_a END', time.time(), flush=True)",
+            ]
+      - id: hold_b
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: httpserver
+          version: v1
+          candidateClusters: [cloud]
+          command:
+            [
+              python,
+              -u,
+              -c,
+              "import time; print('hold_b START', time.time(), flush=True); time.sleep(180); print('hold_b END', time.time(), flush=True)",
+            ]

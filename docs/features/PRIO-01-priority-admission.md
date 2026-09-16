@@ -10,4 +10,6 @@
 
 实际结果：275 项 Java、54 项前端单测、60 项浏览器测试通过；CEA 页面编辑/YAML同步、V28迁移及原数据保留通过；FedAvg/FedProx各两轮、22个真实Job与独立数值核验通过。没有改已有Flow修订或算法镜像。
 
+PRIO-02补充：CEA双流程/四Job实测中，low先入队、high先获释放槽位，运行中的B不被抢占；任务均成功且资源释放。[真实容器时间和验证](../verification/VER-PRIO-02-live-priority.md)。
+
 详见 [协议与前后调用链](../contracts/priority-admission.md)、[决策](../decisions/ADR-0029-priority-admission.md)、[验收记录](../verification/VER-PRIO-01-priority-admission.md)。

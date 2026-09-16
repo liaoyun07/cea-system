@@ -1,5 +1,7 @@
 # 当前进度
 
+PRIO-02（2026-09-17，CEA实测PASS）：`priority-occupy`及`priority-compete`已保存并运行成功，low入队25、high26；A于01:16:03结束，high 01:16:08～18执行，low 01:16:22～32执行，B直到01:18:03结束。两Execution/四Job均一次Attempt成功，槽位全部释放；原346执行/42Flow与19服务不变，现348执行/44Flow。未改生产代码/配置、未重启服务，FedAvg/FedProx保持；只新增示例和证据。[完整记录](verification/VER-PRIO-02-live-priority.md)。
+
 PRIO-01（2026-09-17，已部署）：原队列优先级排序 → Placement尝试准入 → Worker执行；无资源留队、不占执行名额，保留Attempt/deadline。275项Java、54项前端单测、60项浏览器及CEA FedAvg/FedProx各两轮/22 Job/独立数值复核通过。00:13:42前后端健康、V28成功；原344执行和42Flow、数据集/策略/卸载样本保持，仅新增两次成功执行，另外17服务未重启。未新增业务表/Java文件/HTTP接口/状态机，仅原队列两列、Task.priority和TaskRunner.admit；算法/SDK及物理资源预算不改。见[范围](features/PRIO-01-priority-admission.md)、[验证](verification/VER-PRIO-01-priority-admission.md)。
 
 FLPAR-22（2026-09-16，已验证/部署）：六客户端→三个双份客户端，总量10万/唯一5万不变；清理并修复测试观察器远端残留后，独立干净批次8/8成功，正式1289.25→1298.95MB/s（+0.75%，无明显收益），总耗时46.90→35.96秒，未达2GB/s。训练并集1.183→0.888秒，但预处理0.937→1.241秒，基本抵消。96Job/52模型104张量及原对象/19服务保持通过；现336执行/40Flow，两实验Flow可见，原业务不改。首批6/8与两次时钟失败单独保留，不当作时钟修复。[记录](verification/VER-FLPAR-22-coarse.md)。
