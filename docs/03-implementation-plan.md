@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+2026-09-16 FLPAR-21（实验DONE，2GB/s未达标）：已按六客户端/1epoch/batch1024、各预热＋AB/BA/AB验证线性FedAvg＋mmap＋整批取样/评估batch1024。八次全成功，5算法/3Node/11SDK测试、120Job/64模型192张量及CEA保留检查通过；正式均速539.69→860.84MB/s。两新Flow已部署，原业务/SDK/19服务未动。下一步需改善预处理和短训练任务的真实重叠，本批不自动继续优化。FLPAR-20调时追查按用户要求暂缓，未伪称修复。[验收](verification/VER-FLPAR-21-linear.md)。
+
 2026-09-16 FLPAR-16（DONE）：仅优化聚合结构检查及镜像复用，依赖现有聚合应用与Registry管理HTTP客户端。聚合直接检查权重元数据，不创建/加载仅用于校验的模型；目标实际digest存在即复用、404才复制，鉴权/网络错误不降级为缺失。无新表/DSL/SPI；不改训练、SDK、标签检查或并发。模型数值等价、异常结构拒绝、真实Registry首次分发/复用/删除后重分发/认证失败及273项Java回归通过；CEA后端/聚合版本/六Flow修订发布，三个实际执行成功、原数据和其他服务保留。[验收](verification/VER-FLPAR-16-aggregate-reuse.md)。此前FLPAR-15高并发稳定性仍PARTIAL，不在本批冒充完成。
 
 2026-09-16 FLPAR-14（DONE/PASS实测，M01未达标）：仅测试均分后现有三客户端Flow r2，预热一次＋正式三次全成功；沿用FLPAR-13分片、par08算法、batch1024/epoch1及原SDK。正式597.99/632.03/675.46MB/s，均值635.16MB/s；平均SDK2.410秒/总32.456秒，train峰3/2/3。36 Job/SDK、20模型80张量及11项Node/语法/结构检查通过，0启动Warning；原262执行/31Flow/数据/容量与19服务保持。仅新增4执行，无新的分片、Flow、固定总量分档实验或生产功能/重启。[验证](verification/VER-FLPAR-14-balanced-rate.md)。

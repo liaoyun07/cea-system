@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-21（2026-09-16，隔离实验已部署并验证）：六客户端线性FedAvg＋mmap/整批取样/评估batch1024，八次执行全成功；正式均速539.69→860.84MB/s（+59.5%），最好1.041GB/s，仍未2GB/s。64模型192张量与原SGD独立参考一致，120Job/360容器及原对象保留通过。CEA新增par21-baseline/candidate，原FedAvg/FedProx、SDK、19服务保持；模型变化不是原MLP等价加速。[结果](docs/verification/VER-FLPAR-21-linear.md)。
+
 FLPAR-16（2026-09-16，已部署）：聚合改为轻量权重结构检查；目标Registry已有精确digest时直接复用，404才复制。273项Java、18项Python、48组数值对照，以及CEA中FedAvg/FedProx两轮独立数值复核和CIFAR-10流程均通过；四仓库重复准备实测65～69ms。只更新后端和聚合版本，SDK/训练/并发不变，不据此宣称2GB/s或高并发稳定性通过。[记录](docs/verification/VER-FLPAR-16-aggregate-reuse.md)。
 
 FLPAR-14（2026-09-16，均分后测速完成）：三个集群各一个客户端，正式3/3成功，数据处理速率597.99/632.03/675.46MB/s，均值635.16MB/s；平均SDK2.410秒、总耗时32.456秒，train峰3/2/3。36 Job/SDK、20模型80张量复核PASS，0启动Warning；Flow/数据/容量/19服务不变，无重启。仍未2GB/s。[实测](docs/verification/VER-FLPAR-14-balanced-rate.md)。
