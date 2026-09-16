@@ -61,7 +61,7 @@ class ImageDistributionTest {
             .withNetwork(network).withEnv("MINIO_ROOT_USER","s4-test-key").withEnv("MINIO_ROOT_PASSWORD","s4-test-secret").withCommand("server","/data").withExposedPorts(9000);
     private final GenericContainer<?> edgeStorage=new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z")
             .withNetwork(network).withEnv("MINIO_ROOT_USER","s4-test-key").withEnv("MINIO_ROOT_PASSWORD","s4-test-secret").withCommand("server","/data").withExposedPorts(9000);
-    private Path accessKey,secretKey;
+    private Path accessKey,secretKey,registryAuth;
     private ConfigurableApplicationContext context;
     private String fixtureDigest;
     private final K3sContainer kubernetes=new K3sContainer(DockerImageName.parse("rancher/k3s:v1.30.6-k3s1"))
@@ -108,6 +108,8 @@ class ImageDistributionTest {
                 s3.putObject(io.minio.PutObjectArgs.builder().bucket("datasets").object("sample/v1/data.txt").stream(new java.io.ByteArrayInputStream(data),data.length,-1).build());
             }
             tool.copyFileToContainer(Transferable.of(json.write(Map.of("auths",Map.of("source:5000",Map.of("auth",auth),"target:5000",Map.of("auth",auth))))),"/tmp/auth.json");
+            registryAuth=Files.createTempFile("cea-registry-auth-",".json");
+            Files.writeString(registryAuth,json.write(Map.of("auths",Map.of("source:5000",Map.of("auth",auth),"target:5000",Map.of("auth",auth)))));
             tool.copyFileToContainer(Transferable.of("{\"auths\":{}}"),"/tmp/empty-auth.json");
             fixtureDigest=seed();
             kubernetes.withCopyToContainer(Transferable.of("""
@@ -231,8 +233,9 @@ class ImageDistributionTest {
                     "--platform.security.users[2].name=gateway","--platform.security.users[2].password=test-api","--platform.security.users[2].namespaces=lab",
                     "--platform.security.users[2].actions=CONNECT","--platform.jobs.terminals.lab.pc.docker-context="+terminalContext,
                     "--platform.distribution.registries.source.address=source:5000","--platform.distribution.registries.source.tls-verify=false",
-                    "--platform.distribution.registries.source.auth-file=/tmp/auth.json","--platform.distribution.registries.target.address=target:5000",
-                    "--platform.distribution.registries.target.tls-verify=false","--platform.distribution.registries.target.auth-file=/tmp/auth.json",
+                    "--platform.distribution.registries.source.auth-file="+registryAuth,"--platform.distribution.registries.target.address=target:5000",
+                    "--platform.distribution.registries.target.tls-verify=false","--platform.distribution.registries.target.auth-file="+registryAuth,
+                    "--platform.distribution.registries.source.api-url="+endpoint(source),"--platform.distribution.registries.target.api-url="+endpoint(target),
                     "--platform.distribution.targets.lab.edge=target","--platform.distribution.timeout=PT30S"));
             args.add("--platform.image-upload.centers.lab=source");
             args.addAll(List.of("--platform.kubernetes.connections.lab.edge.kubeconfig="+kubeconfig,
@@ -269,7 +272,7 @@ class ImageDistributionTest {
         if(context!=null)context.close();if(admin!=null)admin.close();if(federation!=null)federation.stop();kubernetes.stop();tool.stop();target.stop();source.stop();storage.stop();mysql.stop();network.close();
         if(federationImage!=null)DockerClientFactory.instance().client().removeImageCmd(federationImage).exec();
         if(kubeconfig!=null)try{Files.deleteIfExists(kubeconfig);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
-        for(Path file:new Path[]{accessKey,secretKey})if(file!=null)try{Files.deleteIfExists(file);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
+        for(Path file:new Path[]{accessKey,secretKey,registryAuth})if(file!=null)try{Files.deleteIfExists(file);}catch(java.io.IOException ex){throw new RuntimeException(ex);}
     }
     private void dockerCli(String... arguments) throws Exception {
         var command=new ArrayList<>(List.of("docker"));command.addAll(List.of(arguments));
@@ -333,7 +336,9 @@ class ImageDistributionTest {
     @Test void copiesRealLayersAcrossRegistriesAndRepeatsByDigest() throws Exception {
         var prepared=distribution().prepare(actor,"lab","sample","v1","edge");
         assertEquals("target:5000/lab/sample@"+fixtureDigest,prepared.image());
+        int historySize=distribution().history(actor,"lab","sample","v1",100,0).size();
         assertEquals(prepared,distribution().prepare(actor,"lab","sample","v1","edge"));
+        assertEquals(historySize,distribution().history(actor,"lab","sample","v1",100,0).size());
         var response=registryCall("GET",endpoint(target)+"/v2/lab/sample/manifests/"+fixtureDigest,new byte[0],"application/json");
         assertEquals(200,response.statusCode());
         var manifest=json.map(new String(response.body(),StandardCharsets.UTF_8));
@@ -351,6 +356,27 @@ class ImageDistributionTest {
         assertThrows(ApplicationException.class,()->distribution().prepare(actor,"lab","sample","v1","unconfigured"));
         applications().register(actor,"lab","unknown","v1",new ApplicationVersion("unknown","v1","unconfigured.example/test:v1",Map.of()));
         assertThrows(ApplicationException.class,()->distribution().prepare(actor,"lab","unknown","v1","edge"));
+    }
+    @Test void pinnedImageReuseDoesNotLaunchSkopeoAndDeletedManifestRequiresCopyAgain() throws Exception {
+        String app="pinned-reuse";
+        applications().register(actor,"lab",app,"v1",new ApplicationVersion(app,"v1","source:5000/fixture@"+fixtureDigest,Map.of()));
+        var original=distribution().prepare(actor,"lab",app,"v1","edge");
+        try(var client=new RegistryHttpClient()) {
+            var targetConnection=new RegistryHttpClient.Connection("target:5000",endpoint(target),registryAuth.toString());
+            var service=new ImageDistributionService(applications(),resources(),context.getBean(com.project.platform.foundation.identity.AccessPolicy.class),
+                    new SkopeoImageClient(List.of("intentionally-unavailable-skopeo-flpar16"),Duration.ofSeconds(1)),
+                    Map.of("source",new SkopeoImageClient.Registry("source:5000",false,registryAuth.toString()),
+                           "target",new SkopeoImageClient.Registry("target:5000",false,registryAuth.toString())),
+                    Map.of("lab",Map.of("edge","target")),context.getBean(JdbcImageDistributionRepository.class),java.time.Clock.systemUTC(),
+                    client,Map.of("target",targetConnection));
+            assertEquals(original,service.prepareForExecution(actor,"lab",app,"v1","edge"));
+            assertEquals(1,service.history(actor,"lab",app,"v1",100,0).size());
+            client.delete(targetConnection,"lab/"+app,fixtureDigest);
+            assertThrows(SkopeoImageClient.Failure.class,()->service.prepareForExecution(actor,"lab",app,"v1","edge"));
+            assertEquals("FAILED",service.history(actor,"lab",app,"v1",100,0).getFirst().state());
+            assertEquals(original,distribution().prepare(actor,"lab",app,"v1","edge"));
+            assertTrue(client.hasManifest(targetConnection,"lab/"+app,fixtureDigest));
+        }
     }
     @Test void registryAuthenticationAndMissingImageFailWithoutLeakingCredentials() throws Exception {
         assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(endpoint(source)+"/v2/")).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
@@ -449,9 +475,13 @@ class ImageDistributionTest {
         return http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization","Basic "+Base64.getEncoder().encodeToString((user+":test-api").getBytes(StandardCharsets.UTF_8)))
                 .header("Content-Type","multipart/form-data; boundary="+boundary).POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(),HttpResponse.BodyHandlers.ofString());
     }
-    @Test void distributionHistoryRecordsSuccessFailurePaginationAndNamespaceBoundary() {
+    @Test void distributionHistoryRecordsSuccessFailurePaginationAndNamespaceBoundary() throws Exception {
         applications().register(actor,"lab","history-ok","v1",new ApplicationVersion("history-ok","v1","source:5000/alpine:v1",Map.of()));
         distribution().prepare(actor,"lab","history-ok","v1","edge");
+        distribution().prepare(actor,"lab","history-ok","v1","edge");
+        assertEquals(1,distribution().history(actor,"lab","history-ok","v1",100,0).size());
+        String copied=distribution().history(actor,"lab","history-ok","v1",1,0).getFirst().targetImage();
+        assertEquals(202,registryCall("DELETE",endpoint(target)+"/v2/lab/history-ok/manifests/"+copied.substring(copied.indexOf('@')+1),new byte[0],"application/json").statusCode());
         distribution().prepare(actor,"lab","history-ok","v1","edge");
         var result=distribution().history(actor,"lab","history-ok","v1",1,0);
         assertEquals(1,result.size());assertEquals("SUCCEEDED",result.getFirst().state());assertEquals("writer",result.getFirst().requestedBy());

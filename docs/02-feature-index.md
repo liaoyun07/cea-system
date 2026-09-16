@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLPAR-16（2026-09-16，DONE）：镜像准备按Registry实际digest复用，命中不生成虚假分发记录；聚合不再创建校验用模型，仅核对权重结构。273项Java/18项Python、48组288张量对照、三个CEA流程通过，其中FedAvg/FedProx完成两轮独立数值审计；不改变MET-001口径及此前高并发PARTIAL状态。后端与聚合应用已发布，原数据/历史保留。[验证](verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 FLPAR-14（2026-09-16，FL-001实测PASS，M01未通过）：均分后三客户端预热＋正式三次全成功；正式均值635.16MB/s、SDK2.410秒、总32.456秒，峰值训练并行3/2/3。36 Job/SDK、20模型80张量/11项Node核验通过，无新功能/Java/DB/Flow或服务配置变更，原对象保留。[验证](verification/VER-FLPAR-14-balanced-rate.md)。
 
 FLPAR-13（2026-09-16，FL-001均分PASS）：当前CIFAR-10原始训练分片由8333/16667/25000改为16667/16667/16666，新raw v2及同镜像契约在CEA生效；五个预处理Flow r2不改成员或训练配置。存储回读、一次三集群执行/9 Job与SDK、5模型20张量及完整测试评估通过；无新生产能力/Java/DB/执行链，未重做性能对照或改变M01状态。[验证](verification/VER-FLPAR-13-balanced-shards.md)。

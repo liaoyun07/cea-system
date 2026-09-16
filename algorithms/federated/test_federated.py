@@ -37,12 +37,12 @@ class FederationTest(unittest.TestCase):
         result = aggregate([self.update("a", 1, 1), self.update("b", 3, 3)])
         self.assertTrue(all(torch.equal(v, torch.full_like(v, 2.5)) for v in result["state"].values()))
 
-    def test_rejects_duplicate_mixed_round_algorithm_and_invalid_weights(self):
+    def test_rejects_duplicate_mixed_round_algorithm_and_invalid_structure(self):
         a, b = self.update("a", 1, 1), self.update("b", 3, 3)
         for key, value in (("round", 2), ("algorithm", "fedprox"), ("samples", 0), ("clientId", "a")):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 aggregate([a, dict(b, **{key: value})])
-        b["state"][next(iter(b["state"]))].fill_(float("nan"))
+        b["state"][next(iter(b["state"]))] = torch.zeros(1)
         with self.assertRaises(ValueError):
             aggregate([a, b])
         with self.assertRaises(ValueError):

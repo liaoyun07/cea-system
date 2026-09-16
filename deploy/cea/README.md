@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+FLPAR-16（2026-09-16，已部署）：backend启用目标Registry精确digest存在即复用；只有404才复制，认证/网络错误仍失败。`release-aggregate-reuse.mjs`记录发布前基线、上传聚合归档、按expectedRevision更新六个现有Flow、验证复用和执行并核对历史/服务保留，不自动覆盖或重跑失败执行。聚合版本fl-aggregate/par16-v1；训练/SDK/容量不变，无DB迁移，其他18服务未重启。后端旧镜像保留为cea/backend:pre-flpar16，旧应用与Flow修订保留。[完整验收](../../docs/verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 FLPAR-11（2026-09-16，已部署）：四K3s经 `k3s-entrypoint.sh`（LF）启动，保留host cgroup namespace，分别配置 `/cea-cloud`、`/cea-edge-a`、`/cea-edge-b`、`/cea-edge-c`，不得共享默认/kubepods；原2GiB/3CPU仍仅限制外层控制容器。保留卷，不执行down -v或清理旧cgroup；后端授权先于Pod启动，无SQL变化。264项Java及18客户端四次实际运行通过，启动Warning为0，正式51～53秒、主容器峰11～14，算法峰5～7；Worker24/槽6保持。旧backend已标记 `cea/backend:pre-flpar11`，原42个K8s对象/Flow/数据/历史及14非目标服务保持。[发布与结果](../../docs/verification/VER-FLPAR-11-startup.md)。
 
 OFF-04发布入口为`release-offloading-dqn.ps1 -Capture/-Publish/-Verify`，测试后只更新backend/frontend/edge-gateway，保持19个常驻服务、原16个无关服务和业务对象；无DB migration。`run-offloading-dqn.ps1`是**主动实验**，会新增6个研究策略、模型与114条执行，不是普通健康检查，遇错不能直接重跑覆盖。操作和边界见[研究说明](../../algorithms/offloading/README.md)，实际上线状态与结果见[验证](../../docs/verification/VER-OFF-04-double-dqn.md)。下列批次状态为历史。

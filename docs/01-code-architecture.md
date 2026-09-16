@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+FLPAR-16：无新增生产Java文件/表/API/SPI。ImageDistributionService复用RegistryHttpClient.hasManifest执行精确digest的HEAD查询，命中即返回、404才复制；DistributionConfiguration给既有分发服务装配现有Registry连接，SkopeoImageClient仍负责tag解析和实际传输。控制流、Worker、Placement和Runner未改。验证/部署进度见VER-FLPAR-16。
+
 MET-001（2026-09-15已实现，验证见[记录](verification/VER-MET-001-algorithm-measurement.md)）：新增 `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionMeasurementService.java`，负责已授权Execution的SDK报告校验、活动区间并集和单一速率查询，不持有执行状态。`ExecutionOutputService`复用成功Attempt的有界产物读取，`ExecutionController`增加GET measurement，`RuntimeConfiguration`装配时钟确认配置。共109份生产Java、93个HTTP操作、仍28张业务表；无DB迁移、列、SPI或Executor/Worker改动。[协议](contracts/algorithm-measurement.md)。
 
 OFF-04（2026-09-14，实施状态见进度）：仍108份生产Java、92个HTTP操作、28张业务表，无新Java/SPI/模块依赖。`FlowDefinition.Offload`仅增加`exploration`，`FlowValidator/FlowSchema`校验并公开DQN模型版本/探索概率。`DqnModel`替换六维模型契约并删除旧Java `predict/choose`；`OffloadingService.edgeDecision`记录网关已选合法层，`normalize`统一真实六维变换。`OffloadingTaskAdapter`在原接纳边界冻结状态，调用`TerminalGatewayClient`的3秒限时决策，再返回原Placement链。网关`deploy/edge-gateway/dqn.py`拥有纯数值推理，`algorithms/offloading/train.py`拥有离线Double DQN训练；两者都不拥有Execution/资源状态。无DB migration；详见[协议](contracts/off04-double-dqn.md)。

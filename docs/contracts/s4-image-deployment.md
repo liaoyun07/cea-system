@@ -4,7 +4,9 @@ S4-02b/c。源契约仍为 ApplicationVersion；不派生 Flow 输入，不新�
 
 ## 真实调用链与状态
 
-准备：HTTP → ImageDistributionService → 应用/资源公开目录 → Skopeo inspect/copy/inspect。源 Registry 必须配置；目标由 namespace/clusterId 映射选择，调用者不能输入目标地址。先固定源 digest，复制所有 manifest/layers，核验目标 digest 后返回 PreparedImage。同步操作，超时/失败返回502，不伪称已准备。重试按内容寻址复制；不新增业务 checksum 或分发状态表。
+准备：HTTP/原执行链 → ImageDistributionService → 应用/资源公开目录 → Registry HEAD。源 Registry 必须配置；目标由 namespace/clusterId 映射选择，调用者不能输入目标地址。已固定digest的源引用直接使用该digest；tag仍经Skopeo每次解析，不缓存可变tag。目标仓库HEAD确认相同digest即返回PreparedImage；只有明确404才Skopeo copy全部manifest/layers，并再次HEAD确认。鉴权、连接失败、非预期状态及digest不匹配均失败，不当作缓存未命中或准备成功。复用已有RegistryHttpClient/管理员api-url/auth-file，限当前匿名或htpasswd端点，无新增协议适配或状态表。
+
+FLPAR-16：复用命中不是实际分发，不新增历史记录；真实复制尝试和准备失败仍记入既有dep_image_distribution。每次实际查询仓库，不信任历史记录、不增加内存成功缓存，因此目标镜像删除后下次会重新分发。准备接口响应结构不变；仅复制/查询失败的请求返回502。普通Job的节点本地IfNotPresent语义不变；本优化针对仓库之间的复制，不是常驻容器复用。并发首次缺失仍可能各自发起复制，本批不新增锁/队列。测试/部署结果见VER-FLPAR-16。
 
 部署：HTTP → DeploymentService → 契约显式值校验 → 镜像准备 → Fabric8 Kubernetes API。Kubernetes Deployment 是期望/实际状态的唯一存储；应用版本通过 annotations 标识，平台 namespace/资源所有权通过 labels 校验。没有第二套数据库部署状态。
 

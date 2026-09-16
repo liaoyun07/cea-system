@@ -1,5 +1,7 @@
 # FedAvg / FedProx应用
 
+FLPAR-16：aggregate仅检查权重名称/形状/客户端dtype及业务轮次等元数据，不创建校验模型、不扫描权重数值；加权计算顺序不变。`Dockerfile.aggregate`基于当前已部署par08镜像仅覆盖model.py，只登记为fl-aggregate/par16-v1，训练/初始化/评估继续使用原版本。增加test_aggregate_metadata.py和原镜像独立对照verify_aggregate_metadata.py；18项Python测试、48组288张量及实际两轮FedAvg/FedProx数值复核通过。[发布记录](../../docs/verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 仅本地文件输入输出；没有MinIO客户端、平台网络回调、旧FLOW_*环境变量或隐藏模板注册。MET-001使用同一标准库计量SDK记录文件长度与完整算法区间，报告沿原产物链发布。运行语义见[S5-02规格](../../docs/features/S5-02-federated.md)。
 
 两个Flow在inputs中显式声明training_dataset/test_dataset为SELECT，支持MNIST、CIFAR-10、CIFAR-100的train/test v1，默认仍为MNIST。两项必须选择同系列：例如cifar100-train/v1与cifar100-test/v1。init读取这两个版本引用确定模型维度并拒绝不匹配，不下载数据；train/evaluate仍由DatasetRule注入本地文件。平台不自动派生Flow Input或合并契约选项。[数据契约](../../docs/contracts/federated-datasets.md)。

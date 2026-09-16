@@ -1,0 +1,4 @@
+ARG FEDERATED_IMAGE=cea/federated:par08-v1
+FROM ${FEDERATED_IMAGE}
+# This version is registered for fl-aggregate only. Other algorithm images stay unchanged.
+COPY algorithms/federated/model.py /app/model.py

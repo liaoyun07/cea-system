@@ -1,5 +1,7 @@
 # S4资源与运行环境工作包
 
+FLPAR-16（已部署）：镜像准备按目标仓库HEAD确认的digest复用，404才调用Skopeo复制；固定digest命中不启动Skopeo，可变tag仍实时解析。认证/网络异常不降级；实际复制和失败继续记录，复用不新增分发历史。复用RegistryHttpClient与既有配置/表，节点IfNotPresent及执行链不变。51项真实Registry/集群测试及四个CEA仓库复用验证通过，删除后重分发已在隔离集成环境验证。[验收](../verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 状态DONE，按下述最小实现范围验收，见[VER-S4-005](../verification/VER-S4-005-external-task-runtime.md)。S3基线为Git 071ff4b8fc61dbae5093e5369adcaa8634c3e474，用户授权开始S4；2026-09-10另授权将S4-01提交并更新GitHub，未授权S5。
 
 | 工作包 | 当前范围 | 验收条件 |

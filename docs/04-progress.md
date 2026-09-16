@@ -1,5 +1,7 @@
 # 当前进度
 
+FLPAR-16（2026-09-16，DONE并已部署）：聚合检查由完整模型创建/加载改为元数据检查，镜像准备由每次Skopeo复制改为目标HEAD确认后复用、404才复制。完整273项Java、18项Python通过；旧镜像独立对照48组288张量一致；CEA FedAvg/FedProx两轮执行及数值复核、CIFAR-10三客户端预处理流程全部成功。四仓库复用请求65～69ms，无新增分发记录。仅backend重启、fl-aggregate/par16-v1和六个Flow新修订；原278执行/32Flow/数据保留，现281执行，其他18服务不变。无SDK/并发/训练改动，无新表/API/SPI，不宣称解决此前9/18客户端失败或达到2GB/s。[验证](verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 FLPAR-14（2026-09-16，DONE/PASS实测）：均分后现有三客户端Flow r2，预热＋正式三次全成功；正式597.99/632.03/675.46MB/s，均值635.16MB/s，平均SDK2.409808秒、提交到结束32.456秒，train峰3/2/3。实际输入/输出903714999/623107702字节；36 Job/SDK、20模型80张量/完整评估及11项Node/结构检查通过，0启动Warning。原262执行/31Flow/数据/配置/19服务保持，新增4执行在18080可见；没有生产改动或重启。不是同期A/B，未宣称稳定提升或2GB/s达标。[验证](verification/VER-FLPAR-14-balanced-rate.md)。
 
 FLPAR-13（2026-09-16，DONE/PASS已生效）：当前CIFAR-10三个集群的raw训练分片均分为16667/16667/16666条，仍50000条、图片标签索引及顺序不变。raw v2＋同镜像契约已发布，par08/par10/par12五个预处理Flow均r2，仅改数据引用，原客户端数/并发/batch/轮数不动。原三客户端冒烟SUCCESS，真实train条数与分片一致；回读、9 Job/SDK、5模型20张量及10000样本评估通过，3项Python/10项Node与结构检查PASS。旧261执行/数据版本/非目标Flow及19服务不变，最终262执行/31Flow，18080可见。未做固定总量1/2/3实验、未重复性能对比或改变2GB/s状态。无Java/DB/前后端生产修改和服务重启。[验证](verification/VER-FLPAR-13-balanced-shards.md)。

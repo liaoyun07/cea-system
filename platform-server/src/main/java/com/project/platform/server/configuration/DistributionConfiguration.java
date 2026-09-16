@@ -62,8 +62,7 @@ public class DistributionConfiguration {
     @Bean RegistryHttpClient registryHttpClient() { return new RegistryHttpClient(); }
     @Bean RegistryManagementService registryManagementService(Settings settings,UploadSettings uploads,AccessPolicy access,ApplicationCatalogService applications,
             com.project.platform.resource.kubernetes.KubernetesManagementService kubernetes,JdbcImageDistributionRepository history,RegistryHttpClient client) {
-        var registries=new java.util.HashMap<String,RegistryHttpClient.Connection>();
-        settings.registries().forEach((id,r)->registries.put(id,new RegistryHttpClient.Connection(r.address(),r.apiUrl()==null?(r.tlsVerify()?"https://":"http://")+r.address():r.apiUrl(),r.authFile())));
+        var registries=registryConnections(settings);
         var scopes=new java.util.HashMap<String,java.util.Set<String>>();
         settings.targets().forEach((namespace,targets)->scopes.put(namespace,new java.util.HashSet<>(targets.values())));
         uploads.centers().forEach((namespace,id)->scopes.computeIfAbsent(namespace,ignored->new java.util.HashSet<>()).add(id));
@@ -71,9 +70,14 @@ public class DistributionConfiguration {
     }
     @Bean JdbcImageDistributionRepository imageDistributionRepository(JdbcTemplate jdbc) { return new JdbcImageDistributionRepository(jdbc); }
     @Bean ImageDistributionService imageDistributionService(Settings settings,ApplicationCatalogService applications,
-                                                           ResourceCatalogService resources,AccessPolicy access,SkopeoImageClient images,JdbcImageDistributionRepository history,Clock clock) {
+                                                           ResourceCatalogService resources,AccessPolicy access,SkopeoImageClient images,JdbcImageDistributionRepository history,Clock clock,RegistryHttpClient registry) {
         var registries=settings.registries().entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey,
                 e->new SkopeoImageClient.Registry(e.getValue().address(),e.getValue().tlsVerify(),e.getValue().authFile())));
-        return new ImageDistributionService(applications,resources,access,images,registries,settings.targets(),history,clock);
+        return new ImageDistributionService(applications,resources,access,images,registries,settings.targets(),history,clock,registry,registryConnections(settings));
+    }
+    private Map<String,RegistryHttpClient.Connection> registryConnections(Settings settings) {
+        var connections=new java.util.HashMap<String,RegistryHttpClient.Connection>();
+        settings.registries().forEach((id,r)->connections.put(id,new RegistryHttpClient.Connection(r.address(),r.apiUrl()==null?(r.tlsVerify()?"https://":"http://")+r.address():r.apiUrl(),r.authFile())));
+        return connections;
     }
 }

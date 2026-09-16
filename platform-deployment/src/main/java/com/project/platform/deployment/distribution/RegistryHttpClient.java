@@ -87,6 +87,15 @@ public final class RegistryHttpClient implements AutoCloseable {
         } while(next!=null);
         return values;
     }
+    /** Check the exact immutable manifest without downloading its body or any image layer. */
+    public boolean hasManifest(Connection connection,String repository,String digest) {
+        if(!digest.matches("sha256:[a-f0-9]{64}"))throw ApplicationException.invalid("existence check requires an exact sha256 digest");
+        var response=request(connection,"HEAD","/v2/"+repository+"/manifests/"+digest);
+        if(response.status()==404)return false;
+        if(response.status()!=200 || !digest.equals(response.headers().firstValue("Docker-Content-Digest").orElse("")))
+            throw new SkopeoImageClient.Failure("Registry did not confirm the requested manifest digest");
+        return true;
+    }
     public Manifest manifest(Connection connection,String repository,String reference) {
         if(!reference.matches("sha256:[a-f0-9]{64}|[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}"))throw ApplicationException.invalid("invalid image reference");
         var response=request(connection,"GET","/v2/"+repository+"/manifests/"+reference);

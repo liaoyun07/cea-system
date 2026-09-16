@@ -24,13 +24,17 @@ public final class ImageDistributionService {
     private final Map<String,Map<String,String>> targets;
     private final JdbcImageDistributionRepository history;
     private final Clock clock;
+    private final RegistryHttpClient registry;
+    private final Map<String,RegistryHttpClient.Connection> connections;
 
     public ImageDistributionService(ApplicationCatalogService applications,ResourceCatalogService resources,AccessPolicy access,
                                     SkopeoImageClient images,Map<String,Registry> registries,Map<String,Map<String,String>> targets,
-                                    JdbcImageDistributionRepository history,Clock clock) {
+                                    JdbcImageDistributionRepository history,Clock clock,RegistryHttpClient registryClient,
+                                    Map<String,RegistryHttpClient.Connection> connections) {
         this.applications=applications;this.resources=resources;this.access=access;this.images=images;
         this.registries=Map.copyOf(registries);
         this.history=history;this.clock=clock;
+        this.registry=registryClient;this.connections=Map.copyOf(connections);
         this.targets=targets.entrySet().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,e->Map.copyOf(e.getValue())));
         for(var registry:registries.values()) {
             if(registry.address()==null || !registry.address().matches("[a-z0-9][a-z0-9.-]*(?::[0-9]{1,5})?"))
@@ -65,19 +69,25 @@ public final class ImageDistributionService {
         if(!namespace.matches("[a-z][a-z0-9.-]*") || !applicationId.matches("[a-z][a-z0-9.-]*"))
             throw ApplicationException.invalid("distribution requires lowercase OCI-compatible namespace/application id");
         var now=clock.instant();
-        String id=history.begin(namespace,applicationId,version,clusterId,actor.name(),app.image(),now,now.plus(images.timeout().multipliedBy(3)).plusSeconds(15));
+        String id=null;
         try {
-            String digest=images.digest(app.image(),source);
+            // Pinned references already identify immutable content. Tags must still be resolved freshly.
+            String digest=app.image().contains("@")?app.image().substring(app.image().indexOf('@')+1):images.digest(app.image(),source);
             String repository=app.image().contains("@")?app.image().substring(0,app.image().indexOf('@')):app.image().substring(0,app.image().lastIndexOf(':'));
             String targetImage=target.address()+"/"+namespace+"/"+applicationId+"@"+digest;
+            if(registry.hasManifest(connections.get(targetName),namespace+"/"+applicationId,digest))
+                return new PreparedImage(applicationId,version,clusterId,targetImage);
+            // Reuse is not a transfer: only actual copy attempts/failures create distribution history.
+            id=history.begin(namespace,applicationId,version,clusterId,actor.name(),app.image(),now,now.plus(images.timeout().multipliedBy(3)).plusSeconds(15));
             history.target(id,targetImage);
             images.copy(repository+"@"+digest,source,targetImage,target);
-            if(!digest.equals(images.digest(targetImage,target))) throw new SkopeoImageClient.Failure("Target image digest does not match source");
+            if(!registry.hasManifest(connections.get(targetName),namespace+"/"+applicationId,digest))throw new SkopeoImageClient.Failure("Target image digest could not be confirmed after copy");
             history.finish(id,"SUCCEEDED",null,clock.instant());
             return new PreparedImage(applicationId,version,clusterId,targetImage);
         } catch(RuntimeException ex) {
             // Never persist infrastructure exceptions/commands/credentials as free-form text.
             String message=ex instanceof SkopeoImageClient.Failure?ex.getMessage():"Image preparation could not be confirmed";
+            if(id==null)id=history.begin(namespace,applicationId,version,clusterId,actor.name(),app.image(),now,now.plus(images.timeout().multipliedBy(3)).plusSeconds(15));
             history.finish(id,Thread.currentThread().isInterrupted()?"UNKNOWN":"FAILED",message,clock.instant());
             throw ex;
         }

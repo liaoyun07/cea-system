@@ -76,10 +76,25 @@ def train(model, data, epochs, batch_size, learning_rate, mu, seed):
         raise ValueError("training produced non-finite weights")
 
 
+def model_state_shapes(dataset, name):
+    """Only tensor metadata: no model construction, random initialization or weight copies."""
+    channels, size, classes = DATASETS[dataset]
+    if name == "mlp":
+        return {"1.weight": (128, channels * size * size), "1.bias": (128,),
+                "3.weight": (classes, 128), "3.bias": (classes,)}
+    if name == "cnn":
+        return {"0.weight": (16, channels, 3, 3), "0.bias": (16,),
+                "3.weight": (32, 16, 3, 3), "3.bias": (32,),
+                "7.weight": (64, 32 * (size // 4) ** 2), "7.bias": (64,),
+                "9.weight": (classes, 64), "9.bias": (classes,)}
+    raise ValueError("MODEL must be mlp or cnn")
+
+
 def aggregate(updates):
     if not updates:
         raise ValueError("at least one client update is required")
     first = updates[0]
+    shapes = model_state_shapes(first["dataset"], first["model"])
     signature = ("algorithm", "dataset", "model", "round", "baseRound")
     clients = set()
     for update in updates:
@@ -90,13 +105,20 @@ def aggregate(updates):
         if update["clientId"] in clients:
             raise ValueError("duplicate client update")
         clients.add(update["clientId"])
-        checked_model(update)
+        state = update["state"]
+        if set(state) != set(shapes):
+            raise ValueError("client model parameter names do not match the declared model")
+        for key, shape in shapes.items():
+            value = state[key]
+            if not isinstance(value, torch.Tensor) or tuple(value.shape) != shape:
+                raise ValueError("client model parameter shape does not match the declared model")
+            if value.dtype != first["state"][key].dtype:
+                raise ValueError("client model parameter dtypes do not match")
     total = sum(update["samples"] for update in updates)
     state = {key: sum(update["state"][key] * (update["samples"] / total) for update in updates)
              for key in first["state"]}
     result = {key: first[key] for key in ("algorithm", "dataset", "model", "round")}
     result["state"] = state
-    checked_model(result)
     return result
 
 

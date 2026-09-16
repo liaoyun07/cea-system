@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FLPAR-16（2026-09-16，已部署）：聚合改为轻量权重结构检查；目标Registry已有精确digest时直接复用，404才复制。273项Java、18项Python、48组数值对照，以及CEA中FedAvg/FedProx两轮独立数值复核和CIFAR-10流程均通过；四仓库重复准备实测65～69ms。只更新后端和聚合版本，SDK/训练/并发不变，不据此宣称2GB/s或高并发稳定性通过。[记录](docs/verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 FLPAR-14（2026-09-16，均分后测速完成）：三个集群各一个客户端，正式3/3成功，数据处理速率597.99/632.03/675.46MB/s，均值635.16MB/s；平均SDK2.410秒、总耗时32.456秒，train峰3/2/3。36 Job/SDK、20模型80张量复核PASS，0启动Warning；Flow/数据/容量/19服务不变，无重启。仍未2GB/s。[实测](docs/verification/VER-FLPAR-14-balanced-rate.md)。
 
 FLPAR-13（2026-09-16，均分已生效）：当前CIFAR-10预处理训练分片改为edge-a/b/c各16667/16667/16666条，共50000条、无重叠遗漏。五个当前预处理Flow已切到raw v2（r2），成员、并发、batch、轮数不变，旧版本保留；一次三集群执行与5模型20张量/存储回读核验PASS。不是固定总量1/2/3客户端新实验，无前后端重启。[验证](docs/verification/VER-FLPAR-13-balanced-shards.md)。

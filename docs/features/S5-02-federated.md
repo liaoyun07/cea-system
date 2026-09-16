@@ -1,5 +1,7 @@
 # S5-02 FedAvg / FedProx迁移
 
+FLPAR-16（已部署）：aggregate用model_state_shapes直接检查权重名称、Tensor形状及客户端间dtype一致，保留算法/模型/数据集/轮次/样本数/重复客户端检查；不再为每个输入和结果调用checked_model分配模型、初始化和复制权重。训练/评估仍正常构建加载模型，聚合算式/顺序、SDK及文件读写不变。显式shape表通过MNIST/CIFAR10/CIFAR100 × MLP/CNN实际模型元数据测试防止漂移；不扫描权重数值。18项Python、48组数值对照及实际FedAvg/FedProx两轮独立数值复核通过；仅聚合镜像/应用版本更新，旧版本保留。[验收](../verification/VER-FLPAR-16-aggregate-reuse.md)。
+
 FLPAR-14（2026-09-16）：对已均分的三集群/三客户端Flow r2实测，配置不改；正式3/3成功，均值635.16MB/s，SDK2.410秒、总32.456秒，train峰3/2/3。36 Job/SDK与20模型80张量相同，完整评估一致；只新增正常执行历史，不扩展算法/SDK/调度或新生产能力，不重启服务。仍未2GB/s；与历史不均分结果非同期交错A/B。[验证](../verification/VER-FLPAR-14-balanced-rate.md)。
 
 FLPAR-13（2026-09-16）：当前CIFAR-10预处理数据新增均分版本raw v2，edge-a/b/c分别16667/16667/16666条；只移动原分片边界，保留样本内容/原标签排序。par08/par10/par12五个预处理Flow r2只更新数据引用与同镜像契约，不改客户端、并发、算法/SDK。原三客户端完整执行、三份存储回读与5模型20张量/10000条测试评估通过；原主FedAvg/FedProx、CIFAR-100/MNIST与旧数据/Flow修订保持。未重做固定总量分档实验，未宣称稳定性能改善。[验证](../verification/VER-FLPAR-13-balanced-shards.md)。
