@@ -1,0 +1,25 @@
+# The Service must already exist in this namespace. These requests do not create Pods.
+@base = http://127.0.0.1:18085/api/namespaces/lab/clusters/cloud/kubernetes
+@authorization = Basic REPLACE_WITH_LOCAL_CREDENTIALS
+
+GET {{base}}/ingress-classes
+Authorization: {{authorization}}
+
+### Create a route to the actual Service port, not targetPort/NodePort.
+POST {{base}}/namespaces/cea-lab/ingresses
+Authorization: {{authorization}}
+Content-Type: application/json
+
+{
+  "name": "http-demo",
+  "ingressClassName": "cea-traefik",
+  "routes": [{"host": "", "path": "/", "pathType": "Prefix", "service": "ing01-http-demo", "port": 80}]
+}
+
+### Read before updating or deleting. Use the returned identity/version; do not guess.
+GET {{base}}/namespaces/cea-lab/ingresses/http-demo
+Authorization: {{authorization}}
+
+### Delete only this route, not its Service or workload.
+DELETE {{base}}/namespaces/cea-lab/ingresses/http-demo?uid=REPLACE_FROM_GET&resourceVersion=REPLACE_FROM_GET
+Authorization: {{authorization}}

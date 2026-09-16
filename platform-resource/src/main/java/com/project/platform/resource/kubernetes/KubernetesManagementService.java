@@ -5,6 +5,7 @@ import com.project.platform.foundation.identity.AccessPolicy.*;
 import com.project.platform.resource.catalog.ResourceCatalogService;
 import com.project.platform.resource.catalog.ResourceException;
 import io.fabric8.kubernetes.api.model.*;
+import io.fabric8.kubernetes.api.model.networking.v1.*;
 import io.fabric8.kubernetes.client.*;
 import java.util.*;
 import java.util.function.Function;
@@ -19,6 +20,11 @@ public final class KubernetesManagementService {
     public record ServiceInfo(String name,String namespace,String uid,String resourceVersion,String type,String clusterIP,
                               Map<String,String> selector,List<Port> ports,List<String> externalAddresses,List<String> nodeAddresses,
                               List<PodInfo> pods,boolean managed,String createdAt) {}
+    public record IngressClassInfo(String name,String controller,String httpEntryPoint) {}
+    public record IngressRoute(String host,String path,String pathType,String service,int port) {}
+    public record IngressRequest(String name,String ingressClassName,List<IngressRoute> routes) {}
+    public record IngressInfo(String name,String namespace,String uid,String resourceVersion,String ingressClassName,
+                              List<IngressRoute> routes,List<String> addresses,boolean managed,String createdAt) {}
     private static final String OWNER="cea-system/owner",WORKSPACE="cea-system/namespace";
     private final AccessPolicy access;
     private final ResourceCatalogService resources;
@@ -148,8 +154,95 @@ public final class KubernetesManagementService {
             var value=client.services().inNamespace(namespace).withName(name).get();
             if(value==null)throw ResourceException.missing("Service not found");
             if(!owned(value.getMetadata(),workspace))throw ResourceException.conflict("cannot delete an unmanaged Service");
+            for(var ingress:client.network().v1().ingresses().inNamespace(namespace).list().getItems()) {
+                var spec=ingress.getSpec();
+                boolean used=spec.getDefaultBackend()!=null && spec.getDefaultBackend().getService()!=null && name.equals(spec.getDefaultBackend().getService().getName());
+                if(spec.getRules()!=null)used|=spec.getRules().stream().filter(r->r.getHttp()!=null).flatMap(r->r.getHttp().getPaths().stream())
+                        .anyMatch(p->p.getBackend()!=null && p.getBackend().getService()!=null && name.equals(p.getBackend().getService().getName()));
+                if(used)throw ResourceException.conflict("Service is referenced by Ingress "+ingress.getMetadata().getName()+"; update or remove the route first");
+            }
             expected(value.getMetadata(),uid,version);client.services().inNamespace(namespace).resource(value).lockResourceVersion(version).delete();return null;
         });
+    }
+    public List<IngressClassInfo> ingressClasses(Actor actor,String workspace,String cluster) {
+        return call(actor,workspace,cluster,Action.READ,client->client.network().v1().ingressClasses().list().getItems().stream()
+                .map(v->new IngressClassInfo(v.getMetadata().getName(),v.getSpec().getController(),v.getMetadata().getAnnotations()==null?null:v.getMetadata().getAnnotations().get("cea-system/http-entrypoint"))).toList());
+    }
+    public List<IngressInfo> ingresses(Actor actor,String workspace,String cluster,String namespace) {
+        return call(actor,workspace,cluster,Action.READ,client->{
+            allowed(client,workspace,namespace);
+            return client.network().v1().ingresses().inNamespace(namespace).list().getItems().stream().map(v->ingressInfo(v,workspace)).toList();
+        });
+    }
+    private static Ingress getIngress(KubernetesClient client,String namespace,String name) {
+        name(name);var value=client.network().v1().ingresses().inNamespace(namespace).withName(name).get();
+        if(value==null)throw ResourceException.missing("Ingress not found");return value;
+    }
+    public IngressInfo ingress(Actor actor,String workspace,String cluster,String namespace,String name) {
+        return call(actor,workspace,cluster,Action.READ,client->{allowed(client,workspace,namespace);return ingressInfo(getIngress(client,namespace,name),workspace);});
+    }
+    public IngressInfo createIngress(Actor actor,String workspace,String cluster,String namespace,IngressRequest request) {
+        return call(actor,workspace,cluster,Action.WRITE,client->{
+            active(allowed(client,workspace,namespace));
+            var rules=ingressRules(client,namespace,request);
+            var value=new IngressBuilder().withNewMetadata().withName(request.name()).withNamespace(namespace)
+                    .withLabels(Map.of(OWNER,"cea-system",WORKSPACE,workspace)).endMetadata().withNewSpec()
+                    .withIngressClassName(request.ingressClassName()).withRules(rules).endSpec().build();
+            return ingressInfo(client.network().v1().ingresses().inNamespace(namespace).resource(value).create(),workspace);
+        });
+    }
+    public IngressInfo updateIngress(Actor actor,String workspace,String cluster,String namespace,String name,String uid,String version,IngressRequest request) {
+        return call(actor,workspace,cluster,Action.WRITE,client->{
+            active(allowed(client,workspace,namespace));var value=getIngress(client,namespace,name);
+            if(!owned(value.getMetadata(),workspace))throw ResourceException.conflict("cannot edit an unmanaged Ingress");
+            expected(value.getMetadata(),uid,version);
+            if(request==null || !name.equals(request.name()))throw ResourceException.invalid("Ingress name cannot be changed");
+            var rules=ingressRules(client,namespace,request);
+            value.getSpec().setIngressClassName(request.ingressClassName());value.getSpec().setRules(rules);
+            return ingressInfo(client.network().v1().ingresses().inNamespace(namespace).resource(value).lockResourceVersion(version).update(),workspace);
+        });
+    }
+    public void deleteIngress(Actor actor,String workspace,String cluster,String namespace,String name,String uid,String version) {
+        call(actor,workspace,cluster,Action.WRITE,client->{
+            allowed(client,workspace,namespace);var value=getIngress(client,namespace,name);
+            if(!owned(value.getMetadata(),workspace))throw ResourceException.conflict("cannot delete an unmanaged Ingress");
+            expected(value.getMetadata(),uid,version);
+            client.network().v1().ingresses().inNamespace(namespace).resource(value).lockResourceVersion(version).delete();return null;
+        });
+    }
+    private static List<IngressRule> ingressRules(KubernetesClient client,String namespace,IngressRequest request) {
+        if(request==null)throw ResourceException.invalid("Ingress configuration required");name(request.name());name(request.ingressClassName());
+        if(client.network().v1().ingressClasses().withName(request.ingressClassName()).get()==null)throw ResourceException.invalid("IngressClass not found in this cluster");
+        if(request.routes()==null || request.routes().isEmpty() || request.routes().size()>32)throw ResourceException.invalid("Ingress requires 1..32 routes");
+        var groups=new LinkedHashMap<String,List<HTTPIngressPath>>();var seen=new HashSet<String>();
+        for(var route:request.routes()) {
+            if(route==null)throw ResourceException.invalid("Ingress route required");
+            String host=Objects.toString(route.host(),"");
+            if(!host.isEmpty() && (host.length()>253 || !host.matches("(\\*\\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*")))
+                throw ResourceException.invalid("host must be a lowercase DNS name, optional leading *., or empty");
+            if(route.path()==null || !route.path().startsWith("/") || route.path().contains("?") || route.path().contains("#") || route.path().chars().anyMatch(Character::isWhitespace)
+                    || !Set.of("Exact","Prefix").contains(Objects.toString(route.pathType(),"")))throw ResourceException.invalid("route requires an absolute path and Exact or Prefix match");
+            if(!seen.add(host+"\n"+route.path()+"\n"+route.pathType()))throw ResourceException.invalid("duplicate host/path/match rule");
+            name(route.service());var service=client.services().inNamespace(namespace).withName(route.service()).get();
+            if(service==null)throw ResourceException.invalid("backend Service not found in this namespace: "+route.service());
+            if(service.getSpec().getPorts().stream().noneMatch(p->p.getPort()==route.port() && (p.getProtocol()==null || "TCP".equals(p.getProtocol()))))
+                throw ResourceException.invalid("backend port must be an existing TCP Service port");
+            var path=new HTTPIngressPathBuilder().withPath(route.path()).withPathType(route.pathType()).withNewBackend()
+                    .withNewService().withName(route.service()).withNewPort().withNumber(route.port()).endPort().endService().endBackend().build();
+            groups.computeIfAbsent(host,k->new ArrayList<>()).add(path);
+        }
+        return groups.entrySet().stream().map(e->new IngressRuleBuilder().withHost(e.getKey().isEmpty()?null:e.getKey()).withNewHttp().withPaths(e.getValue()).endHttp().build()).toList();
+    }
+    private static IngressInfo ingressInfo(Ingress value,String workspace) {
+        var m=value.getMetadata();var routes=new ArrayList<IngressRoute>();var addresses=new ArrayList<String>();
+        if(value.getSpec().getRules()!=null)for(var rule:value.getSpec().getRules())if(rule.getHttp()!=null)for(var path:rule.getHttp().getPaths()) {
+            var service=path.getBackend()==null?null:path.getBackend().getService();
+            Integer port=service==null || service.getPort()==null?null:service.getPort().getNumber();
+            routes.add(new IngressRoute(Objects.toString(rule.getHost(),""),path.getPath(),path.getPathType(),service==null?null:service.getName(),port==null?0:port));
+        }
+        if(value.getStatus()!=null && value.getStatus().getLoadBalancer()!=null && value.getStatus().getLoadBalancer().getIngress()!=null)
+            value.getStatus().getLoadBalancer().getIngress().forEach(i->{if(i.getIp()!=null)addresses.add(i.getIp());if(i.getHostname()!=null)addresses.add(i.getHostname());});
+        return new IngressInfo(m.getName(),m.getNamespace(),m.getUid(),m.getResourceVersion(),value.getSpec().getIngressClassName(),routes,addresses,owned(m,workspace),m.getCreationTimestamp());
     }
     private static ServiceInfo serviceInfo(KubernetesClient client,Service value,String workspace,boolean detail) {
         var m=value.getMetadata();var spec=value.getSpec();var pods=new ArrayList<PodInfo>();var addresses=new ArrayList<String>();var nodes=new ArrayList<String>();

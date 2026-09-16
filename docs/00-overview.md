@@ -1,5 +1,7 @@
 # 系统总览
 
+ING-01：在原resource资源管理边界增加HTTP Ingress CRUD，访问流量由集群内Traefik转发至Service/Pod；CEA独立入口桥只适配本机到Docker内四集群，不经过管理前端。平台不保存第二份路由数据库，不改变Flow/Worker链。[协议](contracts/ingress.md)，当前验证/部署状态见[进度](04-progress.md)。
+
 PRIO-01（2026-09-17，已部署）：依赖就绪仍由原 Executor 决定；原 Worker 队列按叶子任务 priority 排序，Application 经现有 Placement 准入后才占 Worker 执行名额。无槽留队、非抢占、同级 FIFO。不新增调度模块，详见[协议与调用链对比](contracts/priority-admission.md)。
 
 FLDATA-01（2026-09-15已发布CEA）：FedAvg/FedProx增加CIFAR-10/CIFAR-100，沿原Flow SELECT→显式参数→DatasetRule/Placement→Pod文件助手→算法本地文件的链路。init仅校验训练/测试版本引用来确定模型形状，不下载数据；原数据仍在中心存储，任务产物仍按实际执行位置写入。无平台模块/Java/API/数据库结构变化；[协议](contracts/federated-datasets.md)、[实际验收](verification/VER-FLDATA-01-cifar.md)。

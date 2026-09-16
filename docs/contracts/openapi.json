@@ -16,6 +16,331 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/ingress-classes": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cluster",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "ingressClasses",
+        "description": "READ. Authorized cluster/namespace only.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IngressClass"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces/{kubeNamespace}/ingresses": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cluster",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "kubeNamespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listIngresses",
+        "description": "READ. Authorized cluster/namespace only.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ManagedIngress"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createIngress",
+        "description": "WRITE. Kubernetes is the source of truth; platform-owned resources only for update/delete.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngressSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedIngress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        }
+      }
+    },
+    "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/namespaces/{kubeNamespace}/ingresses/{name}": {
+      "parameters": [
+        {
+          "name": "namespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cluster",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "kubeNamespace",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "name",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getIngress",
+        "description": "READ. Authorized cluster/namespace only.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedIngress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateIngress",
+        "description": "WRITE. Kubernetes is the source of truth; platform-owned resources only for update/delete.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngressSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedIngress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteIngress",
+        "description": "WRITE. Kubernetes is the source of truth; platform-owned resources only for update/delete.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Workspace action or Kubernetes namespace denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Unmanaged or stale resource"
+          },
+          "422": {
+            "description": "Invalid route, class or backend"
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceVersion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/namespaces/{namespace}/executions/{id}/measurement": {
       "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}],
       "get": {"operationId":"executionMeasurement","description":"READ. Sum committed algorithm whole-file input/output bytes divided by the union of complete SDK activity intervals. Requires successful complete execution and confirmed synchronized clocks. No old-execution or pod-duration fallback. Reports are bounded authorized artifacts, not new database records.",
@@ -5454,6 +5779,125 @@
       }
     },
     "schemas": {
+      "IngressClass": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "controller": {
+            "type": "string"
+          },
+          "httpEntryPoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IngressRoute": {
+        "type": "object",
+        "required": [
+          "path",
+          "pathType",
+          "service",
+          "port"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Empty matches all hosts; lowercase DNS or *.domain."
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "pathType": {
+            "type": "string",
+            "enum": [
+              "Exact",
+              "Prefix"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        }
+      },
+      "IngressSave": {
+        "type": "object",
+        "required": [
+          "name",
+          "ingressClassName",
+          "routes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "ingressClassName": {
+            "type": "string"
+          },
+          "routes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+              "$ref": "#/components/schemas/IngressRoute"
+            }
+          }
+        }
+      },
+      "ManagedIngress": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "string"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "ingressClassName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngressRoute"
+            }
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UserProfile": {
         "type": "object",
         "properties": {

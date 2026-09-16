@@ -30,7 +30,7 @@
 
 `/{kubeNamespace}/services`支持GET/POST；`/{kubeNamespace}/services/{name}`支持GET/DELETE。创建支持selector、1..32端口、TCP/UDP/SCTP、数字或命名targetPort及ClusterIP/NodePort/LoadBalancer，省略nodePort交Kubernetes分配。只删平台所有Service，客户端必须提交当前uid和resourceVersion；列表可查看范围内非托管Service，但不因此有删除权。
 
-详情地址来自实际Service/Node状态，未分配LoadBalancer地址不伪造；Pod按selector查询、Ready取实际Condition。节点InternalIP不代表Windows浏览器可达，Service DNS命名不代表部署了DNS解析器；当前CEA仍未启用CoreDNS/ServiceLB/Ingress。
+详情地址来自实际Service/Node状态，未分配LoadBalancer地址不伪造；Pod按selector查询、Ready取实际Condition。节点InternalIP不代表Windows浏览器可达，Service DNS命名不代表部署了DNS解析器。UI-09时未启用CoreDNS/ServiceLB/Ingress；ING-01新增的HTTP入口见[协议](ingress.md)与[发布状态](../verification/VER-ING-01-ingress.md)，CoreDNS/ServiceLB保持原状。
 
 原`/kubernetes/services`和`/kubernetes/namespace`是默认连接范围的只读快捷查询，仍调用同一Kubernetes连接；新管理页使用显式Namespace路径，不维护第二份资源状态。Runner/Job/Deployment原执行范围不变。
 

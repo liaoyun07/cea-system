@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+ING-01（2026-09-17，完成并部署）：用户授权最小HTTP Ingress管理，并单独允许随前后端部署四集群Traefik、本机入口及管理RBAC。复用resource Kubernetes管理、server身份入口和运行资源页面，支持IngressClass查询、域名/路径到同Namespace Service端口的增删改查；沿用所有权和资源版本检查，不新增表或执行链。真实路由创建/更新/删除、Exact/Prefix与Host匹配、越权/缺失Service端口/过期版本拒绝、桌面/窄屏、原业务数据与无关服务保留验收通过；284项Java、54项单测、61项浏览器通过。不含TLS证书、限流、复杂网关策略。[验收](verification/VER-ING-01-ingress.md)。
+
 PRIO-02（2026-09-17，实测完成）：cloud保持2槽，启动A/B（持续60/180秒）并确认两者运行后，提交Parallel low10/high90。low先入队25、high后入队26；A结束后high先启动，high结束后low启动，B持续运行。两Execution/四Job单Attempt全SUCCESS，预约全部释放、原346执行/42Flow及19服务保持。新增两测试Flow已在CEA，无生产代码/配置变更或服务重启。[实际时间与证据](verification/VER-PRIO-02-live-priority.md)。
 
 PRIO-01（2026-09-17，完成并部署）：非抢占子任务优先级与资源准入。priority 0..100/默认0，同级FIFO；无槽不占Worker执行名额，跨实例准入协调，不新增第二套队列。保持原Attempt/超时/依赖/Loop/Runner/SDK与终端FIFO。竞争顺序、满载集群绕行、取消/恢复、275项Java及60项浏览器验收通过；已备份DB、发布CEA前后端，FedAvg/FedProx各两轮数值复核通过。未扩展为物理CPU/内存预算、抢占或防饥饿。见[ADR-0029](decisions/ADR-0029-priority-admission.md)、[验收](verification/VER-PRIO-01-priority-admission.md)。

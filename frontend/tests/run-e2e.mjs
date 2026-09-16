@@ -134,6 +134,7 @@ try {
       CEA_E2E_USER: 'owner',
       CEA_E2E_PASSWORD: apiPass,
       CEA_E2E_ARCHIVE: runtime.archive,
+      CEA_E2E_INGRESS: runtime.ingressUrl,
     },
   });
   process.exitCode = await new Promise((r, j) => {

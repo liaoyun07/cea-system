@@ -1,5 +1,7 @@
 # 当前进度
 
+ING-01（2026-09-17，已部署CEA）：02:27前后端及新入口健康，四集群Traefik/管理RBAC已应用；18080运行资源新增Ingress CRUD/详情，18090～18093四个实际HTTP示例已逐一验证。284项Java、54项单测、61项浏览器通过，修正严格Prefix匹配。348执行/44Flow/数据集/策略/卸载样本保持，原17个无关服务不重启，保留每集群一个HTTP示例。无数据库/执行链/算法变化，TLS及复杂网关不在范围内。见[验收](verification/VER-ING-01-ingress.md)。
+
 PRIO-02（2026-09-17，CEA实测PASS）：`priority-occupy`及`priority-compete`已保存并运行成功，low入队25、high26；A于01:16:03结束，high 01:16:08～18执行，low 01:16:22～32执行，B直到01:18:03结束。两Execution/四Job均一次Attempt成功，槽位全部释放；原346执行/42Flow与19服务不变，现348执行/44Flow。未改生产代码/配置、未重启服务，FedAvg/FedProx保持；只新增示例和证据。[完整记录](verification/VER-PRIO-02-live-priority.md)。
 
 PRIO-01（2026-09-17，已部署）：原队列优先级排序 → Placement尝试准入 → Worker执行；无资源留队、不占执行名额，保留Attempt/deadline。275项Java、54项前端单测、60项浏览器及CEA FedAvg/FedProx各两轮/22 Job/独立数值复核通过。00:13:42前后端健康、V28成功；原344执行和42Flow、数据集/策略/卸载样本保持，仅新增两次成功执行，另外17服务未重启。未新增业务表/Java文件/HTTP接口/状态机，仅原队列两列、Task.priority和TaskRunner.admit；算法/SDK及物理资源预算不改。见[范围](features/PRIO-01-priority-admission.md)、[验证](verification/VER-PRIO-01-priority-admission.md)。

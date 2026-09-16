@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+ING-01（RES-001/B04管理补齐，已部署CEA）：HTTP Ingress增删改查、IngressClass查询、Service端口引用和入口展示；284项Java、54项单测、61项浏览器及四集群实际HTTP验收通过。执行链/数据库不变，不含TLS/复杂中间件。[功能](features/ING-01-ingress.md)、[验证](verification/VER-ING-01-ingress.md)。
+
 PRIO-02（2026-09-17，CEA实测PASS）：占满cloud两槽后，low先入队但high先获得释放槽；四个真实容器的先后及B不被抢占验证通过。仅新增测试Flow/观察脚本，未新增生产功能或调整并发。[验收](verification/VER-PRIO-02-live-priority.md)。
 
 PRIO-01（2026-09-17，已实现/验证/部署）：叶子任务优先级、原队列同级 FIFO、资源准入在 Worker 执行名额之前。对应申报书 A04；非抢占、不绕过依赖、不改算法/SDK。275项Java、54项单测、60项浏览器及CEA两种联邦算法两轮回归通过。见[功能](features/PRIO-01-priority-admission.md)、[验证](verification/VER-PRIO-01-priority-admission.md)。

@@ -160,6 +160,7 @@ test('node metrics remain while the container usage tab and requests are removed
   await expect(page.getByRole('tablist', { name: 'Kubernetes 资源类型' }).getByRole('tab')).toHaveText([
     '节点',
     'Service',
+    'Ingress',
     'Kubernetes Namespace',
   ]);
   await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);

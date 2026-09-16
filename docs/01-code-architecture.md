@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+ING-01：复用KubernetesManagementService.java及KubernetesManagementController.java，增加6个Ingress/Class HTTP操作、IngressClassInfo/IngressRoute/IngressRequest/IngressInfo四record；不新增生产Java文件。管理服务直接访问Kubernetes，增加同Namespace Service端口验证、所有权/CAS及Service引用检查。新增前端KubernetesIngress.vue；部署清单增加Traefik及独立HTTP端口桥。没有新增SQL表/列、SPI、模块依赖或执行状态；[协议](contracts/ingress.md)、[状态](verification/VER-ING-01-ingress.md)。
+
 PRIO-01：不新增生产 Java 文件、HTTP API 或业务表。FlowDefinition.Task 增加 priority；FlowValidator/FlowSchema 校验并暴露表单。JdbcWorkerStore 在原队列持久化 priority/enqueue_order，负责 claim/defer/会话准入锁；WorkerEngine.admitNext 返回短生命周期 Admitted continuation，WorkerPump 成功准入后才占执行名额。TaskRunner.admit 默认放行；JobConfiguration 把 Application 委派至 ApplicationTaskRunner.admit，后者用内存 Admission record 保留本次真实解析结果，调用原 JobPlacementService 预约，不在等待时反复 run。镜像/文件/Runner 留在原执行阶段。V28 仅两列与索引，无新状态。见[协议](contracts/priority-admission.md)。
 
 FLPAR-16：无新增生产Java文件/表/API/SPI。ImageDistributionService复用RegistryHttpClient.hasManifest执行精确digest的HEAD查询，命中即返回、404才复制；DistributionConfiguration给既有分发服务装配现有Registry连接，SkopeoImageClient仍负责tag解析和实际传输。控制流、Worker、Placement和Runner未改。验证/部署进度见VER-FLPAR-16。
@@ -44,8 +46,8 @@ UI-09（验证/发布状态见进度）：新增6个生产Java文件，共99个�
 
 | Java 文件 | 当前职责 |
 |---|---|
-| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesManagementService.java` | Namespace/Service实时CRUD、默认范围及所有权保护、CAS删除、地址/Pod详情和工作负载引用检查；不修改Runner默认Namespace |
-| `platform-server/src/main/java/com/project/platform/server/api/KubernetesManagementController.java` | 7个管理HTTP操作，身份适配后调用resource |
+| `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesManagementService.java` | Namespace/Service/Ingress实时管理、IngressClass查询、默认范围及所有权保护、CAS更新/删除、路由端口与引用检查、地址/Pod详情和工作负载引用检查；不修改Runner默认Namespace |
+| `platform-server/src/main/java/com/project/platform/server/api/KubernetesManagementController.java` | 13个管理HTTP操作（含ING-01的6个），身份适配后调用resource |
 | `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryHttpClient.java` | 管理员配置的Distribution v2目录、标签、manifest/config和删除；有界响应、匿名/htpasswd、禁止重定向凭据；传输仍由Skopeo执行 |
 | `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryManagementService.java` | 实际库存与详情；已知无标签候选必须现场核验；删除前检查目录、工作负载、分发和索引引用；不GC |
 | `platform-server/src/main/java/com/project/platform/server/api/RegistryController.java` | 5个Registry查询/删除HTTP操作，禁止请求指定任意地址 |

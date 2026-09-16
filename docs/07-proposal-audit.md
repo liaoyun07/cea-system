@@ -1,5 +1,7 @@
 # 现有系统与申报书功能审查表
 
+ING-01增量（2026-09-17）：B04的HTTP Ingress管理已发布，域名/Exact/Prefix→同Namespace Service端口，四集群真实创建/编辑/删除和浏览器访问通过。与原Service管理合并为当前核心范围完备；不含TLS证书、复杂网关策略或公网部署。原执行链、性能指标结论不变。[验收](verification/VER-ING-01-ingress.md)。
+
 PRIO-01增量（2026-09-17）：A04非抢占子任务优先级已实现/验证并部署。原队列高优先级先准入、同级FIFO；无槽不占Worker执行名额，不跳过依赖。275项Java、54项单测、60项浏览器及CEA两种联邦算法两轮数值复核通过；A03物理资源预算、其他优化和性能指标结论保持不变。[完整记录](verification/VER-PRIO-01-priority-admission.md)。
 
 FLPAR-03/04增量（2026-09-15，最新测试源码基线2067344）：M01补充单轮batch与整批取样对照。FLPAR-03四档中batch1024均值484.3MB/s但accuracy下降；FLPAR-04当次重测原/整批均值358.2/362.6MB/s，平均活动时间相同，未证明稳定加速。全部保持原SDK口径，仍未达到2GB/s、不将局部实验提升写成验收通过。[batch结果](verification/VER-FLPAR-03-batch.md)、[整批结果](verification/VER-FLPAR-04-bulk.md)。
@@ -20,7 +22,7 @@ OFF-02增量：2026-09-14已在CEA验证终端经网关元数据请求、三层�
 
 本表回答三个问题：哪些要求已有可用闭环、哪些还需补功能、哪些已有功能但尚未证明指标达标。当前核心流程、镜像管理、边缘上传/三种结果去向及六维Double DQN已有闭环；主要差距集中在调度/多目标多核优化、弹性自动化及性能验收。
 
-本版功能表共26项：13项完备（当前范围）、9项部分覆盖、4项未实现（OFF-04补齐C02核心，PRIO-01补齐A04非抢占优先级）；另列8项指标/研究成果与8项范围差异。这个计数只用于快速阅读，不代表加权完成率，也不表示所有缺口都已获准实施。
+本版功能表共26项：14项完备（当前范围）、8项部分覆盖、4项未实现（OFF-04补齐C02核心，PRIO-01补齐A04非抢占优先级，ING-01补齐B04核心HTTP入口）；另列8项指标/研究成果与8项范围差异。这个计数只用于快速阅读，不代表加权完成率，也不表示所有缺口都已获准实施。
 
 本表是申报书视角的进度入口，不替代[功能索引](02-feature-index.md)、[实施计划](03-implementation-plan.md)和[当前进度](04-progress.md)。以下“建议补充”不是实施授权，不改变用户已确认的后置和裁剪范围。
 
@@ -78,7 +80,7 @@ OFF-02增量：2026-09-14已在CEA验证终端经网关元数据请求、三层�
 | B01 | Dockerfile打包镜像并上传仓库 | 完备（当前范围） | 在线ZIP构建上下文＋Dockerfile，经独立BuildKit构建；也可上传单镜像docker-save tar，验证后登记版本。CEA已发布。[构建验收](verification/VER-UI-010-cleanup-users-build.md) | 当前来源格式满足核心闭环，不把Git拉取、多架构等附加功能当必做 |
 | B02 | 通过可视界面管理、搜索、上传和下载镜像 | 部分覆盖 | 有应用目录、实际仓库库存、详情、引用保护删除、上传与构建；Registry支持真实拉取，但没有浏览器一键导出镜像tar。[仓库验收](verification/VER-UI-009-registry-kubernetes.md) | “Registry协议下载”已具备；若需完整对齐WEB下载，再补受权导出，不混同应用产物下载 |
 | B03 | 拉取镜像并管理集群中的服务部署 | 完备（当前范围） | 镜像按digest准备；Deployment创建、查询、配置编辑、手动扩缩容、删除、探针和操作耗时已接通。[部署验收](verification/VER-UI-008-core-deployment-operations.md) | 保持现有闭环；30秒指标另在M04验收 |
-| B04 | 通过Service、Ingress对外提供访问 | 部分覆盖 | Service创建／删除、端口与访问详情、关联Pod、多Namespace已发布；没有应用Ingress管理入口。[资源管理验收](verification/VER-UI-009-registry-kubernetes.md) | 若NodePort等Service方式足够，可确认最小覆盖；域名路由有真实需求再接Ingress |
+| B04 | 通过Service、Ingress对外提供访问 | 完备（当前核心范围） | 原Service/多Namespace管理，加HTTP Ingress创建／编辑／删除、域名/Exact/Prefix和入口详情；四集群真实访问已部署验证。[Ingress验收](verification/VER-ING-01-ingress.md)、[Service验收](verification/VER-UI-009-registry-kubernetes.md) | 当前为本机HTTP入口；公网DNS/TLS证书、复杂中间件及跨主机接入未验收，不冒充完整网关产品 |
 | B05 | 弹性容器化边缘服务部署 | 部分覆盖 | 已有副本调整和Kubernetes控制器维持期望状态；没有按负载自动伸缩。[部署协议](contracts/ui08-deployment-operations.md) | 建议补最小自动扩缩容；HPA是候选实现，不是原文指定要求，先确定指标、上下限和验收负载 |
 | B06 | 镜像分层传输，避免重复全量传输 | 完备（当前范围） | Skopeo按OCI/Registry协议复制manifest/layers并核验digest，复用已有内容；分发记录不虚构全量传输字节。[分发协议](contracts/ui08-deployment-operations.md) | 分层传输无需重做；有层复用不等于完成带宽性能验收 |
 | B07 | 仓库水平扩展，分担集中上传下载压力 | 未实现 | 中心和边缘有独立Registry，不等于同一仓库服务的多实例负载分担。[独立部署](../deploy/cea/README.md) | 属于部署规模取舍，待确认是否纳入；不要为单机演示直接增设HA仓库 |

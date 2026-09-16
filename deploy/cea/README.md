@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+ING-01（2026-09-17）：用户已允许新增四集群Traefik和独立`ingress-access`服务，当前发布结果见[验证](../../docs/verification/VER-ING-01-ingress.md)。入口默认cloud/edge-a/edge-b/edge-c对应本机18090/18091/18092/18093，可由`.env.example`中的四个端口项调整。`setup-ingress.ps1`导入固定版本镜像、应用控制器和后端RBAC、同步IngressClass的HTTP入口注解并只启动端口桥；不会重启K3s、数据库或算法工作负载。后端/前端按原流程构建并单独发布，不运行全量初始化或旧数据迁移。桥保留Host/path，路由事实仍在Kubernetes。真实域名需自行DNS/hosts指向入口，HTTP入口只绑定127.0.0.1；没有公网TLS或跨宿主入口保证。新增组件须先获准，不能把基础`start.ps1`完成等同Ingress可用。
+
 PRIO-01（2026-09-17，已部署）：发布前确认活动Execution及wf_worker_job均为0，备份MySQL并保留 `cea/backend:before-prio01` / `cea/frontend:before-prio01`；V28只给原Worker队列增加priority/enqueue_order及索引。仅重建backend/frontend，18080和后端健康，另外17服务不重启。真实页面、两轮FedAvg/FedProx及原344执行/42Flow/数据目录保留核验通过。`verify-priority.mjs`记录本批基线、迁移、保留和未保存草稿页面证据；非通用重复发布脚本，原证据不覆盖。[完整记录](../../docs/verification/VER-PRIO-01-priority-admission.md)。
 
 FLPAR-16（2026-09-16，已部署）：backend启用目标Registry精确digest存在即复用；只有404才复制，认证/网络错误仍失败。`release-aggregate-reuse.mjs`记录发布前基线、上传聚合归档、按expectedRevision更新六个现有Flow、验证复用和执行并核对历史/服务保留，不自动覆盖或重跑失败执行。聚合版本fl-aggregate/par16-v1；训练/SDK/容量不变，无DB迁移，其他18服务未重启。后端旧镜像保留为cea/backend:pre-flpar16，旧应用与Flow修订保留。[完整验收](../../docs/verification/VER-FLPAR-16-aggregate-reuse.md)。

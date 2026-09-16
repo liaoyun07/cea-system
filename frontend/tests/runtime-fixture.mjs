@@ -127,6 +127,8 @@ export async function startRuntime(token) {
       network,
       '-p',
       '127.0.0.1::6443',
+      '-p',
+      '127.0.0.1::30080',
       '--tmpfs',
       '/run',
       '--tmpfs',
@@ -177,6 +179,43 @@ export async function startRuntime(token) {
     );
     docker('exec', k3s, 'kubectl', 'apply', '-f', '/tmp/metrics.yaml');
     docker('exec', k3s, 'kubectl', 'create', 'namespace', 'ui-test');
+    // Same controller manifest as CEA, but only inside this disposable test cluster.
+    const ingressImage = 'traefik:v3.7.13';
+    try {
+      docker('image', 'inspect', ingressImage);
+    } catch {
+      docker('pull', ingressImage);
+    }
+    docker('save', '-o', join(directory, 'traefik.tar'), ingressImage);
+    docker('cp', join(directory, 'traefik.tar'), `${k3s}:/tmp/traefik.tar`);
+    docker('exec', k3s, 'ctr', 'images', 'import', '/tmp/traefik.tar');
+    docker(
+      'cp',
+      resolve(import.meta.dirname, '../../deploy/cea/ingress-controller.yaml'),
+      `${k3s}:/tmp/ingress.yaml`,
+    );
+    docker('exec', k3s, 'kubectl', 'apply', '-f', '/tmp/ingress.yaml');
+    const ingressUrl = `http://127.0.0.1:${docker('port', k3s, '30080/tcp').split(':').at(-1)}`;
+    docker(
+      'exec',
+      k3s,
+      'kubectl',
+      'annotate',
+      'ingressclass',
+      'cea-traefik',
+      `cea-system/http-entrypoint=${ingressUrl}`,
+    );
+    docker(
+      'exec',
+      k3s,
+      'kubectl',
+      'rollout',
+      'status',
+      'deployment/cea-traefik',
+      '-n',
+      'cea-ingress',
+      '--timeout=60s',
+    );
     docker(
       'exec',
       k3s,
@@ -238,6 +277,7 @@ export async function startRuntime(token) {
     return {
       cleanup,
       archive: join(directory, 'alpine.tar'),
+      ingressUrl,
       args: [
         `--platform.jobs.helpers.lab.runtime-edge=${helperImage}`,
         '--platform.jobs.storage.lab.outputs.runtime-edge=center',

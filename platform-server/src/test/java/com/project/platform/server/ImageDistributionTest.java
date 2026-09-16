@@ -41,6 +41,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.project.platform.edge.*;
 import com.project.platform.edge.EdgeAccess.*;
 import com.project.platform.offloading.*;
+import com.project.platform.resource.kubernetes.KubernetesManagementService.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ImageDistributionTest {
@@ -176,6 +177,12 @@ class ImageDistributionTest {
                     kind: ClusterRole
                     metadata: {name: cea-observe-nodes}
                     rules:
+                      - apiGroups: [networking.k8s.io]
+                        resources: [ingresses]
+                        verbs: [get, list, create, update, delete]
+                      - apiGroups: [networking.k8s.io]
+                        resources: [ingressclasses]
+                        verbs: [get, list]
                       - apiGroups: [metrics.k8s.io]
                         resources: [nodes]
                         verbs: [get, list]
@@ -667,6 +674,61 @@ class ImageDistributionTest {
         }
     }
     private FlowExecutionService executions(){return context.getBean(FlowExecutionService.class);}
+    @Test void ingressCrudUsesRealKubernetesWithScopeOwnershipCasAndServiceReferences() throws Exception {
+        var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
+        var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
+        String ns="cea-lab-ing-"+UUID.randomUUID().toString().substring(0,8), type="ing-"+UUID.randomUUID().toString().substring(0,8);
+        management.createNamespace(actor,"lab","edge",new NamespaceRequest(ns));
+        admin.network().v1().ingressClasses().resource(new io.fabric8.kubernetes.api.model.networking.v1.IngressClassBuilder()
+                .withNewMetadata().withName(type).addToAnnotations("cea-system/http-entrypoint","http://127.0.0.1:18090").endMetadata().withNewSpec().withController("traefik.io/ingress-controller").endSpec().build()).create();
+        try {
+            assertTrue(management.ingressClasses(viewer,"lab","edge").stream().anyMatch(c->c.name().equals(type) && c.httpEntryPoint().endsWith(":18090")));
+            var service=management.createService(actor,"lab","edge",ns,new ServiceRequest("http","ClusterIP",Map.of("app","ing"),List.of(new Port("web",80,"8080","TCP",null))));
+            var request=new IngressRequest("routes",type,List.of(new IngressRoute("demo.example.test","/api","Prefix","http",80),new IngressRoute("","/health","Exact","http",80)));
+            var created=management.createIngress(actor,"lab","edge",ns,request);
+            assertEquals(request.routes(),created.routes());assertTrue(created.managed());
+            assertEquals(created.uid(),management.ingress(viewer,"lab","edge",ns,"routes").uid());
+            assertEquals(1,management.ingresses(viewer,"lab","edge",ns).size());
+            assertThrows(ResourceException.class,()->management.deleteService(actor,"lab","edge",ns,"http",service.uid(),service.resourceVersion()));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.createIngress(viewer,"lab","edge",ns,request));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->management.ingresses(actor,"lab","edge","kube-system"));
+            assertThrows(ResourceException.class,()->management.updateIngress(actor,"lab","edge",ns,"routes","wrong",created.resourceVersion(),request));
+            var updatedRequest=new IngressRequest("routes",type,List.of(new IngressRoute("demo.example.test","/new","Exact","http",80)));
+            var updated=management.updateIngress(actor,"lab","edge",ns,"routes",created.uid(),created.resourceVersion(),updatedRequest);
+            assertEquals(updatedRequest.routes(),updated.routes());assertNotEquals(created.resourceVersion(),updated.resourceVersion());
+            assertThrows(ResourceException.class,()->management.deleteIngress(actor,"lab","edge",ns,"routes",created.uid(),created.resourceVersion()));
+            assertThrows(ResourceException.class,()->management.updateIngress(actor,"lab","edge",ns,"routes",created.uid(),created.resourceVersion(),request));
+            var external=admin.network().v1().ingresses().inNamespace(ns).withName("routes").get();
+            external.getMetadata().getLabels().clear();admin.network().v1().ingresses().resource(external).update();
+            var unmanaged=management.ingress(actor,"lab","edge",ns,"routes");assertFalse(unmanaged.managed());
+            assertThrows(ResourceException.class,()->management.deleteIngress(actor,"lab","edge",ns,"routes",unmanaged.uid(),unmanaged.resourceVersion()));
+            assertThrows(ResourceException.class,()->management.updateIngress(actor,"lab","edge",ns,"routes",unmanaged.uid(),unmanaged.resourceVersion(),request));
+            external=admin.network().v1().ingresses().inNamespace(ns).withName("routes").get();
+            external.getMetadata().setLabels(Map.of("cea-system/owner","cea-system","cea-system/namespace","lab"));admin.network().v1().ingresses().resource(external).update();
+            var latest=management.ingress(actor,"lab","edge",ns,"routes");
+            management.deleteIngress(actor,"lab","edge",ns,"routes",latest.uid(),latest.resourceVersion());
+            assertTrue(management.ingresses(actor,"lab","edge",ns).isEmpty());assertNotNull(admin.services().inNamespace(ns).withName("http").get());
+            management.deleteService(actor,"lab","edge",ns,"http",service.uid(),service.resourceVersion());
+        } finally {admin.namespaces().withName(ns).delete();admin.network().v1().ingressClasses().withName(type).delete();}
+    }
+    @Test void ingressRejectsMissingClassBackendWrongPortAndMalformedRules() {
+        var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
+        String ns="cea-lab-ing-"+UUID.randomUUID().toString().substring(0,8), type="ing-"+UUID.randomUUID().toString().substring(0,8);
+        management.createNamespace(actor,"lab","edge",new NamespaceRequest(ns));
+        admin.network().v1().ingressClasses().resource(new io.fabric8.kubernetes.api.model.networking.v1.IngressClassBuilder()
+                .withNewMetadata().withName(type).endMetadata().withNewSpec().withController("traefik.io/ingress-controller").endSpec().build()).create();
+        try {
+            management.createService(actor,"lab","edge",ns,new ServiceRequest("http","ClusterIP",Map.of("app","ing"),List.of(new Port("web",80,"8080","TCP",null),new Port("udp",53,"53","UDP",null))));
+            var valid=new IngressRoute("example.test","/","Prefix","http",80);
+            assertThrows(ResourceException.class,()->management.createIngress(actor,"lab","edge",ns,new IngressRequest("routes","missing",List.of(valid))));
+            assertThrows(ResourceException.class,()->management.createIngress(actor,"lab","edge",ns,new IngressRequest("routes",type,List.of(valid,valid))));
+            for(var invalid:List.of(new IngressRoute("http://example.test","/","Prefix","http",80),new IngressRoute("","relative","Prefix","http",80),
+                    new IngressRoute("","/","Regex","http",80),new IngressRoute("","/","Prefix","missing",80),
+                    new IngressRoute("","/","Prefix","http",8080),new IngressRoute("","/","Prefix","http",53)))
+                assertThrows(ResourceException.class,()->management.createIngress(actor,"lab","edge",ns,new IngressRequest("routes",type,List.of(invalid))));
+            assertTrue(management.ingresses(actor,"lab","edge",ns).isEmpty());
+        } finally {admin.namespaces().withName(ns).delete();admin.network().v1().ingressClasses().withName(type).delete();}
+    }
     @Test void managedNamespacesAndServicesUseRealKubernetesAndProtectScopeOwnershipAndIdentity() throws Exception {
         var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
         var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));

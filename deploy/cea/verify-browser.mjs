@@ -309,7 +309,7 @@ try {
     await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
     await expect(page.getByRole('table', {name: '节点', exact: true})).toContainText('可用');
     await page.screenshot({path: fileURLToPath(new URL('usage-' + cluster + '.png', evidence)), fullPage: true});
-    await expect(page.getByRole('tablist', {name: 'Kubernetes 资源类型'}).getByRole('tab')).toHaveText(['节点', 'Service', 'Kubernetes Namespace']);
+    await expect(page.getByRole('tablist', {name: 'Kubernetes 资源类型'}).getByRole('tab')).toHaveText(['节点', 'Service', 'Ingress', 'Kubernetes Namespace']);
     await expect(page.getByRole('tab', {name: '容器用量', exact: true})).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     operationsEvidence.usage[cluster] = {nodes};

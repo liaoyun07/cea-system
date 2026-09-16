@@ -5,6 +5,7 @@ import { time } from '../model.js';
 import { readCatalog } from '../no-code/document.js';
 import { percentText, coresText, memoryText, usageState } from './operations.js';
 import KubernetesManagement from './KubernetesManagement.vue';
+import KubernetesIngress from './KubernetesIngress.vue';
 const props = defineProps({ api: Function, workspace: String });
 const emit = defineEmits(['pending']);
 const managementPending = ref(false);
@@ -127,6 +128,7 @@ onBeforeUnmount(() => {
         v-for="entry in [
           ['nodes', '节点'],
           ['services', 'Service'],
+          ['ingresses', 'Ingress'],
           ['namespace', 'Kubernetes Namespace'],
         ]"
         :key="entry[0]"
@@ -140,11 +142,18 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <KubernetesManagement
-      v-if="cluster && tab !== 'nodes'"
+      v-if="cluster && ['services', 'namespace'].includes(tab)"
       :api="api"
       :cluster="cluster"
       :tab="tab"
       :workspace="workspace"
+      :refresh="refresh"
+      @pending="pending"
+    />
+    <KubernetesIngress
+      v-if="cluster && tab === 'ingresses'"
+      :api="api"
+      :cluster="cluster"
       :refresh="refresh"
       @pending="pending"
     />

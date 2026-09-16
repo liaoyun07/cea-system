@@ -1,5 +1,7 @@
 # 当前协议入口
 
+- [ING-01 HTTP Ingress](ingress.md)：原资源边界内的Ingress/Class管理、同Namespace服务引用、CAS、独立控制器与CEA端口桥；不改执行链或数据库。
+
 - [OFF-04 边缘Double DQN](off04-double-dqn.md)：真实六维模型、显式探索、合法层掩码、回放/目标网络及五基线口径；无新增平台API或DB。历史单步Q执行协议由本项替代。
 
 - [OFF-03 真实状态与反馈](off03-measurement.md)：六维计算、真实传输、终端单调时钟、决策顺序next及缺测边界；发布状态见进度。
