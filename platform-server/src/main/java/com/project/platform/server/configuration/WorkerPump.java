@@ -22,11 +22,14 @@ public final class WorkerPump {
         this.worker=worker;this.slots=new Semaphore(concurrency);
     }
     @Scheduled(fixedDelayString="${platform.worker.poll-delay-ms:100}")
-    public void poll() {
+    public synchronized void poll() {
         int available=slots.availablePermits();
-        for(int i=0;i<available && slots.tryAcquire();i++) {
+        for(int i=0;i<available;i++) {
+            var admitted=worker.admitNext();
+            if(admitted==null)return;
+            slots.acquireUninterruptibly();
             try { pool.submit(()->{
-                try { worker.runOnce(); }
+                try { worker.run(admitted); }
                 catch(RuntimeException ex) { LOG.error("Worker transport unavailable; lease recovery remains possible",ex); }
                 finally { slots.release(); }
             }); } catch(RejectedExecutionException closed) { slots.release();return; }

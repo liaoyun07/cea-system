@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+PRIO-01：不新增生产 Java 文件、HTTP API 或业务表。FlowDefinition.Task 增加 priority；FlowValidator/FlowSchema 校验并暴露表单。JdbcWorkerStore 在原队列持久化 priority/enqueue_order，负责 claim/defer/会话准入锁；WorkerEngine.admitNext 返回短生命周期 Admitted continuation，WorkerPump 成功准入后才占执行名额。TaskRunner.admit 默认放行；JobConfiguration 把 Application 委派至 ApplicationTaskRunner.admit，后者用内存 Admission record 保留本次真实解析结果，调用原 JobPlacementService 预约，不在等待时反复 run。镜像/文件/Runner 留在原执行阶段。V28 仅两列与索引，无新状态。见[协议](contracts/priority-admission.md)。
+
 FLPAR-16：无新增生产Java文件/表/API/SPI。ImageDistributionService复用RegistryHttpClient.hasManifest执行精确digest的HEAD查询，命中即返回、404才复制；DistributionConfiguration给既有分发服务装配现有Registry连接，SkopeoImageClient仍负责tag解析和实际传输。控制流、Worker、Placement和Runner未改。验证/部署进度见VER-FLPAR-16。
 
 MET-001（2026-09-15已实现，验证见[记录](verification/VER-MET-001-algorithm-measurement.md)）：新增 `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionMeasurementService.java`，负责已授权Execution的SDK报告校验、活动区间并集和单一速率查询，不持有执行状态。`ExecutionOutputService`复用成功Attempt的有界产物读取，`ExecutionController`增加GET measurement，`RuntimeConfiguration`装配时钟确认配置。共109份生产Java、93个HTTP操作、仍28张业务表；无DB迁移、列、SPI或Executor/Worker改动。[协议](contracts/algorithm-measurement.md)。
@@ -205,7 +207,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesJobRunner.java` | 一次性Job接管；挂起Job→owned Secret→解除挂起；init/main/output助手、授权刷新/移除、远程停止 | run；使用ContainerTask.Spec/Transfers；files-pending annotation区分初始化与外部暂停 | Job事实属于Kubernetes，结果交Worker；不写Execution表 | RUN-001 | J/A |
 | `platform-resource/src/main/java/com/project/platform/resource/placement/JobPlacementService.java` | Ready节点/数据本地性与平台槽原子预约 | reserve/get/release | resource表；集群行锁；取消前置墓碑避免迟到预约 | RES-002 | J |
 | `platform-resource/src/main/java/com/project/platform/resource/storage/ObjectStorage.java` | namespace/bucket定位存储、按执行位置确定URI、签名授权、HEAD/限量读取；终端文件传输 | Configuration/Connection；outputUri/grant/download/publish/published/readPublished | 管理员凭据文件；产物前缀隔离；不自动中心回退 | RES-001、RUN-001 | J |
-| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/显式Binding/资源/镜像到Kubernetes、Docker或网关终端的适配 | run/TerminalTarget | prepared_json冻结位置/镜像/文件计划；网关新签授权，不改Execution状态 | RUN-001、DEP-001 | J/A |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ApplicationTaskRunner.java` | 契约/Binding/资源准入及镜像到Kubernetes、Docker或网关终端适配 | admit/run/TerminalTarget | Admission仅短期解析结果；prepared_json冻结执行计划；不拥有Execution状态 | RUN-001、DEP-001、PRIO-01 | J/A |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/TerminalGatewayClient.java` | 经受信配置网关访问来源终端代理 | call/Connection/LocalFile | 元数据检查、按需物化、同Attempt容器step/cancel；不拥有Execution或直接访问终端 | OFF-02 | J/A |
 | `platform-server/src/main/java/com/project/platform/server/configuration/JobConfiguration.java` | 作业槽、S3/终端网关或Docker连接及可信TaskRunner装配 | Settings/Beans | 外部配置，无业务状态；通过edge公开服务注入来源/权限 | RUN-001、SEC-001 | J |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/model/FlowDefinition.java` | 统一DSL、嵌套Task/Concurrency/Schedule与显式Binding记录 | record构造与immutable | 只读定义；嵌套值提交后序列化冻结 | WF-001、WF-002 | D/C |
@@ -221,10 +223,10 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/execution/ExecutionService.java` | runtime公开提交/查询入口 | submit/configureConcurrency/transaction及查询取消 | 准入/提交事务+唯一幂等键；不自己验证HTTP身份 | WF-004、WF-005、WF-006 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/FlowExecutor.java` | 唯一状态推进者：控制树解释、叶子派发归并、三段处理 | processNext | 短事务；Repeat轮次屏障/反馈与按作用域读取；分支持久化、并行失败收敛、清理及额度释放；不执行叶子代码 | WF-005、WF-008、WF-009、WF-010 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/ExecutionReducer.java` | 同组节点就绪与固定重试时间的纯决策 | ready/retryAt | 无I/O；供Executor使用 | WF-008 | L/I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表与结果持久化 | dispatch/result/remove/claim/heartbeat/finish | 领取短事务；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007 | I/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表、优先级/FIFO与结果持久化 | dispatch/claim/defer/admissionLock/result/remove/heartbeat/finish | 短事务领取；会话锁协调准入；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007、PRIO-01 | I/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerJob.java` | 派发载荷及Lease/Result记录 | record访问器、Result.success/failed | 冻结Task/上下文；TaskRun+Attempt定位，epoch隔离持有者 | WF-007 | I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerEngine.java` | 事务外执行Log/Sleep或委派真实TaskRunner，心跳和协作中断 | runOnce/close | 不拥有Execution状态；关闭/失租不报告业务失败 | WF-007、WF-008 | I/A |
-| `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程最多4个叶子任务；许可限制并行派发，不阻塞调度线程 | WF-007 | I |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerEngine.java` | 原队列准入、事务外执行、心跳和协作中断 | admitNext/run/runOnce/close | 等资源defer原记录；不拥有Execution状态；关闭/失租不报告业务失败 | WF-007、WF-008、PRIO-01 | I/A |
+| `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程4个执行名额，可配置；先准入再占名额，业务异步执行 | WF-007、PRIO-01 | I |
 | `platform-foundation/src/main/java/com/project/platform/foundation/identity/AccessPolicy.java` | Actor与命名空间/action授权 | require | 无存储；拒绝越权 | SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowRevision.java` | 版本内容和列表摘要 | record访问器 | 不可变版本与来源；删除无业务消费者checksum | WF-003 | I/C |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化及USER源搜索 | save/get/history/search | 锁稳定head，CAS保存；只追加版本 | WF-003、WF-015 | I/FlowManagementTest |

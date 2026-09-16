@@ -1325,6 +1325,53 @@ class ImageDistributionTest {
             }
         } finally {slots.releaseTerminal("lab",blocker,"edge","pc");}
     }
+    @Test void queuedApplicationsKeepTheirAttemptAndHighestPriorityWinsReleasedSlot() throws Exception {
+        prepareFederation();
+        var placement=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);
+        var worker=context.getBean(WorkerEngine.class);var jdbc=context.getBean(JdbcTemplate.class);
+        String blocker="priority-"+UUID.randomUUID();
+        assertNotNull(placement.reserve(actor,"lab",blocker,new PlacementRequest(List.of("edge"),List.of())));
+        String low=dispatch(sleeper("PT90S","true").replace("    timeout:","    priority: 10\n    timeout:"));
+        String lowRun=executions().tasks(actor,"lab",low).getFirst().id();
+        var original=jdbc.queryForMap("SELECT attempt_no,deadline,enqueue_order FROM wf_worker_job WHERE task_run_id=?",lowRun);
+        try {
+            assertNull(worker.admitNext());
+            String high=dispatch(sleeper("PT90S","true").replace("    timeout:","    priority: 90\n    timeout:"));
+            assertNull(worker.admitNext());
+            assertEquals(original,jdbc.queryForMap("SELECT attempt_no,deadline,enqueue_order FROM wf_worker_job WHERE task_run_id=?",lowRun));
+            assertEquals("READY",jdbc.queryForObject("SELECT state FROM wf_worker_job WHERE task_run_id=?",String.class,lowRun));
+            assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(remoteName(low)).get());
+            String unrelated=dispatch(sleeper("PT90S","true").replace("candidateClusters: [edge]","candidateClusters: [cloud]"));
+            var free=worker.admitNext();assertEquals(unrelated,free.lease().job().executionId());worker.run(free);
+            placement.release("lab",blocker);
+            var chosen=worker.admitNext();assertEquals(high,chosen.lease().job().executionId());
+            assertNotNull(placement.get("lab",chosen.lease().job().taskRunId()+"-1"));
+            assertNull(jdbc.queryForObject("SELECT prepared_json FROM wf_worker_job WHERE task_run_id=?",String.class,chosen.lease().job().taskRunId()));
+            worker.run(chosen);drive(high);drive(low);drive(unrelated);
+            for(String id:List.of(high,low,unrelated)) {
+                assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state());
+                assertEquals(1,executions().attempts(actor,"lab",id,executions().tasks(actor,"lab",id).getFirst().id()).size());
+            }
+        } finally {placement.release("lab",blocker);}
+    }
+    @Test void resourceWaitingCancellationAndTimeoutDoNotLaunchOrRetry() throws Exception {
+        var placement=context.getBean(com.project.platform.resource.placement.JobPlacementService.class);
+        String blocker="priority-cancel-"+UUID.randomUUID();
+        assertNotNull(placement.reserve(actor,"lab",blocker,new PlacementRequest(List.of("edge"),List.of())));
+        try {
+            for(boolean cancel:List.of(true,false)) {
+                String id=dispatch(sleeper(cancel?"PT90S":"PT1S","true"));
+                assertNull(context.getBean(WorkerEngine.class).admitNext());
+                if(cancel)executions().cancel(actor,"lab",id);
+                drive(id);
+                assertEquals(cancel?ExecutionState.KILLED:ExecutionState.FAILED,executions().get(actor,"lab",id).state());
+                assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(remoteName(id)).get());
+                var run=executions().tasks(actor,"lab",id).getFirst();
+                assertEquals(1,executions().attempts(actor,"lab",id,run.id()).size());
+                assertTrue(placement.get("lab",run.id()+"-1").released());
+            }
+        } finally {placement.release("lab",blocker);}
+    }
     private String sleeper(String timeout,String command) {return """
             tasks:
               - id: remote

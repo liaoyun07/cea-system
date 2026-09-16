@@ -57,6 +57,7 @@ const labels = {
   duration: '等待时间（ISO 8601）',
   timeout: '超时（ISO 8601）',
   retry: '失败重试',
+  priority: '优先级（0–100）',
   maxAttempts: '最大尝试次数',
   interval: '重试间隔',
   condition: '条件表达式',

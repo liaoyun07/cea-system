@@ -5,6 +5,9 @@ import com.project.platform.runtime.worker.WorkerJob;
 import com.project.platform.runtime.worker.WorkerJob.*;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,8 +21,8 @@ public final class JdbcWorkerStore {
     }
     // Executor calls dispatch/remove/result while holding the execution transaction.
     public void dispatch(WorkerJob job, Instant deadline) {
-        jdbc.update("INSERT INTO wf_worker_job(task_run_id,attempt_no,state,payload_json,deadline) VALUES(?,?,'READY',?,?)",
-                job.taskRunId(),job.attemptNo(),json.write(job),deadline==null?null:Timestamp.from(deadline));
+        jdbc.update("INSERT INTO wf_worker_job(task_run_id,attempt_no,state,payload_json,deadline,priority) VALUES(?,?,'READY',?,?,?)",
+                job.taskRunId(),job.attemptNo(),json.write(job),deadline==null?null:Timestamp.from(deadline),job.task().effectivePriority());
     }
     public Result result(String taskRunId,int attempt) {
         var rows=jdbc.query("SELECT result_json FROM wf_worker_job WHERE task_run_id=? AND attempt_no=? AND state='RESULT' FOR UPDATE",
@@ -47,13 +50,17 @@ public final class JdbcWorkerStore {
                 reason,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
     }
     public Lease claim(String owner,long leaseMs) {
+        return claim(owner,leaseMs,Set.of());
+    }
+    public Lease claim(String owner,long leaseMs,Set<String> skipped) {
         return transactions.execute(status->{
+            String exclusion=skipped.isEmpty()?"":" AND task_run_id NOT IN ("+String.join(",",java.util.Collections.nCopies(skipped.size(),"?"))+")";
             var rows=jdbc.query("""
                     SELECT payload_json,epoch FROM wf_worker_job
                     WHERE (state='READY' OR (state='RUNNING' AND lease_until<=CURRENT_TIMESTAMP(6)))
                       AND (deadline IS NULL OR deadline>CURRENT_TIMESTAMP(6) OR cancel_reason IS NOT NULL)
-                    ORDER BY task_run_id,attempt_no LIMIT 1 FOR UPDATE SKIP LOCKED
-                    """,(rs,row)->new Lease(json.read(rs.getString(1),WorkerJob.class),rs.getLong(2)+1,owner));
+                    """+exclusion+" ORDER BY (cancel_reason IS NOT NULL) DESC,(state='RUNNING') DESC,priority DESC,enqueue_order LIMIT 1 FOR UPDATE SKIP LOCKED",
+                    (rs,row)->new Lease(json.read(rs.getString(1),WorkerJob.class),rs.getLong(2)+1,owner),skipped.toArray());
             if(rows.isEmpty()) return null;
             Lease lease=rows.getFirst();
             jdbc.update("""
@@ -63,6 +70,35 @@ public final class JdbcWorkerStore {
                     """,lease.epoch(),owner,leaseMs*1000,lease.job().taskRunId(),lease.job().attemptNo());
             return lease;
         });
+    }
+    public boolean defer(Lease lease) {
+        return jdbc.update("""
+                UPDATE wf_worker_job SET state='READY',owner=NULL,lease_until=NULL
+                WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING'
+                AND lease_until>CURRENT_TIMESTAMP(6) AND prepared_json IS NULL
+                """,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
+    }
+    /** Session lock serializes admission across workers without holding a transaction over resource probes. */
+    public AdmissionLock admissionLock() throws SQLException {
+        Connection connection=jdbc.getDataSource().getConnection();
+        try {
+            String name="cea-admission:"+connection.getCatalog();
+            try(var statement=connection.prepareStatement("SELECT GET_LOCK(?,0)")) {
+                statement.setString(1,name);
+                try(var result=statement.executeQuery()) {
+                    result.next();
+                    if(result.getInt(1)==1)return new AdmissionLock(connection,name);
+                }
+            }
+            connection.close();return null;
+        } catch(SQLException error){connection.close();throw error;}
+    }
+    public record AdmissionLock(Connection connection,String name) implements AutoCloseable {
+        @Override public void close() throws SQLException {
+            try(var statement=connection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
+                statement.setString(1,name);statement.execute();
+            } finally {connection.close();}
+        }
     }
     public boolean heartbeat(Lease lease,long leaseMs) {
         return jdbc.update("""

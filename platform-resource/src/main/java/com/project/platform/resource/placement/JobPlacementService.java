@@ -66,7 +66,7 @@ public final class JobPlacementService {
                 jdbc.update("INSERT IGNORE INTO res_job_reservation(namespace,allocation_id,cluster_id,released) VALUES(?,?,?,FALSE)",namespace,key,cluster);
                 return get(namespace,key);
             }
-            return null; // No slot: the same Worker/Attempt waits; no business retry is consumed.
+            return null; // No slot: admission defers the same Attempt without occupying an execution permit.
         });
     }
     /** Same health/locality facts used by ordinary placement; busy is not unavailable. */

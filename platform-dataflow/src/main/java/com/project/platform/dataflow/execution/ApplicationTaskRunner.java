@@ -22,6 +22,10 @@ public final class ApplicationTaskRunner implements TaskRunner {
     public record TerminalTarget(String terminalId,String clusterId,String dockerContext,int slots,TerminalGatewayClient.Connection gateway,String flowId,boolean singleTask) {}
     public record Prepared(String clusterId,ContainerTask.Spec spec,Map<String,String> inputUris,Map<String,String> inlineFiles,Map<String,String> outputUris,String helperImage,String dockerContext,String terminalId,
                            Map<String,TerminalGatewayClient.LocalFile> terminalFiles,boolean gatewayTerminal,boolean collectTransfers) {}
+    private record Admission(String cluster,boolean local,ApplicationVersion app,TerminalTarget origin,Actor actor,
+                             Map<String,Object> values,Map<String,String> env,Map<String,String> inputUris,
+                             Map<String,TerminalGatewayClient.LocalFile> terminalFiles,Map<String,String> inlineFiles,
+                             Set<String> names,boolean rawFileOnly) {}
     private final ApplicationCatalogService applications;
     private final ResourceCatalogService resources;
     private final ImageDistributionService images;
@@ -50,7 +54,20 @@ public final class ApplicationTaskRunner implements TaskRunner {
         this.gateway=new TerminalGatewayClient(json);
         this.measurements=measurements;
     }
-    @Override public WorkerJob.Result run(TaskContext context) throws Exception {
+    @Override public TaskRunner admit(TaskContext context) throws Exception {
+        if(context.prepared()!=null || context.cancellation()!=null)return this;
+        String namespace=(String)((Map<?,?>)context.job().context().get("execution")).get("namespace");
+        String key=context.job().taskRunId()+"-"+context.job().attemptNo();
+        try {
+            var admitted=admitApplication(context,namespace,key);
+            if(admitted==null)return context.cancellation()!=null?this:null;
+            return active->run(active,admitted);
+        } catch(ApplicationException|ResourceException|WorkflowException|Forbidden invalid) {
+            return active->{var result=WorkerJob.Result.failed(invalid.getMessage());complete(active,namespace,key,result);return result;};
+        }
+    }
+    @Override public WorkerJob.Result run(TaskContext context) throws Exception {return run(context,null);}
+    private WorkerJob.Result run(TaskContext context,Admission admitted) throws Exception {
         var job=context.job();var execution=(Map<?,?>)job.context().get("execution");
         String namespace=(String)execution.get("namespace"),key=job.taskRunId()+"-"+job.attemptNo();
         try {
@@ -58,7 +75,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
             if(saved==null && context.cancellation()!=null) {
                 complete(context,namespace,key,null);return WorkerJob.Result.failed(context.cancellation());
             }
-            Prepared plan=saved==null?prepare(context,namespace,key):json.read(saved,Prepared.class);
+            Prepared plan=saved==null?prepare(context,namespace,key,Objects.requireNonNull(admitted,"resource admission required")):json.read(saved,Prepared.class);
             if(plan==null){complete(context,namespace,key,null);return WorkerJob.Result.failed("attempt cancelled before dispatch");}
             if(plan.gatewayTerminal()) {
                 var origin=terminals.apply(job);
@@ -109,7 +126,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
         }
     }
     @SuppressWarnings("unchecked")
-    private Prepared prepare(TaskContext context,String namespace,String key) throws Exception {
+    private Admission admitApplication(TaskContext context,String namespace,String key) throws Exception {
         var c=context.job().task().container();var actor=identities.apply(context.job());
         var app=applications.get(actor,namespace,c.applicationId(),c.version());
         var resolved=new LinkedHashMap<String,Object>();c.parameters().forEach((name,binding)->resolved.put(name,bindings.resolve(binding,context.job().context())));
@@ -184,24 +201,37 @@ public final class ApplicationTaskRunner implements TaskRunner {
                 else {
                     var scope=placement.layerScope(actor,namespace,Kind.valueOf(sample.target().kind()),origin.clusterId());
                     if(scope.isEmpty())throw ResourceException.invalid("selected layer is no longer configured");
-                    if(!reserve(context,actor,namespace,key,new PlacementRequest(scope,requirements)))return null;
-                    cluster=placement.get(namespace,key).clusterId();
+                    var allocation=reserve(actor,namespace,key,new PlacementRequest(scope,requirements));
+                    if(allocation==null)return null;
+                    cluster=allocation.clusterId();
                 }
             }
             if(local) {
-                while(!placement.reserveTerminal(actor,namespace,key,cluster,origin.terminalId(),origin.slots())) {
-                    if(context.cancellation()!=null)return null;Thread.sleep(200);
-                }
+                if(!placement.reserveTerminal(actor,namespace,key,cluster,origin.terminalId(),origin.slots()))return null;
             }
             if(c.offload()!=null) {
                 context.check();offloading.placed(actor,namespace,key,new Target(local?"TERMINAL":resources.cluster(actor,namespace,cluster).kind().name(),local?origin.terminalId():cluster));
             }
         } else {
             var request=new PlacementRequest(FlowValidator.candidateClusters(bindings.resolve(c.candidateClusters(),context.job().context())),requirements);
-            if(!reserve(context,actor,namespace,key,request))return null;
-            cluster=placement.get(namespace,key).clusterId();
+            var allocation=reserve(actor,namespace,key,request);
+            if(allocation==null)return null;
+            cluster=allocation.clusterId();
         }
+        context.check();
+        return new Admission(cluster,local,app,origin,actor,values,env,inputUris,terminalFiles,inlineFiles,names,rawFileOnly);
+    }
+    private JobPlacementService.Allocation reserve(Actor actor,String namespace,String key,PlacementRequest request) {
+        var allocation=placement.reserve(actor,namespace,key,request);
+        if(allocation!=null && allocation.released())throw ResourceException.invalid("attempt allocation already released");
+        return allocation;
+    }
+    private Prepared prepare(TaskContext context,String namespace,String key,Admission admitted) throws Exception {
         context.check();if(context.cancellation()!=null)return null;
+        var c=context.job().task().container();var app=admitted.app();var origin=admitted.origin();var actor=admitted.actor();
+        String cluster=admitted.cluster();boolean local=admitted.local();boolean rawFileOnly=admitted.rawFileOnly();
+        var values=admitted.values();var env=admitted.env();var inputUris=admitted.inputUris();
+        var terminalFiles=admitted.terminalFiles();var inlineFiles=admitted.inlineFiles();var names=admitted.names();
         for(var entry:app.parameters().entrySet())if(entry.getValue().dataset()!=null && values.get(entry.getKey())!=null) {
             String[] ref=values.get(entry.getKey()).toString().split("/",2);String filename="dataset-"+entry.getKey();
             reserveName(names,filename);
@@ -275,11 +305,6 @@ public final class ApplicationTaskRunner implements TaskRunner {
         var value=new LinkedHashMap<String,Object>(Map.of("inputs",inputs,"outputs",outputs,"inline",plan.inlineFiles()));
         if(plan.collectTransfers())value.put("measureInputs",true);
         return json.write(value);
-    }
-    private boolean reserve(TaskContext context,Actor actor,String ns,String key,PlacementRequest request) throws Exception {
-        JobPlacementService.Allocation allocation;
-        while((allocation=placement.reserve(actor,ns,key,request))==null){if(context.cancellation()!=null)return false;Thread.sleep(200);}
-        context.check();return !allocation.released() && context.cancellation()==null;
     }
     private void reserveName(Set<String> names,String name) {
         if(!names.add(name))throw WorkflowException.invalid("inputFiles","expanded file name collision: "+name);

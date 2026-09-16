@@ -86,6 +86,11 @@ test('build, configure, save and execute a workflow through no-code only', async
   await open(page, id);
   await add(page, '任务', 'core.Log', 'hello');
   await field(page, 'tasks.0.message', 'Created with no-code');
+  await page.locator('[data-field="tasks.0.priority"] .field-enable').click();
+  await field(page, 'tasks.0.priority', '80');
+  await page.getByRole('tab', { name: '并排编辑', exact: true }).click();
+  expect(parse(await page.getByLabel('Flow YAML').inputValue()).tasks[0].priority).toBe(80);
+  await page.getByRole('tab', { name: '可视化编排', exact: true }).click();
   await page.getByRole('button', { name: '✓ 校验', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('校验通过');
   await page.getByRole('button', { name: '保存修订', exact: true }).click();
@@ -572,7 +577,14 @@ test('task required fields lead a single vertical form without an outer loop wra
   await page.locator('[data-task="log"] > .task-card-header .task-select').click();
   expect(
     await fields.evaluateAll((nodes) => nodes.map((node) => node.dataset.taskIdentity || node.dataset.field)),
-  ).toEqual(['type', 'id', 'tasks.0.tasks.0.message', 'tasks.0.tasks.0.timeout', 'tasks.0.tasks.0.retry']);
+  ).toEqual([
+    'type',
+    'id',
+    'tasks.0.tasks.0.message',
+    'tasks.0.tasks.0.timeout',
+    'tasks.0.tasks.0.priority',
+    'tasks.0.tasks.0.retry',
+  ]);
 });
 
 test('SELECT is authored in no-code, saved with values, previewed and executed as a string', async ({

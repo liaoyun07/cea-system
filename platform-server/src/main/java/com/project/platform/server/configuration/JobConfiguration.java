@@ -70,6 +70,13 @@ public class JobConfiguration {
             return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots(),connection.gateway(),definition.id(),definition.allTasks().size()==1);
         },offloading,json,bindings,namespaceFiles,settings.helpers(),measurements);
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
-        return context->context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
+        return new TaskRunner() {
+            @Override public TaskRunner admit(com.project.platform.runtime.worker.TaskContext context) throws Exception {
+                return context.job().task().container()!=null?applicationsRunner.admit(context):common;
+            }
+            @Override public com.project.platform.runtime.worker.WorkerJob.Result run(com.project.platform.runtime.worker.TaskContext context) throws Exception {
+                return context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
+            }
+        };
     }
 }

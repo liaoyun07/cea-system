@@ -6250,6 +6250,13 @@
       "Task": {
         "type": "object",
         "properties": {
+          "priority": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 100,
+            "default": 0,
+            "description": "Runnable tasks only. Higher first, equal FIFO, dependencies unchanged, non-preemptive."
+          },
           "id": {
             "type": "string",
             "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,99}$"
@@ -6399,7 +6406,7 @@
           "type"
         ],
         "additionalProperties": false,
-        "description": "Log requires message; Sleep requires duration. Application/Http/Sql require timeout and their matching container/http/sql section, forbidding message/duration. Http supports GET/POST; POST forbids retry. Sql supports one parameterized read-only SELECT. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout. dependsOn is allowed only on direct children of the same Dag; referenced task outputs must be upstream. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
+        "description": "Log requires message; Sleep requires duration. Application/Http/Sql require timeout and their matching container/http/sql section, forbidding message/duration. Http supports GET/POST; POST forbids retry. Sql supports one parameterized read-only SELECT. Sequential/Parallel/Dag require tasks; If requires condition and then, optionally else. Control tasks forbid message/duration/retry/timeout/priority. Leaf priority is 0..100, omitted means 0, higher first among ready candidates, equal FIFO; non-preemptive. dependsOn is allowed only on direct children of the same Dag; referenced task outputs must be upstream. Task IDs are globally unique; max 100 tasks, nesting max 16. Leaf durations/timeout/retry interval: PT0.001S..PT24H."
       },
       "Repeat": {
         "type": "object",

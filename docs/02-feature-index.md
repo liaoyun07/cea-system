@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+PRIO-01（2026-09-17，已实现/验证/部署）：叶子任务优先级、原队列同级 FIFO、资源准入在 Worker 执行名额之前。对应申报书 A04；非抢占、不绕过依赖、不改算法/SDK。275项Java、54项单测、60项浏览器及CEA两种联邦算法两轮回归通过。见[功能](features/PRIO-01-priority-admission.md)、[验证](verification/VER-PRIO-01-priority-admission.md)。
+
 FLPAR-22（2026-09-16，实验DONE，M01未达标）：同10万累计/5万唯一样本的六客户端与三个双份客户端对照已部署CEA。修复测试观察器远端watch残留，连续3轮启停/干净批次8次均零残留；6Node/1Python、96Job及52模型104张量通过。正式均速1289.25/1298.95MB/s（+0.75%，不足以证明明显提速），端到端46.90/35.96秒；原业务/SDK/19服务不动，无Java/DB/API新增。首批及两次SDK时钟失败保留、不拼接统计。[证据](verification/VER-FLPAR-22-coarse.md)。
 
 FLPAR-21（2026-09-16，实验DONE，M01未达标）：线性FedAvg候选/mmap/整批取样以四个新Application版本和两份隔离Flow部署CEA；5算法/3Node/11SDK测试、八次执行、120Job和64模型独立审计通过。正式均速860.84MB/s，比同期MLP高59.5%，不代表原模型等价加速或2GB/s；无Java/DB/API新增。[证据](verification/VER-FLPAR-21-linear.md)。

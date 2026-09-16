@@ -7,6 +7,8 @@ import com.project.platform.foundation.identity.AccessPolicy.*;
 import com.project.platform.runtime.definition.JsonCodec;
 import com.project.platform.runtime.executor.FlowExecutor;
 import com.project.platform.runtime.model.*;
+import com.project.platform.runtime.worker.*;
+import com.project.platform.server.configuration.WorkerPump;
 import com.project.platform.resource.catalog.ResourceCatalog.*;
 import com.project.platform.resource.catalog.ResourceException;
 import com.project.platform.resource.catalog.ResourceCatalogService;
@@ -268,8 +270,24 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(27,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(28,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
+    }
+    @Test void priorityUpgradeRequiresIdleAndKeepsExistingHistory() throws Exception {
+        var created=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e","CREATE DATABASE priority_upgrade; GRANT ALL ON priority_upgrade.* TO 'backend_test'@'%';");
+        assertEquals(0,created.getExitCode(),created.getStderr());
+        String url=mysql.getJdbcUrl().replace("/backend_s1_test","/priority_upgrade");
+        String[] locations=context.getEnvironment().getProperty("spring.flyway.locations").split(",");
+        org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword()).locations(locations).target("27").load().migrate();
+        var db=new JdbcTemplate(new org.springframework.jdbc.datasource.DriverManagerDataSource(url,mysql.getUsername(),mysql.getPassword()));
+        db.update("INSERT INTO wf_execution(id,namespace,flow_id,flow_revision,submitted_by,request_key,request_hash,state,definition_json,inputs_json,variables_json,outputs_json,created_at) VALUES('history','lab','old',1,'writer','old-key',?,'RUNNING','{}','{}','{}','{}',CURRENT_TIMESTAMP(6))","c".repeat(64));
+        var upgrade=org.flywaydb.core.Flyway.configure().dataSource(url,mysql.getUsername(),mysql.getPassword()).locations(locations).load();
+        assertThrows(org.flywaydb.core.api.FlywayException.class,upgrade::migrate);
+        db.update("UPDATE wf_execution SET state='SUCCESS' WHERE id='history'");
+        var before=db.queryForMap("SELECT * FROM wf_execution WHERE id='history'");
+        upgrade.repair();upgrade.migrate(); // Disposable test database only.
+        assertEquals(before,db.queryForMap("SELECT * FROM wf_execution WHERE id='history'"));
+        assertEquals(2,db.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='wf_worker_job' AND column_name IN ('priority','enqueue_order')",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {
         String id=register();
@@ -484,6 +502,95 @@ private String custom(String body) {
         fail("executor condition timed out");
     }
     private ExecutionRecord.TaskRun first(String executionId) { return executions().tasks(actor,"lab",executionId).getFirst(); }
+
+    @Test void priorityOrdersOnlyReadyTasksAndPreservesFifo() {
+        String execution=dispatchCustom("tasks: [{id: group, type: core.Parallel, tasks: [{id: low, type: core.Log, priority: 1, message: low}, {id: high, type: core.Log, priority: 90, message: high}, {id: tie, type: core.Log, priority: 90, message: tie}]}]");
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='READY'",Integer.class)==3);
+        for(String expected:List.of("high","tie","low")) {
+            var admitted=worker().admitNext();assertNotNull(admitted);assertEquals(expected,admitted.lease().job().task().id());worker().run(admitted);
+        }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+    }
+
+    @Test void priorityNeverBypassesDagDependenciesOrPreemptsAdmittedWork() {
+        String execution=dispatchCustom("tasks: [{id: dag, type: core.Dag, tasks: [{id: high, type: core.Log, priority: 100, dependsOn: [low], message: high}, {id: low, type: core.Log, priority: 0, message: low}]}]");
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class)==1);
+        var low=worker().admitNext();assertNotNull(low);assertEquals("low",low.lease().job().task().id());
+        assertNull(worker().admitNext());worker().run(low);
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='READY'",Integer.class)==1);
+        var high=worker().admitNext();assertEquals("high",high.lease().job().task().id());worker().run(high);drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+
+        String first=dispatchCustom("tasks: [{id: low, type: core.Log, priority: 0, message: first}]");
+        var running=worker().admitNext();
+        String second=custom("tasks: [{id: high, type: core.Log, priority: 100, message: second}]");
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='READY'",Integer.class)==1);
+        assertTrue(jobs().owned(running.lease())); // Arrival never revokes an existing admission.
+        worker().run(running);drain();
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",first).state());
+        assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",second).state());
+    }
+
+    private String admissionTasks() {return "tasks: [{id: group, type: core.Parallel, tasks: [{id: busy, type: core.Http, priority: 90, timeout: PT60S, http: {connection: test, method: GET, path: {source: LITERAL, value: /}}}, {id: free, type: core.Http, priority: 10, timeout: PT60S, http: {connection: test, method: GET, path: {source: LITERAL, value: /}}}]}]";}
+    private WorkerEngine localWorker(TaskRunner runner) {return new WorkerEngine(jobs(),new com.project.platform.runtime.definition.TemplateRenderer(),3000,runner);}
+
+    @Test void resourceWaitRetainsAttemptDeadlineAndFifoWhileSinglePermitRunsOtherWork() throws Exception {
+        String execution=dispatchCustom(admissionTasks());
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='READY'",Integer.class)==2);
+        var before=jdbc().queryForList("SELECT task_run_id,attempt_no,deadline,enqueue_order FROM wf_worker_job ORDER BY enqueue_order");
+        var available=new java.util.concurrent.atomic.AtomicBoolean();var ran=new CopyOnWriteArrayList<String>();
+        TaskRunner runner=new TaskRunner() {
+            public TaskRunner admit(TaskContext c) {return c.job().task().id().equals("busy")&&!available.get()?null:this;}
+            public WorkerJob.Result run(TaskContext c) {ran.add(c.job().task().id());return WorkerJob.Result.success(Map.of());}
+        };
+        try(var worker=localWorker(runner)) {
+            var pump=new WorkerPump(worker,1);
+            try {
+            pump.poll();org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==1);
+            assertEquals(before,jdbc().queryForList("SELECT task_run_id,attempt_no,deadline,enqueue_order FROM wf_worker_job ORDER BY enqueue_order"));
+            assertEquals("READY",jdbc().queryForObject("SELECT state FROM wf_worker_job WHERE task_run_id=?",String.class,before.getFirst().get("task_run_id")));
+            available.set(true);
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->{pump.poll();return ran.size()==2;});
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==2);
+            } finally {pump.close();}
+        }
+        assertEquals(List.of("free","busy"),ran);drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+        for(var run:executions().tasks(actor,"lab",execution))if(!run.taskId().equals("group"))assertEquals(1,executions().attempts(actor,"lab",execution,run.id()).size());
+    }
+
+    @Test void concurrentWorkerAdmissionIsSerializedButExecutionIsNot() throws Exception {
+        String execution=dispatchCustom(admissionTasks());
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class)==2);
+        var entered=new CountDownLatch(1);var proceed=new CountDownLatch(1);
+        TaskRunner runner=new TaskRunner() {
+            public TaskRunner admit(TaskContext c) throws Exception {entered.countDown();assertTrue(proceed.await(5,TimeUnit.SECONDS));return this;}
+            public WorkerJob.Result run(TaskContext c) {return WorkerJob.Result.success(Map.of());}
+        };
+        try(var one=localWorker(runner);var two=localWorker(runner);var pool=Executors.newVirtualThreadPerTaskExecutor()) {
+            var pending=pool.submit(one::admitNext);
+            try {
+                assertTrue(entered.await(5,TimeUnit.SECONDS));assertNull(two.admitNext());
+            } finally {proceed.countDown();}
+            var high=pending.get(5,TimeUnit.SECONDS);assertEquals("busy",high.lease().job().task().id());
+            var low=two.admitNext();assertNotNull(low);assertEquals("free",low.lease().job().task().id());
+            one.run(high);two.run(low);
+        }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+    }
+
+    @Test void cancelledAndExpiredOwnershipAreRecoveredBeforeNewHighPriority() {
+        for(boolean cancelled:List.of(false,true)) {
+            String execution=dispatchCustom("tasks: [{id: low, type: core.Log, priority: 0, message: low}]");
+            var old=worker().admitNext();assertNotNull(old);
+            jdbc().update("UPDATE wf_worker_job SET lease_until=TIMESTAMPADD(SECOND,-1,CURRENT_TIMESTAMP(6)) WHERE task_run_id=?",old.lease().job().taskRunId());
+            if(cancelled)jobs().cancel(old.lease().job().taskRunId(),1,"cancelled");
+            String other=custom("tasks: [{id: high, type: core.Log, priority: 100, message: high}]");
+            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='READY'",Integer.class)==1);
+            var recovered=worker().admitNext();assertEquals(old.lease().job(),recovered.lease().job());
+            assertTrue(recovered.lease().epoch()>old.lease().epoch());assertFalse(jobs().owned(old.lease()));worker().run(recovered);
+            drain();assertTrue(executions().get(actor,"lab",execution).state().terminal());assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",other).state());
+        }
+    }
 
     @Test void leaseTakeoverKeepsAttemptAndRejectsOldAndDuplicateResults() {
         String executionId=dispatchCustom("tasks: [{id: one, type: core.Log, message: real}]\n");
@@ -840,11 +947,12 @@ private String custom(String body) {
 
     @Test void parallelJobsReallyOverlapInWorkers() throws Exception {
         String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: a, type: core.Sleep, duration: PT1S}, {id: b, type: core.Sleep, duration: PT1S}]}]\n");
-        try(var pool=Executors.newFixedThreadPool(2)) {
-            var a=pool.submit(worker()::runOnce);var b=pool.submit(worker()::runOnce);
+        var pump=new WorkerPump(worker(),2);
+        try {
+            pump.poll();
             advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)==2);
-            assertTrue(a.get(4,TimeUnit.SECONDS));assertTrue(b.get(4,TimeUnit.SECONDS));
-        }
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(4)).until(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==2);
+        } finally {pump.close();}
         drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
     }
 

@@ -48,6 +48,7 @@ public final class FlowSchema {
                 Map<String,Object> shape=describe(component.getGenericType(),definitions);
                 if(field.equals("candidateClusters"))shape=Map.of("anyOf",List.of(shape,Map.of("type","array","items",Map.of("type","string"))));
                 if(cls==FlowDefinition.Task.class && field.equals("type"))shape=Map.of("type","string","enum",FlowValidator.taskTypes().stream().sorted().toList());
+                if(cls==FlowDefinition.Task.class && field.equals("priority"))shape=Map.of("type","integer","minimum",0,"maximum",100,"default",0);
                 if(cls==FlowDefinition.Offload.class && field.equals("exploration"))shape=Map.of("type","number","minimum",0,"maximum",1);
                 if(cls==FlowDefinition.Input.class && field.equals("values"))shape=Map.of("type","array","items",Map.of("type","string"),"minItems",1,"uniqueItems",true);
                 if(cls==FlowDefinition.class && field.equals("schemaVersion"))shape=Map.of("const",1);

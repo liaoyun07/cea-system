@@ -212,6 +212,8 @@ export function taskFormFields(task, root) {
       'core.Sql': ['sql.parameters'],
     }[task.type] || [];
   if (['core.Log', 'core.Sleep'].includes(task.type)) optional.push('timeout');
+  if (['core.Log', 'core.Sleep', 'core.Http', 'core.Sql', 'platform.Application'].includes(task.type))
+    optional.push('priority');
   if (
     ['core.Log', 'core.Sleep', 'core.Sql', 'platform.Application'].includes(task.type) ||
     (task.type === 'core.Http' && task.http?.method !== 'POST')

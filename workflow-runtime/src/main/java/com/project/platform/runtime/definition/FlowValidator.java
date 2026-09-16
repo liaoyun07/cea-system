@@ -61,6 +61,8 @@ public final class FlowValidator {
             identifier(task.id(), "tasks.id");
             if(task.type()==null || !TASK_TYPES.contains(task.type()))throw WorkflowException.invalid("tasks."+task.id(),"unsupported task type");
             if (!taskIds.add(task.id())) throw WorkflowException.invalid("tasks.id", "duplicate " + task.id());
+            if(task.priority()!=null && (task.control() || task.priority()<0 || task.priority()>100))
+                throw WorkflowException.invalid("priority","only runnable tasks support priority 0..100");
             if ("core.Log".equals(task.type())) {
                 renderer.validate(task.message());
                 if (task.duration()!=null) throw WorkflowException.invalid("duration", "only Sleep supports duration");

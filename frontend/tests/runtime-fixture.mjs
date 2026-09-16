@@ -50,6 +50,21 @@ export async function startRuntime(token) {
     owned.push(registry);
     const registryPort = JSON.parse(docker('inspect', registry))[0].NetworkSettings.Ports['5000/tcp'][0]
       .HostPort;
+    const targetRegistry = docker(
+      'run',
+      '-d',
+      '--network',
+      network,
+      '--network-alias',
+      'ui-distribution-target',
+      '-p',
+      '127.0.0.1::5000',
+      'registry:2',
+    );
+    owned.push(targetRegistry);
+    const targetRegistryPort = JSON.parse(docker('inspect', targetRegistry))[0].NetworkSettings.Ports[
+      '5000/tcp'
+    ][0].HostPort;
     const tool = docker(
       'run',
       '-d',
@@ -236,6 +251,10 @@ export async function startRuntime(token) {
         '--platform.distribution.registries.ui.tls-verify=false',
         `--platform.distribution.registries.ui.api-url=http://127.0.0.1:${registryPort}`,
         '--platform.distribution.targets.lab.runtime-edge=ui',
+        '--platform.distribution.registries.ui-target.address=ui-distribution-target:5000',
+        '--platform.distribution.registries.ui-target.tls-verify=false',
+        `--platform.distribution.registries.ui-target.api-url=http://127.0.0.1:${targetRegistryPort}`,
+        '--platform.distribution.targets.lab.distribution-edge=ui-target',
         '--platform.distribution.timeout=PT60S',
         '--platform.image-upload.centers.lab=ui',
         `--platform.image-upload.directory=${join(directory, 'uploads')}`,

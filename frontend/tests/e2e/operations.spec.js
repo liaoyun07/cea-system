@@ -35,6 +35,11 @@ test('real archive upload and on-demand distribution history, invalid archive ne
 }) => {
   test.setTimeout(150000);
   const id = unique();
+  await put(request, '/resources/clusters/distribution-edge', {
+    id: 'distribution-edge',
+    kind: 'EDGE',
+    enabled: true,
+  });
   await login(page);
   await nav(page, '应用与镜像');
   await page.getByRole('button', { name: '上传镜像', exact: true }).click();
@@ -53,10 +58,13 @@ test('real archive upload and on-demand distribution history, invalid archive ne
   const app = await get(request, `/applications/${id}/versions/v1`);
   expect(app.image).toMatch(/^ui-registry:5000\/lab\/op-.*@sha256:[a-f0-9]{64}$/);
   await expect(page.getByLabel('镜像引用', { exact: true })).toHaveValue(app.image);
-  await page.getByLabel('目标集群', { exact: true }).selectOption('runtime-edge');
+  await page.getByLabel('目标集群', { exact: true }).selectOption('distribution-edge');
   await page.getByRole('button', { name: '准备镜像', exact: true }).click();
   await expect(page.getByRole('table', { name: '按需分发历史' })).toContainText('成功', { timeout: 60000 });
   expect((await get(request, `/applications/${id}/versions/v1/preparations`))[0].state).toBe('SUCCEEDED');
+  await page.getByRole('button', { name: '准备镜像', exact: true }).click();
+  await expect(page.getByRole('button', { name: '准备镜像', exact: true })).toBeEnabled();
+  expect(await get(request, `/applications/${id}/versions/v1/preparations`)).toHaveLength(1);
   await page.screenshot({ path: '.local/evidence/operations-upload-history.png', fullPage: true });
 });
 test('deployment config edit and scale use current CAS, show real timing and preserve history', async ({

@@ -55,11 +55,23 @@ test('task form order follows required fields and omits unsupported control reli
       ['http.path', true],
       ['timeout', true],
       ['http.body', false],
+      ['priority', false],
     ],
   );
   assert.ok(
     taskFormFields({ type: 'core.Http', http: { method: 'GET' } }, root).some((f) => f.path[0] === 'retry'),
   );
+});
+test('runnable priority edits share YAML and never appear on control nodes', () => {
+  for (const type of ['core.Log', 'core.Sleep', 'core.Http', 'core.Sql', 'platform.Application'])
+    assert.ok(
+      taskFormFields({ type }, { $defs: { Task: { properties: {} } } }).some(
+        (f) => f.path[0] === 'priority' && !f.required,
+      ),
+    );
+  const edited = changeSource(source, ['tasks', 0, 'priority'], 80);
+  assert.equal(readDocument(edited).value.tasks[0].priority, 80);
+  assert.ok(edited.includes('# keep message comment'));
 });
 test('field edits retain non-edited fields and comments, including false/0/empty', () => {
   let next = changeSource(source, ['tasks', 0, 'message'], 'changed');

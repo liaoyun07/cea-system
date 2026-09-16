@@ -9,6 +9,17 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DefinitionTest {
+    @Test void runnablePriorityHasDefaultBoundsAndRoundTripsWithoutChangingControlTasks() {
+        String source="schemaVersion: 1\nnamespace: lab\nid: priority\ntasks: [{id: work, type: core.Log, message: hi%s}]";
+        assertEquals(0,parser.parse(source.formatted("")).tasks().getFirst().effectivePriority());
+        for(int priority:List.of(0,50,100)) {
+            var flow=parser.parse(source.formatted(", priority: "+priority));
+            assertEquals(priority,flow.tasks().getFirst().effectivePriority());
+            assertEquals(flow,parser.parse(json.write(flow)));
+        }
+        for(int priority:List.of(-1,101))assertThrows(WorkflowException.class,()->parser.parse(source.formatted(", priority: "+priority)));
+        assertThrows(WorkflowException.class,()->parser.parse("schemaVersion: 1\nnamespace: lab\nid: priority\ntasks: [{id: group, type: core.Parallel, priority: 10, tasks: [{id: work, type: core.Log, message: hi}]}]"));
+    }
     @Test void postCannotRetryAndSqlCannotWriteOrUseMultipleStatements() {
         String base="schemaVersion: 1\nnamespace: lab\nid: common\ntasks:\n";
         assertThrows(WorkflowException.class,()->parser.parse(base+"  - {id: post, type: core.Http, timeout: PT1S, retry: {type: constant, maxAttempts: 2, interval: PT1S}, http: {connection: c, method: POST, path: {source: LITERAL, value: /}}}\n"));
@@ -68,7 +79,7 @@ class DefinitionTest {
 
     private FlowDefinition flow(Map<String,Input> inputs, Map<String,Binding> variables, Map<String,Binding> outputs) {
         return new FlowDefinition(1,"lab","test","test",Map.of(),inputs,variables,
-                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null,null,null,null,null);
+                List.of(new Task("one","core.Log","{{ inputs.name }}",null,null,null,null,null,null,null,null,null,null,null,null,null,null)),outputs,null,null,null,null,null,null,null,null);
     }
 
     @Test void jsonAndYamlHaveTheSameModel() {
@@ -107,10 +118,10 @@ class DefinitionTest {
 
     @Test void duplicateTaskAndUnsupportedTaskAreRejected() {
         FlowDefinition duplicate = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
+                List.of(new Task("same","core.Log","a",null,null,null,null,null,null,null,null,null,null,null,null,null,null),new Task("same","core.Log","b",null,null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(duplicate));
         FlowDefinition unsupported = new FlowDefinition(1,"lab","test",null,null,null,null,
-                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
+                List.of(new Task("one","core.Http","a",null,null,null,null,null,null,null,null,null,null,null,null,null,null)),null,null,null,null,null,null,null,null,null);
         assertThrows(WorkflowException.class, () -> validator.validate(unsupported));
     }
 
