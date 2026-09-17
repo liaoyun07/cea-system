@@ -22,3 +22,15 @@ cloud kubelet `/stats/summary`在16:23:42Z显示节点workingSetBytes `118628147
 - 00:33只读现场脚本`.local/ui15/verify.mjs`逐一比对四集群的API百分比、圆环弧度及已用量；四集群内存71.587/71.602/71.681/71.590%，正常呈现，不改成更低口径。1440/900/390实际截图通过，JS错误0，API写请求0。
 - 原44Flow/348执行/71应用版本/14数据集版本/13策略完整列表与发布前相同；其余19服务容器ID、镜像ID、启动时间保持且运行，未重启后端、DB、Registry或算法集群。证据`.local/ui15/before.json`、`result.json`及`live-*.png`，不包含凭据。
 - scaffold通过（8模块、109 Java文件）；仅结构检查，不替代业务测试。本批仅新增测试/文档，主调用链、API/表/字段及采集公式保持。上述只读诊断不是性能基准或内存优化。
+
+## UI-15a：节点表信息精简（2026-09-18）
+
+基线`b37516a596920798017cdec6c620ba759d651c8f`。隐藏容量和可分配容量中的Pod上限，并移除采样状态/时间/窗口整列；不改后端返回值、Metrics有效性判断、节点配置。保留只读封锁调度列，未实现或调用cordon/uncordon。
+
+只读核对：`cea-edge-a-1`容器在Docker `cea_default`桥接网络中的IP为`172.26.0.8`，与Kubernetes节点InternalIP一致；该网络子网为`172.26.0.0/16`，节点Pod CIDR为`10.42.0.0/24`，不是同一地址范围。`/api/v1/nodes/cea-edge-a/proxy/configz`返回`kubeletconfig.maxPods=110`，部署配置未发现显式覆盖；[kubelet官方参数](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/)默认也是110。该值可人工配置，并非按CPU/内存推算或当前Pod数。封锁调度来自Node `spec.unschedulable`，可解释外部维护时不接收普通新Pod，不会停止已有Pod；[官方节点说明](https://kubernetes.io/docs/concepts/architecture/nodes/)。当前系统只读展示，无修改入口，本次不增加权限。
+
+- 本批重新运行Node单测56/56、完整Playwright77/77（3.9分钟），Vite构建、Prettier及diff检查通过。新增断言表头为8列、容量只含CPU/内存，不再渲染110、采样时间或窗口；STALE/MISSING/INVALID节点明细继续显示“— / —”。真实节点指标测试同步通过。沿用既有打包JAR启动隔离测试后端，无Java变更或Maven重跑。日志`.local/ui15a-{unit,build,format,e2e}.log`。
+- 前端新镜像`cea/frontend:ui15a-20260918`（同步`:local`）为`sha256:4a31ed8a23e93b22b5a3ae545b6ba6b56049ccc1938c557a0f5666d15a940364`；前版保留为`cea/frontend:rollback-ui15a-20260918`（`sha256:b208b32b66c24f377e9785457f4e9aed147889a610a0a1c13b4c3716239fdc89`）。只执行`compose up -d --no-deps --wait frontend`，00:54:46启动并健康。
+- 00:55实际页面逐一验证cloud/edge-a/edge-b/edge-c：8列表头、容量两项、环形图及用量与API一致；1440/900/390宽度通过，桌面和窄屏截图检查通过，窄屏表格保留内部横向滚动。浏览器JS错误0，API写请求0。
+- 发布前后44Flow/348执行/71应用/14数据集/13策略完整列表保持，其余19服务ID、镜像ID和启动时间未变且仍运行。仅前端更新，未重启后端、DB、Registry或算法集群。证据`.local/ui15a/before.json`、`result.json`及`live-*.png`；复用`.local/ui15/verify.mjs --ui15a`分目录取证，未覆盖上批证据。
+- scaffold通过（8模块、109 Java文件）。本次不改接口、部署资源配置或采集公式，不把隐藏字段等同于停用采集/校验。

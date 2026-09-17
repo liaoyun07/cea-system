@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-15a（DONE，已部署）：节点表隐藏Pod上限与采样状态/时间/窗口，保留CPU/内存及不可用态，不改指标/配置和只读封锁调度。56项单测、77项浏览器与四集群/窄屏核验通过，仅发布frontend。[范围](features/UI-15-resource-usage-charts.md)、[验证追加](verification/VER-UI-015-resource-usage-charts.md)。
+
 UI-15（DONE，已部署）：节点资源摘要使用CPU/内存环形图及全节点用量，保留真实百分比/不可用态和节点明细，未改变Metrics采集。56项单测、77项浏览器及CEA四集群/桌面/窄屏核验通过，仅frontend更新；已核对旧系统口径和本机共享宿主/缓存因素，不宣称内存优化。[范围](features/UI-15-resource-usage-charts.md)、[验证](verification/VER-UI-015-resource-usage-charts.md)。
 
 NAV-01b（DONE，已部署）：侧栏菜单去除装饰图标，保持醒目模块标题，用缩进、常规/选中字重及紫色选中态区分层级。56项单测、74项浏览器及18080桌面/窄屏/18入口验收通过，仅更新frontend，其余19服务与业务列表保持。[范围](features/NAV-01-proposal-navigation.md)、[验证追加](verification/VER-NAV-01-proposal-navigation.md)。

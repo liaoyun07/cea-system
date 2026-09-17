@@ -32,5 +32,3 @@ export const coresText = (value) =>
   typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(3)} 核` : '—';
 export const memoryText = (value) =>
   typeof value === 'number' && Number.isFinite(value) ? `${(value / 1048576).toFixed(1)} MiB` : '—';
-export const usageState = (value) =>
-  ({ AVAILABLE: '可用', STALE: '已过期', INVALID: '无效', MISSING: '无数据' })[value] || '不可用';

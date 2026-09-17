@@ -1,9 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { errorText } from '../api.js';
-import { time } from '../model.js';
 import { readCatalog } from '../no-code/document.js';
-import { percentText, coresText, memoryText, usageState } from './operations.js';
+import { percentText, coresText, memoryText } from './operations.js';
 import KubernetesManagement from './KubernetesManagement.vue';
 import KubernetesIngress from './KubernetesIngress.vue';
 const props = defineProps({ api: Function, workspace: String, mode: String });
@@ -237,11 +236,10 @@ onBeforeUnmount(() => {
               <th>Ready</th>
               <th>封锁调度</th>
               <th>地址</th>
-              <th>容量 CPU / 内存 / Pod</th>
-              <th>可分配 CPU / 内存 / Pod</th>
+              <th>容量 CPU / 内存</th>
+              <th>可分配 CPU / 内存</th>
               <th>CPU 用量 / 容量占比</th>
               <th>内存用量 / 容量占比</th>
-              <th>采样状态 / 时间 / 窗口</th>
             </tr>
           </thead>
           <tbody>
@@ -252,14 +250,8 @@ onBeforeUnmount(() => {
               <td>
                 <div v-for="address in node.addresses" :key="address">{{ address }}</div>
               </td>
-              <td>
-                {{ node.capacity.cpu || '—' }} / {{ node.capacity.memory || '—' }} /
-                {{ node.capacity.pods || '—' }}
-              </td>
-              <td>
-                {{ node.allocatable.cpu || '—' }} / {{ node.allocatable.memory || '—' }} /
-                {{ node.allocatable.pods || '—' }}
-              </td>
+              <td>{{ node.capacity.cpu || '—' }} / {{ node.capacity.memory || '—' }}</td>
+              <td>{{ node.allocatable.cpu || '—' }} / {{ node.allocatable.memory || '—' }}</td>
               <td>
                 {{ coresText(nodeUsage(node.name)?.cpuCores) }} /
                 {{ percentText(nodeUsage(node.name)?.cpuPercent) }}
@@ -267,11 +259,6 @@ onBeforeUnmount(() => {
               <td>
                 {{ memoryText(nodeUsage(node.name)?.memoryBytes) }} /
                 {{ percentText(nodeUsage(node.name)?.memoryPercent) }}
-              </td>
-              <td>
-                {{ usageState(nodeUsage(node.name)?.status) }}
-                <div>{{ nodeUsage(node.name)?.timestamp ? time(nodeUsage(node.name).timestamp) : '—' }}</div>
-                <div>{{ nodeUsage(node.name)?.window || '—' }}</div>
               </td>
             </tr>
           </tbody>
@@ -367,7 +354,7 @@ onBeforeUnmount(() => {
   }
 }
 table[aria-label='节点'] {
-  min-width: 1300px;
+  min-width: 1100px;
 }
 td {
   white-space: nowrap;

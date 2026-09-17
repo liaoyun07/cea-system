@@ -46,6 +46,22 @@ test('resource rings use authoritative cluster ratios and all-node usage, not cu
   await expect(page.locator('.usage-card.memory')).toContainText('12.00 GiB');
   await expect(page.locator('.usage-card.cpu .ring-value')).toHaveAttribute('stroke-dasharray', '25 100');
   await expect(page.getByRole('table', { name: '节点' }).locator('tbody tr')).toHaveCount(1);
+  const table = page.getByRole('table', { name: '节点' });
+  await expect(table.getByRole('columnheader')).toHaveText([
+    '名称',
+    'Ready',
+    '封锁调度',
+    '地址',
+    '容量 CPU / 内存',
+    '可分配 CPU / 内存',
+    'CPU 用量 / 容量占比',
+    '内存用量 / 容量占比',
+  ]);
+  await expect(table.locator('tbody td').nth(4)).toHaveText('8 / 8Gi');
+  await expect(table.locator('tbody td').nth(5)).toHaveText('8 / 8Gi');
+  await expect(table).not.toContainText('110');
+  await expect(table).not.toContainText('2026');
+  await expect(table).not.toContainText('PT10S');
   for (const width of [1440, 900, 390]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -76,6 +92,8 @@ test('resource rings distinguish zero, full, over-capacity and unavailable sampl
     await expect(page.locator('.ring-value')).toHaveCount(0);
     await expect(page.locator('.usage-card.cpu')).toContainText('用量不可用');
     await expect(page.locator('.usage-overview')).not.toContainText('0.0%');
+    await expect(page.getByRole('table', { name: '节点' }).locator('tbody td').nth(6)).toHaveText('— / —');
+    await expect(page.getByRole('table', { name: '节点' }).locator('tbody td').nth(7)).toHaveText('— / —');
   }
 });
 
