@@ -14,6 +14,7 @@ const emit = defineEmits(['pending']);
 const namespaces = ref([]),
   selected = ref(''),
   services = ref([]),
+  deployments = ref([]),
   detail = ref(null);
 const error = ref(''),
   busy = ref(false),
@@ -23,12 +24,13 @@ const error = ref(''),
 const draft = ref({
   name: '',
   type: 'ClusterIP',
-  selector: [{ key: 'cea-system/deployment', value: '' }],
+  deployment: '',
   ports: [{ name: 'http', port: 80, targetPort: '8080', protocol: 'TCP', nodePort: '' }],
 });
 const base = computed(() => `/clusters/${encodeURIComponent(props.cluster)}/kubernetes/namespaces`);
 watch(busy, (value) => emit('pending', value), { flush: 'sync' });
 const servicePath = computed(() => `${base.value}/${encodeURIComponent(selected.value)}/services`);
+const deploymentPath = computed(() => `${base.value}/${encodeURIComponent(selected.value)}/deployments`);
 const canCreate = computed(() => namespaces.value.find((n) => n.name === selected.value)?.phase === 'Active');
 let generation = 0,
   controller;
@@ -42,6 +44,7 @@ async function load() {
   loading.value = true;
   detail.value = null;
   services.value = [];
+  deployments.value = [];
   try {
     const values = await props.api(base.value, { signal });
     if (current !== generation) return;
@@ -49,15 +52,24 @@ async function load() {
     if (!contextApplied && props.context?.cluster === props.cluster && props.tab === 'services') {
       selected.value = props.context.namespace;
       draft.value.name = props.context.name;
-      draft.value.selector = Object.entries(props.context.selector).map(([key, value]) => ({ key, value }));
+      draft.value.deployment = props.context.name;
       creating.value = true;
       contextApplied = true;
     }
-    if (!values.some((v) => v.name === selected.value))
+    if (!values.some((v) => v.name === selected.value)) {
       selected.value = values.find((v) => v.executionDefault)?.name || values[0]?.name || '';
+      draft.value.deployment = '';
+    }
     if (props.tab === 'services' && selected.value) {
-      const rows = await props.api(servicePath.value, { signal });
-      if (current === generation) services.value = rows;
+      const [rows, targets] = await Promise.all([
+        props.api(servicePath.value, { signal }),
+        props.api(deploymentPath.value, { signal }),
+      ]);
+      if (current === generation) {
+        services.value = rows;
+        deployments.value = targets;
+        if (!targets.some((row) => row.name === draft.value.deployment)) draft.value.deployment = '';
+      }
     }
   } catch (e) {
     if (current === generation) error.value = errorText(e);
@@ -88,10 +100,10 @@ function createNamespace() {
   mutate(() => props.api(path, { method: 'POST', body: { name } }));
 }
 function createService() {
+  if (!deployments.value.some((row) => row.name === draft.value.deployment)) return;
   const body = {
     name: draft.value.name,
     type: draft.value.type,
-    selector: {},
     ports: draft.value.ports.map((p) => ({
       ...p,
       port: Number(p.port),
@@ -99,15 +111,12 @@ function createService() {
       nodePort: p.nodePort === '' || draft.value.type === 'ClusterIP' ? null : Number(p.nodePort),
     })),
   };
-  for (const row of draft.value.selector) {
-    if (!row.key || Object.hasOwn(body.selector, row.key)) {
-      error.value = 'Selector 键不能为空或重复';
-      return;
-    }
-    body.selector[row.key] = row.value;
-  }
-  const path = servicePath.value;
-  mutate(() => props.api(path, { method: 'POST', body }));
+  const path = servicePath.value,
+    target = `${deploymentPath.value}/${encodeURIComponent(draft.value.deployment)}/runtime`;
+  mutate(async () => {
+    const runtime = await props.api(target);
+    await props.api(path, { method: 'POST', body: { ...body, selector: runtime.selector } });
+  });
 }
 function remove(row, kind) {
   const warning =
@@ -138,6 +147,7 @@ watch(
   () => [props.cluster, props.tab, props.refresh],
   () => {
     selected.value = '';
+    draft.value.deployment = '';
     creating.value = false;
     namespaces.value = [];
     load();
@@ -160,6 +170,7 @@ onBeforeUnmount(() => {
           :disabled="loading || busy"
           @change="
             creating = false;
+            draft.deployment = '';
             load();
           "
         >
@@ -183,7 +194,7 @@ onBeforeUnmount(() => {
       <button class="primary" :disabled="busy">创建 Namespace</button>
     </form>
     <form v-if="creating && tab === 'services'" @submit.prevent="createService">
-      <fieldset :disabled="busy">
+      <fieldset :disabled="busy || loading">
         <div class="form-grid">
           <label>Service 名称<input v-model="draft.name" required /></label
           ><label
@@ -194,20 +205,22 @@ onBeforeUnmount(() => {
             </select></label
           >
         </div>
-        <h3>Pod Selector</h3>
-        <div v-for="(row, index) in draft.selector" :key="index" class="port-row">
-          <input v-model="row.key" aria-label="Selector 键" required /><input
-            v-model="row.value"
-            aria-label="Selector 值"
-          /><button
-            type="button"
-            :disabled="draft.selector.length === 1"
-            @click="draft.selector.splice(index, 1)"
-          >
-            移除
-          </button>
-        </div>
-        <button type="button" @click="draft.selector.push({ key: '', value: '' })">添加 Selector</button>
+        <label class="service-target"
+          >目标部署
+          <select v-model="draft.deployment" aria-label="目标部署" required :disabled="!deployments.length">
+            <option value="" disabled>选择当前 Namespace 中的部署</option>
+            <option v-for="row in deployments" :key="row.name" :value="row.name">
+              {{ row.name }} · {{ row.applicationId }}/{{ row.version }}
+            </option>
+          </select>
+        </label>
+        <p class="muted">
+          {{
+            deployments.length
+              ? '自动关联所选部署的 Pod，可为同一部署创建多个 Service。'
+              : '当前 Namespace 暂无可选部署，请先创建部署。'
+          }}
+        </p>
         <h3>端口</h3>
         <div v-for="(port, index) in draft.ports" :key="index" class="port-row">
           <label>名称<input v-model="port.name" required /></label
@@ -233,7 +246,7 @@ onBeforeUnmount(() => {
         >
           添加端口
         </button>
-        <button class="primary">创建 Service</button>
+        <button class="primary" :disabled="!draft.deployment || !deployments.length">创建 Service</button>
       </fieldset>
     </form>
     <p v-if="loading" class="empty">正在读取资源…</p>
@@ -349,6 +362,9 @@ onBeforeUnmount(() => {
   </section>
 </template>
 <style scoped>
+.service-target {
+  margin-top: 20px;
+}
 .port-row {
   display: flex;
   gap: 12px;

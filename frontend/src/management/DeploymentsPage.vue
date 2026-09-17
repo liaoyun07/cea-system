@@ -214,7 +214,6 @@ function configureAccess() {
     cluster: cluster.value,
     namespace: runtime.value.namespace,
     name: selected.value.name,
-    selector: runtime.value.selector,
   });
 }
 async function edit() {

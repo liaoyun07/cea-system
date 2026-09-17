@@ -48,6 +48,19 @@ test('managed namespace and NodePort Service creation, actual detail and precise
   await page.locator('form').getByRole('button', { name: '创建 Namespace', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Kubernetes Namespace', exact: true })).toContainText(name);
   try {
+    await api(request, `/applications/${service}/versions/v1`, 'put', {
+      applicationId: service,
+      version: 'v1',
+      image: 'ui-registry:5000/alpine:v1',
+      parameters: {},
+    });
+    await api(request, `${k}/${name}/deployments/${service}`, 'put', {
+      applicationId: service,
+      version: 'v1',
+      replicas: 0,
+      command: [],
+      parameters: {},
+    });
     await nav(page, '服务资源管理');
     await page.getByLabel('资源集群').selectOption('runtime-edge');
     await page.getByRole('tab', { name: 'Service', exact: true }).click();
@@ -55,7 +68,7 @@ test('managed namespace and NodePort Service creation, actual detail and precise
     await page.getByRole('button', { name: '创建 Service', exact: true }).click();
     await page.getByLabel('Service 名称', { exact: true }).fill(service);
     await page.getByRole('combobox', { name: '类型', exact: true }).selectOption('NodePort');
-    await page.getByLabel('Selector 值', { exact: true }).fill('example');
+    await page.getByLabel('目标部署', { exact: true }).selectOption(service);
     await page.locator('form').getByRole('button', { name: '创建 Service', exact: true }).click();
     await expect(page.getByRole('table', { name: 'Service', exact: true })).toContainText(service);
     await page
@@ -66,6 +79,9 @@ test('managed namespace and NodePort Service creation, actual detail and precise
     await expect(page.getByRole('region', { name: 'Service 访问详情' })).toContainText('NodePort');
     const actual = await api(request, `${k}/${name}/services/${service}`);
     expect(actual.ports[0].nodePort).toBeGreaterThan(0);
+    expect(actual.selector).toEqual(
+      (await api(request, `${k}/${name}/deployments/${service}/runtime`)).selector,
+    );
     await page.screenshot({ path: '.local/evidence/ui09-service.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -78,6 +94,12 @@ test('managed namespace and NodePort Service creation, actual detail and precise
       .getByRole('button', { name: '删除 Service', exact: true })
       .click();
     await expect(page.getByRole('table', { name: 'Service', exact: true })).not.toContainText(service);
+    const target = await api(request, `${k}/${name}/deployments/${service}`);
+    await api(
+      request,
+      `${k}/${name}/deployments/${service}?resourceVersion=${target.resourceVersion}`,
+      'delete',
+    );
     await nav(page, '服务资源管理');
     await page.getByLabel('资源集群').selectOption('runtime-edge');
     await page.getByRole('tab', { name: 'Kubernetes Namespace', exact: true }).click();
@@ -92,6 +114,9 @@ test('managed namespace and NodePort Service creation, actual detail and precise
       .toBe(false);
     expect((await request.get(base + `${k}/kube-system/services`, { headers })).status()).toBe(403);
   } finally {
+    const deps = await api(request, `${k}/${name}/deployments`).catch(() => []);
+    for (const d of deps)
+      await api(request, `${k}/${name}/deployments/${d.name}?resourceVersion=${d.resourceVersion}`, 'delete');
     const remaining = (await api(request, k)).find((n) => n.name === name);
     if (remaining && remaining.phase !== 'Terminating')
       await api(

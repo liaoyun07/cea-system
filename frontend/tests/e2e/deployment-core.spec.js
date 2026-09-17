@@ -112,6 +112,7 @@ test('Namespace selection isolates same-name deployments, mutations, history and
     await page.getByRole('button', { name: '配置访问入口', exact: true }).click();
     await expect(page.getByLabel('Service Namespace', { exact: true })).toHaveValue(a);
     await expect(page.getByLabel('Service 名称', { exact: true })).toHaveValue(id);
+    await expect(page.getByLabel('目标部署', { exact: true })).toHaveValue(id);
     page.on('dialog', (d) => d.accept());
     await nav(page, '边缘服务部署');
     await page.getByLabel('执行集群', { exact: true }).selectOption('runtime-edge');
@@ -233,15 +234,12 @@ test('typed deployment, resources and readiness reach Kubernetes; access setup r
     await expect(page.getByLabel('资源集群', { exact: true })).toHaveValue('runtime-edge');
     await expect(page.getByLabel('Service Namespace', { exact: true })).toHaveValue('ui-test');
     await expect(page.getByLabel('Service 名称', { exact: true })).toHaveValue(id);
-    expect(
-      await page.getByLabel('Selector 键', { exact: true }).evaluateAll((els) => els.map((el) => el.value)),
-    ).toEqual(Object.keys(runtime.selector));
-    expect(
-      await page.getByLabel('Selector 值', { exact: true }).evaluateAll((els) => els.map((el) => el.value)),
-    ).toEqual(Object.values(runtime.selector));
+    await expect(page.getByLabel('目标部署', { exact: true })).toHaveValue(id);
+    await expect(page.getByLabel('Selector 键', { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: '创建 Service', exact: true }).click();
     await expect(page.getByRole('table', { name: 'Service', exact: true })).toContainText(id);
     service = await api(request, `${scope}/services/${id}`);
+    expect(service.selector).toEqual(runtime.selector);
     ingress = await api(request, `${scope}/ingresses`, 'post', {
       name: id,
       ingressClassName: 'cea-traefik',

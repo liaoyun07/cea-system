@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-18（2026-09-18，DONE，已部署）：依赖UI-17部署列表/runtime与既有Service接口，完成同集群同Namespace“目标部署”选择、详情预填与提交时读取真实Selector；移除内部标签编辑，不新增后端/API/表/权限或标签管理。预填、多个Service关联同一部署、切换作用域清空、空列表/读取失败/目标删除不提交、真实Pod关联与窄屏验收通过；57项单测、83项完整浏览器测试通过。03:48仅发布CEA前端，03:49现场双Service实际HTTP访问与原业务/其余19服务保持核验通过。[范围](features/UI-18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
+
 UI-17（2026-09-18，DONE，已部署）：依赖既有Namespace管理和DeploymentService，完成集群与已创建Namespace选择、部署全操作及历史显式作用域、V29旧记录回填；复用权限边界并补获授权的Deployment写权限。两个Namespace同名部署的创建、编辑、扩缩容、实例、计时、删除隔离与原默认Namespace回归通过；后端回归及修正后复测、57项前端单测、81项浏览器测试完成。03:17发布CEA前后端与四集群权限，03:21实际环境验收通过，不改普通Flow、Job选址或已有部署。[范围](features/UI-17-deployment-namespace.md)、[验证](verification/VER-UI-017-deployment-namespace.md)。
 
 UI-16（2026-09-18，DONE，已部署）：依赖既有DeploymentService、应用契约及Service/Ingress API，完成七类型部署参数表单、镜像默认启动/高级命令、CPU/内存requests/limits、HTTP就绪配置、按Deployment→ReplicaSet→Pod归属的状态/退出原因，以及访问入口关联/预填跳转。无新表/执行链/日志采集/自动公网入口；保留鉴权/CAS及其它容器配置，不批量改现有部署。真实资源写入/编辑/清除/扩缩容、参数默认值/切换、实例归属、入口关联及旧流程回归通过；57项单测、80项浏览器、3项窄屏专项和实际四集群/18080核验完成。02:06已发布前后端，业务对象和其余18服务保持。[范围](features/UI-16-deployment-core.md)、[验证与修正记录](verification/VER-UI-016-deployment-core.md)。

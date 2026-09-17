@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-18（2026-09-18，已部署）：03:48仅更新frontend，03:49确认18080创建Service改为“目标部署”下拉框，部署详情自动预选、底层完整Selector自动读取。57项单测、83项完整浏览器及1440/390px现场验收通过；两个临时Service通过80/81端口访问同一http-server实例均成功，测试Service已清理。原44Flow/348执行/71应用/14数据集/13策略、既有Deployment/Service/Ingress UID/spec和其余19服务保持，后端/API/DB/权限/普通Flow不变。[范围](features/UI-18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
+
 UI-17（2026-09-18，已部署）：03:17前后端更新并健康，03:21确认18080能选择已创建Namespace；双Namespace同名部署独立编辑/扩缩容/历史/实例，创建就绪耗时2.161s与1.766s。Namespace管理已移至“模块化边缘服务部署→服务资源管理”。V29回填原23条历史且不改原字段；原44Flow/348执行/71应用/14数据集/13策略、10个默认Namespace部署及其它既有工作负载UID/spec、其余18服务保持。测试资源已清理，获授权的四集群Deployment写权限已应用。后端回归及修正后复测、57项单测、81项浏览器和1440/390px现场核验通过，普通Flow不变。[范围](features/UI-17-deployment-namespace.md)、[验证](verification/VER-UI-017-deployment-namespace.md)。
 
 UI-16（2026-09-18，已部署）：02:06确认18080常驻部署的契约参数表单、CPU/内存设置、HTTP就绪配置和高级命令可用；详情能查看真实实例/异常及关联Service/Ingress，配置入口跳转预填，不自动创建。后端回归与契约复测、57项单测、80项浏览器及3项窄屏复测通过；四集群10个实际部署均能读取Ready实例，1440/390px页面核验通过。原44Flow/348执行/71应用/14数据集/13策略、既有Deployment/Service/Ingress UID/spec与其余18服务保持；只发布前后端，无DB/普通Flow执行链变化。[验收](verification/VER-UI-016-deployment-core.md)。
