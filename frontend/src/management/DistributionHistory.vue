@@ -7,6 +7,7 @@ import { durationText, stateName } from './operations.js';
 
 const props = defineProps({ api: Function, application: Object, refresh: Number, disabled: Boolean });
 const rows = ref([]),
+  hasMore = ref(false),
   offset = ref(0),
   loading = ref(false),
   error = ref('');
@@ -17,15 +18,20 @@ async function load() {
   controller?.abort();
   controller = new AbortController();
   rows.value = [];
+  hasMore.value = false;
   error.value = '';
-  loading.value = !!props.application;
-  if (!props.application) return;
+  loading.value = true;
+  const path = props.application
+    ? `${itemPath('applications', props.application)}/preparations`
+    : '/image-distributions';
   try {
-    const data = await props.api(
-      `${itemPath('applications', props.application)}/preparations?limit=20&offset=${offset.value}`,
-      { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) },
-    );
-    if (current === generation) rows.value = data;
+    const data = await props.api(`${path}?limit=21&offset=${offset.value}`, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
+    });
+    if (current === generation) {
+      rows.value = data.slice(0, 20);
+      hasMore.value = data.length > 20;
+    }
   } catch (e) {
     if (current === generation) error.value = errorText(e);
   } finally {
@@ -56,13 +62,14 @@ const duration = (row) =>
   <section class="management-editor">
     <div class="section-heading">
       <h2>按需分发历史</h2>
-      <button :disabled="disabled || loading || !application" @click="load">刷新历史</button>
+      <button :disabled="disabled || loading" @click="load">刷新历史</button>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <div class="table-wrap">
       <table aria-label="按需分发历史">
         <thead>
           <tr>
+            <th>应用版本</th>
             <th>目标集群</th>
             <th>状态</th>
             <th>发起人</th>
@@ -74,6 +81,7 @@ const duration = (row) =>
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.id">
+            <td>{{ row.applicationId }}/{{ row.version }}</td>
             <td>{{ row.clusterId }}</td>
             <td>{{ stateName(row.state) }}</td>
             <td>{{ row.requestedBy }}</td>
@@ -89,13 +97,20 @@ const duration = (row) =>
       </table>
     </div>
     <p v-if="loading" class="empty">正在读取分发记录…</p>
-    <p v-else-if="!rows.length && !error" class="empty">
-      {{ application ? '暂无分发记录' : '请选择应用版本' }}
-    </p>
+    <p v-else-if="!rows.length && !error" class="empty">暂无分发记录</p>
     <div class="pagination">
       <button :disabled="disabled || loading || offset === 0" @click="paginate(-1)">上一页</button>
       <span>第 {{ offset / 20 + 1 }} 页</span>
-      <button :disabled="disabled || loading || rows.length < 20" @click="paginate(1)">下一页</button>
+      <button :disabled="disabled || loading || !hasMore" @click="paginate(1)">下一页</button>
     </div>
   </section>
 </template>
+
+<style scoped>
+td:nth-child(-n + 6) {
+  white-space: nowrap;
+}
+td:nth-child(7) {
+  min-width: 320px;
+}
+</style>

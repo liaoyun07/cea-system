@@ -122,7 +122,7 @@ test('distribution pagination resets on version change and ignores an obsolete r
     }),
   );
   let delayed;
-  await page.route('**/applications/*/versions/*/preparations?*', async (route) => {
+  const history = async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.includes('nav-b')) {
       await route.fulfill({ json: [] });
@@ -133,8 +133,10 @@ test('distribution pagination resets on version change and ignores an obsolete r
       return;
     }
     await route.fulfill({
-      json: Array.from({ length: 20 }, (_, i) => ({
+      json: Array.from({ length: 21 }, (_, i) => ({
         id: String(i),
+        applicationId: 'nav-a',
+        version: 'v1',
         clusterId: 'history-edge',
         state: 'SUCCEEDED',
         requestedBy: 'owner',
@@ -144,8 +146,11 @@ test('distribution pagination resets on version change and ignores an obsolete r
         targetImage: 'edge/app@sha256:target',
       })),
     });
-  });
+  };
+  await page.route('**/image-distributions?*', history);
+  await page.route('**/applications/*/versions/*/preparations?*', history);
   await nav(page, '应用分发记录');
+  await expect(page.getByLabel('分发记录应用版本')).toHaveValue('');
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(20);
   await page.getByRole('button', { name: '下一页', exact: true }).click();
   await expect.poll(() => !!delayed).toBe(true);

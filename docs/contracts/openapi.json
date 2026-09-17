@@ -16,6 +16,20 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/image-distributions": {
+      "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}}],
+      "get": {
+        "operationId":"allImageDistributionHistory",
+        "description":"READ. All persisted distribution attempts in the platform namespace, independent of current application catalog membership. Ordered by startedAt DESC, id DESC. The existing application version preparations route filters a single version. Overdue unfinished attempts are UNKNOWN.",
+        "parameters":[{"name":"limit","in":"query","schema":{"type":"integer","minimum":1,"maximum":100,"default":20}},{"name":"offset","in":"query","schema":{"type":"integer","minimum":0,"maximum":1000000,"default":0}}],
+        "responses": {
+          "200":{"description":"One page, empty array when no records","content":{"application/json":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ImageDistribution"}}}}},
+          "401":{"description":"Authentication required"},
+          "403":{"description":"Namespace READ denied"},
+          "422":{"description":"Invalid pagination"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/clusters/{cluster}/kubernetes/ingress-classes": {
       "parameters": [
         {

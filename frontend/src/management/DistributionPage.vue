@@ -25,7 +25,7 @@ async function load() {
     );
     if (controller.signal.aborted) return;
     applications.value = values;
-    if (!values.some((row) => key(row) === selected.value)) selected.value = values[0] ? key(values[0]) : '';
+    if (!values.some((row) => key(row) === selected.value)) selected.value = '';
   } catch (e) {
     if (!controller.signal.aborted) error.value = errorText(e);
   } finally {
@@ -49,12 +49,11 @@ onBeforeUnmount(() => controller.abort());
     <div class="inspection-controls resource-selector">
       <label
         >应用版本<select v-model="selected" aria-label="分发记录应用版本" :disabled="loading">
-          <option value="" disabled>选择应用版本</option>
+          <option value="">全部应用版本</option>
           <option v-for="row in applications" :key="key(row)" :value="key(row)">{{ key(row) }}</option>
         </select></label
       >
     </div>
-    <p v-if="!loading && !error && !applications.length" class="empty">暂无登记应用版本</p>
-    <DistributionHistory v-if="application" :api="api" :application="application" />
+    <DistributionHistory :api="api" :application="application" />
   </section>
 </template>

@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-19（2026-09-18，已部署）：04:35更新前后端，04:36确认18080默认显示全部应用分发历史（20条/页），选择版本筛选、清除筛选归第一页；版本列可区分来源，满页不多出空白下一页。285项Java＋1项打包、57项单测通过，浏览器85项首轮通过及旧夹具修正后9项复测通过。2360条/64个版本历史逐页与SQL一致，原44 Flow/348执行/71应用/14数据集/13策略、工作负载及其余18服务保持；无DB/权限/执行链改动。[范围](features/UI-19-distribution-history.md)、[验证](verification/VER-UI-019-distribution-history.md)。
+
 UI-18（2026-09-18，已部署）：03:48仅更新frontend，03:49确认18080创建Service改为“目标部署”下拉框，部署详情自动预选、底层完整Selector自动读取。57项单测、83项完整浏览器及1440/390px现场验收通过；两个临时Service通过80/81端口访问同一http-server实例均成功，测试Service已清理。原44Flow/348执行/71应用/14数据集/13策略、既有Deployment/Service/Ingress UID/spec和其余19服务保持，后端/API/DB/权限/普通Flow不变。[范围](features/UI-18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
 
 UI-17（2026-09-18，已部署）：03:17前后端更新并健康，03:21确认18080能选择已创建Namespace；双Namespace同名部署独立编辑/扩缩容/历史/实例，创建就绪耗时2.161s与1.766s。Namespace管理已移至“模块化边缘服务部署→服务资源管理”。V29回填原23条历史且不改原字段；原44Flow/348执行/71应用/14数据集/13策略、10个默认Namespace部署及其它既有工作负载UID/spec、其余18服务保持。测试资源已清理，获授权的四集群Deployment写权限已应用。后端回归及修正后复测、57项单测、81项浏览器和1440/390px现场核验通过，普通Flow不变。[范围](features/UI-17-deployment-namespace.md)、[验证](verification/VER-UI-017-deployment-namespace.md)。

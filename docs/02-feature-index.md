@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-19（DONE，已部署）：应用分发记录默认全部分页，应用版本可选筛选并归第一页，增加版本列及满页前瞻；新增工作空间只读GET，保留原查询/分发逻辑，无DB/权限变化。285项Java＋1项打包、57项前端单测通过；浏览器首轮85通过，旧夹具修正后9项复测通过。04:35发布前后端，04:36现场2360条历史逐页与SQL一致，原业务及其余18服务保持。[范围](features/UI-19-distribution-history.md)、[契约](contracts/ui19-distribution-history.md)、[验证](verification/VER-UI-019-distribution-history.md)。
+
 UI-18（DONE，已部署）：Service创建改为选择同Namespace目标部署，提交时读取真实Selector；部署详情预填，不再编辑内部标签。57项单测、83项浏览器及CEA同部署双Service真实HTTP访问通过；仅更新前端，原业务资源与其余19服务保持，无后端/API/DB/权限变更。[范围](features/UI-18-service-target.md)、[调用协议](contracts/ui18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
 
 UI-17（DONE，已部署）：常驻部署可从已创建 Namespace 中选择，部署操作、实例和历史统一按所选范围查询；Namespace 管理移至服务资源管理。V29 增加历史作用域并回填原23条记录；后端回归及修正后复测、57项前端单测、81项浏览器测试和18080双Namespace同名部署验证通过。仅发布前后端并应用获授权的四集群Deployment写权限，原业务、默认Namespace部署与其余18服务保持，普通Flow不变。[范围](features/UI-17-deployment-namespace.md)、[契约](contracts/ui17-deployment-namespace.md)、[验证](verification/VER-UI-017-deployment-namespace.md)。

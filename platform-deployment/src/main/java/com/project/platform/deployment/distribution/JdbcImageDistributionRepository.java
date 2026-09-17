@@ -23,12 +23,14 @@ public final class JdbcImageDistributionRepository {
         jdbc.update("UPDATE dep_image_distribution SET state=?,error=?,finished_at=? WHERE id=? AND state='RUNNING'",state,error,Timestamp.from(now),id);
     }
     public List<Distribution> list(String namespace,String application,String version,int limit,int offset,Instant now) {
-        return jdbc.query("SELECT * FROM dep_image_distribution WHERE namespace=? AND application_id=? AND version=? ORDER BY started_at DESC,id DESC LIMIT ? OFFSET ?",
+        String filter=application==null?"":" AND application_id=? AND version=?";
+        Object[] arguments=application==null?new Object[]{namespace,limit,offset}:new Object[]{namespace,application,version,limit,offset};
+        return jdbc.query("SELECT * FROM dep_image_distribution WHERE namespace=?"+filter+" ORDER BY started_at DESC,id DESC LIMIT ? OFFSET ?",
                 (rs,row)->new Distribution(rs.getString("id"),rs.getString("application_id"),rs.getString("version"),rs.getString("cluster_id"),rs.getString("requested_by"),
                         rs.getString("source_image"),rs.getString("target_image"),
                         "RUNNING".equals(rs.getString("state")) && now.isAfter(rs.getTimestamp("deadline_at").toInstant())?"UNKNOWN":rs.getString("state"),
                         rs.getTimestamp("started_at").toInstant(),rs.getTimestamp("finished_at")==null?null:rs.getTimestamp("finished_at").toInstant(),rs.getString("error")),
-                namespace,application,version,limit,offset);
+                arguments);
     }
     public List<String> knownTargets(String namespace) {
         return jdbc.queryForList("SELECT DISTINCT target_image FROM dep_image_distribution WHERE namespace=? AND target_image IS NOT NULL",String.class,namespace);

@@ -7,17 +7,22 @@ import java.security.Principal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/namespaces/{namespace}/applications/{applicationId}/versions/{version}/preparations")
+@RequestMapping("/api/namespaces/{namespace}")
 public final class ImageDistributionController {
     private final ImageDistributionService distribution;
     private final IdentityDirectory identities;
     public ImageDistributionController(ImageDistributionService distribution,IdentityDirectory identities) { this.distribution=distribution;this.identities=identities; }
-    @GetMapping
+    @GetMapping("/image-distributions")
+    public java.util.List<ImageDistributionService.Distribution> allHistory(Principal principal,@PathVariable String namespace,
+                                                                          @RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
+        return distribution.history(identities.actor(principal.getName()),namespace,null,null,limit,offset);
+    }
+    @GetMapping("/applications/{applicationId}/versions/{version}/preparations")
     public java.util.List<ImageDistributionService.Distribution> history(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,
                                                                         @PathVariable String version,@RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
         return distribution.history(identities.actor(principal.getName()),namespace,applicationId,version,limit,offset);
     }
-    @PostMapping("/{clusterId}")
+    @PostMapping("/applications/{applicationId}/versions/{version}/preparations/{clusterId}")
     public PreparedImage prepare(Principal principal,@PathVariable String namespace,@PathVariable String applicationId,
                                  @PathVariable String version,@PathVariable String clusterId) {
         return distribution.prepare(identities.actor(principal.getName()),namespace,applicationId,version,clusterId);

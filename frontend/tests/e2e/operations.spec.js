@@ -67,6 +67,10 @@ test('real archive upload and on-demand distribution history, invalid archive ne
   expect(await get(request, `/applications/${id}/versions/v1/preparations`)).toHaveLength(1);
   await page.screenshot({ path: '.local/evidence/operations-upload-history.png', fullPage: true });
   await nav(page, '应用分发记录');
+  await expect(page.getByLabel('分发记录应用版本')).toHaveValue('');
+  const allResponse = await get(request, '/image-distributions');
+  expect(allResponse.some((row) => row.applicationId === id && row.version === 'v1')).toBe(true);
+  await expect(page.getByRole('table', { name: '按需分发历史' })).toContainText(`${id}/v1`);
   await page.getByLabel('分发记录应用版本').selectOption(`${id}/v1`);
   const table = page.getByRole('table', { name: '按需分发历史' });
   await expect(table).toContainText('distribution-edge');
@@ -87,6 +91,171 @@ test('real archive upload and on-demand distribution history, invalid archive ne
   await page.unroute(`**/applications/${id}/versions/v1/preparations?*`);
   await page.getByRole('button', { name: '刷新历史', exact: true }).click();
   await expect(table).toContainText('成功');
+});
+test('distribution history defaults to all and pages independently of the optional version filter', async ({
+  page,
+}) => {
+  const applications = [
+    { applicationId: 'history-a', version: 'v1' },
+    { applicationId: 'history-a', version: 'v2' },
+    { applicationId: 'history-b', version: 'v1' },
+  ];
+  const rows = Array.from({ length: 44 }, (_, i) => ({
+    ...applications[i < 21 ? 0 : i < 25 ? 1 : 2],
+    id: `history-${i}`,
+    clusterId: `edge-${i}`,
+    requestedBy: 'tester',
+    state: 'SUCCEEDED',
+    startedAt: '2026-09-18T00:00:00Z',
+    finishedAt: '2026-09-18T00:00:01Z',
+    sourceImage: 'registry-center:5000/lab/example@sha256:' + 'a'.repeat(64),
+    targetImage: 'registry-edge:5000/lab/example@sha256:' + 'a'.repeat(64),
+  }));
+  const calls = [];
+  const respond = (route, data) => {
+    const url = new URL(route.request().url());
+    calls.push(url.pathname + url.search);
+    const offset = Number(url.searchParams.get('offset')),
+      limit = Number(url.searchParams.get('limit'));
+    return route.fulfill({ json: data.slice(offset, offset + limit) });
+  };
+  await page.route('**/api/namespaces/lab/applications?*', (route) => route.fulfill({ json: applications }));
+  await page.route('**/image-distributions?*', (route) => respond(route, rows));
+  await page.route('**/applications/*/versions/*/preparations?*', (route) => {
+    const [, applicationId, version] = new URL(route.request().url()).pathname.match(
+      /applications\/([^/]+)\/versions\/([^/]+)/,
+    );
+    return respond(
+      route,
+      rows.filter((row) => row.applicationId === applicationId && row.version === version),
+    );
+  });
+  await login(page);
+  await nav(page, '应用分发记录');
+  const select = page.getByLabel('分发记录应用版本'),
+    table = page.getByRole('table', { name: '按需分发历史' });
+  const bodyRows = table.locator('tbody tr'),
+    next = page.getByRole('button', { name: '下一页', exact: true });
+  await expect(select).toHaveValue('');
+  await expect(bodyRows).toHaveCount(20);
+  expect(calls).toEqual(['/api/namespaces/lab/image-distributions?limit=21&offset=0']);
+  await expect(bodyRows.first()).toContainText('edge-0');
+  await next.click();
+  await expect(bodyRows.first()).toContainText('edge-20');
+  await expect(table).toContainText('history-a/v2');
+  await expect(table).toContainText('history-b/v1');
+  await next.click();
+  await expect(bodyRows).toHaveCount(4);
+  await expect(next).toBeDisabled();
+  await select.selectOption('history-a/v1');
+  await expect(bodyRows).toHaveCount(20);
+  await expect(page.getByText('第 1 页', { exact: true })).toBeVisible();
+  await expect(table).not.toContainText('history-b/v1');
+  await next.click();
+  await expect(bodyRows).toHaveCount(1);
+  await select.selectOption('history-a/v2');
+  await expect(bodyRows).toHaveCount(4);
+  await expect(page.getByText('第 1 页', { exact: true })).toBeVisible();
+  await select.selectOption('');
+  await expect(bodyRows).toHaveCount(20);
+  await expect(bodyRows.first()).toContainText('edge-0');
+  await next.click();
+  await expect(bodyRows.first()).toContainText('edge-20');
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(bodyRows.first()).toContainText('edge-20');
+  await page.getByRole('button', { name: '上一页', exact: true }).click();
+  await expect(bodyRows.first()).toContainText('edge-0');
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({ path: `.local/evidence/ui19-distributions-${width}.png`, fullPage: true });
+  }
+  // An exact multiple of the page size must not offer an empty next page.
+  rows.splice(40);
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(bodyRows).toHaveCount(20);
+  await next.click();
+  await expect(bodyRows.first()).toContainText('edge-20');
+  await expect(bodyRows).toHaveCount(20);
+  await expect(next).toBeDisabled();
+});
+test('distribution history loads without catalog entries and recovers independently from failures', async ({
+  page,
+}) => {
+  let catalogFails = false,
+    historyFails = false,
+    empty = false;
+  await page.route('**/api/namespaces/lab/applications?*', (route) =>
+    catalogFails
+      ? route.fulfill({ status: 503, json: { message: 'catalog unavailable' } })
+      : route.fulfill({ json: [] }),
+  );
+  await page.route('**/image-distributions?*', (route) =>
+    historyFails
+      ? route.fulfill({ status: 503, json: { message: 'history unavailable' } })
+      : route.fulfill({
+          json: empty
+            ? []
+            : [
+                {
+                  id: 'orphan',
+                  applicationId: 'removed-app',
+                  version: 'v1',
+                  clusterId: 'edge',
+                  state: 'SUCCEEDED',
+                },
+              ],
+        }),
+  );
+  await login(page);
+  await nav(page, '应用分发记录');
+  const table = page.getByRole('table', { name: '按需分发历史' });
+  await expect(table).toContainText('removed-app/v1');
+  await expect(page.getByLabel('分发记录应用版本')).toHaveValue('');
+  catalogFails = true;
+  await page.getByRole('button', { name: '刷新应用', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('catalog unavailable');
+  await expect(table).toContainText('removed-app/v1');
+  historyFails = true;
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(table.locator('tbody tr')).toHaveCount(0);
+  await expect(page.getByRole('alert').filter({ hasText: 'history unavailable' })).toBeVisible();
+  historyFails = false;
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(table).toContainText('removed-app/v1');
+  empty = true;
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(page.getByText('暂无分发记录', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一页', exact: true })).toBeDisabled();
+});
+test('switching distribution filter cancels an in-flight all-history request', async ({ page }) => {
+  await page.route('**/api/namespaces/lab/applications?*', (route) =>
+    route.fulfill({ json: [{ applicationId: 'current-app', version: 'v1' }] }),
+  );
+  let pending;
+  await page.route('**/image-distributions?*', (route) => {
+    pending = route;
+  });
+  await page.route('**/applications/current-app/versions/v1/preparations?*', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'current', applicationId: 'current-app', version: 'v1', clusterId: 'edge', state: 'SUCCEEDED' },
+      ],
+    }),
+  );
+  await login(page);
+  await nav(page, '应用分发记录');
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  const cancelled = page.waitForEvent('requestfailed', (request) =>
+    request.url().includes('/image-distributions?'),
+  );
+  await page.getByLabel('分发记录应用版本').selectOption('current-app/v1');
+  await cancelled;
+  await pending.fulfill({ json: [{ id: 'stale', applicationId: 'stale-app', version: 'v1' }] });
+  const table = page.getByRole('table', { name: '按需分发历史' });
+  await expect(table).toContainText('current-app/v1');
+  await expect(table).not.toContainText('stale-app');
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 test('deployment config edit and scale use current CAS, show real timing and preserve history', async ({
   page,

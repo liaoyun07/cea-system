@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-19（2026-09-18，DONE，已部署）：依赖现有分发历史与目录API，完成工作空间级只读分页、默认全部/可选版本筛选/页码重置/版本列/满页前瞻；保留原单版本查询、分发执行和权限，不新增表/字段。285项Java＋1项打包、57项单测通过，浏览器85项首轮及旧夹具修正后9项复测通过；默认全部/筛选/空目录/错误恢复/取消旧请求/权限验收完成。04:35发布前后端，04:36确认2360条真实历史与SQL一致，原数据和其余18服务保持。[范围](features/UI-19-distribution-history.md)、[验证](verification/VER-UI-019-distribution-history.md)。
+
 UI-18（2026-09-18，DONE，已部署）：依赖UI-17部署列表/runtime与既有Service接口，完成同集群同Namespace“目标部署”选择、详情预填与提交时读取真实Selector；移除内部标签编辑，不新增后端/API/表/权限或标签管理。预填、多个Service关联同一部署、切换作用域清空、空列表/读取失败/目标删除不提交、真实Pod关联与窄屏验收通过；57项单测、83项完整浏览器测试通过。03:48仅发布CEA前端，03:49现场双Service实际HTTP访问与原业务/其余19服务保持核验通过。[范围](features/UI-18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
 
 UI-17（2026-09-18，DONE，已部署）：依赖既有Namespace管理和DeploymentService，完成集群与已创建Namespace选择、部署全操作及历史显式作用域、V29旧记录回填；复用权限边界并补获授权的Deployment写权限。两个Namespace同名部署的创建、编辑、扩缩容、实例、计时、删除隔离与原默认Namespace回归通过；后端回归及修正后复测、57项前端单测、81项浏览器测试完成。03:17发布CEA前后端与四集群权限，03:21实际环境验收通过，不改普通Flow、Job选址或已有部署。[范围](features/UI-17-deployment-namespace.md)、[验证](verification/VER-UI-017-deployment-namespace.md)。

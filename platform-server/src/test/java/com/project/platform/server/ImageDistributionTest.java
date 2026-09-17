@@ -503,6 +503,35 @@ class ImageDistributionTest {
         assertEquals("FAILED",failed.state());assertFalse(failed.error().contains(password));
         assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->distribution().history(actor,"other","history-ok","v1",20,0));
     }
+    @Test void allDistributionHistoryPagesAcrossApplicationsWithoutCatalogAndEnforcesReadScope() throws Exception {
+        var repository=new JdbcImageDistributionRepository(context.getBean(JdbcTemplate.class));
+        var start=java.time.Instant.parse("2035-01-01T00:00:00Z");
+        var expected=new ArrayList<ImageDistributionService.Distribution>();
+        // No catalog entries: historical records remain visible after application deletion.
+        for(int i=0;i<23;i++) {
+            var at=start.plusSeconds(i/2);
+            String application=i%2==0?"history-page-a":"history-page-b",version=i%3==0?"v2":"v1";
+            String id=repository.begin("lab",application,version,"edge","writer","source:5000/alpine:v1",at,at.plusSeconds(60));
+            repository.finish(id,"SUCCEEDED",null,at.plusSeconds(1));
+            expected.add(new ImageDistributionService.Distribution(id,application,version,"edge","writer","source:5000/alpine:v1",null,"SUCCEEDED",at,at.plusSeconds(1),null));
+        }
+        repository.begin("other","history-private","v1","edge","writer","source:5000/alpine:v1",start.plusSeconds(100),start.plusSeconds(160));
+        expected.sort(Comparator.comparing(ImageDistributionService.Distribution::startedAt).thenComparing(ImageDistributionService.Distribution::id).reversed());
+        assertEquals(expected.subList(0,20),distribution().history(actor,"lab",null,null,20,0));
+        assertEquals(expected.subList(20,23),distribution().history(actor,"lab",null,null,3,20));
+        assertEquals(expected.stream().filter(r->r.applicationId().equals("history-page-a")&&r.version().equals("v2")).toList(),
+                distribution().history(actor,"lab","history-page-a","v2",100,0));
+        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/";
+        String viewer="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));
+        var page=http.send(HttpRequest.newBuilder(URI.create(base+"lab/image-distributions?limit=3&offset=20")).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,page.statusCode());assertEquals(json.write(expected.subList(20,23)),page.body());
+        assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(base+"lab/image-distributions")).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        for(var check:Map.of("other/image-distributions",403,"lab/image-distributions?limit=0",422,
+                "lab/image-distributions?limit=101",422,"lab/image-distributions?offset=-1",422,"lab/image-distributions?offset=1000001",422).entrySet())
+            assertEquals(check.getValue(),http.send(HttpRequest.newBuilder(URI.create(base+check.getKey())).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        var empty=http.send(HttpRequest.newBuilder(URI.create(base+"lab/image-distributions?offset=1000000")).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,empty.statusCode());assertEquals("[]",empty.body());
+    }
     @Test void deploymentEditAndScalePreserveUnmanagedConfigurationAndMeasureActualReadiness() {
         applications().register(actor,"lab","ops-http","v1",new ApplicationVersion("ops-http","v1","source:5000/python:v1",Map.of(
                 "COUNT",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.INTEGER,true,0,List.of(),null),
