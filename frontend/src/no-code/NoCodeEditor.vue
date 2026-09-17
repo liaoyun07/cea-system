@@ -243,7 +243,10 @@ function options(parameter) {
       value: `${ref.datasetId}/${ref.version}`,
       label: `${ref.datasetId} / ${ref.version}${datasets.value.some((d) => d.datasetId === ref.datasetId && d.version === ref.version) ? '' : '（目录中不可见）'}`,
     }));
-  return parameter?.choices?.map((value) => ({ value, label: String(value) }));
+  return parameter?.choices?.map((value) => ({
+    value,
+    label: typeof value === 'object' ? JSON.stringify(value) : String(value),
+  }));
 }
 function initFlow() {
   if (!props.flowId?.trim()) {

@@ -1,6 +1,7 @@
 <script setup>
 import NoCodeEditor from '../no-code/NoCodeEditor.vue';
 import { ref } from 'vue';
+import { applicationParameterTypes } from './catalogs.js';
 const props = defineProps({
   kind: String,
   draft: Object,
@@ -189,12 +190,27 @@ function addParameter() {
         <div class="form-grid">
           <label>名称<input v-model="p.name" :aria-label="`参数 ${i + 1} · 名称`" required /></label>
           <label
-            >类型<select v-model="p.type" :aria-label="`参数 ${i + 1} · 类型`">
-              <option v-for="t in ['STRING', 'INTEGER', 'NUMBER', 'BOOLEAN']" :key="t">{{ t }}</option>
+            >类型<select
+              v-model="p.type"
+              :aria-label="`参数 ${i + 1} · 类型`"
+              @change="p.type !== 'STRING' && (p.dataset = false)"
+            >
+              <option v-for="t in applicationParameterTypes" :key="t">{{ t }}</option>
             </select></label
           >
           <label
-            >默认值（JSON）<input
+            >默认值（JSON）<textarea
+              v-if="['OBJECT', 'ARRAY'].includes(p.type)"
+              v-model="p.defaultJson"
+              :aria-label="`参数 ${i + 1} · 默认值 JSON`"
+              :placeholder="
+                p.type === 'OBJECT'
+                  ? '例如 {&quot;batch&quot;: 32}；留空不声明'
+                  : '例如 [1, 2, 3]；留空不声明'
+              "
+              rows="3"
+              spellcheck="false" /><input
+              v-else
               v-model="p.defaultJson"
               :aria-label="`参数 ${i + 1} · 默认值 JSON`"
               placeholder='例如 "mlp" 或 32；留空不声明'
@@ -203,7 +219,16 @@ function addParameter() {
             >允许值（JSON）<input
               v-model="p.choicesJson"
               :aria-label="`参数 ${i + 1} · 允许值 JSON`"
-              placeholder='例如 ["mlp", "cnn"]；留空不限制'
+              :required="p.type === 'SELECT'"
+              :placeholder="
+                p.type === 'SELECT'
+                  ? '必填，例如 [&quot;mlp&quot;, &quot;cnn&quot;]'
+                  : p.type === 'OBJECT'
+                    ? '例如 [{&quot;batch&quot;:32}]；留空不限制'
+                    : p.type === 'ARRAY'
+                      ? '例如 [[1,2],[3,4]]；留空不限制'
+                      : '例如 [&quot;mlp&quot;, &quot;cnn&quot;]；留空不限制'
+              "
           /></label>
           <div class="parameter-options span-2">
             <label class="check-label"><input type="checkbox" v-model="p.required" />必填</label>

@@ -7976,7 +7976,10 @@
               "STRING",
               "INTEGER",
               "NUMBER",
-              "BOOLEAN"
+              "BOOLEAN",
+              "OBJECT",
+              "ARRAY",
+              "SELECT"
             ]
           },
           "required": {
@@ -7989,7 +7992,9 @@
               "integer",
               "number",
               "boolean",
-              "null"
+              "null",
+              "object",
+              "array"
             ]
           },
           "choices": {
@@ -7999,10 +8004,13 @@
                 "string",
                 "integer",
                 "number",
-                "boolean"
+                "boolean",
+                "object",
+                "array"
               ]
             },
-            "maxItems": 100
+            "maxItems": 100,
+            "description": "Values must match type. SELECT requires 1..100 distinct nonblank strings; any default must belong to choices. Existing scalar choices remain supported."
           },
           "dataset": {
             "anyOf": [

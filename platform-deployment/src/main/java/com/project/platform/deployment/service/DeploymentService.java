@@ -10,7 +10,6 @@ import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apps.*;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientException;
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -80,7 +79,7 @@ public final class DeploymentService {
                 var managed=new HashSet<>(app.parameters().keySet());
                 if(current!=null)managed.addAll(applications.get(actor,namespace,current.applicationId(),current.version()).parameters().keySet());
                 var env=new ArrayList<>(Optional.ofNullable(container.getEnv()).orElse(List.of()).stream().filter(e->!managed.contains(e.getName())).toList());
-                parameters.forEach((key,value)->env.add(new EnvVar(key,value.toString(),null)));container.setEnv(env);
+                parameters.forEach((key,value)->env.add(new EnvVar(key,ApplicationContractValidator.environmentValue(value),null)));container.setEnv(env);
                 if(current==null || !Objects.equals(current.readiness(),request.readiness()))
                     container.setReadinessProbe(probe(request.readiness(),container.getReadinessProbe()));
                 submitted=true;
@@ -141,12 +140,7 @@ public final class DeploymentService {
             var contract=app.parameters().get(env.getName());if(contract==null)continue;
             if(env.getValueFrom()!=null || parameters.containsKey(env.getName()))throw ApplicationException.conflict("managed parameter is not a unique literal; edit Kubernetes configuration directly");
             try {
-                Object parsed=switch(contract.type()) {
-                    case STRING -> env.getValue();
-                    case INTEGER -> Long.valueOf(env.getValue());
-                    case NUMBER -> new BigDecimal(env.getValue()).stripTrailingZeros();
-                    case BOOLEAN -> { if(!"true".equals(env.getValue()) && !"false".equals(env.getValue()))throw new IllegalArgumentException();yield Boolean.valueOf(env.getValue()); }
-                };
+                Object parsed=ApplicationContractValidator.environmentParameter(env.getName(),contract,env.getValue());
                 parameters.put(env.getName(),parsed);
             } catch(RuntimeException ex) { throw ApplicationException.conflict("managed parameter no longer matches its application contract"); }
         }

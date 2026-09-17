@@ -137,7 +137,7 @@ public final class ApplicationTaskRunner implements TaskRunner {
             requirements.add(new DatasetRequirement(ref[0],ref[1],entry.getValue().dataset().format()));
         }
         TerminalTarget origin=c.execution()==com.project.platform.runtime.model.FlowDefinition.ContainerExecution.TERMINAL?terminals.apply(context.job()):null;
-        var env=new LinkedHashMap<String,String>();values.forEach((name,value)->{if(value!=null)env.put(name,value.toString());});
+        var env=new LinkedHashMap<String,String>();values.forEach((name,value)->env.put(name,ApplicationContractValidator.environmentValue(value)));
         var inputUris=new LinkedHashMap<String,String>();
         var terminalFiles=new LinkedHashMap<String,TerminalGatewayClient.LocalFile>();
         var inlineFiles=new LinkedHashMap<String,String>();var names=new HashSet<String>();

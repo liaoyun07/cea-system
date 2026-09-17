@@ -9,6 +9,7 @@ import {
   itemPath,
   offloadingTarget,
   measurementStatus,
+  applicationParameterTypes,
 } from '../../src/management/catalogs.js';
 
 test('offloading target distinguishes a layer decision from an allocated location', () => {
@@ -53,6 +54,45 @@ test('parameter draft rejects duplicate names, malformed JSON and unsafe integer
   assert.throws(() => parameterContract([{ ...p, defaultJson: 'NaN' }]));
   assert.throws(() => parameterContract([{ ...p, defaultJson: '9007199254740993' }]));
   assert.throws(() => parameterContract([{ ...p, choicesJson: '{}' }]), /数组/);
+});
+
+test('all seven application types roundtrip and structured values stay JSON, not strings', () => {
+  assert.deepEqual(applicationParameterTypes, [
+    'STRING',
+    'INTEGER',
+    'NUMBER',
+    'BOOLEAN',
+    'OBJECT',
+    'ARRAY',
+    'SELECT',
+  ]);
+  const parameters = {
+    CONFIG: {
+      type: 'OBJECT',
+      required: true,
+      defaultValue: { label: '中文 "quoted"', flags: [true, null, 1] },
+    },
+    ITEMS: { type: 'ARRAY', required: false, defaultValue: [1, { nested: false }, null] },
+    MODEL: { type: 'SELECT', required: true, defaultValue: 'mlp', choices: ['mlp', 'cnn'] },
+  };
+  assert.deepEqual(parameterContract(applicationDraft({ parameters }).parameterRows), parameters);
+});
+
+test('SELECT requires string choices and an allowed default; JSON shape matches its type', () => {
+  const p = {
+    name: 'MODEL',
+    type: 'SELECT',
+    defaultJson: '',
+    choicesJson: '',
+    required: false,
+    dataset: false,
+  };
+  for (const choicesJson of ['', '[]', '[" "]', '["a", "a"]', '[1]'])
+    assert.throws(() => parameterContract([{ ...p, choicesJson }]), /SELECT/);
+  assert.throws(() => parameterContract([{ ...p, choicesJson: '["a"]', defaultJson: '"b"' }]), /默认值/);
+  assert.throws(() => parameterContract([{ ...p, type: 'OBJECT', defaultJson: '"{}"' }]), /OBJECT/);
+  assert.throws(() => parameterContract([{ ...p, type: 'ARRAY', defaultJson: '{}' }]), /ARRAY/);
+  assert.throws(() => parameterContract([{ ...p, dataset: true }]), /STRING/);
 });
 test('gateway and terminal writes do not echo readonly server fields or change identity ownership', () => {
   assert.deepEqual(

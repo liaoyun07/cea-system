@@ -501,8 +501,12 @@ class ImageDistributionTest {
         assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->distribution().history(actor,"other","history-ok","v1",20,0));
     }
     @Test void deploymentEditAndScalePreserveUnmanagedConfigurationAndMeasureActualReadiness() {
-        applications().register(actor,"lab","ops-http","v1",new ApplicationVersion("ops-http","v1","source:5000/python:v1",Map.of("COUNT",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.INTEGER,true,0,List.of(),null))));
-        var command=List.of("python","-m","http.server","8080","--directory","/tmp");
+        applications().register(actor,"lab","ops-http","v1",new ApplicationVersion("ops-http","v1","source:5000/python:v1",Map.of(
+                "COUNT",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.INTEGER,true,0,List.of(),null),
+                "CONFIG",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.OBJECT,true,Map.of("batch",1000,"text","中文 \"quoted\""),List.of(),null),
+                "ITEMS",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.ARRAY,true,Arrays.asList(1,true,null),List.of(),null),
+                "MODEL",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.SELECT,true,"mlp",List.of("mlp","cnn"),null))));
+        var command=List.of("python","-c","import os,json,http.server; config=json.loads(os.environ['CONFIG']); assert config == {'batch':1000,'text':'中文 \\\"quoted\\\"'}; assert type(config['batch']) is int; assert json.loads(os.environ['ITEMS']) == [1,True,None]; assert os.environ['MODEL']=='mlp'; http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler,port=8080)");
         var initial=new DeploymentService.Request("ops-http","v1",1,Map.of(),command,null,new DeploymentService.Readiness("/",8080));
         deployments().put(actor,"lab","edge","ops-http",initial);
         try {
@@ -522,6 +526,7 @@ class ImageDistributionTest {
                 assertEquals(1,observed.getStatus().getUpdatedReplicas());assertEquals(1,observed.getStatus().getReadyReplicas());assertEquals(1,observed.getStatus().getReplicas());
             });
             var config=deployments().configuration(actor,"lab","edge","ops-http");assertEquals(0L,config.parameters().get("COUNT"));
+            assertEquals(ApplicationContractValidator.parameters(applications().get(actor,"lab","ops-http","v1"),Map.of()),config.parameters());
             var edited=deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness()));
             assertEquals("UPDATE",edited.latestOperation().operation());
             actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
@@ -1147,6 +1152,27 @@ class ImageDistributionTest {
         assertEquals("exited",terminalState(name));assertNull(admin.batch().v1().jobs().inNamespace("s4-test").withName(name).get());
         assertEquals(0,context.getBean(JdbcTemplate.class).queryForObject("SELECT COUNT(*) FROM res_job_reservation WHERE allocation_id=?",Integer.class,local.id()+"-1"));
         assertEquals(1,executions().attempts(actor,"lab",id,local.id()).size());
+    }
+    @Test void structuredFlowInputsReachRealClusterAndTerminalContainersAsJson() throws Exception {
+        applications().register(actor,"lab","structured","v1",new ApplicationVersion("structured","v1","source:5000/alpine:v1",Map.of(
+                "CONFIG",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.OBJECT,true,null,List.of(),null),
+                "ITEMS",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.ARRAY,true,null,List.of(),null),
+                "MODEL",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.SELECT,true,null,List.of("mlp","cnn"),null))));
+        var config=json.map("{\"batch\":32,\"text\":\"中文 \\\"quote\\\"\\n$(touch /cea-work/out/injected)\",\"nested\":[true,null]}");
+        var items=Arrays.asList(config,null,2);
+        String inputs="inputs:\n  config: {type: OBJECT, defaultValue: "+json.write(config)+"}\n  items: {type: ARRAY, defaultValue: "+json.write(items)+"}\n  model: {type: SELECT, values: [mlp, cnn], defaultValue: cnn}\n";
+        String source=inputs+sleeper("PT60S","printf \"%s\" \"$CONFIG\" > /cea-work/out/config.json; printf \"%s\" \"$ITEMS\" > /cea-work/out/items.json; printf \"%s\" \"$MODEL\" > /cea-work/out/model.txt; test ! -f /cea-work/out/injected")
+                .replace("applicationId: service","applicationId: structured")
+                .replace("      command:","      parameters: {CONFIG: {source: INPUT, name: config}, ITEMS: {source: INPUT, name: items}, MODEL: {source: INPUT, name: model}}\n      outputFiles: [config.json, items.json, model.txt]\n      command:");
+        primeTerminal("structured");
+        for(boolean terminal:List.of(false,true)) {
+            String id=terminal?terminalSubmit(source.replace("candidateClusters: [edge]","execution: TERMINAL")):submit(source);drive(id);
+            var execution=executions().get(actor,"lab",id);assertEquals(ExecutionState.SUCCESS,execution.state(),execution.error());
+            var output=executions().tasks(actor,"lab",id).stream().filter(t->t.taskId().equals("remote")).findFirst().orElseThrow().outputs();
+            assertEquals(config,json.map(artifact(output.get("config.json").toString())));
+            assertEquals(items,json.read(artifact(output.get("items.json").toString()),List.class));
+            assertEquals("cnn",artifact(output.get("model.txt").toString()));
+        }
     }
     @Test void terminalExecutionRejectsOrdinaryUserWithoutIngressReceipt() throws Exception {
         String id=submit(sleeper("PT30S","true").replace("candidateClusters: [edge]","execution: TERMINAL"));

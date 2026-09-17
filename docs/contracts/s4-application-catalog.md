@@ -24,11 +24,14 @@ image要求显式repository:tag或repository@sha256:digest；支持普通小写�
 
 Parameter包含type、required、defaultValue、choices和可选dataset：
 
-- type支持STRING/INTEGER/NUMBER/BOOLEAN；required默认false。INTEGER限有符号64位整数，NUMBER必须有限；STRING最多8192字符。不自动把字符串数字转成数字。
+- type支持STRING/INTEGER/NUMBER/BOOLEAN/OBJECT/ARRAY/SELECT；required默认false。INTEGER限有符号64位整数，NUMBER必须有限；STRING和SELECT最多8192字符。不自动把字符串数字或JSON文本转成数字/对象。
 - defaultValue可不填；有值必须通过类型和允许值校验。required无default不妨碍登记；它声明未来任务执行所需的参数，不自动产生Flow Input，也不意味着当前能执行镜像。
-- choices可为空表示不限制，否则最多100个不重复非null标量；数字按规范值去重。
+- choices对SELECT必填，为1..100个非空白、无重复字符串，defaultValue有值时必须在choices中；SELECT运行时值仍是字符串，与Flow SELECT语义对齐（Flow用values，应用契约沿用choices）。其余类型choices可为空表示不限制，否则最多100个同类型、不重复、非null值；数字按规范值去重。既有STRING+choices保持兼容，不自动改写历史契约。
+- OBJECT必须为JSON对象，ARRAY必须为JSON数组，支持嵌套对象/数组/字符串/有限数字/布尔值/null；对象键为字符串。整个参数的null仍表示未提供，required时拒绝。结构内数字规范化后参与契约重放比较。
 - dataset只能用于STRING，且不能另填choices。DatasetRule指定format及1..100个不同DatasetRef(datasetId/version)。全部引用必须已在同namespace资源目录注册且格式一致，否则拒绝登记，不残留部分应用记录。
 - 数据集参数的值是datasetId/version（例如mnist/v1），不是路径，也不是自由填写的未注册名称。目录原样提供dataset.allowed约束，不对不同参数的允许值自动求交集。不按DATASET这个参数名猜测用途。
+
+UI-13补充：应用任务的集群/终端执行与常驻Deployment统一把OBJECT/ARRAY序列化为JSON环境变量；STRING/SELECT原文、数值/布尔值沿用原字符串协议，不额外加引号。Deployment配置回读按契约解析并校验。运行镜像用JSON解析器读取结构参数，不要求SDK或镜像内新增注入逻辑。仍用既有contract_json存储，不迁移旧数据、不增加接口/表/执行分支。后文的“尚未实现”描述为S4-02a原阶段边界，当前本批实现见[UI-13](../features/UI-13-application-parameter-types.md)。
 
 当前不包含命名产物端口、LocalData路径注入、系统环境变量、Secret或任务资源需求；这些随真实Runner消费接入，不能说现有契约已覆盖完整镜像运行协议。
 

@@ -3,9 +3,15 @@ package com.project.platform.deployment.application;
 import com.project.platform.deployment.application.ApplicationVersion.*;
 import java.math.BigDecimal;
 import java.util.*;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.core.StreamWriteFeature;
 
-/** Scalar contract validation for application registration. */
+/** Typed application contracts and their container environment representation. */
 public final class ApplicationContractValidator {
+    private static final JsonMapper JSON=JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .enable(StreamWriteFeature.WRITE_BIGDECIMAL_AS_PLAIN)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
     private ApplicationContractValidator() {}
     public static ApplicationVersion normalize(ApplicationVersion source) {
         if(source==null) throw ApplicationException.invalid("application contract required");
@@ -22,10 +28,12 @@ public final class ApplicationContractValidator {
             var choices=new ArrayList<Object>();
             if(p.choices().size()>100) throw ApplicationException.invalid("at most 100 choices per parameter");
             for(Object value:p.choices()) {
-                Object normalized=scalar(p.type(),value);
+                Object normalized=typed(p.type(),value);
                 if(normalized==null || choices.contains(normalized)) throw ApplicationException.invalid("null or duplicate choice: "+name);
+                if(p.type()==ValueType.SELECT && ((String)normalized).isBlank()) throw ApplicationException.invalid("SELECT choices must be nonblank strings: "+name);
                 choices.add(normalized);
             }
+            if(p.type()==ValueType.SELECT && choices.isEmpty()) throw ApplicationException.invalid("SELECT requires 1..100 choices: "+name);
             DatasetRule dataset=p.dataset();
             if(dataset!=null) {
                 if(p.type()!=ValueType.STRING || !choices.isEmpty() || dataset.allowed().isEmpty() || dataset.allowed().size()>100)
@@ -34,7 +42,7 @@ public final class ApplicationContractValidator {
                 for(var ref:dataset.allowed()) { identifier(ref.datasetId());token(ref.version(),100);if(!seen.add(ref.key())) throw ApplicationException.invalid("duplicate dataset version"); }
                 dataset=new DatasetRule(dataset.format(),dataset.allowed().stream().sorted(Comparator.comparing(DatasetRef::key)).toList());
             }
-            var normalized=new Parameter(p.type(),p.required(),scalar(p.type(),p.defaultValue()),choices,dataset);
+            var normalized=new Parameter(p.type(),p.required(),typed(p.type(),p.defaultValue()),choices,dataset);
             // Required values may be supplied later; a supplied default must already satisfy constraints.
             if(normalized.defaultValue()!=null) value(name,normalized,normalized.defaultValue());
             parameters.put(name,normalized);
@@ -56,16 +64,18 @@ public final class ApplicationContractValidator {
         return Map.copyOf(result);
     }
     private static Object value(String name,Parameter parameter,Object value) {
-        Object normalized=scalar(parameter.type(),value);
+        Object normalized=typed(parameter.type(),value);
         if(normalized==null && parameter.required()) throw ApplicationException.invalid("required parameter: "+name);
         var allowed=choices(parameter);
         if(normalized!=null && !allowed.isEmpty() && !allowed.contains(normalized)) throw ApplicationException.invalid("value not allowed: "+name);
         return normalized;
     }
-    private static Object scalar(ValueType type,Object value) {
+    private static Object typed(ValueType type,Object value) {
         if(value==null) return null;
         return switch(type) {
-            case STRING -> { if(!(value instanceof String text) || text.length()>8192) throw ApplicationException.invalid("expected STRING of at most 8192 characters");yield value; }
+            case STRING, SELECT -> { if(!(value instanceof String text) || text.length()>8192) throw ApplicationException.invalid("expected STRING of at most 8192 characters");yield value; }
+            case OBJECT -> { if(!(value instanceof Map<?,?>)) throw ApplicationException.invalid("expected OBJECT");yield jsonValue(value); }
+            case ARRAY -> { if(!(value instanceof List<?>)) throw ApplicationException.invalid("expected ARRAY");yield jsonValue(value); }
             case BOOLEAN -> { if(!(value instanceof Boolean)) throw ApplicationException.invalid("expected BOOLEAN");yield value; }
             case INTEGER -> {
                 if(!(value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long || value instanceof java.math.BigInteger)) throw ApplicationException.invalid("expected INTEGER");
@@ -76,6 +86,37 @@ public final class ApplicationContractValidator {
                 yield new BigDecimal(value.toString()).stripTrailingZeros();
             }
         };
+    }
+    private static Object jsonValue(Object value) {
+        if(value==null || value instanceof String || value instanceof Boolean)return value;
+        if(value instanceof Number)return typed(ValueType.NUMBER,value);
+        if(value instanceof Map<?,?> map) {
+            var result=new TreeMap<String,Object>();
+            map.forEach((key,child)->{
+                if(!(key instanceof String))throw ApplicationException.invalid("OBJECT keys must be strings");
+                result.put((String)key,jsonValue(child));
+            });
+            return Collections.unmodifiableMap(result);
+        }
+        if(value instanceof List<?> list)return Collections.unmodifiableList(list.stream().map(ApplicationContractValidator::jsonValue).toList());
+        throw ApplicationException.invalid("expected JSON value");
+    }
+    /** Values have already been validated; scalar environment strings retain the existing protocol. */
+    public static String environmentValue(Object value) {
+        return value instanceof Map<?,?> || value instanceof List<?>?JSON.writeValueAsString(value):value.toString();
+    }
+    public static Object environmentParameter(String name,Parameter parameter,String text) {
+        Object parsed=switch(parameter.type()) {
+            case STRING, SELECT -> text;
+            case INTEGER -> Long.valueOf(text);
+            case NUMBER -> new BigDecimal(text);
+            case BOOLEAN -> {
+                if(!"true".equals(text) && !"false".equals(text))throw ApplicationException.invalid("expected BOOLEAN");
+                yield Boolean.valueOf(text);
+            }
+            case OBJECT, ARRAY -> JSON.readValue(text,Object.class);
+        };
+        return value(name,parameter,parsed);
     }
     public static void identifier(String value) {
         if(value==null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}")) throw ApplicationException.invalid("invalid identifier");

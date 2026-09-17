@@ -1,5 +1,15 @@
 import { parseJsonValue } from '../no-code/document.js';
 
+export const applicationParameterTypes = [
+  'STRING',
+  'INTEGER',
+  'NUMBER',
+  'BOOLEAN',
+  'OBJECT',
+  'ARRAY',
+  'SELECT',
+];
+
 export const catalogs = {
   applications: {
     title: '应用与镜像',
@@ -148,6 +158,7 @@ export function parameterContract(rows) {
     const value = { type: row.type, required: !!row.required };
     if (row.defaultJson.trim()) value.defaultValue = parseJsonValue(row.defaultJson);
     if (row.dataset) {
+      if (row.type !== 'STRING') throw new Error(`${name} 的数据集参数类型必须为 STRING。`);
       value.dataset = {
         format: row.format,
         allowed: row.allowed.map((s) => {
@@ -158,6 +169,37 @@ export function parameterContract(rows) {
     } else if (row.choicesJson.trim()) {
       value.choices = parseJsonValue(row.choicesJson);
       if (!Array.isArray(value.choices)) throw new Error(`${name} 的允许值必须是 JSON 数组。`);
+    }
+    const matches = (v) => {
+      switch (row.type) {
+        case 'STRING':
+        case 'SELECT':
+          return typeof v === 'string';
+        case 'INTEGER':
+          return Number.isSafeInteger(v);
+        case 'NUMBER':
+          return typeof v === 'number' && Number.isFinite(v);
+        case 'BOOLEAN':
+          return typeof v === 'boolean';
+        case 'OBJECT':
+          return v !== null && typeof v === 'object' && !Array.isArray(v);
+        case 'ARRAY':
+          return Array.isArray(v);
+        default:
+          return false;
+      }
+    };
+    if (
+      (value.defaultValue != null && !matches(value.defaultValue)) ||
+      value.choices?.some((v) => !matches(v))
+    )
+      throw new Error(`${name} 的默认值和允许值必须符合 ${row.type} 类型。`);
+    if (row.type === 'SELECT') {
+      const choices = value.choices || [];
+      if (!choices.length || choices.some((v) => !v.trim()) || new Set(choices).size !== choices.length)
+        throw new Error(`${name} 的 SELECT 允许值必须是非空、无重复的字符串数组。`);
+      if (value.defaultValue != null && !choices.includes(value.defaultValue))
+        throw new Error(`${name} 的默认值必须在 SELECT 允许值中。`);
     }
     Object.defineProperty(parameters, name, { value, enumerable: true });
   }

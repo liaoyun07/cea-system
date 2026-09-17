@@ -74,6 +74,23 @@ for (const entry of ['＋ 注册应用版本', '上传镜像', '在线构建']) 
       ),
     ).toEqual(['名称', '类型', '默认值（JSON）', '允许值（JSON）', '必填', '数据集参数（STRING）']);
     await card.getByLabel('参数 1 · 名称', { exact: true }).fill('MODEL');
+    await expect(card.getByLabel('参数 1 · 类型').locator('option')).toHaveText([
+      'STRING',
+      'INTEGER',
+      'NUMBER',
+      'BOOLEAN',
+      'OBJECT',
+      'ARRAY',
+      'SELECT',
+    ]);
+    await card.getByLabel('参数 1 · 类型').selectOption('SELECT');
+    await expect(card.getByLabel('参数 1 · 允许值 JSON')).toHaveAttribute('required', '');
+    await card.getByLabel('参数 1 · 类型').selectOption('OBJECT');
+    await expect(card.getByLabel('参数 1 · 默认值 JSON')).toHaveJSProperty('tagName', 'TEXTAREA');
+    await card.getByLabel('参数 1 · 默认值 JSON').fill('{"batch":32}');
+    await card.getByLabel('参数 1 · 类型').selectOption('ARRAY');
+    await card.getByLabel('参数 1 · 默认值 JSON').fill('[1,2]');
+    await card.getByLabel('参数 1 · 类型').selectOption('STRING');
     await card.getByLabel('参数 1 · 默认值 JSON', { exact: true }).fill('"mlp"');
     await card.getByLabel('参数 1 · 允许值 JSON', { exact: true }).fill('["mlp", "cnn"]');
     await card.getByLabel('必填', { exact: true }).check();
@@ -94,6 +111,11 @@ for (const entry of ['＋ 注册应用版本', '上传镜像', '在线构建']) 
     await second.getByLabel('参数 2 · 数据格式', { exact: true }).fill('pt');
     await expect(second.getByLabel('参数 2 · 允许值 JSON', { exact: true })).toHaveCount(0);
     await expect(second.getByLabel('参数 2 · 允许的数据集版本', { exact: true })).toBeVisible();
+    await second.getByLabel('参数 2 · 类型').selectOption('SELECT');
+    await expect(second.getByLabel('数据集参数（STRING）')).not.toBeChecked();
+    await expect(second.getByLabel('数据集参数（STRING）')).toBeDisabled();
+    await second.getByLabel('参数 2 · 类型').selectOption('STRING');
+    await second.getByLabel('数据集参数（STRING）').check();
     await card.getByRole('button', { name: '移除参数 1', exact: true }).click();
     await expect(page.locator('.parameter-card')).toHaveCount(1);
     await expect(card.getByLabel('参数 1 · 名称', { exact: true })).toHaveValue('DATASET');

@@ -199,6 +199,9 @@ test('application contract, dataset restrictions, bindings and resource catalog 
             dataset: { format: 'pt', allowed: [{ datasetId: token, version: 'v1' }] },
           },
           RATE: { type: 'NUMBER', defaultValue: 0.25 },
+          MODEL: { type: 'SELECT', choices: ['mlp', 'cnn'] },
+          CONFIG: { type: 'OBJECT' },
+          ITEMS: { type: 'ARRAY' },
         },
       },
     ],
@@ -218,6 +221,19 @@ test('application contract, dataset restrictions, bindings and resource catalog 
   const param = page.locator('[data-field="tasks.0.container.parameters.DATASET"]');
   await param.getByRole('button', { name: '＋ 设置 DATASET' }).click();
   await param.getByLabel('契约允许值').selectOption(JSON.stringify(`${token}/v1`));
+  const model = page.locator('[data-field="tasks.0.container.parameters.MODEL"]');
+  await model.getByRole('button', { name: '＋ 设置 MODEL' }).click();
+  await model.getByLabel('契约允许值').selectOption(JSON.stringify('cnn'));
+  for (const [name, value] of [
+    ['CONFIG', { batch: 32, text: '中文 "quote"' }],
+    ['ITEMS', [1, { enabled: true }, null]],
+  ]) {
+    const binding = page.locator(`[data-field="tasks.0.container.parameters.${name}"]`);
+    await binding.getByRole('button', { name: `＋ 设置 ${name}` }).click();
+    await binding.getByLabel('固定值类型').selectOption('json');
+    await binding.getByLabel('固定值 JSON').fill(JSON.stringify(value));
+    await binding.getByLabel('固定值 JSON').blur();
+  }
   await page.getByRole('button', { name: `＋ ${token} · EDGE`, exact: true }).click();
   await expect(page.getByRole('button', { name: new RegExp(`${token} · EDGE`) })).toHaveAttribute(
     'aria-pressed',
@@ -227,6 +243,15 @@ test('application contract, dataset restrictions, bindings and resource catalog 
   const flow = parse(await page.getByLabel('Flow YAML').inputValue());
   expect(flow.inputs).toBeUndefined();
   expect(flow.tasks[0].container.parameters.DATASET).toEqual({ source: 'LITERAL', value: `${token}/v1` });
+  expect(flow.tasks[0].container.parameters.MODEL).toEqual({ source: 'LITERAL', value: 'cnn' });
+  expect(flow.tasks[0].container.parameters.CONFIG).toEqual({
+    source: 'LITERAL',
+    value: { batch: 32, text: '中文 "quote"' },
+  });
+  expect(flow.tasks[0].container.parameters.ITEMS).toEqual({
+    source: 'LITERAL',
+    value: [1, { enabled: true }, null],
+  });
   expect(flow.tasks[0].container.candidateClusters).toEqual([token]);
   expect(flow.tasks[0].container.parameters.RATE).toBeUndefined();
   await page.getByRole('button', { name: '✓ 校验', exact: true }).click();

@@ -1232,6 +1232,48 @@ private String custom(String body) {
         assertEquals(app,applications().get(actor,"lab",app.applicationId(),"v1"));
     }
 
+    @Test void sevenApplicationTypesPersistAndEncodeWithoutChangingScalarProtocol() throws Exception {
+        assertEquals(Arrays.stream(FlowDefinition.InputType.values()).map(Enum::name).toList(),Arrays.stream(ValueType.values()).map(Enum::name).toList());
+        var object=json.map("{\"text\":\"中文 \\\"quoted\\\"\\n$HOME\",\"nested\":[1,true,null,{\"rate\":0.25}]}");
+        var app=application(Map.of(
+                "TEXT",parameter(ValueType.STRING,true,"hello"),"COUNT",parameter(ValueType.INTEGER,true,2),
+                "RATE",parameter(ValueType.NUMBER,true,0.25),"FLAG",parameter(ValueType.BOOLEAN,true,false),
+                "CONFIG",parameter(ValueType.OBJECT,true,object),"ITEMS",parameter(ValueType.ARRAY,true,Arrays.asList(object,null,2)),
+                "MODEL",new Parameter(ValueType.SELECT,true,"mlp",List.of("mlp","cnn"),null)));
+        assertEquals(app,applications().get(actor,"lab",app.applicationId(),"v1"));
+        assertEquals(app,applications().register(actor,"lab",app.applicationId(),"v1",app));
+        var values=ApplicationContractValidator.parameters(app,Map.of());
+        for(var entry:values.entrySet()) {
+            var parameter=app.parameters().get(entry.getKey());
+            String encoded=ApplicationContractValidator.environmentValue(entry.getValue());
+            assertEquals(entry.getValue(),ApplicationContractValidator.environmentParameter(entry.getKey(),parameter,encoded));
+        }
+        assertEquals("hello",ApplicationContractValidator.environmentValue(values.get("TEXT")));
+        assertEquals("mlp",ApplicationContractValidator.environmentValue(values.get("MODEL")));
+        assertEquals("false",ApplicationContractValidator.environmentValue(values.get("FLAG")));
+        assertEquals("2",ApplicationContractValidator.environmentValue(values.get("COUNT")));
+        var integerJson=application(Map.of("CONFIG",parameter(ValueType.OBJECT,true,Map.of("batch",1000))));
+        assertEquals("{\"batch\":1000}",ApplicationContractValidator.environmentValue(ApplicationContractValidator.parameters(integerJson,Map.of()).get("CONFIG")));
+        String path="/api/namespaces/lab/applications/"+app.applicationId()+"/versions/v2";
+        var second=new ApplicationVersion(app.applicationId(),"v2",app.image(),app.parameters());
+        assertEquals(200,call(port(),"PUT",path,"writer",second,null).statusCode());
+        var response=call(port(),"GET",path,"viewer",null,null);
+        assertEquals(200,response.statusCode());assertEquals(second,ApplicationContractValidator.normalize(json.read(response.body(),ApplicationVersion.class)));
+    }
+    @Test void applicationSelectAndStructuredValuesRejectInvalidContractsAndRuntimeValues() {
+        for(var choices:List.of(List.of(),List.of(""),List.of(" "),List.of("a","a"),List.of(1)))
+            assertThrows(ApplicationException.class,()->application(Map.of("X",new Parameter(ValueType.SELECT,true,null,new ArrayList<>(choices),null))));
+        assertThrows(ApplicationException.class,()->application(Map.of("X",new Parameter(ValueType.SELECT,true,"b",List.of("a"),null))));
+        assertThrows(ApplicationException.class,()->application(Map.of("X",parameter(ValueType.OBJECT,false,"{}"))));
+        assertThrows(ApplicationException.class,()->application(Map.of("X",parameter(ValueType.ARRAY,false,Map.of()))));
+        assertThrows(ApplicationException.class,()->application(Map.of("X",parameter(ValueType.OBJECT,false,Map.of("bad",Double.NaN)))));
+        assertThrows(ApplicationException.class,()->application(Map.of("X",parameter(ValueType.OBJECT,false,Map.of(1,"bad")))));
+        var app=application(Map.of("MODEL",new Parameter(ValueType.SELECT,true,null,List.of("a","b"),null),"CONFIG",parameter(ValueType.OBJECT,false,null),"ITEMS",parameter(ValueType.ARRAY,false,null)));
+        for(var supplied:List.<Map<String,Object>>of(Map.of(),Map.of("MODEL","c"),Map.of("MODEL",1),Map.of("MODEL","a","CONFIG","{}"),Map.of("MODEL","a","ITEMS",Map.of())))
+            assertThrows(ApplicationException.class,()->ApplicationContractValidator.parameters(app,new HashMap<>(supplied)));
+        assertEquals(Map.of("MODEL","a"),ApplicationContractValidator.parameters(app,Map.of("MODEL","a")));
+        assertThrows(RuntimeException.class,()->ApplicationContractValidator.environmentParameter("CONFIG",app.parameters().get("CONFIG"),"{} []"));
+    }
     @Test void concurrentApplicationRegistrationAcceptsSameContentAndRejectsConflicts() throws Exception {
         String id=id();var one=new ApplicationVersion(id,"v1","registry.example/lab/train:v1",Map.of("RATE",parameter(ValueType.NUMBER,true,1.0)));
         try(var pool=Executors.newFixedThreadPool(8)) {

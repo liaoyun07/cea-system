@@ -10,6 +10,61 @@ const gatewayHeaders = {
 };
 const unique = () => `mg-${randomUUID().slice(0, 8)}`;
 
+test('registration saves SELECT and nested JSON contracts and rejects invalid SELECT without a write', async ({
+  page,
+  request,
+}) => {
+  const id = unique();
+  await login(page);
+  await nav(page, '应用与镜像');
+  await page.getByRole('button', { name: '＋ 注册应用版本', exact: true }).click();
+  await page.getByLabel('应用 ID', { exact: true }).fill(id);
+  await page.getByLabel('版本', { exact: true }).fill('v1');
+  await page.getByLabel('镜像引用', { exact: true }).fill('registry.example/test:v1');
+  const parameters = {
+    MODEL: { type: 'SELECT', defaultValue: 'cnn', choices: ['mlp', 'cnn'], required: true },
+    CONFIG: {
+      type: 'OBJECT',
+      defaultValue: { text: '中文 "quoted"', flags: [true, null, 1] },
+      required: false,
+    },
+    ITEMS: { type: 'ARRAY', defaultValue: [1, { enabled: false }, null], required: false },
+  };
+  let i = 0;
+  for (const [name, parameter] of Object.entries(parameters)) {
+    i++;
+    await page.getByRole('button', { name: '＋ 添加参数', exact: true }).click();
+    await page.getByLabel(`参数 ${i} · 名称`, { exact: true }).fill(name);
+    await page.getByLabel(`参数 ${i} · 类型`, { exact: true }).selectOption(parameter.type);
+    await page
+      .getByLabel(`参数 ${i} · 默认值 JSON`, { exact: true })
+      .fill(JSON.stringify(parameter.defaultValue));
+    if (parameter.choices) await page.getByLabel(`参数 ${i} · 允许值 JSON`, { exact: true }).fill('[]');
+    if (parameter.required)
+      await page
+        .getByRole('group', { name: `参数 ${i}`, exact: true })
+        .getByLabel('必填', { exact: true })
+        .check();
+  }
+  const writes = [];
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && r.url().includes('/applications/')) writes.push(r.url());
+  });
+  await page.getByRole('button', { name: '保存配置', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('SELECT 允许值必须是');
+  expect(writes).toHaveLength(0);
+  await page.getByLabel('参数 1 · 允许值 JSON').fill('["mlp","cnn"]');
+  await page.getByRole('button', { name: '保存配置', exact: true }).click();
+  await expect(page.getByText('已保存到目录', { exact: true })).toBeVisible();
+  const result = await request.get(`${base}/applications/${id}/versions/v1`, { headers });
+  expect(result.ok()).toBeTruthy();
+  const saved = (await result.json()).parameters;
+  for (const [name, parameter] of Object.entries(parameters)) expect(saved[name]).toMatchObject(parameter);
+  expect(saved.CONFIG.defaultValue.flags).toEqual([true, null, 1]);
+  expect(saved.ITEMS.defaultValue).toEqual([1, { enabled: false }, null]);
+  expect(writes).toHaveLength(1);
+});
+
 test('DQN detail identifies the pinned model and actual execution layer', async ({ page }) => {
   await login(page);
   await page.route('**/offloading/samples?*', (route) =>
