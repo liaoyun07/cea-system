@@ -6,6 +6,9 @@
 
 ## Registry
 
+- UI-12：`GET /registries/{registry}/inventory?repository=&limit=20&afterRepository=&afterDigest=`按镜像分页；repository可选，去除首尾空白后按路径子串匹配。返回`{images:[{repository,digest,tags}],next:{repository,digest}|null}`，limit为1..100，游标两项同时传入；按路径、digest升序，同一路径同digest多标签合并一行，不同路径同digest保留不同记录。namespace/与Registry授权不变。
+- 前端默认选中仓库即查询第一页，每页20个镜像；路径为空查全部可见路径，筛选/清除/切换仓库/刷新回第一页；删除成功重查第一页。详情/删除使用行自身路径，不使用筛选文本。
+- 分页沿真实catalog继续读取，跳过其他空间/无镜像路径，核验到多一条镜像才产生next；不为一页扫描后续全部镜像，不新增库存表/缓存。每个访问路径仍需解析其标签及已知digest。不是一致性快照；并发上传/删除后可刷新重查，不提供虚构总数。原未知无标签digest不可枚举的限制保持。
 - `GET /registries`：配置中心及分发目标允许当前工作空间访问的仓库。
 - `GET /registries/{registry}/repositories?last=`：Distribution `_catalog`分页，过滤`namespace/`前缀；空页仍可有next。
 - `GET /registries/{registry}/images?repository=`：现场核验标签及已知无标签digest。候选来自分发目标历史、直接指向该仓库的契约，以及同名应用契约摘要对应的`namespace/applicationId`分发目标路径，因此不依赖历史记录已存在。历史和目录不是库存事实；任意外部匿名digest无法通过标准V2接口完整枚举。

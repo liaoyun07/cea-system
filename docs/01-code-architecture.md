@@ -49,8 +49,8 @@ UI-09（验证/发布状态见进度）：新增6个生产Java文件，共99个�
 | `platform-resource/src/main/java/com/project/platform/resource/kubernetes/KubernetesManagementService.java` | Namespace/Service/Ingress实时管理、IngressClass查询、默认范围及所有权保护、CAS更新/删除、路由端口与引用检查、地址/Pod详情和工作负载引用检查；不修改Runner默认Namespace |
 | `platform-server/src/main/java/com/project/platform/server/api/KubernetesManagementController.java` | 13个管理HTTP操作（含ING-01的6个），身份适配后调用resource |
 | `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryHttpClient.java` | 管理员配置的Distribution v2目录、标签、manifest/config和删除；有界响应、匿名/htpasswd、禁止重定向凭据；传输仍由Skopeo执行 |
-| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryManagementService.java` | 实际库存与详情；已知无标签候选必须现场核验；删除前检查目录、工作负载、分发和索引引用；不GC |
-| `platform-server/src/main/java/com/project/platform/server/api/RegistryController.java` | 5个Registry查询/删除HTTP操作，禁止请求指定任意地址 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/RegistryManagementService.java` | 实际库存与详情；UI-12跨路径按镜像分页及可选路径筛选；已知无标签候选必须现场核验；删除前检查目录、工作负载、分发和索引引用；不GC |
+| `platform-server/src/main/java/com/project/platform/server/api/RegistryController.java` | 6个Registry查询/删除HTTP操作（含UI-12 inventory分页），禁止请求指定任意地址 |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/ApplicationRemovalService.java` | 通过公开Flow/资源/应用服务检查所有已存Flow修订及工作负载，单独移除目录；保留版本身份，不删除Registry文件 |
 
 前端新增RegistryPage.vue、KubernetesManagement.vue；现有CatalogPage增加目录删除，KubernetesResourcesPage保留节点展示并接入按Namespace管理。协议见[UI-09](contracts/ui09-registry-kubernetes.md)。

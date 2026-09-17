@@ -378,7 +378,8 @@ try {
     }
     const example = paths.repositories.find(name => inventory[name].length > 0);
     if (example) {
-      await page.getByLabel('镜像仓库路径', {exact: true}).selectOption(example);
+      await page.getByLabel('镜像仓库路径', {exact: true}).fill(example);
+      await page.getByRole('button', {name: '筛选', exact: true}).click();
       await expect(page.getByRole('table', {name: '实际镜像库存'})).toContainText(inventory[example][0].digest);
       await page.getByRole('button', {name: '镜像详情', exact: true}).first().click();
       await expect(page.getByRole('region', {name: '镜像详情'})).toContainText(inventory[example][0].digest);

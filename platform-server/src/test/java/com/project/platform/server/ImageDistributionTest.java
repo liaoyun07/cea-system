@@ -766,6 +766,56 @@ class ImageDistributionTest {
         assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization",authHeader).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         assertEquals(403,http.send(HttpRequest.newBuilder(URI.create(url)).header("Authorization",authHeader).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{\"name\":\"cea-lab-denied\"}")).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
     }
+    @Test void registryInventoryPaginatesImagesAcrossPathsAndFiltersWithoutLeakingOtherWorkspaces() throws Exception {
+        var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        var manifests=new TreeMap<String,byte[]>();
+        for(int i=0;i<3;i++) {byte[] body=json.write(Map.of("schemaVersion",2,"test",i)).getBytes(StandardCharsets.UTF_8);manifests.put(hash(body),body);}
+        var digests=new ArrayList<>(manifests.keySet());
+        var calls=new ArrayList<String>();
+        var broken=new java.util.concurrent.atomic.AtomicBoolean();
+        server.createContext("/",exchange->{
+            String path=exchange.getRequestURI().getPath(),query=exchange.getRequestURI().getRawQuery();calls.add(path);
+            byte[] body;int status=200;
+            if(path.equals("/v2/_catalog")) {
+                if(query.contains("last=lab%2Fpage-a"))body=json.write(Map.of("repositories",List.of("lab/page-b"))).getBytes(StandardCharsets.UTF_8);
+                else if(query.contains("last=lab%2Fpage-b"))body="{\"repositories\":[]}".getBytes(StandardCharsets.UTF_8);
+                else if(query.contains("last=aaa%2Fprivate"))body=json.write(Map.of("repositories",List.of("lab/empty","lab/page-a","lab/page-b","zzz/private"))).getBytes(StandardCharsets.UTF_8);
+                else {body="{\"repositories\":[\"aaa/private\"]}".getBytes(StandardCharsets.UTF_8);exchange.getResponseHeaders().add("Link","</v2/_catalog?last=aaa/private>; rel=next");}
+            } else if(path.equals("/v2/lab/page-a/tags/list")) {
+                body="{\"tags\":[\"v0\",\"v1\",\"v2\",\"alias\"]}".getBytes(StandardCharsets.UTF_8);if(broken.get())status=500;
+            } else if(path.equals("/v2/lab/page-b/tags/list"))body="{\"tags\":[\"v0\"]}".getBytes(StandardCharsets.UTF_8);
+            else if(path.equals("/v2/lab/empty/tags/list"))body="{\"tags\":null}".getBytes(StandardCharsets.UTF_8);
+            else if(path.contains("/manifests/")) {
+                String tag=path.substring(path.lastIndexOf('/')+1);int i=tag.equals("alias")?0:Integer.parseInt(tag.substring(1));
+                body=manifests.get(digests.get(i));exchange.getResponseHeaders().add("Docker-Content-Digest",digests.get(i));
+            } else {status=404;body="{}".getBytes(StandardCharsets.UTF_8);}
+            exchange.sendResponseHeaders(status,body.length);exchange.getResponseBody().write(body);exchange.close();
+        });server.start();
+        try(var client=new RegistryHttpClient()) {
+            var connection=new RegistryHttpClient.Connection("inventory-fixture:5000","http://127.0.0.1:"+server.getAddress().getPort(),null);
+            var service=new RegistryManagementService(new com.project.platform.foundation.identity.AccessPolicy(),applications(),context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class),
+                    context.getBean(JdbcImageDistributionRepository.class),client,Map.of("inventory",connection),Map.of("lab",Set.of("inventory")));
+            var first=service.inventory(actor,"lab","inventory",null,2,null,null);
+            assertEquals(2,first.images().size());assertEquals(List.of("alias","v0"),first.images().getFirst().tags());
+            assertEquals("lab/page-a",first.next().repository());assertEquals(digests.get(1),first.next().digest());
+            var second=service.inventory(actor,"lab","inventory",null,2,first.next().repository(),first.next().digest());
+            assertEquals(List.of("lab/page-a","lab/page-b"),second.images().stream().map(RegistryManagementService.InventoryImage::repository).toList());
+            assertNull(second.next());assertEquals(digests.get(0),second.images().getLast().digest());
+            assertEquals(first,service.inventory(actor,"lab","inventory",null,2,null,null));
+            assertEquals(4,service.inventory(actor,"lab","inventory",null,100,null,null).images().size());
+            assertEquals(1,service.inventory(actor,"lab","inventory","page-b",20,null,null).images().size());
+            assertTrue(service.inventory(actor,"lab","inventory","missing",20,null,null).images().isEmpty());
+            assertTrue(calls.stream().noneMatch(p->p.contains("/aaa/") || p.contains("/zzz/")));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.inventory(actor,"other","inventory",null,20,null,null));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.inventory(actor,"lab","unconfigured",null,20,null,null));
+            assertThrows(ApplicationException.class,()->service.inventory(actor,"lab","inventory",null,0,null,null));
+            assertThrows(ApplicationException.class,()->service.inventory(actor,"lab","inventory",null,101,null,null));
+            assertThrows(ApplicationException.class,()->service.inventory(actor,"lab","inventory",null,20,"other/private",digests.getFirst()));
+            assertThrows(ApplicationException.class,()->service.inventory(actor,"lab","inventory",null,20,"lab/page-a",null));
+            assertThrows(ApplicationException.class,()->service.inventory(actor,"lab","inventory",null,20,"lab/page-a","bad"));
+            broken.set(true);assertThrows(SkopeoImageClient.Failure.class,()->service.inventory(actor,"lab","inventory",null,20,null,null));
+        } finally {server.stop(0);}
+    }
     @Test void registryInventoryVerifiesUntaggedCopiesMetadataAndActualDeletionWithoutDeletingCatalog() throws Exception {
         Path authFile=Files.createTempFile("cea-ui9-registry-",".json");
         try {
@@ -780,6 +830,8 @@ class ImageDistributionTest {
             assertTrue(management.repositories(actor,"lab","target",null).repositories().contains("lab/ui9-copy"));
             var inventory=management.images(actor,"lab","target","lab/ui9-copy");
             assertEquals(fixtureDigest,inventory.getFirst().digest());assertTrue(inventory.getFirst().tags().isEmpty());
+            var page=management.inventory(actor,"lab","target","ui9-copy",1,null,null);
+            assertEquals("lab/ui9-copy",page.images().getFirst().repository());assertEquals(fixtureDigest,page.images().getFirst().digest());assertNull(page.next());
             // Model an existing digest-only copy without a preparation record, as occurs before history was enabled.
             context.getBean(JdbcTemplate.class).update("DELETE FROM dep_image_distribution WHERE namespace=? AND application_id=?","lab","ui9-copy");
             assertEquals(fixtureDigest,management.images(actor,"lab","target","lab/ui9-copy").getFirst().digest());

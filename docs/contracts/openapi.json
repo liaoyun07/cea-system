@@ -5645,6 +5645,26 @@
         }
       }
     },
+    "/api/namespaces/{namespace}/registries/{registry}/inventory": {
+      "get": {
+        "summary": "Page verified images across repository paths in the current workspace",
+        "description": "Ordered by repository then digest. Optional repository substring filter. Both cursor fields must be passed together. Live inventory, not a snapshot or arbitrary untagged-digest enumeration.",
+        "parameters": [
+          {"name": "namespace", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "registry", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "repository", "in": "query", "schema": {"type": "string", "maxLength": 255}, "description": "Optional case-sensitive substring of repository path; empty means all permitted paths"},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}},
+          {"name": "afterRepository", "in": "query", "schema": {"type": "string"}},
+          {"name": "afterDigest", "in": "query", "schema": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+        ],
+        "responses": {
+          "200": {"description": "Verified image page; next is null at the end", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RegistryInventoryPage"}}}},
+          "403": {"description": "Workspace/action or Registry scope denied"},
+          "422": {"description": "Invalid page size, filter or cursor"},
+          "502": {"description": "Registry inventory could not be verified; no partial/empty success"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/registries/{registry}/image": {
       "get": {
         "summary": "Inspect image metadata and deletion blockers",
@@ -8522,6 +8542,26 @@
           "repositories",
           "next"
         ]
+      },
+      "RegistryInventoryPage": {
+        "type": "object",
+        "required": ["images", "next"],
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {"$ref": "#/components/schemas/RegistryImage"},
+                {"type": "object", "required": ["repository"], "properties": {"repository": {"type": "string"}}}
+              ]
+            }
+          },
+          "next": {
+            "type": ["object", "null"],
+            "required": ["repository", "digest"],
+            "properties": {"repository": {"type": "string"}, "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+          }
+        }
       },
       "RegistryImage": {
         "type": "object",

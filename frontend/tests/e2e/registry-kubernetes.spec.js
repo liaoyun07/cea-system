@@ -120,7 +120,8 @@ test('actual image inventory protects catalog reference, then separates catalog 
     digest = app.image.split('@')[1];
   await nav(page, '镜像仓库');
   await page.getByRole('combobox', { name: '镜像仓库', exact: true }).selectOption('ui');
-  await page.getByLabel('镜像仓库路径', { exact: true }).selectOption(`lab/${id}`);
+  await page.getByLabel('镜像仓库路径', { exact: true }).fill(`lab/${id}`);
+  await page.getByRole('button', { name: '筛选', exact: true }).click();
   await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(digest);
   await page.getByRole('button', { name: '镜像详情', exact: true }).click();
   await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(`应用契约引用：${id}/v1`);

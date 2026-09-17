@@ -11,6 +11,9 @@ public final class RegistryManagementService {
     public record RegistryInfo(String id,String address) {}
     public record RepositoryPage(List<String> repositories,String next) {}
     public record ImageInfo(String digest,List<String> tags) {}
+    public record InventoryImage(String repository,String digest,List<String> tags) {}
+    public record InventoryCursor(String repository,String digest) {}
+    public record InventoryPage(List<InventoryImage> images,InventoryCursor next) {}
     public record PlatformInfo(String digest,String os,String architecture,String variant) {}
     public record ImageDetail(String repository,String digest,List<String> tags,String mediaType,Long layerBytes,String created,
                               List<PlatformInfo> platforms,List<String> blockers) {}
@@ -42,6 +45,42 @@ public final class RegistryManagementService {
     public RepositoryPage repositories(Actor actor,String namespace,String registry,String last) {
         var page=client.repositories(connection(actor,namespace,registry,Action.READ),last==null || last.isBlank()?null:last);
         return new RepositoryPage(page.values().stream().filter(r->r.startsWith(namespace+"/")).toList(),page.next());
+    }
+    /** Flatten verified images, not repository names. Read only until one image beyond this page is found. */
+    public InventoryPage inventory(Actor actor,String namespace,String registry,String filter,int limit,String afterRepository,String afterDigest) {
+        var connection=connection(actor,namespace,registry,Action.READ);
+        String query=filter==null?"":filter.trim();
+        if(limit<1 || limit>100 || query.length()>255)throw ApplicationException.invalid("inventory limit must be 1..100; repository filter at most 255 characters");
+        if((afterRepository==null)!=(afterDigest==null))throw ApplicationException.invalid("both inventory cursor fields are required");
+        var rows=new ArrayList<InventoryImage>();
+        if(afterRepository!=null) {
+            repository(namespace,afterRepository);
+            if(!afterDigest.matches("sha256:[a-f0-9]{64}"))throw ApplicationException.invalid("invalid inventory digest cursor");
+            if(!afterRepository.contains(query))throw ApplicationException.invalid("cursor does not match repository filter");
+            appendImages(actor,namespace,registry,afterRepository,afterDigest,limit,rows);
+        }
+        String last=afterRepository;
+        while(rows.size()<=limit) {
+            var page=client.repositories(connection,last);
+            for(String path:page.values()) {
+                if(!path.startsWith(namespace+"/") || !path.contains(query))continue;
+                appendImages(actor,namespace,registry,path,null,limit,rows);
+                if(rows.size()>limit)break;
+            }
+            if(rows.size()>limit || page.next()==null)break;
+            if(last!=null && page.next().compareTo(last)<=0)throw new SkopeoImageClient.Failure("Registry returned a non-advancing catalog cursor");
+            last=page.next();
+        }
+        if(rows.size()<=limit)return new InventoryPage(List.copyOf(rows),null);
+        var end=rows.get(limit-1);
+        return new InventoryPage(List.copyOf(rows.subList(0,limit)),new InventoryCursor(end.repository(),end.digest()));
+    }
+    private void appendImages(Actor actor,String namespace,String registry,String path,String afterDigest,int limit,List<InventoryImage> rows) {
+        for(var image:images(actor,namespace,registry,path)) {
+            if(afterDigest!=null && image.digest().compareTo(afterDigest)<=0)continue;
+            rows.add(new InventoryImage(path,image.digest(),image.tags()));
+            if(rows.size()>limit)return;
+        }
     }
     private List<ApplicationVersion> applications(Actor actor,String namespace) {
         var values=new ArrayList<ApplicationVersion>();int offset=0;

@@ -1,0 +1,9 @@
+# UI-12 镜像仓库直接分页与路径筛选
+
+依赖UI-09实际Registry库存查询，按用户要求取消“必须先选择路径”。选择仓库即显示当前工作空间可见镜像，路径仅用于可选子串筛选。
+
+后端在现有RegistryManagementService和RegistryController增加一个只读inventory查询；复用真实manifest核验、目录/分发历史无标签候选和原权限。页面按repository+digest标识行，保留标签、详情、受引用保护的删除。每页20条；跨路径及路径内分页，空路径跳过，无结果与连接失败区分，切换清除旧结果并阻止迟到响应覆盖。
+
+新增三个响应record（行、游标、页）仅供库存查询和前端分页消费；无新Java文件、数据库迁移、库存表、缓存、SPI或执行链变化。仍无法枚举标准Registry API不可发现的未知无标签digest，不宣称任意外部文件均可见。不涉及Kestra执行语义。
+
+验收包括分页边界、路径筛选、同摘要不同路径、无标签镜像、空/失败/切换与删除回读；原真实Registry删除保护回归；测试后发布CEA前后端，其他服务及业务数据保持。[协议](../contracts/ui09-registry-kubernetes.md)、[验证](../verification/VER-UI-012-registry-inventory.md)。

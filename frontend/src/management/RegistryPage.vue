@@ -6,12 +6,12 @@ const props = defineProps({ api: Function });
 const emit = defineEmits(['pending']);
 const registries = ref([]),
   registry = ref(''),
-  repositories = ref([]),
-  repository = ref('');
+  repository = ref(''),
+  repositoryFilter = ref('');
 const images = ref([]),
   detail = ref(null),
   next = ref(null),
-  cursors = ref(['']);
+  cursors = ref([null]);
 const error = ref(''),
   loading = ref(false),
   writing = ref(false),
@@ -44,37 +44,44 @@ async function start() {
     registries.value = rows;
     registry.value = rows[0]?.id || '';
   });
-  if (registry.value) loadRepositories(true);
+  if (registry.value) loadImages(true);
 }
-function loadRepositories(reset = false) {
-  if (reset) cursors.value = [''];
+function changeRegistry() {
   repository.value = '';
-  repositories.value = [];
+  repositoryFilter.value = '';
+  loadImages(true);
+}
+function filterImages(clear = false) {
+  if (clear) repositoryFilter.value = '';
+  repository.value = repositoryFilter.value.trim();
+  loadImages(true);
+}
+function loadImages(reset = false) {
+  if (reset) cursors.value = [null];
   images.value = [];
   detail.value = null;
   next.value = null;
-  read(async (api, current) => {
-    const page = await api(`${base.value}/repositories?last=${encodeURIComponent(cursors.value.at(-1))}`);
+  if (!registry.value) return;
+  const query = new URLSearchParams({ limit: '20' });
+  if (repository.value) query.set('repository', repository.value);
+  const cursor = cursors.value.at(-1);
+  if (cursor) {
+    query.set('afterRepository', cursor.repository);
+    query.set('afterDigest', cursor.digest);
+  }
+  return read(async (api, current) => {
+    const page = await api(`${base.value}/inventory?${query}`);
     if (current()) {
-      repositories.value = page.repositories;
+      images.value = page.images;
       next.value = page.next;
     }
-  });
-}
-function loadImages() {
-  images.value = [];
-  detail.value = null;
-  if (!repository.value) return;
-  read(async (api, current) => {
-    const rows = await api(`${base.value}/images?repository=${encodeURIComponent(repository.value)}`);
-    if (current()) images.value = rows;
   });
 }
 function inspect(row) {
   detail.value = null;
   read(async (api, current) => {
     const value = await api(
-      `${base.value}/image?repository=${encodeURIComponent(repository.value)}&digest=${encodeURIComponent(row.digest)}`,
+      `${base.value}/image?repository=${encodeURIComponent(row.repository)}&digest=${encodeURIComponent(row.digest)}`,
     );
     if (current()) detail.value = value;
   });
@@ -97,8 +104,7 @@ async function remove() {
       { method: 'DELETE', signal: AbortSignal.timeout(60000) },
     );
     if (current === generation) {
-      detail.value = null;
-      images.value = images.value.filter((row) => row.digest !== value.digest);
+      await loadImages(true);
       success.value = '仓库已确认删除 manifest；未执行磁盘 GC。';
     }
   } catch (e) {
@@ -120,74 +126,52 @@ onBeforeUnmount(() => {
         <span class="eyebrow">REGISTRIES</span>
         <h1>镜像仓库</h1>
       </div>
-      <button
-        :disabled="loading || writing"
-        @click="registry ? (repository ? loadImages() : loadRepositories()) : start()"
-      >
-        刷新库存
-      </button>
+      <button :disabled="loading || writing" @click="registry ? loadImages(true) : start()">刷新库存</button>
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <p v-if="success" class="success" role="status">{{ success }}</p>
-    <div class="inspection-controls resource-selector">
+    <form class="inspection-controls resource-selector registry-filters" @submit.prevent="filterImages()">
       <label
-        >仓库<select
-          v-model="registry"
-          aria-label="镜像仓库"
-          :disabled="loading || writing"
-          @change="loadRepositories(true)"
-        >
+        >仓库<select v-model="registry" aria-label="镜像仓库" :disabled="writing" @change="changeRegistry">
           <option v-for="row in registries" :key="row.id" :value="row.id">
             {{ row.id }} · {{ row.address }}
           </option>
         </select></label
       >
       <label
-        >镜像仓库路径<select
-          v-model="repository"
+        >镜像仓库路径<input
+          v-model="repositoryFilter"
           aria-label="镜像仓库路径"
-          :disabled="loading || writing"
-          @change="loadImages"
-        >
-          <option value="">选择路径</option>
-          <option v-for="row in repositories" :key="row" :value="row">{{ row }}</option>
-        </select></label
-      >
-    </div>
-    <div v-if="registry" class="pagination">
+          :disabled="writing"
+          placeholder="全部路径，可输入关键字筛选"
+          maxlength="255"
+      /></label>
+      <button type="submit" :disabled="writing || !registry">筛选</button>
       <button
-        :disabled="loading || writing || cursors.length === 1"
-        @click="
-          cursors.pop();
-          loadRepositories();
-        "
+        type="button"
+        :disabled="writing || !registry || (!repository && !repositoryFilter)"
+        @click="filterImages(true)"
       >
-        上一页路径</button
-      ><span>第 {{ cursors.length }} 页</span
-      ><button
-        :disabled="loading || writing || !next"
-        @click="
-          cursors.push(next);
-          loadRepositories();
-        "
-      >
-        下一页路径
+        清除
       </button>
-    </div>
+    </form>
     <p v-if="loading" class="empty">正在查询实际仓库…</p>
-    <section v-if="repository" class="panel">
-      <h2>{{ repository }}</h2>
+    <section v-if="registry" class="panel">
       <div class="table-wrap">
-        <table aria-label="实际镜像库存">
+        <table class="registry-inventory-table" aria-label="实际镜像库存">
           <thead>
             <tr>
+              <th>仓库路径</th>
               <th>Digest</th>
               <th>标签</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in images" :key="row.digest">
+            <tr v-for="row in images" :key="`${row.repository}@${row.digest}`">
+              <td>
+                <code>{{ row.repository }}</code>
+              </td>
               <td>
                 <code>{{ row.digest }}</code>
               </td>
@@ -197,7 +181,30 @@ onBeforeUnmount(() => {
           </tbody>
         </table>
       </div>
-      <p v-if="!loading && !images.length && !error" class="empty">没有可列出的标签或已知 digest</p>
+      <p v-if="!loading && !images.length && !error" class="empty">
+        {{ repository ? '没有符合筛选条件的镜像' : '当前仓库暂无可列出的镜像' }}
+      </p>
+      <div class="pagination">
+        <button
+          :disabled="loading || writing || cursors.length === 1"
+          @click="
+            cursors.pop();
+            loadImages();
+          "
+        >
+          上一页
+        </button>
+        <span>第 {{ cursors.length }} 页 · 每页 20 条</span>
+        <button
+          :disabled="loading || writing || !next"
+          @click="
+            cursors.push(next);
+            loadImages();
+          "
+        >
+          下一页
+        </button>
+      </div>
     </section>
     <section v-if="detail" class="panel" aria-label="镜像详情">
       <div class="page-heading">
@@ -205,6 +212,10 @@ onBeforeUnmount(() => {
         <button :disabled="writing" @click="detail = null">关闭</button>
       </div>
       <dl class="detail-grid">
+        <dt>仓库路径</dt>
+        <dd>
+          <code>{{ detail.repository }}</code>
+        </dd>
         <dt>Digest</dt>
         <dd>
           <code>{{ detail.digest }}</code>
@@ -236,7 +247,21 @@ onBeforeUnmount(() => {
   </section>
 </template>
 <style scoped>
+.registry-filters {
+  flex-wrap: wrap;
+}
+.registry-filters label {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 320px;
+}
+.registry-inventory-table {
+  min-width: 720px;
+}
 @media (max-width: 650px) {
+  .registry-filters label {
+    flex: 1 1 100%;
+  }
   .detail-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 8px;

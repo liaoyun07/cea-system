@@ -23,6 +23,12 @@ public final class RegistryController {
     public List<ImageInfo> images(Principal p,@PathVariable String namespace,@PathVariable String registry,@RequestParam String repository) {
         return service.images(identities.actor(p.getName()),namespace,registry,repository);
     }
+    @GetMapping("/{registry}/inventory")
+    public InventoryPage inventory(Principal p,@PathVariable String namespace,@PathVariable String registry,
+            @RequestParam(required=false) String repository,@RequestParam(defaultValue="20") int limit,
+            @RequestParam(required=false) String afterRepository,@RequestParam(required=false) String afterDigest) {
+        return service.inventory(identities.actor(p.getName()),namespace,registry,repository,limit,afterRepository,afterDigest);
+    }
     @GetMapping("/{registry}/image")
     public ImageDetail detail(Principal p,@PathVariable String namespace,@PathVariable String registry,@RequestParam String repository,@RequestParam String digest) {
         return service.detail(identities.actor(p.getName()),namespace,registry,repository,digest);
