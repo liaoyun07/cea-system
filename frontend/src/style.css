@@ -1133,8 +1133,10 @@ small {
   margin-right: 9px;
 }
 .nav-caption {
-  font-size: 0.75rem;
-  color: #9990aa;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #e4dcf1;
   padding: 0 14px;
   margin: 18px 0 4px;
   flex-shrink: 0;

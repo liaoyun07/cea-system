@@ -42,6 +42,9 @@ test('proposal modules, system brand, matching headings and dark scrollable navi
   await expect(page).toHaveTitle('云边端协同数据流处理系统');
   await expect(page.locator('.brand strong')).toHaveText('云边端协同数据流处理系统');
   await expect(page.locator('.nav-caption')).toHaveText(modules);
+  await expect(page.locator('.nav-caption').first()).toHaveCSS('font-size', '16px');
+  await expect(page.locator('.nav-caption').first()).toHaveCSS('font-weight', '700');
+  await expect(page.locator('.nav-caption').first()).toHaveCSS('color', 'rgb(228, 220, 241)');
   await expect(page.getByRole('navigation').getByRole('button')).toHaveText(
     menus.map((name) => new RegExp(name)),
   );

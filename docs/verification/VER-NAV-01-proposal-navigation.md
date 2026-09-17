@@ -32,3 +32,11 @@
 截图与结果保存在忽略的 `.local/nav01/`、`frontend/.local/evidence/nav01-*.png`；本地凭据未写入报告或提交。
 
 本批新增2个生产Vue文件、一个只读部署验证脚本和一个浏览器测试文件。没有新增/删除生产Java、数据库表列、HTTP接口或SPI；主调用链不变，未新增多核优化、跨应用全局分发查询等能力。
+
+## NAV-01a 标题可读性（2026-09-17）
+
+基线18e1274。按用户反馈仅修改`.nav-caption`：12→16px、字重700、颜色#9990aa→#e4dcf1、行高1.5，不改变菜单/交互。无新增生产文件、字段、表、接口，不涉及Kestra执行语义；主调用链保持。
+
+本次54项Node单测、Prettier/build、结构检查及1项定向导航Playwright通过：预览新构建、只读连接现有CEA API，检查字体CSS、全部入口、1440/900/390布局。未重跑上一批64项完整浏览器或Java测试，不把历史结果计为本次。
+
+15:32仅重建发布frontend，原镜像保留为`cea/frontend:rollback-nav01a-20260917`；新镜像`cea/frontend:nav01a-20260917`，digest `sha256:a81ad5fd587010ea28b7b49c346bc7dff3a12b30aacfc1f49f9b5c2b8ce4f03d`。18080只读现场验证PASS：标题计算样式、18入口、四集群Service/Ingress、分发历史、桌面/窄屏；44Flow/348执行/71应用/14数据集/13策略保持，其他19服务ID和启动时间不变，JS错误/API写请求均0。证据更新于`.local/nav01/result.json`及截图。

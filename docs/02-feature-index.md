@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+NAV-01a（DONE，已部署）：模块标题由12px浅灰改为16px、加粗、提亮；仅可读性优化，无业务能力变化。[结果](verification/VER-NAV-01-proposal-navigation.md)。
+
 NAV-01（DONE，已部署CEA）：申报书业务导航、系统名称、暗色细滚动条，Service/Ingress及分发历史独立入口；54项单测、64项浏览器及18080验收PASS，仅前端组件复用，不新增后端能力。[功能](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。
 
 ING-01（RES-001/B04管理补齐，已部署CEA）：HTTP Ingress增删改查、IngressClass查询、Service端口引用和入口展示；284项Java、54项单测、61项浏览器及四集群实际HTTP验收通过。执行链/数据库不变，不含TLS/复杂中间件。[功能](features/ING-01-ingress.md)、[验证](verification/VER-ING-01-ingress.md)。

@@ -55,6 +55,9 @@ if (process.argv.includes('--snapshot')) {
     await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
     const nav = (name) => page.getByRole('navigation').getByRole('button', { name, exact: true }).click();
     await expect(page.locator('.brand strong')).toHaveText('云边端协同数据流处理系统');
+    await expect(page.locator('.nav-caption').first()).toHaveCSS('font-size', '16px');
+    await expect(page.locator('.nav-caption').first()).toHaveCSS('font-weight', '700');
+    await expect(page.locator('.nav-caption').first()).toHaveCSS('color', 'rgb(228, 220, 241)');
     await expect(page).toHaveTitle('云边端协同数据流处理系统');
     const menus = ['运行总览', '数据流编排', '数据流执行记录', '数据集管理', '应用与镜像', '镜像仓库', '边缘服务部署', '服务与访问入口', '任务卸载决策记录', '应用分发记录', '边缘数据处理策略', '边缘数据处理记录', '集群管理', '集群运行资源', '边缘网关管理', '终端设备接入', '用户管理', '个人中心'];
     for (const name of menus) {
