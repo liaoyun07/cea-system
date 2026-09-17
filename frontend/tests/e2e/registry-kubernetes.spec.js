@@ -125,7 +125,9 @@ test('actual image inventory protects catalog reference, then separates catalog 
   await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(`lab/${id}`);
   await page.getByRole('button', { name: '镜像详情', exact: true }).click();
   await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(digest);
-  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(`应用契约引用：${id}/v1`);
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText('关联应用版本');
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(`${id}/v1`);
+  await expect(page.getByRole('region', { name: '镜像详情' })).not.toContainText('工作负载引用');
   await expect(page.getByRole('button', { name: '从当前仓库删除镜像', exact: true })).toBeDisabled();
   await api(request, `/applications/${id}/versions/v1`, 'delete');
   expect((await request.get(base + `/applications/${id}/versions/v1`, { headers })).status()).toBe(404);

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-14（DONE，已部署）：镜像详情显示关联应用版本与服务部署，补齐分发副本关联；有应用即保护，不扫描Job状态/历史。后端完整回归夹具修正后定向复测、56项Node、74项浏览器及18080源/副本/服务实际验证通过，原数据/库存及其余18服务保持；无DB/执行链变化。[范围](features/UI-14-image-associations.md)、[验证](verification/VER-UI-014-image-associations.md)。
+
 UI-13（DONE，已部署）：应用契约与Flow Input对齐七类型，SELECT字符串单选，OBJECT/ARRAY经JSON环境变量进入集群/终端/常驻部署；旧契约与dataset保持。后端真实回归及夹具修正复测、56项Node、73项浏览器及现场三入口验证通过。[范围](features/UI-13-application-parameter-types.md)、[验收](verification/VER-UI-013-application-parameter-types.md)。
 
 UI-12a（DONE，已部署）：镜像列表优先显示标签，无标签以12位短摘要辨认，完整Digest保留详情和请求；54项单测、4项定向浏览器及实际四仓库验证通过，仅前端展示调整。[范围](features/UI-12-registry-inventory.md)、[结果追加](verification/VER-UI-012-registry-inventory.md)。

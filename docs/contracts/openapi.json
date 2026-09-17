@@ -8623,7 +8623,10 @@
       },
       "RegistryImageDetail": {
         "type": "object",
+        "description": "Current application-version associations (including distributed copies) and Deployment references prevent deletion regardless of task state. Job/Pod history is not queried. Existing index/distribution or lookup failures remain blockers.",
         "properties": {
+          "applications": {"type":"array","items":{"type":"string"},"description":"Sorted active applicationId/version associations; deleted catalog entries are excluded."},
+          "deployments": {"type":"array","items":{"type":"string"},"description":"Sorted cluster / Kubernetes namespace / Deployment name references; includes zero replicas, no Job/Pod history."},
           "repository": {
             "type": "string"
           },
@@ -8672,6 +8675,8 @@
           "layerBytes",
           "created",
           "platforms",
+          "applications",
+          "deployments",
           "blockers"
         ]
       }

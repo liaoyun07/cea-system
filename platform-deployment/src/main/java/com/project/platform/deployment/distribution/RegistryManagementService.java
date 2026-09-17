@@ -16,7 +16,7 @@ public final class RegistryManagementService {
     public record InventoryPage(List<InventoryImage> images,InventoryCursor next) {}
     public record PlatformInfo(String digest,String os,String architecture,String variant) {}
     public record ImageDetail(String repository,String digest,List<String> tags,String mediaType,Long layerBytes,String created,
-                              List<PlatformInfo> platforms,List<String> blockers) {}
+                              List<PlatformInfo> platforms,List<String> applications,List<String> deployments,List<String> blockers) {}
     private final AccessPolicy access;
     private final ApplicationCatalogService applications;
     private final KubernetesManagementService kubernetes;
@@ -136,11 +136,19 @@ public final class RegistryManagementService {
                 if(parent!=null && contains(connection,repository,parent,manifest.digest(),new HashSet<>(),0))blockers.add("被已核验的无标签镜像索引引用："+parent.digest());
             }
         }
-        for(var app:applications(actor,namespace))if(references(connection,repository,app.image(),manifest.digest()))blockers.add("应用契约引用："+app.applicationId()+"/"+app.version());
+        var associated=new TreeSet<String>();var deployments=new TreeSet<String>();
+        var distributed=history.applicationReferences(namespace,connection.address()+"/"+repository+"@"+manifest.digest());
+        for(var app:applications(actor,namespace)) {
+            String key=app.applicationId()+"/"+app.version();
+            if(distributed.contains(key) || references(connection,repository,app.image(),manifest.digest())
+                    || (repository.equals(namespace+"/"+app.applicationId()) && sourceReferences(namespace,app.image(),manifest.digest())))associated.add(key);
+        }
         try {
-            for(String image:kubernetes.workloadImages(actor,namespace))if(references(connection,repository,image,manifest.digest()))blockers.add("Kubernetes 工作负载引用："+image);
+            kubernetes.deploymentImages(actor,namespace).forEach((name,images)->{
+                if(images.stream().anyMatch(image->references(connection,repository,image,manifest.digest())))deployments.add(name);
+            });
         } catch(com.project.platform.resource.kubernetes.KubernetesResourceService.Unavailable ex) {
-            blockers.add("集群引用检查不可用，禁止删除");
+            blockers.add("服务部署检查不可用，禁止删除");
         }
         for(String image:history.unfinishedImages(namespace))if(references(connection,repository,image,manifest.digest()))blockers.add("未确认结束的镜像分发引用："+image);
         var document=manifest.document();Long size=null;String created=null;var platforms=new ArrayList<PlatformInfo>();
@@ -153,7 +161,16 @@ public final class RegistryManagementService {
                 created=config.path("created").asString(null);platforms.add(new PlatformInfo(manifest.digest(),config.path("os").asString(null),config.path("architecture").asString(null),config.path("variant").asString(null)));
             }
         }
-        return new ImageDetail(repository,manifest.digest(),tags,document.path("mediaType").asString(null),size,created,platforms,List.copyOf(blockers));
+        return new ImageDetail(repository,manifest.digest(),tags,document.path("mediaType").asString(null),size,created,platforms,List.copyOf(associated),List.copyOf(deployments),List.copyOf(blockers));
+    }
+    /** Copies use namespace/applicationId even when the source repository differs; works before history existed. */
+    private boolean sourceReferences(String namespace,String image,String digest) {
+        if(image.endsWith("@"+digest))return true;
+        var source=scopes.getOrDefault(namespace,Set.of()).stream().map(registries::get)
+                .filter(r->image.startsWith(r.address()+"/")).findFirst().orElse(null);
+        if(source==null)return false;
+        int marker=image.contains("@")?image.indexOf('@'):image.lastIndexOf(':');
+        return references(source,image.substring(source.address().length()+1,marker),image,digest);
     }
     private boolean contains(RegistryHttpClient.Connection connection,String repository,RegistryHttpClient.Manifest manifest,String digest,Set<String> visited,int depth) {
         if(manifest.digest().equals(digest))return true;
@@ -185,6 +202,8 @@ public final class RegistryManagementService {
         var connection=connection(actor,namespace,registry,Action.WRITE);repository(namespace,repository);
         if(!Objects.equals(repository+"@"+digest,confirmation))throw ApplicationException.invalid("confirmation must equal repository@digest");
         var detail=detail(actor,namespace,registry,repository,digest);
+        if(!detail.applications().isEmpty())throw ApplicationException.conflict("关联应用版本："+String.join("、",detail.applications()));
+        if(!detail.deployments().isEmpty())throw ApplicationException.conflict("已作为服务部署："+String.join("、",detail.deployments()));
         if(!detail.blockers().isEmpty())throw ApplicationException.conflict(String.join("；",detail.blockers()));
         client.delete(connection,repository,detail.digest());
     }

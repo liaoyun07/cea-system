@@ -237,11 +237,40 @@ onBeforeUnmount(() => {
             {{ p.os || '—' }} / {{ p.architecture || '—' }}{{ p.variant ? ` / ${p.variant}` : '' }}
           </div>
         </dd>
+        <dt>关联应用版本</dt>
+        <dd>
+          <template v-if="detail.applications.length">
+            <div v-for="name in detail.applications" :key="name">{{ name }}</div>
+          </template>
+          <span v-else>未关联应用</span>
+        </dd>
+        <dt>服务部署</dt>
+        <dd>
+          <template v-if="detail.deployments.length">
+            <div v-for="name in detail.deployments" :key="name">{{ name }}</div>
+          </template>
+          <span v-else>{{
+            detail.blockers.includes('服务部署检查不可用，禁止删除') ? '查询不可用' : '未作为服务部署'
+          }}</span>
+        </dd>
       </dl>
+      <p v-if="detail.applications.length || detail.deployments.length" class="muted small">
+        已关联应用或服务部署，不能直接删除镜像。
+      </p>
       <ul v-if="detail.blockers.length" class="error">
         <li v-for="message in detail.blockers" :key="message">{{ message }}</li>
       </ul>
-      <button class="danger" :disabled="writing || loading || detail.blockers.length > 0" @click="remove">
+      <button
+        class="danger"
+        :disabled="
+          writing ||
+          loading ||
+          detail.applications.length > 0 ||
+          detail.deployments.length > 0 ||
+          detail.blockers.length > 0
+        "
+        @click="remove"
+      >
         从当前仓库删除镜像
       </button>
     </section>

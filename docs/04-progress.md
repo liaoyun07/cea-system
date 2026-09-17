@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-14（2026-09-17，已部署）：23:33完成18080前后端发布及实际页面核验，镜像详情显示关联应用/服务部署，不再显示Job/Pod引用；分发后的fl-evaluate可追溯met01-v3，httpserver列出三个Deployment。后端完整回归夹具修正后复测、56项Node、74项浏览器通过；44Flow/348执行/71应用/14数据集/13策略、131条镜像库存与现有部署及其余18服务保持。[范围](features/UI-14-image-associations.md)、[完整验证](verification/VER-UI-014-image-associations.md)。
+
 UI-13（2026-09-17，已部署）：21:14确认18080注册/上传/构建均支持七类型，补齐SELECT和JSON结构参数的真实执行、部署回读；281个Java用例覆盖并完成夹具修正复测、56项Node、73项浏览器及现场验证通过。只更新前后端，44个Flow/348条执行/71个应用版本/14个数据集/13个策略及其余18服务保持。[验收与复测明细](verification/VER-UI-013-application-parameter-types.md)。
 
 UI-12a（2026-09-17，已部署）：19:29确认18080镜像列表改为路径、标签/短摘要、操作，隐藏完整Digest列；无标签保留12位辨认，详情及实际请求仍用完整摘要。54项单测、4项定向浏览器及四仓库80行现场校对通过，仅frontend更新，原数据及其他19服务不变。[验证追加](verification/VER-UI-012-registry-inventory.md)。

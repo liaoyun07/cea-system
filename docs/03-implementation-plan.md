@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-14（2026-09-17，DONE，已部署）：依赖现有Registry目录、分发记录和Deployment查询，详情仅展示关联应用版本与服务部署；活动应用关联即阻止删除，不按Job状态判断，分发副本关联补齐。源/副本、无分发记录、复用/源tag移动、零副本部署、已完成Job不阻塞、权限和真实删除测试通过；后端回归及夹具修正复测、56项Node、74项浏览器与实际CEA核验完成，仅发布前后端，不改数据、DB或执行链。[范围](features/UI-14-image-associations.md)、[验收](verification/VER-UI-014-image-associations.md)。
+
 UI-13（2026-09-17，DONE，已部署）：依赖现有应用契约和七类Flow Input，统一注册/上传/构建七类型，补SELECT校验、OBJECT/ARRAY JSON传参及部署回读；保留旧契约/数据集规则，不改历史或DB。281个Java用例覆盖（完整回归夹具修正后定向复测）、56项Node、73项完整浏览器及18080三入口验收通过，仅更新前后端。[范围](features/UI-13-application-parameter-types.md)、[验证与复测说明](verification/VER-UI-013-application-parameter-types.md)。
 
 UI-12a（2026-09-17，DONE，已部署）：依赖UI-12，仅精简镜像列表为路径、标签/短摘要、操作；有标签不显示摘要，无标签显示前12位，完整摘要保留详情及实际请求。54项单测、4项定向浏览器及四仓库实际展示/窄屏验收通过；只更新CEA前端，无后端/DB/执行链变更。[范围](features/UI-12-registry-inventory.md)、[验证追加](verification/VER-UI-012-registry-inventory.md)。

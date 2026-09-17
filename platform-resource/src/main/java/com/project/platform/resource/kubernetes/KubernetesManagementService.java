@@ -260,6 +260,19 @@ public final class KubernetesManagementService {
         var ports=spec.getPorts().stream().map(p->new Port(p.getName(),p.getPort(),p.getTargetPort()==null?String.valueOf(p.getPort()):String.valueOf(p.getTargetPort().getValue()),p.getProtocol(),p.getNodePort())).toList();
         return new ServiceInfo(m.getName(),m.getNamespace(),m.getUid(),m.getResourceVersion(),spec.getType(),spec.getClusterIP(),spec.getSelector()==null?Map.of():spec.getSelector(),ports,addresses,nodes,pods,owned(m,workspace),m.getCreationTimestamp());
     }
+    /** Current service deployments, regardless of replica count. Jobs and Pod history are not service deployments. */
+    public Map<String,Set<String>> deploymentImages(Actor actor,String workspace) {
+        var result=new TreeMap<String,Set<String>>();
+        for(String cluster:connections.clusterIds(workspace))call(actor,workspace,cluster,Action.READ,client->{
+            for(var scope:namespaces(actor,workspace,cluster))
+                for(var deployment:client.apps().deployments().inNamespace(scope.name()).list().getItems()) {
+                    var images=new HashSet<String>();collectImages(deployment.getSpec().getTemplate().getSpec(),images);
+                    result.put(cluster+" / "+scope.name()+" / "+deployment.getMetadata().getName(),Set.copyOf(images));
+                }
+            return null;
+        });
+        return Collections.unmodifiableMap(result);
+    }
     /** Includes desired templates at zero replicas, pending Pods and init containers; unavailable clusters fail closed. */
     public Set<String> workloadImages(Actor actor,String workspace) {
         var result=new HashSet<String>();

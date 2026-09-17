@@ -84,6 +84,8 @@ test('row details and deletion use row repository even for shared digests', asyn
         layerBytes: 12,
         created: null,
         platforms: [],
+        applications: [],
+        deployments: [],
         blockers: [],
       },
     });
@@ -120,7 +122,16 @@ test('inventory shows tags or short digests while detail uses the full digest', 
   await page.route('**/registries/*/image?*', (route) => {
     requested = Object.fromEntries(new URL(route.request().url()).searchParams);
     return route.fulfill({
-      json: { ...rows[1], mediaType: 'test', layerBytes: 12, created: null, platforms: [], blockers: [] },
+      json: {
+        ...rows[1],
+        mediaType: 'test',
+        layerBytes: 12,
+        created: null,
+        platforms: [],
+        applications: [],
+        deployments: [],
+        blockers: [],
+      },
     });
   });
   await open(page, (route) => route.fulfill({ json: { images: rows, next: null } }));
@@ -136,6 +147,58 @@ test('inventory shows tags or short digests while detail uses the full digest', 
   await page.setViewportSize({ width: 390, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: '.local/evidence/registry-identifiers-narrow.png', fullPage: true });
+});
+
+test('image detail shows application and service associations without workload history', async ({ page }) => {
+  const row = { repository: 'lab/app', digest: digest(9), tags: [] };
+  let applications = ['train/v1', 'train/v2'],
+    deployments = [],
+    blockers = [];
+  await page.route('**/registries/*/image?*', (route) =>
+    route.fulfill({
+      json: {
+        ...row,
+        mediaType: 'test',
+        layerBytes: 12,
+        created: null,
+        platforms: [],
+        applications,
+        deployments,
+        blockers,
+      },
+    }),
+  );
+  await open(page, (route) => route.fulfill({ json: { images: [row], next: null } }));
+  const detail = page.getByRole('region', { name: '镜像详情' });
+  const inspect = () => table(page).getByRole('button', { name: '镜像详情', exact: true }).click();
+  const remove = page.getByRole('button', { name: '从当前仓库删除镜像', exact: true });
+  await inspect();
+  await expect(detail).toContainText('关联应用版本');
+  await expect(detail).toContainText('train/v1');
+  await expect(detail).toContainText('train/v2');
+  await expect(detail).toContainText('未作为服务部署');
+  await expect(detail).not.toContainText('工作负载引用');
+  await expect(remove).toBeDisabled();
+  applications = [];
+  deployments = ['edge-a / cea-lab / http-server'];
+  await inspect();
+  await expect(detail).toContainText('未关联应用');
+  await expect(detail).toContainText(deployments[0]);
+  await expect(remove).toBeDisabled();
+  await page.screenshot({ path: '.local/evidence/registry-associations-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: '.local/evidence/registry-associations-narrow.png', fullPage: true });
+  deployments = [];
+  blockers = ['服务部署检查不可用，禁止删除'];
+  await inspect();
+  await expect(detail).toContainText('查询不可用');
+  await expect(detail).not.toContainText('未作为服务部署');
+  await expect(remove).toBeDisabled();
+  blockers = [];
+  await inspect();
+  await expect(detail).toContainText('未作为服务部署');
+  await expect(remove).toBeEnabled();
 });
 
 test('empty and failed searches clear old rows and late responses cannot replace switched registry', async ({

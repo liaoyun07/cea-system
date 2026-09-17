@@ -33,6 +33,9 @@ public final class JdbcImageDistributionRepository {
     public List<String> knownTargets(String namespace) {
         return jdbc.queryForList("SELECT DISTINCT target_image FROM dep_image_distribution WHERE namespace=? AND target_image IS NOT NULL",String.class,namespace);
     }
+    public Set<String> applicationReferences(String namespace,String target) {
+        return new HashSet<>(jdbc.queryForList("SELECT DISTINCT CONCAT(application_id,'/',version) FROM dep_image_distribution WHERE namespace=? AND target_image=?",String.class,namespace,target));
+    }
     public List<String> unfinishedImages(String namespace) {
         return jdbc.queryForList("SELECT source_image FROM dep_image_distribution WHERE namespace=? AND state='RUNNING' UNION SELECT target_image FROM dep_image_distribution WHERE namespace=? AND state='RUNNING' AND target_image IS NOT NULL",String.class,namespace,namespace);
     }

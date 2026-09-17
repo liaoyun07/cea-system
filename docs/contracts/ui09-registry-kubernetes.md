@@ -6,6 +6,7 @@
 
 ## Registry
 
+- UI-14：镜像详情新增`applications`（活动应用ID/版本）和`deployments`（集群 / Kubernetes Namespace / Deployment名称）。源镜像及分发副本均追溯关联，活动应用存在即阻止删除；Deployment包含零副本，不查Job/Pod状态或历史。`blockers`保留索引、未结束分发、查询不可用等既有阻碍。应用/部署关联单独展示，不再混入错误列表。孤立非Deployment工作负载不提供通用防删；镜像删除不影响历史记录，应用目录删除原检查不变。
 - UI-12：`GET /registries/{registry}/inventory?repository=&limit=20&afterRepository=&afterDigest=`按镜像分页；repository可选，去除首尾空白后按路径子串匹配。返回`{images:[{repository,digest,tags}],next:{repository,digest}|null}`，limit为1..100，游标两项同时传入；按路径、digest升序，同一路径同digest多标签合并一行，不同路径同digest保留不同记录。namespace/与Registry授权不变。
 - 前端默认选中仓库即查询第一页，每页20个镜像；路径为空查全部可见路径，筛选/清除/切换仓库/刷新回第一页；删除成功重查第一页。详情/删除使用行自身路径，不使用筛选文本。
 - 分页沿真实catalog继续读取，跳过其他空间/无镜像路径，核验到多一条镜像才产生next；不为一页扫描后续全部镜像，不新增库存表/缓存。每个访问路径仍需解析其标签及已知digest。不是一致性快照；并发上传/删除后可刷新重查，不提供虚构总数。原未知无标签digest不可枚举的限制保持。

@@ -837,9 +837,12 @@ class ImageDistributionTest {
             assertEquals(fixtureDigest,inventory.getFirst().digest());assertTrue(inventory.getFirst().tags().isEmpty());
             var page=management.inventory(actor,"lab","target","ui9-copy",1,null,null);
             assertEquals("lab/ui9-copy",page.images().getFirst().repository());assertEquals(fixtureDigest,page.images().getFirst().digest());assertNull(page.next());
+            assertEquals(List.of("ui9-copy/v1"),management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).applications());
+            assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
             // Model an existing digest-only copy without a preparation record, as occurs before history was enabled.
             context.getBean(JdbcTemplate.class).update("DELETE FROM dep_image_distribution WHERE namespace=? AND application_id=?","lab","ui9-copy");
             assertEquals(fixtureDigest,management.images(actor,"lab","target","lab/ui9-copy").getFirst().digest());
+            assertEquals(List.of("ui9-copy/v1"),management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).applications());
             context.getBean(com.project.platform.dataflow.definition.ApplicationRemovalService.class).remove(actor,"lab","ui9-copy","v1");
             assertThrows(ApplicationException.class,()->applications().get(actor,"lab","ui9-copy","v1"));
             assertEquals(fixtureDigest,management.images(actor,"lab","target","lab/ui9-copy").getFirst().digest());
@@ -850,7 +853,9 @@ class ImageDistributionTest {
                     .withNewSpec().addNewContainer().withName("app").withImage("target:5000/lab/ui9-copy@"+fixtureDigest).endContainer().endSpec().endTemplate().endSpec().build();
             admin.apps().deployments().inNamespace("s4-test").resource(workload).create();
             try {
-                assertTrue(management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).blockers().stream().anyMatch(b->b.contains("Kubernetes")));
+                var uses=management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).deployments();
+                assertTrue(uses.contains("edge / s4-test / ui9-reference-only"));
+                assertTrue(uses.stream().allMatch(name->name.endsWith(" / s4-test / ui9-reference-only")));
                 assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
             } finally {admin.apps().deployments().inNamespace("s4-test").withName("ui9-reference-only").delete();}
             await().atMost(Duration.ofSeconds(20)).until(()->admin.apps().replicaSets().inNamespace("s4-test").withLabel("app","ui9-reference-only").list().getItems().isEmpty());
@@ -869,10 +874,46 @@ class ImageDistributionTest {
             applications().register(actor,"lab","ui9-copy","v2",new ApplicationVersion("ui9-copy","v2","source:5000/fixture@"+fixtureDigest,Map.of()));
             distribution().prepare(actor,"lab","ui9-copy","v2","edge");
             applications().register(actor,"lab","ui9-reference","v1",new ApplicationVersion("ui9-reference","v1","target:5000/lab/ui9-copy@"+fixtureDigest,Map.of()));
-            assertFalse(management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).blockers().isEmpty());
+            assertEquals(List.of("ui9-copy/v2","ui9-reference/v1"),management.detail(actor,"lab","target","lab/ui9-copy",fixtureDigest).applications());
             assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target","lab/ui9-copy",fixtureDigest,"lab/ui9-copy@"+fixtureDigest));
             assertNotNull(client.manifest(connection,"lab/ui9-copy",fixtureDigest));
         } finally { Files.deleteIfExists(authFile); }
+    }
+    @Test void imageAssociationsProtectReusedCopiesButCompletedJobsDoNotPreventImageDeletion() throws Exception {
+        var connection=new RegistryHttpClient.Connection("target:5000",endpoint(target),registryAuth.toString());
+        var management=new RegistryManagementService(new com.project.platform.foundation.identity.AccessPolicy(),applications(),context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class),
+                context.getBean(JdbcImageDistributionRepository.class),new RegistryHttpClient(),
+                Map.of("target",connection,"source",new RegistryHttpClient.Connection("source:5000",endpoint(source),registryAuth.toString())),Map.of("lab",Set.of("target","source")));
+        String id="ui14-history",repository="lab/"+id;
+        applications().register(actor,"lab",id,"v1",new ApplicationVersion(id,"v1","source:5000/alpine:v1",Map.of()));
+        String image=distribution().prepare(actor,"lab",id,"v1","edge").image(),digest=image.split("@")[1];
+        applications().register(actor,"lab",id,"v2",new ApplicationVersion(id,"v2","source:5000/alpine@"+digest,Map.of()));
+        assertEquals(image,distribution().prepare(actor,"lab",id,"v2","edge").image());
+        assertTrue(distribution().history(actor,"lab",id,"v2",10,0).isEmpty());
+        assertEquals(List.of(id+"/v1",id+"/v2"),management.detail(actor,"lab","target",repository,digest).applications());
+        // Historical copy remains associated even if its source tag is no longer at the recorded digest.
+        assertEquals(0,tool.execInContainer("skopeo","copy","--src-tls-verify=false","--src-creds=test:"+password,"--dest-tls-verify=false","--dest-creds=test:"+password,"docker://source:5000/alpine:v1","docker://source:5000/alpine:ui14-moving").getExitCode());
+        applications().register(actor,"lab","ui14-moving","v1",new ApplicationVersion("ui14-moving","v1","source:5000/alpine:ui14-moving",Map.of()));
+        distribution().prepare(actor,"lab","ui14-moving","v1","edge");
+        assertEquals(0,tool.execInContainer("skopeo","copy","--src-tls-verify=false","--src-creds=test:"+password,"--dest-tls-verify=false","--dest-creds=test:"+password,"docker://source:5000/fixture:v1","docker://source:5000/alpine:ui14-moving").getExitCode());
+        assertEquals(List.of("ui14-moving/v1"),management.detail(actor,"lab","target","lab/ui14-moving",digest).applications());
+        var job=new io.fabric8.kubernetes.api.model.batch.v1.JobBuilder().withNewMetadata().withName(id).endMetadata().withNewSpec()
+                .withNewTemplate().withNewSpec().withRestartPolicy("Never").addNewContainer().withName("app").withImage(image).withCommand("/bin/true")
+                .endContainer().endSpec().endTemplate().endSpec().build();
+        admin.batch().v1().jobs().inNamespace("s4-test").resource(job).create();
+        try {
+            await().atMost(Duration.ofSeconds(90)).until(()->{
+                var status=admin.batch().v1().jobs().inNamespace("s4-test").withName(id).get().getStatus();return status!=null && Integer.valueOf(1).equals(status.getSucceeded());
+            });
+            assertThrows(ApplicationException.class,()->management.delete(actor,"lab","target",repository,digest,repository+"@"+digest));
+            var removal=context.getBean(com.project.platform.dataflow.definition.ApplicationRemovalService.class);
+            removal.remove(actor,"lab",id,"v1");removal.remove(actor,"lab",id,"v2");
+            var detail=management.detail(actor,"lab","target",repository,digest);
+            assertTrue(detail.applications().isEmpty());assertTrue(detail.deployments().isEmpty());assertTrue(detail.blockers().isEmpty());
+            management.delete(actor,"lab","target",repository,digest,repository+"@"+digest);
+            assertNull(new RegistryHttpClient().manifest(connection,repository,digest));
+            assertEquals(1,admin.batch().v1().jobs().inNamespace("s4-test").withName(id).get().getStatus().getSucceeded());
+        } finally {admin.batch().v1().jobs().inNamespace("s4-test").withName(id).delete();}
     }
     @Test void catalogRemovalRetainsVersionIdentityAndProtectsAllSavedFlowRevisions() {
         var removal=context.getBean(com.project.platform.dataflow.definition.ApplicationRemovalService.class);
