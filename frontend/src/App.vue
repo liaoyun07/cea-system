@@ -17,51 +17,51 @@ import { catalogs } from './management/catalogs.js';
 const navigation = [
   {
     label: '',
-    items: [['overview', '运行总览', '◫']],
+    items: [['overview', '运行总览']],
   },
   {
     label: '云边端协同数据流处理',
     items: [
-      ['flows', '数据流编排', '◇'],
-      ['executions', '数据流执行记录', '▷'],
-      ['datasets', '数据集管理', '▥'],
+      ['flows', '数据流编排'],
+      ['executions', '数据流执行记录'],
+      ['datasets', '数据集管理'],
     ],
   },
   {
     label: '模块化边缘服务部署',
     items: [
-      ['applications', '应用与镜像', '▣'],
-      ['registries', '镜像仓库', '▧'],
-      ['deployments', '边缘服务部署', '▤'],
-      ['services', '服务与访问入口', '⇄'],
+      ['applications', '应用与镜像'],
+      ['registries', '镜像仓库'],
+      ['deployments', '边缘服务部署'],
+      ['services', '服务与访问入口'],
     ],
   },
   {
     label: '智能任务卸载',
-    items: [['observations', '任务卸载决策记录', '↗']],
+    items: [['observations', '任务卸载决策记录']],
   },
   {
     label: '多云协作',
     items: [
-      ['distributions', '应用分发记录', '⇢'],
-      ['policies', '边缘数据处理策略', '⋈'],
-      ['edge-records', '边缘数据处理记录', '≋'],
+      ['distributions', '应用分发记录'],
+      ['policies', '边缘数据处理策略'],
+      ['edge-records', '边缘数据处理记录'],
     ],
   },
   {
     label: '基础资源管理',
     items: [
-      ['clusters', '集群管理', '⬡'],
-      ['kubernetes', '集群运行资源', '▦'],
-      ['gateways', '边缘网关管理', '⌁'],
-      ['terminals', '终端设备接入', '▱'],
+      ['clusters', '集群管理'],
+      ['kubernetes', '集群运行资源'],
+      ['gateways', '边缘网关管理'],
+      ['terminals', '终端设备接入'],
     ],
   },
   {
     label: '系统管理',
     items: [
-      ['users', '用户管理', '♙'],
-      ['profile', '个人中心', '○'],
+      ['users', '用户管理'],
+      ['profile', '个人中心'],
     ],
   },
 ];
@@ -254,7 +254,7 @@ async function removeRow(row) {
         <template v-for="group in navigation" :key="group.label">
           <div v-if="group.label" class="nav-caption">{{ group.label }}</div>
           <button
-            v-for="[key, title, icon] in group.items.filter(
+            v-for="[key, title] in group.items.filter(
               ([key]) => key !== 'users' || session.profile.role === 'ADMIN',
             )"
             :key="key"
@@ -264,8 +264,7 @@ async function removeRow(row) {
             :disabled="busy"
             @click="navigate(key)"
           >
-            <span class="nav-icon" aria-hidden="true">{{ icon }}</span
-            >{{ title }}
+            {{ title }}
           </button>
         </template>
       </nav>

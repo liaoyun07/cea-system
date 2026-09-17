@@ -40,3 +40,13 @@
 本次54项Node单测、Prettier/build、结构检查及1项定向导航Playwright通过：预览新构建、只读连接现有CEA API，检查字体CSS、全部入口、1440/900/390布局。未重跑上一批64项完整浏览器或Java测试，不把历史结果计为本次。
 
 15:32仅重建发布frontend，原镜像保留为`cea/frontend:rollback-nav01a-20260917`；新镜像`cea/frontend:nav01a-20260917`，digest `sha256:a81ad5fd587010ea28b7b49c346bc7dff3a12b30aacfc1f49f9b5c2b8ce4f03d`。18080只读现场验证PASS：标题计算样式、18入口、四集群Service/Ingress、分发历史、桌面/窄屏；44Flow/348执行/71应用/14数据集/13策略保持，其他19服务ID和启动时间不变，JS错误/API写请求均0。证据更新于`.local/nav01/result.json`及截图。
+
+## NAV-01b 纯文字导航（2026-09-17～18）
+
+基线`1a340ee8d74577f67679d14ebfaa7f16d41929f6`及本批差异。删除菜单数据中的图标值、模板图标节点和`.nav-icon`样式；未改变名称、排序、分组、权限、页面位置、品牌标识或退出按钮。普通菜单400字重、选中700字重，颜色#d7d1e2，桌面左24px（标题14px）；窄屏左右14px。标题保持NAV-01a样式，选中项悬停不覆盖其背景。没有新增生产文件、类、字段、表或接口，不改变主调用链，不涉及Kestra执行语义。
+
+本次Node单测56/56、Vite build、Prettier、结构检查及git diff --check通过。沿用UI-14已打包JAR，JDK21.0.12和新建隔离MySQL/Registry/K3s/BuildKit夹具下完整Playwright **74/74通过（4.0分钟）**；含精确菜单纯文字/顺序、标题可读性、普通/选中字重、悬停、Tab/Enter焦点、管理员/普通用户菜单、全部入口与1440/900/390布局。没有修改Java或重跑Maven，不将旧Java回归计为本次。日志`.local/nav01b-e2e.log`。
+
+2026-09-18 00:00:53仅frontend重建，00:01只读线上检查PASS。新镜像`cea/frontend:nav01b-20260917`（构建日期标签，同步`:local`），ID `sha256:4fa36aa2103691562d239174f6ad74819d2677e122549d967628c8438b007933`；原镜像保留为`cea/frontend:rollback-nav01b-20260917`，ID `sha256:741ab65fe53c8502bea2148c3a749988ece4ba0b586fa8d21c6a107530ddf88e`。
+
+`node deploy/cea/verify-navigation.mjs`现场核验18入口、四集群Service/Ingress、现有分发记录、标题/纯文字菜单、桌面/窄屏通过，实际截图已检查。44Flow/348执行/71应用版本/14数据集版本/13策略完整列表与发布前相同；backend等其余19服务容器ID和启动时间不变、均运行，frontend健康。浏览器JS错误0/API写请求0，未更改业务资源。证据`.local/nav01b/before.json`、`result.json`、`sidebar.png`、`desktop.png`、`narrow.png`；原NAV-01证据未覆盖。

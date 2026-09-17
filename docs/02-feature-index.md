@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+NAV-01b（DONE，已部署）：侧栏菜单去除装饰图标，保持醒目模块标题，用缩进、常规/选中字重及紫色选中态区分层级。56项单测、74项浏览器及18080桌面/窄屏/18入口验收通过，仅更新frontend，其余19服务与业务列表保持。[范围](features/NAV-01-proposal-navigation.md)、[验证追加](verification/VER-NAV-01-proposal-navigation.md)。
+
 UI-14（DONE，已部署）：镜像详情显示关联应用版本与服务部署，补齐分发副本关联；有应用即保护，不扫描Job状态/历史。后端完整回归夹具修正后定向复测、56项Node、74项浏览器及18080源/副本/服务实际验证通过，原数据/库存及其余18服务保持；无DB/执行链变化。[范围](features/UI-14-image-associations.md)、[验证](verification/VER-UI-014-image-associations.md)。
 
 UI-13（DONE，已部署）：应用契约与Flow Input对齐七类型，SELECT字符串单选，OBJECT/ARRAY经JSON环境变量进入集群/终端/常驻部署；旧契约与dataset保持。后端真实回归及夹具修正复测、56项Node、73项浏览器及现场三入口验证通过。[范围](features/UI-13-application-parameter-types.md)、[验收](verification/VER-UI-013-application-parameter-types.md)。

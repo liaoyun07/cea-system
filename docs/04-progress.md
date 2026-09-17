@@ -1,5 +1,7 @@
 # 当前进度
 
+NAV-01b（2026-09-18，已部署）：00:01确认18080纯文字侧栏生效，标题保持16px/700，菜单常规字重、选中加粗，保留滚动和键盘操作。56项单测、74项浏览器与只读现场验证通过；仅更新frontend，44Flow/348执行/71应用/14数据集/13策略和其余19服务保持，无API/DB/执行链变化。[验证追加](verification/VER-NAV-01-proposal-navigation.md)。
+
 UI-14（2026-09-17，已部署）：23:33完成18080前后端发布及实际页面核验，镜像详情显示关联应用/服务部署，不再显示Job/Pod引用；分发后的fl-evaluate可追溯met01-v3，httpserver列出三个Deployment。后端完整回归夹具修正后复测、56项Node、74项浏览器通过；44Flow/348执行/71应用/14数据集/13策略、131条镜像库存与现有部署及其余18服务保持。[范围](features/UI-14-image-associations.md)、[完整验证](verification/VER-UI-014-image-associations.md)。
 
 UI-13（2026-09-17，已部署）：21:14确认18080注册/上传/构建均支持七类型，补齐SELECT和JSON结构参数的真实执行、部署回读；281个Java用例覆盖并完成夹具修正复测、56项Node、73项浏览器及现场验证通过。只更新前后端，44个Flow/348条执行/71个应用版本/14个数据集/13个策略及其余18服务保持。[验收与复测明细](verification/VER-UI-013-application-parameter-types.md)。

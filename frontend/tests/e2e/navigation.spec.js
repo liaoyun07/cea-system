@@ -45,9 +45,22 @@ test('proposal modules, system brand, matching headings and dark scrollable navi
   await expect(page.locator('.nav-caption').first()).toHaveCSS('font-size', '16px');
   await expect(page.locator('.nav-caption').first()).toHaveCSS('font-weight', '700');
   await expect(page.locator('.nav-caption').first()).toHaveCSS('color', 'rgb(228, 220, 241)');
-  await expect(page.getByRole('navigation').getByRole('button')).toHaveText(
-    menus.map((name) => new RegExp(name)),
-  );
+  await expect(page.getByRole('navigation').getByRole('button')).toHaveText(menus);
+  const active = page.getByRole('navigation').locator('[aria-current="page"]');
+  const overview = page.getByRole('navigation').getByRole('button', { name: '运行总览', exact: true });
+  await expect(active).toHaveCSS('font-weight', '700');
+  await expect(overview).toHaveCSS('font-weight', '400');
+  await expect(overview).toHaveCSS('padding-left', '24px');
+  await active.hover();
+  await expect(active).toHaveCSS('background-color', 'rgb(60, 46, 89)');
+  await overview.hover();
+  await expect(overview).toHaveCSS('background-color', 'rgb(51, 44, 70)');
+  await overview.focus();
+  await page.keyboard.press('Tab');
+  await expect(active).toBeFocused();
+  await expect(active).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('h1')).toHaveText('数据流编排');
   const style = await page.locator('.sidebar nav').evaluate((el) => ({
     width: getComputedStyle(el).scrollbarWidth,
     color: getComputedStyle(el).scrollbarColor,
@@ -76,6 +89,9 @@ test('proposal modules, system brand, matching headings and dark scrollable navi
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await nav(page, '个人中心');
+  await expect(page.getByRole('navigation').getByRole('button')).toHaveText(menus);
+  await expect(active).toBeInViewport();
+  await expect(active).toHaveCSS('padding-left', '14px');
   await expect(page.locator('.brand strong')).toBeVisible();
   await expect(page.locator('.brand strong span')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -87,6 +103,9 @@ test('ordinary user navigation hides admin only menu without losing system group
   await expect(
     page.getByRole('navigation').getByRole('button', { name: '用户管理', exact: true }),
   ).toHaveCount(0);
+  await expect(page.getByRole('navigation').getByRole('button')).toHaveText(
+    menus.filter((name) => name !== '用户管理'),
+  );
   await expect(page.locator('.nav-caption')).toHaveText(modules);
   await nav(page, '个人中心');
   await expect(page.locator('h1')).toHaveText('个人中心');

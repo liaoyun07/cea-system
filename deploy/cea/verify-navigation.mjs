@@ -1,11 +1,11 @@
-// Read-only NAV-01 release check. Reads local credentials but never writes them to evidence.
+// Read-only NAV-01b release check. Reads local credentials but never writes them to evidence.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { chromium, expect } from '../../frontend/node_modules/@playwright/test/index.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
-const directory = resolve(root, '.local/nav01');
+const directory = resolve(root, '.local/nav01b');
 mkdirSync(directory, { recursive: true });
 const settings = Object.fromEntries(readFileSync(resolve(import.meta.dirname, '.env'), 'utf8')
   .split(/\r?\n/).filter((line) => /^[A-Z_0-9]+=/.test(line)).map((line) => {
@@ -60,6 +60,9 @@ if (process.argv.includes('--snapshot')) {
     await expect(page.locator('.nav-caption').first()).toHaveCSS('color', 'rgb(228, 220, 241)');
     await expect(page).toHaveTitle('云边端协同数据流处理系统');
     const menus = ['运行总览', '数据流编排', '数据流执行记录', '数据集管理', '应用与镜像', '镜像仓库', '边缘服务部署', '服务与访问入口', '任务卸载决策记录', '应用分发记录', '边缘数据处理策略', '边缘数据处理记录', '集群管理', '集群运行资源', '边缘网关管理', '终端设备接入', '用户管理', '个人中心'];
+    await expect(page.getByRole('navigation').getByRole('button')).toHaveText(menus);
+    await expect(page.getByRole('navigation').locator('[aria-current="page"]')).toHaveCSS('font-weight', '700');
+    await expect(page.getByRole('navigation').getByRole('button', { name: '运行总览', exact: true })).toHaveCSS('font-weight', '400');
     for (const name of menus) {
       await nav(name); await expect(page.locator('h1')).toHaveText(name);
       if (name === '用户管理') await expect(page.getByRole('button', { name: '＋ 新建用户', exact: true })).toBeEnabled();
@@ -95,8 +98,13 @@ if (process.argv.includes('--snapshot')) {
     await page.locator('.sidebar nav').evaluate((el) => { el.scrollTop = 0; });
     await page.mouse.move(600, 70);
     await page.screenshot({ path: resolve(directory, 'desktop.png'), fullPage: true });
+    await page.locator('.sidebar').screenshot({ path: resolve(directory, 'sidebar.png') });
+    await page.setViewportSize({ width: 900, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });
     await nav('个人中心');
+    await expect(page.getByRole('navigation').getByRole('button')).toHaveText(menus);
+    await expect(page.getByRole('navigation').locator('[aria-current="page"]')).toBeInViewport();
     await expect(page.locator('.brand strong span')).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: resolve(directory, 'narrow.png'), fullPage: true });
