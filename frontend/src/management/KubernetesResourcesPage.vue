@@ -11,11 +11,9 @@ const tabs = serviceMode
   ? [
       ['services', 'Service'],
       ['ingresses', 'Ingress'],
-    ]
-  : [
-      ['nodes', '节点'],
       ['namespace', 'Kubernetes Namespace'],
-    ];
+    ]
+  : [['nodes', '节点']];
 const emit = defineEmits(['pending']);
 const managementPending = ref(false);
 function pending(value) {
@@ -144,7 +142,7 @@ onBeforeUnmount(() => {
     <div class="page-heading">
       <div>
         <span class="eyebrow">KUBERNETES</span>
-        <h1>{{ serviceMode ? '服务与访问入口' : '集群运行资源' }}</h1>
+        <h1>{{ serviceMode ? '服务资源管理' : '集群运行资源' }}</h1>
       </div>
       <button
         :disabled="loading || catalogLoading || managementPending"

@@ -11,6 +11,8 @@ const emit = defineEmits(['dirty', 'pending', 'access']);
 const clusters = ref([]),
   apps = ref([]),
   cluster = ref(''),
+  namespaces = ref([]),
+  kubeNamespace = ref(''),
   rows = ref([]),
   selected = ref(null),
   draft = ref(null),
@@ -46,7 +48,9 @@ onBeforeUnmount(() => {
   alive = false;
   abort.abort();
 });
-const path = (name) => `/clusters/${enc(cluster.value)}/deployments${name ? `/${enc(name)}` : ''}`;
+const namespacePath = () => `/clusters/${enc(cluster.value)}/kubernetes/namespaces`;
+const path = (name) =>
+  `${namespacePath()}/${enc(kubeNamespace.value)}/deployments${name ? `/${enc(name)}` : ''}`;
 const app = computed(() =>
   apps.value.find((a) => `${a.applicationId}/${a.version}` === draft.value?.application),
 );
@@ -83,12 +87,25 @@ async function list() {
   selected.value = null;
   runtime.value = null;
   loaded.value = false;
-  if (!cluster.value) return;
+  if (!cluster.value || !kubeNamespace.value) return;
   const result = await api(path());
   if (alive) {
     rows.value = result;
     loaded.value = true;
   }
+}
+async function loadNamespaces(reset = false) {
+  rows.value = [];
+  loaded.value = false;
+  if (reset) kubeNamespace.value = '';
+  namespaces.value = [];
+  const values = await api(namespacePath());
+  if (!alive) return;
+  namespaces.value = values;
+  const usable = values.filter((row) => row.phase === 'Active');
+  if (!usable.some((row) => row.name === kubeNamespace.value))
+    kubeNamespace.value = usable.find((row) => row.executionDefault)?.name || usable[0]?.name || '';
+  await list();
 }
 function create() {
   draft.value = {
@@ -229,7 +246,7 @@ async function remove() {
   const value = selected.value;
   if (
     !window.confirm(
-      `删除集群 ${cluster.value} 的部署 ${value.name}？将使用当前 resourceVersion ${value.resourceVersion}，不会删除应用或数据集。`,
+      `删除 ${cluster.value} / ${kubeNamespace.value} 中的部署 ${value.name}？不会删除其他 Namespace 的部署、应用或数据集。`,
     )
   )
     return;
@@ -256,7 +273,7 @@ onMounted(() => action(catalogs));
       <button
         v-if="!draft && !selected"
         class="primary"
-        :disabled="busy || !cluster || !catalogsLoaded"
+        :disabled="busy || !kubeNamespace || !namespaces.length || !catalogsLoaded"
         @click="create"
       >
         ＋ 创建部署</button
@@ -270,18 +287,34 @@ onMounted(() => action(catalogs));
           v-model="cluster"
           aria-label="执行集群"
           :disabled="busy || !!draft || !!selected"
-          @change="action(list)"
+          @change="action(() => loadNamespaces(true))"
         >
           <option value="" disabled>选择集群</option>
           <option v-for="c in clusters" :key="c.id" :value="c.id">
             {{ c.id }} · {{ c.kind }}{{ c.enabled ? '' : '（目录已禁用）' }}
           </option>
         </select></label
-      ><button v-if="!catalogsLoaded" :disabled="busy" @click="action(catalogs)">重试目录</button
+      >
+      <label class="inline-select"
+        >Kubernetes Namespace
+        <select
+          v-model="kubeNamespace"
+          aria-label="部署 Namespace"
+          :disabled="busy || !cluster || !!draft || !!selected"
+          @change="action(list)"
+        >
+          <option value="" disabled>选择 Namespace</option>
+          <option v-for="n in namespaces" :key="n.name" :value="n.name" :disabled="n.phase !== 'Active'">
+            {{ n.name }}{{ n.executionDefault ? '（默认）' : ''
+            }}{{ n.phase !== 'Active' ? '（不可用）' : '' }}
+          </option>
+        </select>
+      </label>
+      <button v-if="!catalogsLoaded" :disabled="busy" @click="action(catalogs)">重试目录</button
       ><button
         v-else-if="!draft"
         :disabled="busy || !cluster"
-        @click="selected ? detail(selected) : action(list)"
+        @click="selected ? detail(selected) : action(() => loadNamespaces())"
       >
         {{ busy ? '读取中…' : '↻ 刷新状态' }}
       </button>

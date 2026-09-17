@@ -94,7 +94,7 @@ test('deployment config edit and scale use current CAS, show real timing and pre
 }) => {
   test.setTimeout(180000);
   const id = unique(),
-    path = `/clusters/runtime-edge/deployments/${id}`;
+    path = `/clusters/runtime-edge/kubernetes/namespaces/ui-test/deployments/${id}`;
   await put(request, `/applications/${id}/versions/v1`, {
     applicationId: id,
     version: 'v1',
@@ -182,13 +182,9 @@ test('node metrics remain while the container usage tab and requests are removed
   await page.screenshot({ path: '.local/evidence/operations-node-usage.png', fullPage: true });
   await expect(page.getByRole('tablist', { name: 'Kubernetes 资源类型' }).getByRole('tab')).toHaveText([
     '节点',
-    'Kubernetes Namespace',
   ]);
   await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);
-  for (const name of ['Kubernetes Namespace', '节点']) {
-    await page.getByRole('tab', { name, exact: true }).click();
-    await expect(page.getByRole('table', { name, exact: true })).toBeVisible();
-  }
+  await expect(page.getByRole('tab', { name: 'Kubernetes Namespace', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '刷新资源', exact: true }).click();
   await expect(page.getByRole('img', { name: /集群 CPU 使用率 \d/ })).toBeVisible();
   await page.setViewportSize({ width: 650, height: 900 });

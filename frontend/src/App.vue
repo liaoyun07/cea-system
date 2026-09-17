@@ -33,7 +33,7 @@ const navigation = [
       ['applications', '应用与镜像'],
       ['registries', '镜像仓库'],
       ['deployments', '边缘服务部署'],
-      ['services', '服务与访问入口'],
+      ['services', '服务资源管理'],
     ],
   },
   {

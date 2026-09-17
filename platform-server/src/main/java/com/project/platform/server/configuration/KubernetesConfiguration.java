@@ -23,7 +23,14 @@ public class KubernetesConfiguration {
     public record DeploymentSettings(Duration timeout) {
         public DeploymentSettings { timeout=timeout==null?Duration.ofMinutes(10):timeout; }
     }
-    @Bean JdbcDeploymentRecordRepository deploymentRecordRepository(JdbcTemplate jdbc) { return new JdbcDeploymentRecordRepository(jdbc); }
+    @Bean
+    @org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization
+    JdbcDeploymentRecordRepository deploymentRecordRepository(JdbcTemplate jdbc,Settings settings) {
+        var records=new JdbcDeploymentRecordRepository(jdbc);
+        settings.connections().forEach((workspace,clusters)->clusters.forEach((cluster,connection)->
+                records.assignLegacyNamespace(workspace,cluster,connection.namespace())));
+        return records;
+    }
     @Bean(initMethod="start",destroyMethod="close") DeploymentRolloutTracker deploymentRolloutTracker(
             JdbcDeploymentRecordRepository records,KubernetesConnections connections,Clock clock) {
         return new DeploymentRolloutTracker(records,connections,clock);

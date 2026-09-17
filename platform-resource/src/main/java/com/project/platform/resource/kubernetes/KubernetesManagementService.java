@@ -51,7 +51,8 @@ public final class KubernetesManagementService {
     private static void name(String value) {
         if(value==null || !value.matches("[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?"))throw ResourceException.invalid("requires a lowercase Kubernetes name of 1..63 characters");
     }
-    private static Namespace allowed(KubernetesClient client,String workspace,String namespace) {
+    /** Shared scope check; callers must first authorize the actor's workspace and cluster. */
+    public static Namespace allowed(KubernetesClient client,String workspace,String namespace) {
         name(namespace);
         var value=client.namespaces().withName(namespace).get();
         // Deliberately do not expose whether an out-of-scope namespace exists.

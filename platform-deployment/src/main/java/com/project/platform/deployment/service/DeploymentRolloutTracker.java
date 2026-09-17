@@ -27,11 +27,11 @@ public final class DeploymentRolloutTracker implements AutoCloseable {
         for(var item:records.active()) {
             Instant now=clock.instant();
             if(now.isAfter(item.deadline())) { records.finish(item.id(),"UNKNOWN","Deployment was not confirmed before observation deadline",now,false);continue; }
-            if(!"OBSERVING".equals(item.state()))continue;
+            if(!"OBSERVING".equals(item.state()) || item.kubeNamespace()==null)continue;
             // A restart, stalled observer or failed query cannot silently yield a precise measurement.
             boolean continuous=!now.isBefore(item.lastObservedAt()) && Duration.between(item.lastObservedAt(),now).compareTo(Duration.ofSeconds(5))<=0;
             try(var client=connections.open(item.namespace(),item.clusterId())) {
-                Deployment deployment=client.apps().deployments().withName(item.name()).get();
+                Deployment deployment=client.apps().deployments().inNamespace(item.kubeNamespace()).withName(item.name()).get();
                 now=clock.instant();
                 if(now.isAfter(item.deadline())) { records.finish(item.id(),"UNKNOWN","Observation completed after deadline",now,false);continue; }
                 continuous=continuous && !now.isBefore(item.lastObservedAt()) && Duration.between(item.lastObservedAt(),now).compareTo(Duration.ofSeconds(5))<=0;

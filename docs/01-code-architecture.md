@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+UI-17：DeploymentController/DeploymentService 的所有操作显式传递 kubeNamespace，复用 KubernetesManagementService 的范围检查。JdbcDeploymentRecordRepository 保存和按 kube_namespace 查询计量证据，DeploymentRolloutTracker 按记录的 Namespace 查询资源。V29 仅增加该列并调整索引；KubernetesConfiguration 在数据库初始化后按原连接默认值回填旧 NULL 记录。无新生产 Java 文件、模块依赖、表或普通 Flow 执行链变化。[范围](features/UI-17-deployment-namespace.md)、[协议](contracts/ui17-deployment-namespace.md)。
+
 ING-01：复用KubernetesManagementService.java及KubernetesManagementController.java，增加6个Ingress/Class HTTP操作、IngressClassInfo/IngressRoute/IngressRequest/IngressInfo四record；不新增生产Java文件。管理服务直接访问Kubernetes，增加同Namespace Service端口验证、所有权/CAS及Service引用检查。新增前端KubernetesIngress.vue；部署清单增加Traefik及独立HTTP端口桥。没有新增SQL表/列、SPI、模块依赖或执行状态；[协议](contracts/ingress.md)、[状态](verification/VER-ING-01-ingress.md)。
 
 PRIO-01：不新增生产 Java 文件、HTTP API 或业务表。FlowDefinition.Task 增加 priority；FlowValidator/FlowSchema 校验并暴露表单。JdbcWorkerStore 在原队列持久化 priority/enqueue_order，负责 claim/defer/会话准入锁；WorkerEngine.admitNext 返回短生命周期 Admitted continuation，WorkerPump 成功准入后才占执行名额。TaskRunner.admit 默认放行；JobConfiguration 把 Application 委派至 ApplicationTaskRunner.admit，后者用内存 Admission record 保留本次真实解析结果，调用原 JobPlacementService 预约，不在等待时反复 run。镜像/文件/Runner 留在原执行阶段。V28 仅两列与索引，无新状态。见[协议](contracts/priority-admission.md)。

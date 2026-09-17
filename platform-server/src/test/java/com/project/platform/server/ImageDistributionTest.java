@@ -198,6 +198,9 @@ class ImageDistributionTest {
                       - apiGroups: [apps]
                         resources: [deployments, statefulsets, daemonsets, replicasets]
                         verbs: [get, list]
+                      - apiGroups: [apps]
+                        resources: [deployments]
+                        verbs: [create, update, delete]
                       - apiGroups: [batch]
                         resources: [jobs, cronjobs]
                         verbs: [get, list]
@@ -509,12 +512,12 @@ class ImageDistributionTest {
         var command=List.of("python","-c","import os,json,http.server; config=json.loads(os.environ['CONFIG']); assert config == {'batch':1000,'text':'中文 \\\"quoted\\\"'}; assert type(config['batch']) is int; assert json.loads(os.environ['ITEMS']) == [1,True,None]; assert os.environ['MODEL']=='mlp'; http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler,port=8080)");
         var initial=new DeploymentService.Request("ops-http","v1",1,Map.of(),command,null,new DeploymentService.Readiness("/",8080),
                 new DeploymentService.Resources("100m","64Mi","1","256Mi"));
-        deployments().put(actor,"lab","edge","ops-http",initial);
+        deployments().put(actor,"lab","edge","s4-test","ops-http",initial);
         try {
-            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
-            var creation=deployments().get(actor,"lab","edge","ops-http").latestOperation();
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","s4-test","ops-http").latestOperation().state()));
+            var creation=deployments().get(actor,"lab","edge","s4-test","ops-http").latestOperation();
             assertNotNull(creation.durationMs());assertTrue(creation.durationMs()>0);assertEquals("CREATE",creation.operation());
-            assertEquals("100m",deployments().configuration(actor,"lab","edge","ops-http").resources().cpuRequest());
+            assertEquals("100m",deployments().configuration(actor,"lab","edge","s4-test","ops-http").resources().cpuRequest());
             // Simulate an operator-added limit/annotation/environment. A UI edit must retain them.
             var actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
             actual.getMetadata().getAnnotations().put("operator-note","keep");
@@ -527,9 +530,9 @@ class ImageDistributionTest {
                 assertEquals(observed.getMetadata().getGeneration(),observed.getStatus().getObservedGeneration());
                 assertEquals(1,observed.getStatus().getUpdatedReplicas());assertEquals(1,observed.getStatus().getReadyReplicas());assertEquals(1,observed.getStatus().getReplicas());
             });
-            var config=deployments().configuration(actor,"lab","edge","ops-http");assertEquals(0L,config.parameters().get("COUNT"));
+            var config=deployments().configuration(actor,"lab","edge","s4-test","ops-http");assertEquals(0L,config.parameters().get("COUNT"));
             assertEquals(ApplicationContractValidator.parameters(applications().get(actor,"lab","ops-http","v1"),Map.of()),config.parameters());
-            var edited=deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness(),
+            var edited=deployments().put(actor,"lab","edge","s4-test","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness(),
                     new DeploymentService.Resources("150m","64Mi","1","128Mi")));
             assertEquals("UPDATE",edited.latestOperation().operation());
             actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
@@ -538,26 +541,26 @@ class ImageDistributionTest {
             assertEquals("1Gi",actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getResources().getLimits().get("ephemeral-storage").toString());
             assertTrue(actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getEnv().stream().anyMatch(e->"UNMANAGED".equals(e.getName()) && "keep".equals(e.getValue())));
             String staleRevision=config.resourceVersion();
-            assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","ops-http",new DeploymentService.ScaleRequest(0,staleRevision)));
+            assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","s4-test","ops-http",new DeploymentService.ScaleRequest(0,staleRevision)));
             int preparations=distribution().history(actor,"lab","ops-http","v1",100,0).size();
-            config=deployments().configuration(actor,"lab","edge","ops-http");
-            int count=deployments().history(actor,"lab","edge","ops-http",100,0).size();
-            deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),config.parameters(),config.command(),config.resourceVersion(),config.readiness()));
-            assertEquals(count,deployments().history(actor,"lab","edge","ops-http",100,0).size());
+            config=deployments().configuration(actor,"lab","edge","s4-test","ops-http");
+            int count=deployments().history(actor,"lab","edge","s4-test","ops-http",100,0).size();
+            deployments().put(actor,"lab","edge","s4-test","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),config.parameters(),config.command(),config.resourceVersion(),config.readiness()));
+            assertEquals(count,deployments().history(actor,"lab","edge","s4-test","ops-http",100,0).size());
             await().atMost(Duration.ofSeconds(20)).ignoreExceptionsMatching(ex->ex instanceof KubernetesClientException k && k.getCode()==409).untilAsserted(()->
-                    assertEquals(0,deployments().scale(actor,"lab","edge","ops-http",new DeploymentService.ScaleRequest(0,deployments().get(actor,"lab","edge","ops-http").resourceVersion())).replicas()));
+                    assertEquals(0,deployments().scale(actor,"lab","edge","s4-test","ops-http",new DeploymentService.ScaleRequest(0,deployments().get(actor,"lab","edge","s4-test","ops-http").resourceVersion())).replicas()));
             assertEquals(preparations,distribution().history(actor,"lab","ops-http","v1",100,0).size());
-            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
-            assertNull(deployments().get(actor,"lab","edge","ops-http").latestOperation().durationMs());
-            assertEquals("150m",deployments().configuration(actor,"lab","edge","ops-http").resources().cpuRequest());
-            var stopped=deployments().configuration(actor,"lab","edge","ops-http");
-            deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(stopped.applicationId(),stopped.version(),0,stopped.parameters(),stopped.command(),stopped.resourceVersion(),stopped.readiness(),new DeploymentService.Resources(null,null,null,null)));
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","s4-test","ops-http").latestOperation().state()));
+            assertNull(deployments().get(actor,"lab","edge","s4-test","ops-http").latestOperation().durationMs());
+            assertEquals("150m",deployments().configuration(actor,"lab","edge","s4-test","ops-http").resources().cpuRequest());
+            var stopped=deployments().configuration(actor,"lab","edge","s4-test","ops-http");
+            deployments().put(actor,"lab","edge","s4-test","ops-http",new DeploymentService.Request(stopped.applicationId(),stopped.version(),0,stopped.parameters(),stopped.command(),stopped.resourceVersion(),stopped.readiness(),new DeploymentService.Resources(null,null,null,null)));
             var limits=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get().getSpec().getTemplate().getSpec().getContainers().getFirst().getResources();
             assertFalse(limits.getLimits().containsKey("memory"));assertEquals("1Gi",limits.getLimits().get("ephemeral-storage").toString());
         } finally { admin.apps().deployments().inNamespace("s4-test").withName("ops-http").delete(); }
     }
     @Test void deploymentRuntimeShowsActualFailuresAndExcludesMatchingJobPods() {
-        deployments().put(actor,"lab","edge","runtime-failure",request(1,null,List.of("/bin/sh","-c","exit 17")));
+        deployments().put(actor,"lab","edge","s4-test","runtime-failure",request(1,null,List.of("/bin/sh","-c","exit 17")));
         try {
             var deployment=admin.apps().deployments().inNamespace("s4-test").withName("runtime-failure").get();
             var job=new io.fabric8.kubernetes.api.model.batch.v1.JobBuilder().withNewMetadata().withName("runtime-unrelated").endMetadata()
@@ -567,13 +570,13 @@ class ImageDistributionTest {
             admin.batch().v1().jobs().inNamespace("s4-test").resource(job).create();
             await().atMost(Duration.ofSeconds(90)).untilAsserted(()-> {
                 assertFalse(admin.pods().inNamespace("s4-test").withLabel("job-name","runtime-unrelated").list().getItems().isEmpty());
-                var result=deployments().runtime(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","runtime-failure");
+                var result=deployments().runtime(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","s4-test","runtime-failure");
                 assertEquals("s4-test",result.namespace());assertEquals(1,result.pods().size());
                 assertFalse(result.pods().getFirst().ready());
                 assertTrue(result.pods().getFirst().reasons().stream().anyMatch(r->r.contains("exit 17")),result.pods().toString());
                 assertFalse(result.pods().getFirst().name().startsWith("runtime-unrelated"));
             });
-            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().runtime(actor,"other","edge","runtime-failure"));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().runtime(actor,"other","edge","s4-test","runtime-failure"));
         } finally {
             admin.apps().deployments().inNamespace("s4-test").withName("runtime-failure").delete();
             admin.batch().v1().jobs().inNamespace("s4-test").withName("runtime-unrelated").delete();
@@ -584,34 +587,90 @@ class ImageDistributionTest {
         for(String version:List.of("v1","v2"))applications().register(actor,"lab","metadata-only",version,
                 new ApplicationVersion("metadata-only",version,"source:5000/alpine:v1",contract));
         var command=List.of("/bin/sh","-c","exec sleep 300");
-        deployments().put(actor,"lab","edge","metadata-only",new DeploymentService.Request("metadata-only","v1",1,Map.of(),command,null,null));
+        deployments().put(actor,"lab","edge","s4-test","metadata-only",new DeploymentService.Request("metadata-only","v1",1,Map.of(),command,null,null));
         try {
-            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","metadata-only").latestOperation().state()));
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","s4-test","metadata-only").latestOperation().state()));
             var before=admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").get();
-            deployments().put(actor,"lab","edge","metadata-only",new DeploymentService.Request("metadata-only","v2",1,Map.of(),command,before.getMetadata().getResourceVersion(),null));
-            await().atMost(Duration.ofSeconds(15)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","metadata-only").latestOperation().state()));
+            deployments().put(actor,"lab","edge","s4-test","metadata-only",new DeploymentService.Request("metadata-only","v2",1,Map.of(),command,before.getMetadata().getResourceVersion(),null));
+            await().atMost(Duration.ofSeconds(15)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","s4-test","metadata-only").latestOperation().state()));
             var after=admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").get();
             assertEquals(before.getSpec(),after.getSpec());
             assertTrue(after.getMetadata().getGeneration()>before.getMetadata().getGeneration());
-            assertEquals("v2",deployments().get(actor,"lab","edge","metadata-only").version());
-            assertNull(deployments().get(actor,"lab","edge","metadata-only").latestOperation().durationMs());
+            assertEquals("v2",deployments().get(actor,"lab","edge","s4-test","metadata-only").version());
+            assertNull(deployments().get(actor,"lab","edge","s4-test","metadata-only").latestOperation().durationMs());
         } finally { admin.apps().deployments().inNamespace("s4-test").withName("metadata-only").delete(); }
+    }
+    @Test void sameDeploymentNameInTwoNamespacesHasIndependentResourcesHistoryAndTiming() {
+        var management=context.getBean(com.project.platform.resource.kubernetes.KubernetesManagementService.class);
+        String suffix=UUID.randomUUID().toString().substring(0,8),a="cea-lab-a-"+suffix,b="cea-lab-b-"+suffix,name="same-service";
+        management.createNamespace(actor,"lab","edge",new NamespaceRequest(a));
+        management.createNamespace(actor,"lab","edge",new NamespaceRequest(b));
+        try {
+            for(String ns:List.of(a,b)) {
+                var created=deployments().put(actor,"lab","edge",ns,name,request(1,null,List.of("sh","-c","exec sleep 600")));
+                assertEquals(ns,created.kubeNamespace());
+            }
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->{
+                for(String ns:List.of(a,b))assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge",ns,name).latestOperation().state());
+            });
+            var first=deployments().get(actor,"lab","edge",a,name);
+            var other=deployments().get(actor,"lab","edge",b,name);
+            assertNotEquals(first.latestOperation().id(),other.latestOperation().id());
+            for(String ns:List.of(a,b)) {
+                assertNotNull(deployments().get(actor,"lab","edge",ns,name).latestOperation().durationMs());
+                assertEquals(List.of(name),deployments().list(actor,"lab","edge",ns).stream().map(DeploymentService.View::name).toList());
+                assertEquals(ns,deployments().runtime(actor,"lab","edge",ns,name).namespace());
+                assertEquals(1,deployments().runtime(actor,"lab","edge",ns,name).pods().size());
+            }
+            String otherRevision=other.resourceVersion();
+            var config=deployments().configuration(actor,"lab","edge",a,name);
+            deployments().put(actor,"lab","edge",a,name,request(1,config.resourceVersion(),List.of("sh","-c","exec sleep 900")));
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge",a,name).latestOperation().state()));
+            assertEquals(otherRevision,deployments().get(actor,"lab","edge",b,name).resourceVersion());
+            var latest=deployments().get(actor,"lab","edge",a,name);
+            deployments().scale(actor,"lab","edge",a,name,new DeploymentService.ScaleRequest(0,latest.resourceVersion()));
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge",a,name).latestOperation().state()));
+            assertEquals(1,deployments().get(actor,"lab","edge",b,name).replicas());
+            assertEquals(3,deployments().history(actor,"lab","edge",a,name,20,0).size());
+            assertEquals(1,deployments().history(actor,"lab","edge",b,name,20,0).size());
+            deployments().delete(actor,"lab","edge",a,name,deployments().get(actor,"lab","edge",a,name).resourceVersion());
+            assertEquals(otherRevision,deployments().get(actor,"lab","edge",b,name).resourceVersion());
+            assertEquals(3,deployments().history(actor,"lab","edge",a,name,20,0).size());
+            assertNull(admin.apps().deployments().inNamespace("s4-test").withName(name).get());
+            assertThrows(Forbidden.class,()->deployments().list(actor,"lab","edge","kube-system"));
+            assertThrows(Forbidden.class,()->deployments().put(actor,"lab","edge","kube-system",name,request(0,null,List.of())));
+            assertThrows(Forbidden.class,()->deployments().history(actor,"lab","edge","kube-system",name,20,0));
+            assertThrows(ResourceException.class,()->deployments().list(actor,"lab","edge","bad/name"));
+        } finally {
+            admin.namespaces().withName(a).delete();admin.namespaces().withName(b).delete();
+        }
+    }
+    @Test void legacyDeploymentHistoryGetsConfiguredNamespaceWithoutOverwritingExplicitScope() {
+        var records=context.getBean(com.project.platform.deployment.service.JdbcDeploymentRecordRepository.class);
+        var jdbc=context.getBean(JdbcTemplate.class);var now=java.time.Instant.now();
+        String name="legacy-"+UUID.randomUUID(),id=records.begin("lab","edge","s4-test",name,"service","v1","CREATE",0,now,now.plusSeconds(30));
+        records.finish(id,"SUCCEEDED",null,now,false);
+        jdbc.update("UPDATE dep_deployment_record SET kube_namespace=NULL WHERE id=?",id);
+        records.assignLegacyNamespace("lab","edge","s4-test");
+        records.assignLegacyNamespace("lab","edge","different-default");
+        assertEquals(id,records.list("lab","edge","s4-test",name,20,0).getFirst().id());
+        assertTrue(records.list("lab","edge","different-default",name,20,0).isEmpty());
     }
     @Test void deploymentObservationRejectsStaleIdentityGapsAndUnconfirmedSubmission() {
         var observer=context.getBean(com.project.platform.deployment.service.DeploymentRolloutTracker.class);observer.close();
         var records=context.getBean(com.project.platform.deployment.service.JdbcDeploymentRecordRepository.class);
         var now=java.time.Instant.now();
         try {
-            String pending=records.begin("lab","edge","observe-missing","service","v1","CREATE",1,now.minusSeconds(30),now.minusSeconds(1));
-            String replaced=records.begin("lab","edge","observe-replaced","service","v1","UPDATE",1,now,now.plusSeconds(30));
+            String pending=records.begin("lab","edge","s4-test","observe-missing","service","v1","CREATE",1,now.minusSeconds(30),now.minusSeconds(1));
+            String replaced=records.begin("lab","edge","s4-test","observe-replaced","service","v1","UPDATE",1,now,now.plusSeconds(30));
             records.submitted(replaced,"no-such-uid",1,now,true);
             observer.tick();
-            assertEquals("UNKNOWN",records.list("lab","edge","observe-missing",1,0).getFirst().state());
-            assertEquals("SUPERSEDED",records.list("lab","edge","observe-replaced",1,0).getFirst().state());
-            assertNull(records.list("lab","edge","observe-missing",1,0).getFirst().durationMs());
-            String gap=records.begin("lab","edge","observe-gap","service","v1","CREATE",1,now,now.plusSeconds(30));
+            assertEquals("UNKNOWN",records.list("lab","edge","s4-test","observe-missing",1,0).getFirst().state());
+            assertEquals("SUPERSEDED",records.list("lab","edge","s4-test","observe-replaced",1,0).getFirst().state());
+            assertNull(records.list("lab","edge","s4-test","observe-missing",1,0).getFirst().durationMs());
+            String gap=records.begin("lab","edge","s4-test","observe-gap","service","v1","CREATE",1,now,now.plusSeconds(30));
             records.submitted(gap,"uid",1,now,true);records.observed(gap,now.plusSeconds(8),false);records.finish(gap,"SUCCEEDED",null,now.plusSeconds(9),true);
-            assertNull(records.list("lab","edge","observe-gap",1,0).getFirst().durationMs());
+            assertNull(records.list("lab","edge","s4-test","observe-gap",1,0).getFirst().durationMs());
         } finally { observer.start(); }
     }
     @Test void actualMetricsApiReturnsRecentUsageWithNamespaceIsolationAndRejectsStaleSamples() throws Exception {
@@ -625,7 +684,7 @@ class ImageDistributionTest {
         try(var manifest=Files.newInputStream(Path.of("..","deploy","cea","metrics-server.yaml"))) { admin.load(manifest).serverSideApply(); }
         var service=context.getBean(com.project.platform.resource.kubernetes.KubernetesResourceService.class);
         var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
-        deployments().put(actor,"lab","edge","usage-fixture",request(1,null,List.of("/bin/sh","-c","exec sleep 300")));
+        deployments().put(actor,"lab","edge","s4-test","usage-fixture",request(1,null,List.of("/bin/sh","-c","exec sleep 300")));
         try {
             await().atMost(Duration.ofSeconds(150)).ignoreExceptions().untilAsserted(()->{
                 var usage=service.nodeUsage(viewer,"lab","edge");
@@ -653,49 +712,49 @@ class ImageDistributionTest {
     }
     @Test void deploymentRunsUpdatesStopsAndDeletesWithOptimisticConcurrency() {
         var command=List.of("/bin/sh","-c","test \"$GREETING\" = hello && exec sleep 300");
-        var created=deployments().put(actor,"lab","edge","service",request(1,null,command));
+        var created=deployments().put(actor,"lab","edge","s4-test","service",request(1,null,command));
         assertTrue(created.image().contains("@sha256:"));
         await().atMost(Duration.ofSeconds(120)).untilAsserted(()->{
-            var actual=deployments().get(actor,"lab","edge","service");assertTrue(actual.observed());assertEquals(1,actual.readyReplicas());
+            var actual=deployments().get(actor,"lab","edge","s4-test","service");assertTrue(actual.observed());assertEquals(1,actual.readyReplicas());
         });
-        assertTrue(deployments().list(actor,"lab","edge").stream().anyMatch(d->d.name().equals("service")));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","service",request(0,"stale",command)));
-        var current=deployments().get(actor,"lab","edge","service");
-        deployments().put(actor,"lab","edge","service",request(0,current.resourceVersion(),command));
+        assertTrue(deployments().list(actor,"lab","edge","s4-test").stream().anyMatch(d->d.name().equals("service")));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","service",request(0,"stale",command)));
+        var current=deployments().get(actor,"lab","edge","s4-test","service");
+        deployments().put(actor,"lab","edge","s4-test","service",request(0,current.resourceVersion(),command));
         await().atMost(Duration.ofSeconds(45)).untilAsserted(()->{
-            var stopped=deployments().get(actor,"lab","edge","service");assertTrue(stopped.observed());assertEquals(0,stopped.replicas());assertEquals(0,stopped.readyReplicas());
+            var stopped=deployments().get(actor,"lab","edge","s4-test","service");assertTrue(stopped.observed());assertEquals(0,stopped.replicas());assertEquals(0,stopped.readyReplicas());
         });
-        assertThrows(ApplicationException.class,()->deployments().delete(actor,"lab","edge","service",current.resourceVersion()));
-        deployments().delete(actor,"lab","edge","service",deployments().get(actor,"lab","edge","service").resourceVersion());
+        assertThrows(ApplicationException.class,()->deployments().delete(actor,"lab","edge","s4-test","service",current.resourceVersion()));
+        deployments().delete(actor,"lab","edge","s4-test","service",deployments().get(actor,"lab","edge","s4-test","service").resourceVersion());
         await().atMost(Duration.ofSeconds(30)).until(()->admin.apps().deployments().inNamespace("s4-test").withName("service").get()==null);
     }
     @Test void failedDeploymentIsNotReportedReadyAndCannotBeOverwrittenAcrossOwners() {
-        deployments().put(actor,"lab","edge","broken",request(1,null,List.of("/bin/sh","-c","exit 7")));
+        deployments().put(actor,"lab","edge","s4-test","broken",request(1,null,List.of("/bin/sh","-c","exit 7")));
         await().atMost(Duration.ofSeconds(90)).until(()->admin.pods().inNamespace("s4-test").withLabel("cea-system/deployment","broken").list().getItems().stream()
                 .anyMatch(p->p.getStatus().getContainerStatuses()!=null && p.getStatus().getContainerStatuses().stream().anyMatch(s->s.getRestartCount()>0)));
-        assertEquals(0,deployments().get(actor,"lab","edge","broken").readyReplicas());
+        assertEquals(0,deployments().get(actor,"lab","edge","s4-test","broken").readyReplicas());
         var foreign=admin.apps().deployments().inNamespace("s4-test").withName("broken").get();
         foreign.getMetadata().getLabels().put("cea-system/owner","foreign");
         admin.apps().deployments().inNamespace("s4-test").resource(foreign).replace();
-        assertThrows(ApplicationException.class,()->deployments().get(actor,"lab","edge","broken"));
-        assertThrows(ApplicationException.class,()->deployments().delete(actor,"lab","edge","broken",foreign.getMetadata().getResourceVersion()));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","broken",request(0,foreign.getMetadata().getResourceVersion(),List.of())));
+        assertThrows(ApplicationException.class,()->deployments().get(actor,"lab","edge","s4-test","broken"));
+        assertThrows(ApplicationException.class,()->deployments().delete(actor,"lab","edge","s4-test","broken",foreign.getMetadata().getResourceVersion()));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","broken",request(0,foreign.getMetadata().getResourceVersion(),List.of())));
         admin.apps().deployments().inNamespace("s4-test").withName("broken").delete();
     }
     @Test void deploymentRejectsBadParametersUnconfiguredClusterAndReadOnlyActor() {
         for(var invalid:List.of(new DeploymentService.Resources("2",null,"1",null),new DeploymentService.Resources(null,"-1Mi",null,null),new DeploymentService.Resources("bad",null,null,null)))
-            assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",0,Map.of(),List.of(),null,null,invalid)));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",null,Map.of(),List.of(),null,null)));
-        assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","invalid",new DeploymentService.ScaleRequest(null,"1")));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("UNKNOWN",1),List.of(),null,null)));
-        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("GREETING",1),List.of(),null,null)));
-        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().put(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","denied",request(1,null,List.of())));
+            assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","invalid",new DeploymentService.Request("service","v1",0,Map.of(),List.of(),null,null,invalid)));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","invalid",new DeploymentService.Request("service","v1",null,Map.of(),List.of(),null,null)));
+        assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","s4-test","invalid",new DeploymentService.ScaleRequest(null,"1")));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","invalid",new DeploymentService.Request("service","v1",1,Map.of("UNKNOWN",1),List.of(),null,null)));
+        assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","s4-test","invalid",new DeploymentService.Request("service","v1",1,Map.of("GREETING",1),List.of(),null,null)));
+        assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().put(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","s4-test","denied",request(1,null,List.of())));
         resources().putCluster(actor,"lab","not-connected",new Cluster("not-connected",Kind.EDGE,true));
-        assertThrows(ResourceException.class,()->deployments().list(actor,"lab","not-connected"));
+        assertThrows(ResourceException.class,()->deployments().list(actor,"lab","not-connected","s4-test"));
         assertNull(admin.apps().deployments().inNamespace("s4-test").withName("invalid").get());
     }
     @Test void deploymentApiAndKubernetesCredentialsEnforceTheirOwnBoundaries() throws Exception {
-        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/clusters/edge/deployments";
+        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/clusters/edge/kubernetes/namespaces/s4-test/deployments";
         assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(base)).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
         String viewer="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));
         assertEquals(200,http.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.discarding()).statusCode());

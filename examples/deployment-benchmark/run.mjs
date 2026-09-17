@@ -57,11 +57,11 @@ p=json.load(sys.stdin)
 q=urllib.request.Request('http://127.0.0.1:8080'+p['path'],base64.b64decode(p['body']),{'Content-Type':p['contentType']})
 with urllib.request.urlopen(q,timeout=30) as r: print(r.read().decode())`;
 async function create(size,kind,path,contentType,name,purpose,trial) {
-  assert.ok(!(await api(`/clusters/${cluster}/deployments`)).some(x=>x.name===name),'Deployment name collision');
+  assert.ok(!(await api(`/clusters/${cluster}/kubernetes/namespaces/${ns}/deployments`)).some(x=>x.name===name),'Deployment name collision');
   const present=new Set(docker(['exec',node,'ctr','-n','k8s.io','content','ls','-q']).trim().split(/\s+/));
   const image=images[size];
   const row={size,kind,name,purpose,trial,startedAt:new Date().toISOString(),cachedLayerBytesBefore:image.layers.filter(x=>present.has(x.digest)).reduce((n,x)=>n+x.size,0),layerBytes:image.layerBytes};
-  const target=`/clusters/${cluster}/deployments/${name}`;
+  const target=`/clusters/${cluster}/kubernetes/namespaces/${ns}/deployments/${name}`;
   let view=await api(target,json('PUT',{applicationId:image.applicationId,version,replicas:1,parameters:{},command:[],readiness:plan.readiness}));
   const operationId=view.latestOperation.id;
   const deployment=kubectl(['get','deployment',name,'-n',ns]);row.uid=deployment.metadata.uid;
@@ -90,7 +90,7 @@ async function create(size,kind,path,contentType,name,purpose,trial) {
   return row;
 }
 async function remove(row) {
-  const target=`/clusters/${cluster}/deployments/${row.name}`;
+  const target=`/clusters/${cluster}/kubernetes/namespaces/${ns}/deployments/${row.name}`;
   const live=kubectl(['get','deployment',row.name,'-n',ns]);assert.equal(live.metadata.uid,row.uid,'Cleanup UID mismatch');
   const view=await api(target);assert.equal(view.latestOperation.id,row.operation.id);
   await api(`${target}?resourceVersion=${encodeURIComponent(view.resourceVersion)}`,{method:'DELETE'});

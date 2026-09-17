@@ -8,42 +8,42 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/namespaces/{namespace}/clusters/{clusterId}/deployments")
+@RequestMapping("/api/namespaces/{namespace}/clusters/{clusterId}/kubernetes/namespaces/{kubeNamespace}/deployments")
 public final class DeploymentController {
     private final DeploymentService deployments;
     private final IdentityDirectory identities;
     public DeploymentController(DeploymentService deployments,IdentityDirectory identities) { this.deployments=deployments;this.identities=identities; }
     @PutMapping("/{name}")
-    public DeploymentService.View put(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,@RequestBody DeploymentService.Request request) {
-        return deployments.put(identities.actor(principal.getName()),namespace,clusterId,name,request);
+    public DeploymentService.View put(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestBody DeploymentService.Request request) {
+        return deployments.put(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,request);
     }
     @GetMapping("/{name}")
-    public DeploymentService.View get(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
-        return deployments.get(identities.actor(principal.getName()),namespace,clusterId,name);
+    public DeploymentService.View get(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name) {
+        return deployments.get(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name);
     }
     @GetMapping("/{name}/configuration")
-    public DeploymentService.Configuration configuration(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
-        return deployments.configuration(identities.actor(principal.getName()),namespace,clusterId,name);
+    public DeploymentService.Configuration configuration(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name) {
+        return deployments.configuration(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name);
     }
     @GetMapping("/{name}/runtime")
-    public DeploymentService.RuntimeView runtime(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
-        return deployments.runtime(identities.actor(principal.getName()),namespace,clusterId,name);
+    public DeploymentService.RuntimeView runtime(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name) {
+        return deployments.runtime(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name);
     }
     @PatchMapping("/{name}/scale")
-    public DeploymentService.View scale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,@RequestBody DeploymentService.ScaleRequest request) {
-        return deployments.scale(identities.actor(principal.getName()),namespace,clusterId,name,request);
+    public DeploymentService.View scale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestBody DeploymentService.ScaleRequest request) {
+        return deployments.scale(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,request);
     }
     @GetMapping("/{name}/history")
-    public List<DeploymentService.DeploymentRecord> history(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,
+    public List<DeploymentService.DeploymentRecord> history(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,
             @RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
-        return deployments.history(identities.actor(principal.getName()),namespace,clusterId,name,limit,offset);
+        return deployments.history(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,limit,offset);
     }
     @GetMapping
-    public List<DeploymentService.View> list(Principal principal,@PathVariable String namespace,@PathVariable String clusterId) {
-        return deployments.list(identities.actor(principal.getName()),namespace,clusterId);
+    public List<DeploymentService.View> list(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace) {
+        return deployments.list(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace);
     }
     @DeleteMapping("/{name}")
-    public ResponseEntity<Void> delete(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,@RequestParam String resourceVersion) {
-        deployments.delete(identities.actor(principal.getName()),namespace,clusterId,name,resourceVersion);return ResponseEntity.accepted().build();
+    public ResponseEntity<Void> delete(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestParam String resourceVersion) {
+        deployments.delete(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,resourceVersion);return ResponseEntity.accepted().build();
     }
 }

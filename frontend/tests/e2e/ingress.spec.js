@@ -21,7 +21,7 @@ async function login(page, user = process.env.CEA_E2E_USER) {
   await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
   await page
     .getByRole('navigation', { name: '主导航' })
-    .getByRole('button', { name: '服务与访问入口', exact: true })
+    .getByRole('button', { name: '服务资源管理', exact: true })
     .click();
   await page.getByLabel('资源集群').selectOption('runtime-edge');
   await page.getByRole('tab', { name: 'Ingress', exact: true }).click();
@@ -43,7 +43,7 @@ test('Ingress UI CRUD and actual Traefik Host/Exact/Prefix routing, stale edits 
     image: 'ui-registry:5000/alpine:v1',
     parameters: {},
   });
-  const deployment = `/clusters/runtime-edge/deployments/${id}`;
+  const deployment = `/clusters/runtime-edge/kubernetes/namespaces/ui-test/deployments/${id}`;
   await api(request, deployment, 'put', {
     applicationId: id,
     version: 'v1',

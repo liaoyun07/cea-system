@@ -16,7 +16,7 @@ const menus = [
   '应用与镜像',
   '镜像仓库',
   '边缘服务部署',
-  '服务与访问入口',
+  '服务资源管理',
   '任务卸载决策记录',
   '应用分发记录',
   '边缘数据处理策略',
@@ -82,9 +82,9 @@ test('proposal modules, system brand, matching headings and dark scrollable navi
     );
   }
   await nav(page, '集群运行资源');
-  await expect(page.getByRole('tab')).toHaveText(['节点', 'Kubernetes Namespace']);
-  await nav(page, '服务与访问入口');
-  await expect(page.getByRole('tab')).toHaveText(['Service', 'Ingress']);
+  await expect(page.getByRole('tab')).toHaveText(['节点']);
+  await nav(page, '服务资源管理');
+  await expect(page.getByRole('tab')).toHaveText(['Service', 'Ingress', 'Kubernetes Namespace']);
   await page.setViewportSize({ width: 900, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });

@@ -52,13 +52,108 @@ test.beforeAll(async ({ request }) => {
   });
 });
 
+test('Namespace selection isolates same-name deployments, mutations, history and access setup', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(240000);
+  const id = unique(),
+    root = '/clusters/runtime-edge/kubernetes/namespaces';
+  const a = `cea-lab-a-${id}`,
+    b = `cea-lab-b-${id}`;
+  const target = (ns) => `${root}/${ns}/deployments/${id}`;
+  await app(request, id);
+  for (const name of [a, b]) await api(request, root, 'post', { name });
+  try {
+    await login(page);
+    await expect(page.getByLabel('部署 Namespace')).toHaveValue('ui-test');
+    for (const ns of [a, b]) {
+      await page.getByLabel('部署 Namespace').selectOption(ns);
+      await expect(page.locator('.management-page')).toContainText('暂无常驻部署');
+      await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
+      await page.getByLabel('部署名称', { exact: true }).fill(id);
+      await page.getByLabel('应用版本', { exact: true }).selectOption(`${id}/v1`);
+      await page.getByText('高级配置', { exact: true }).click();
+      await page.getByLabel('自定义启动命令', { exact: true }).check();
+      await page
+        .getByLabel('启动命令 JSON', { exact: true })
+        .fill(JSON.stringify(['sh', '-c', 'exec sleep 600']));
+      await page.getByRole('button', { name: '创建部署', exact: true }).click();
+      await expect(page.getByRole('button', { name: '编辑配置', exact: true })).toBeEnabled();
+      await expect(page.getByLabel('部署 Namespace')).toHaveValue(ns);
+      await expect(page.getByLabel('部署 Namespace')).toBeDisabled();
+      await expect
+        .poll(async () => (await api(request, target(ns))).latestOperation.state, { timeout: 60000 })
+        .toBe('SUCCEEDED');
+      expect((await api(request, target(ns))).kubeNamespace).toBe(ns);
+      expect((await api(request, `${target(ns)}/runtime`)).namespace).toBe(ns);
+      await page.getByRole('button', { name: '← 返回列表', exact: true }).click();
+    }
+    const originalB = await api(request, `${target(b)}/configuration`);
+    await page.getByLabel('部署 Namespace').selectOption(a);
+    await detail(page, id);
+    await page.getByRole('button', { name: '编辑配置', exact: true }).click();
+    await page.getByLabel('CPU 申请量', { exact: true }).fill('50m');
+    await page.getByRole('button', { name: '保存部署', exact: true }).click();
+    await expect(page.getByRole('button', { name: '编辑配置', exact: true })).toBeEnabled();
+    await expect
+      .poll(async () => (await api(request, target(a))).latestOperation.state, { timeout: 60000 })
+      .toBe('SUCCEEDED');
+    expect((await api(request, `${target(a)}/configuration`)).resources.cpuRequest).toBe('50m');
+    expect(await api(request, `${target(b)}/configuration`)).toEqual(originalB);
+    await page.getByRole('button', { name: '↻ 刷新状态', exact: true }).click();
+    await expect(page.getByRole('button', { name: '编辑配置', exact: true })).toBeEnabled();
+    await page.getByLabel('调整副本数', { exact: true }).fill('0');
+    await page.getByRole('button', { name: '应用副本数', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('副本配置已提交');
+    expect((await api(request, `${target(a)}/history`)).length).toBe(3);
+    expect((await api(request, `${target(b)}/history`)).length).toBe(1);
+    expect((await api(request, target(b))).replicas).toBe(1);
+    await page.getByRole('button', { name: '配置访问入口', exact: true }).click();
+    await expect(page.getByLabel('Service Namespace', { exact: true })).toHaveValue(a);
+    await expect(page.getByLabel('Service 名称', { exact: true })).toHaveValue(id);
+    page.on('dialog', (d) => d.accept());
+    await nav(page, '边缘服务部署');
+    await page.getByLabel('执行集群', { exact: true }).selectOption('runtime-edge');
+    await page.getByLabel('部署 Namespace').selectOption(a);
+    await detail(page, id);
+    await page.getByRole('button', { name: '删除部署', exact: true }).click();
+    await expect(page.getByRole('status')).toContainText('删除请求已接受');
+    await page.getByLabel('部署 Namespace').selectOption(b);
+    await detail(page, id);
+    expect(await api(request, `${target(b)}/configuration`)).toEqual(originalB);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      await page.screenshot({ path: `.local/evidence/ui17-namespace-${width}.png`, fullPage: true });
+    }
+    expect((await request.get(base + `${root}/kube-system/deployments`, { headers })).status()).toBe(403);
+  } finally {
+    for (const ns of [a, b]) {
+      const r = await request.get(base + target(ns), { headers });
+      if (r.ok()) await remove(request, target(ns));
+      await expect
+        .poll(
+          async () => {
+            const scopes = await api(request, root),
+              current = scopes.find((n) => n.name === ns);
+            if (!current || current.phase === 'Terminating') return 200;
+            return (await request.delete(base + `${root}/${ns}?${identity(current)}`, { headers })).status();
+          },
+          { timeout: 90000 },
+        )
+        .toBe(200);
+    }
+  }
+});
+
 test('typed deployment, resources and readiness reach Kubernetes; access setup reuses Service and Ingress', async ({
   page,
   request,
 }) => {
   test.setTimeout(180000);
   const id = unique(),
-    path = `/clusters/runtime-edge/deployments/${id}`;
+    path = `/clusters/runtime-edge/kubernetes/namespaces/ui-test/deployments/${id}`;
   await app(request, id, {
     TEXT: { type: 'STRING', defaultValue: 'before' },
     COUNT: { type: 'INTEGER', defaultValue: 0 },
@@ -218,7 +313,7 @@ test('real crashing instance shows exit reason; runtime lookup failure is not di
 }) => {
   test.setTimeout(150000);
   const id = unique(),
-    path = `/clusters/runtime-edge/deployments/${id}`;
+    path = `/clusters/runtime-edge/kubernetes/namespaces/ui-test/deployments/${id}`;
   await app(request, id);
   await api(request, path, 'put', {
     applicationId: id,
