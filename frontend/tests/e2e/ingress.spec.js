@@ -21,7 +21,7 @@ async function login(page, user = process.env.CEA_E2E_USER) {
   await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
   await page
     .getByRole('navigation', { name: '主导航' })
-    .getByRole('button', { name: '运行资源', exact: true })
+    .getByRole('button', { name: '服务与访问入口', exact: true })
     .click();
   await page.getByLabel('资源集群').selectOption('runtime-edge');
   await page.getByRole('tab', { name: 'Ingress', exact: true }).click();

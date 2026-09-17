@@ -37,7 +37,7 @@ test('managed namespace and NodePort Service creation, actual detail and precise
     service = unique();
   const k = '/clusters/runtime-edge/kubernetes/namespaces';
   await login(page);
-  await nav(page, '运行资源');
+  await nav(page, '集群运行资源');
   await page.getByLabel('资源集群').selectOption('runtime-edge');
   await page.getByRole('tab', { name: 'Kubernetes Namespace', exact: true }).click();
   await expect(
@@ -48,6 +48,8 @@ test('managed namespace and NodePort Service creation, actual detail and precise
   await page.locator('form').getByRole('button', { name: '创建 Namespace', exact: true }).click();
   await expect(page.getByRole('table', { name: 'Kubernetes Namespace', exact: true })).toContainText(name);
   try {
+    await nav(page, '服务与访问入口');
+    await page.getByLabel('资源集群').selectOption('runtime-edge');
     await page.getByRole('tab', { name: 'Service', exact: true }).click();
     await page.getByLabel('Service Namespace').selectOption(name);
     await page.getByRole('button', { name: '创建 Service', exact: true }).click();
@@ -76,6 +78,8 @@ test('managed namespace and NodePort Service creation, actual detail and precise
       .getByRole('button', { name: '删除 Service', exact: true })
       .click();
     await expect(page.getByRole('table', { name: 'Service', exact: true })).not.toContainText(service);
+    await nav(page, '集群运行资源');
+    await page.getByLabel('资源集群').selectOption('runtime-edge');
     await page.getByRole('tab', { name: 'Kubernetes Namespace', exact: true }).click();
     page.once('dialog', (d) => d.accept(name));
     await page
@@ -178,7 +182,7 @@ test('Service detail associates actual Deployment Pods, not arbitrary namespace 
       ports: [{ name: 'http', port: 80, targetPort: '8080', protocol: 'TCP', nodePort: null }],
     });
     await login(page);
-    await nav(page, '运行资源');
+    await nav(page, '服务与访问入口');
     await page.getByLabel('资源集群').selectOption('runtime-edge');
     await page.getByRole('tab', { name: 'Service', exact: true }).click();
     await page

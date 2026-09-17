@@ -47,7 +47,7 @@ try {
   await page.getByLabel('账号', {exact:true}).fill(settings.BACKEND_USER);
   await page.getByLabel('密码', {exact:true}).fill(settings.BACKEND_PASSWORD);
   await page.getByRole('button', {name:'连接工作空间 →', exact:true}).click();
-  await page.getByRole('navigation', {name:'主导航'}).getByRole('button', {name:'卸载观测',exact:true}).click();
+  await page.getByRole('navigation', {name:'主导航'}).getByRole('button', {name:'任务卸载决策记录',exact:true}).click();
   await page.locator('tbody tr').first().waitFor();
   for(let i=0;i<Math.floor(index/20);i++) {
     const received = page.waitForResponse(r=>r.url().includes(`/offloading/samples?limit=20&offset=${(i+1)*20}`) && r.status()===200);

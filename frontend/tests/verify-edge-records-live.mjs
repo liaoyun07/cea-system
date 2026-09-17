@@ -22,7 +22,7 @@ try {
   await page.getByRole('button', { name: '连接工作空间 →' }).click();
   await page
     .getByRole('navigation', { name: '主导航' })
-    .getByRole('button', { name: '边缘处理记录', exact: true })
+    .getByRole('button', { name: '边缘数据处理记录', exact: true })
     .click();
   await page.locator('.edge-record-table tbody tr').first().waitFor();
   await page.screenshot({ path: resolve(evidence, 'desktop.png'), fullPage: true });

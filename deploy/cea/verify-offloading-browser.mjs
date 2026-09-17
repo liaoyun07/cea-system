@@ -12,7 +12,7 @@ try {
   await page.goto(`http://127.0.0.1:${settings.CEA_HTTP_PORT}`);
   await page.getByLabel('账号',{exact:true}).fill(settings.BACKEND_USER);await page.getByLabel('密码',{exact:true}).fill(settings.BACKEND_PASSWORD);
   await page.getByRole('button',{name:'连接工作空间 →',exact:true}).click();
-  await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'卸载观测',exact:true}).click();
+  await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'任务卸载决策记录',exact:true}).click();
   const response=await page.request.get(`/api/namespaces/lab/offloading/samples?limit=20&offset=0`,{headers:{Authorization:'Basic '+Buffer.from(settings.BACKEND_USER+':'+settings.BACKEND_PASSWORD).toString('base64')}});
   expect(response.status()).toBe(200);const rows=await response.json();const index=rows.findIndex(r=>r.measurement?.trainable);expect(index).toBeGreaterThanOrEqual(0);
   await expect(page.locator('.table-wrap tbody tr')).toHaveCount(rows.length);

@@ -22,9 +22,9 @@ async function login(page, user = process.env.CEA_E2E_USER) {
   await page.getByRole('button', { name: '连接工作空间 →' }).click();
   await page
     .getByRole('navigation', { name: '主导航' })
-    .getByRole('button', { name: '边缘处理记录', exact: true })
+    .getByRole('button', { name: '边缘数据处理记录', exact: true })
     .click();
-  await expect(page.locator('h1')).toHaveText('边缘处理记录');
+  await expect(page.locator('h1')).toHaveText('边缘数据处理记录');
 }
 async function setup(request, tasks) {
   await put(request, '/resources/clusters/edge-origin', { id: 'edge-origin', kind: 'EDGE', enabled: true });

@@ -141,7 +141,7 @@ try {
   await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
   await page
     .getByRole('navigation', { name: '主导航' })
-    .getByRole('button', { name: '执行', exact: true })
+    .getByRole('button', { name: '数据流执行记录', exact: true })
     .click();
   const chosen = result.find((e) => e.flowId === 'fedavg');
   assert(chosen);

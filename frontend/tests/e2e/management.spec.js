@@ -37,7 +37,7 @@ test('DQN detail identifies the pinned model and actual execution layer', async 
       ],
     }),
   );
-  await nav(page, '卸载观测');
+  await nav(page, '任务卸载决策记录');
   await page.getByRole('button', { name: '详情 →', exact: true }).click();
   await expect(page.getByText('off04-trained-fixture', { exact: true })).toBeVisible();
   await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
@@ -72,7 +72,7 @@ test('measured offloading detail displays missing as unavailable rather than zer
       ],
     }),
   );
-  await nav(page, '卸载观测');
+  await nav(page, '任务卸载决策记录');
   await expect(page.locator('tbody tr')).toContainText('待传输标定');
   await page.getByRole('button', { name: '详情 →', exact: true }).click();
   await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
@@ -97,15 +97,15 @@ test('all candidate pages are read and management navigation protects drafts on 
   }
   await login(page);
   await page.setViewportSize({ width: 650, height: 900 });
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await page.getByRole('button', { name: '＋ 登记数据集版本' }).click();
   await page.getByRole('button', { name: '＋ 添加位置', exact: true }).click();
   await page.getByLabel('位置 1 · 集群', { exact: true }).selectOption(`${prefix}-104`);
   page.once('dialog', (dialog) => dialog.dismiss());
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await expect(page.getByLabel('位置 1 · 集群', { exact: true })).toHaveValue(`${prefix}-104`);
   page.once('dialog', (dialog) => dialog.accept());
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await expect(page.getByLabel('数据集 ID', { exact: true })).toHaveCount(0);
   const width = await page.evaluate(() => [innerWidth, document.documentElement.scrollWidth]);
   expect(width[1]).toBeLessThanOrEqual(width[0] + 1);
@@ -161,7 +161,7 @@ test.afterEach(async ({ page }) => {
 test('cluster registration, admission switch and namespace-isolated catalog', async ({ page, request }) => {
   const id = unique();
   await login(page);
-  await nav(page, '集群资源');
+  await nav(page, '集群管理');
   await page.getByRole('button', { name: '＋ 登记集群', exact: true }).click();
   await page.getByLabel('集群 ID', { exact: true }).fill(id);
   await page.getByLabel('计算层', { exact: true }).selectOption('CLOUD');
@@ -180,7 +180,7 @@ test('cluster registration, admission switch and namespace-isolated catalog', as
 test('dataset locations, immutable version conflict, clone to new version', async ({ page, request }) => {
   const id = unique();
   await login(page);
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await page.getByRole('button', { name: '＋ 登记数据集版本' }).click();
   await page.getByLabel('数据集 ID', { exact: true }).fill(id);
   await page.getByLabel('版本', { exact: true }).fill('v1');
@@ -244,7 +244,7 @@ test('gateway/terminal registration fixes ownership and shows actual heartbeat t
   request,
 }) => {
   await login(page);
-  await nav(page, '边缘网关');
+  await nav(page, '边缘网关管理');
   await page.getByRole('button', { name: '＋ 登记网关' }).click();
   await page.getByLabel('网关 ID', { exact: true }).fill('gateway-browser');
   await page.getByLabel('边缘集群', { exact: true }).selectOption('edge-origin');
@@ -255,7 +255,7 @@ test('gateway/terminal registration fixes ownership and shows actual heartbeat t
   await save(page);
   await expect(page.getByLabel('边缘集群', { exact: true })).toBeDisabled();
   await expect(page.getByLabel('CONNECT 账号', { exact: true })).toBeDisabled();
-  await nav(page, '终端设备');
+  await nav(page, '终端设备接入');
   await page.getByRole('button', { name: '＋ 登记终端', exact: true }).click();
   await page.getByLabel('终端 ID', { exact: true }).fill('terminal-browser');
   await page.getByLabel('所属网关', { exact: true }).selectOption('gateway-browser');
@@ -290,7 +290,7 @@ test('policy shares no-code source, preserves CAS conflicts and executes through
   });
   await put(request, '/edge/terminals/terminal-browser', { gatewayId: 'gateway-browser', enabled: true });
   await login(page);
-  await nav(page, '边缘处理策略');
+  await nav(page, '边缘数据处理策略');
   await page.getByRole('button', { name: '＋ 新建策略', exact: true }).click();
   await page.getByLabel('策略 ID', { exact: true }).fill(id);
   await page.getByLabel('边缘集群', { exact: true }).selectOption('edge-origin');
@@ -354,7 +354,7 @@ test('real registry and Kubernetes deployment create, ready, stale delete reject
     parameters: {},
   });
   await login(page);
-  await nav(page, '应用部署');
+  await nav(page, '边缘服务部署');
   await page.getByLabel('执行集群', { exact: true }).selectOption('runtime-edge');
   await expect(page.getByRole('button', { name: '＋ 创建部署', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
@@ -399,13 +399,13 @@ test('read-only viewer sees catalogs but cannot mutate; empty offload data is no
   page,
 }) => {
   await login(page, 'viewer');
-  await nav(page, '集群资源');
+  await nav(page, '集群管理');
   await page.getByRole('button', { name: '＋ 登记集群', exact: true }).click();
   await page.getByLabel('集群 ID', { exact: true }).fill(unique());
   await page.getByRole('button', { name: '保存配置', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('403');
   page.once('dialog', (dialog) => dialog.accept());
-  await nav(page, '卸载观测');
+  await nav(page, '任务卸载决策记录');
   await expect(page.locator('.empty h2')).toHaveText('暂无记录');
   await expect(page.locator('.table-wrap tbody tr')).toHaveCount(0);
   await expect(page.locator('.page-heading button')).toHaveCount(0);
@@ -414,22 +414,22 @@ test('read-only viewer sees catalogs but cannot mutate; empty offload data is no
 test('pages keep headings and actions without instructional prose or help disclosures', async ({ page }) => {
   await login(page);
   for (const title of [
-    '流程',
-    '执行',
+    '数据流编排',
+    '数据流执行记录',
     '应用与镜像',
-    '应用部署',
-    '集群资源',
-    '数据集',
-    '边缘网关',
-    '终端设备',
-    '边缘处理策略',
-    '卸载观测',
+    '边缘服务部署',
+    '集群管理',
+    '数据集管理',
+    '边缘网关管理',
+    '终端设备接入',
+    '边缘数据处理策略',
+    '任务卸载决策记录',
   ]) {
     await nav(page, title);
     await expect(page.locator('.page-heading p, .empty p')).toHaveCount(0);
     await expect(page.locator('.page-heading details, [role="tooltip"]')).toHaveCount(0);
     await expect(page.locator('.list-toolbar button').last()).toBeVisible();
-    if (title === '执行' || title === '集群资源')
+    if (title === '数据流执行记录' || title === '集群管理')
       await page.screenshot({ path: `.local/evidence/clean-${title}.png`, fullPage: true });
   }
   await nav(page, '应用与镜像');
@@ -447,7 +447,7 @@ test('catalog failures are visible, not empty success, and switching pages disca
 }) => {
   await login(page);
   await page.route('**/api/namespaces/lab/resources/datasets?*', (route) => route.abort('failed'));
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await expect(page.getByRole('alert')).toContainText('后端不可达');
   await expect(page.locator('.empty h2')).toHaveText('未能读取目录');
   await nav(page, '应用与镜像');

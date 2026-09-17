@@ -1,4 +1,6 @@
-# CEA 流任务工作台
+# 云边端协同数据流处理系统前端
+
+NAV-01：侧栏按申报书组织为云边端协同数据流处理、模块化边缘服务部署、智能任务卸载、多云协作，以及基础资源/系统管理。Service/Ingress 位于“服务与访问入口”，节点/Namespace 位于“集群运行资源”；“应用分发记录”按应用版本查询。只重组前端，后端职责、执行链和数据保持；[当前导航与边界](../docs/features/NAV-01-proposal-navigation.md)、[发布结果](../docs/verification/VER-NAV-01-proposal-navigation.md)。下文 UI-xx 为各批历史记录。
 
 UI-08a按用户要求直接删除运行资源的容器用量标签和相关前端请求；保留节点CPU/内存、Service和Namespace，不迁移到其他页面，也不替换为提示。发布与验证状态见[进度](../docs/04-progress.md)。UI-08前后端基线已于2026-09-13发布，下面的“尚未发布”指原实现验收阶段。
 

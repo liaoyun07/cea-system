@@ -1,5 +1,7 @@
 # 系统总览
 
+NAV-01：用户界面按申报书四业务主线组织入口，基础资源/账号独立分组；这不是后端模块重划。Service/Ingress 和应用分发历史复用原 API/组件，没有新的工作流执行链。[导航与功能边界](features/NAV-01-proposal-navigation.md)，发布状态见[进度](04-progress.md)。
+
 ING-01：在原resource资源管理边界增加HTTP Ingress CRUD，访问流量由集群内Traefik转发至Service/Pod；CEA独立入口桥只适配本机到Docker内四集群，不经过管理前端。平台不保存第二份路由数据库，不改变Flow/Worker链。[协议](contracts/ingress.md)，当前验证/部署状态见[进度](04-progress.md)。
 
 PRIO-01（2026-09-17，已部署）：依赖就绪仍由原 Executor 决定；原 Worker 队列按叶子任务 priority 排序，Application 经现有 Placement 准入后才占 Worker 执行名额。无槽留队、非抢占、同级 FIFO。不新增调度模块，详见[协议与调用链对比](contracts/priority-admission.md)。

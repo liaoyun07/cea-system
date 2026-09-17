@@ -29,7 +29,7 @@ try {
   await page.getByLabel('账号', { exact: true }).fill(settings.BACKEND_USER);
   await page.getByLabel('密码', { exact: true }).fill(settings.BACKEND_PASSWORD);
   await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '流程', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '数据流编排', exact: true })).toBeVisible();
   for (const flow of ['fedavg', 'fedprox']) {
     await expect(page.getByRole('button', { name: flow, exact: true })).toBeVisible();
   }
@@ -49,12 +49,14 @@ try {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({path: fileURLToPath(new URL('overview-narrow.png', evidence)), fullPage: true});
   await page.setViewportSize({width: 1440, height: 1000});
-  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '运行资源', exact: true}).click();
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '集群运行资源', exact: true}).click();
   inspectionEvidence.clusters = {};
   for (const cluster of ['cloud', 'edge-a', 'edge-b', 'edge-c']) {
     await page.getByLabel('资源集群').selectOption(cluster);
     const rows = {};
     for (const [endpoint, title] of [['nodes', '节点'], ['services', 'Service'], ['namespace', 'Kubernetes Namespace']]) {
+      await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: endpoint === 'services' ? '服务与访问入口' : '集群运行资源', exact: true}).click();
+      await page.getByLabel('资源集群').selectOption(cluster);
       const suffix = endpoint === 'namespace' ? 'namespaces' : endpoint === 'services' ? 'namespaces/cea-lab/services' : endpoint;
       const response = await page.request.get('/api/namespaces/lab/clusters/' + cluster + '/kubernetes/' + suffix, {headers: authHeaders});
       expect(response.status()).toBe(200);
@@ -72,7 +74,7 @@ try {
     inspectionEvidence.clusters[cluster] = rows;
   }
   await page.screenshot({path: fileURLToPath(new URL('kubernetes-resources.png', evidence)), fullPage: true});
-  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '数据流编排', exact: true}).click();
   // SELECT deployment probe: edit/validate/preview a draft only; never save or execute it in CEA.
   const selectId = 'ui-select-readonly';
   const selectSource = (await readFile(new URL('../../examples/select-input.yaml', import.meta.url), 'utf8'))
@@ -97,12 +99,12 @@ try {
     if (status === 200) expect((await preview.json()).inputs.region).toBe('cloud');
   }
   page.once('dialog', dialog => dialog.accept());
-  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '数据流编排', exact: true}).click();
   const catalogPages = [
-    ['应用与镜像', '/applications', 'applications'], ['集群资源', '/resources/clusters', 'clusters'],
-    ['数据集', '/resources/datasets', 'datasets'], ['边缘网关', '/edge/gateways', 'gateways'],
-    ['终端设备', '/edge/terminals', 'terminals'], ['边缘处理策略', '/edge/policies', 'policies'],
-    ['卸载观测', '/offloading/samples', 'observations'],
+    ['应用与镜像', '/applications', 'applications'], ['集群管理', '/resources/clusters', 'clusters'],
+    ['数据集管理', '/resources/datasets', 'datasets'], ['边缘网关管理', '/edge/gateways', 'gateways'],
+    ['终端设备接入', '/edge/terminals', 'terminals'], ['边缘数据处理策略', '/edge/policies', 'policies'],
+    ['任务卸载决策记录', '/offloading/samples', 'observations'],
   ];
   for (const [title, path, key] of catalogPages) {
     const response = await page.request.get('/api/namespaces/lab' + path + '?limit=20&offset=0', { headers: authHeaders });
@@ -121,7 +123,7 @@ try {
       await page.screenshot({path: fileURLToPath(new URL('management-' + key + '-detail.png', evidence)), fullPage: true});
     }
   }
-  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '应用部署', exact: true }).click();
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('button', { name: '边缘服务部署', exact: true }).click();
   const clustersResponse = await page.request.get('/api/namespaces/lab/resources/clusters?limit=100', { headers: authHeaders });
   expect(clustersResponse.status()).toBe(200);
   for (const cluster of await clustersResponse.json()) {
@@ -134,7 +136,7 @@ try {
     await expect(page.getByRole('alert')).toHaveCount(0);
   }
   await page.screenshot({path: fileURLToPath(new URL('management-deployments.png', evidence)), fullPage: true});
-  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '流程', exact: true}).click();
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '数据流编排', exact: true}).click();
   for (const flow of ['fedavg', 'fedprox']) {
     await page.getByRole('button', { name: flow, exact: true }).click();
     await expect(page.getByLabel('Flow YAML')).toHaveValue(/core\.Loop/);
@@ -196,10 +198,10 @@ try {
     await expect(page.getByLabel('Flow YAML')).toHaveValue(original);
     await page.screenshot({path: fileURLToPath(new URL(flow + '-split.png', evidence))});
     console.log(JSON.stringify({flow, layout: await page.evaluate(() => ({width: innerWidth, height: innerHeight, documentHeight: document.documentElement.scrollHeight, documentWidth: document.documentElement.scrollWidth}))}));
-    await page.getByRole('button', { name: '流程', exact: true }).first().click();
+    await page.getByRole('button', { name: '数据流编排', exact: true }).first().click();
   }
-  await page.getByRole('button', { name: '执行', exact: true }).first().click();
-  await expect(page.getByRole('heading', { name: '执行', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '数据流执行记录', exact: true }).first().click();
+  await expect(page.getByRole('heading', { name: '数据流执行记录', exact: true })).toBeVisible();
   for (const flow of ['fedavg', 'fedprox']) {
     const row = page.getByRole('row').filter({ hasText: flow }).filter({ hasText: 'SUCCESS' }).first();
     await expect(row).toBeVisible();
@@ -288,10 +290,10 @@ try {
     logCounts[flow] = (await logs.json()).length;
     if (logCounts[flow] === 0) await expect(page.getByLabel('执行日志')).toContainText('暂无日志');
     else await expect(page.getByLabel('执行日志')).not.toContainText('暂无日志');
-    await page.getByRole('button', { name: '执行', exact: true }).first().click();
+    await page.getByRole('button', { name: '数据流执行记录', exact: true }).first().click();
   }
   // UI-08: read live usage/history and inspect the upload form without creating business records.
-  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '运行资源', exact: true}).click();
+  await page.getByRole('navigation', {name: '主导航'}).getByRole('button', {name: '集群运行资源', exact: true}).click();
   for (const cluster of ['cloud', 'edge-a', 'edge-b', 'edge-c']) {
     await page.getByLabel('资源集群').selectOption(cluster);
     await page.getByRole('tab', {name: '节点', exact: true}).click();
@@ -309,7 +311,7 @@ try {
     await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
     await expect(page.getByRole('table', {name: '节点', exact: true})).toContainText('可用');
     await page.screenshot({path: fileURLToPath(new URL('usage-' + cluster + '.png', evidence)), fullPage: true});
-    await expect(page.getByRole('tablist', {name: 'Kubernetes 资源类型'}).getByRole('tab')).toHaveText(['节点', 'Service', 'Ingress', 'Kubernetes Namespace']);
+    await expect(page.getByRole('tablist', {name: 'Kubernetes 资源类型'}).getByRole('tab')).toHaveText(['节点', 'Kubernetes Namespace']);
     await expect(page.getByRole('tab', {name: '容器用量', exact: true})).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     operationsEvidence.usage[cluster] = {nodes};

@@ -92,7 +92,7 @@ onMounted(refresh);
     <div class="page-heading">
       <div>
         <span class="eyebrow">EDGE PROCESSING</span>
-        <h1>边缘处理记录</h1>
+        <h1>边缘数据处理记录</h1>
       </div>
       <button :disabled="busy" @click="refresh">{{ busy ? '加载中…' : '↻ 刷新' }}</button>
     </div>

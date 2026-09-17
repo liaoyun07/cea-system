@@ -81,7 +81,7 @@ if(mode==='capture') {
     await page.goto(`http://127.0.0.1:${env.CEA_HTTP_PORT}`);
     await page.getByLabel('账号',{exact:true}).fill(env.BACKEND_USER);await page.getByLabel('密码',{exact:true}).fill(env.BACKEND_PASSWORD);
     await page.getByRole('button',{name:'连接工作空间 →',exact:true}).click();
-    await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'运行资源',exact:true}).click();
+    await page.getByRole('navigation',{name:'主导航'}).getByRole('button',{name:'服务与访问入口',exact:true}).click();
     await page.getByRole('tab',{name:'Ingress',exact:true}).click();
     for(const [cluster,port] of targets) {
       await page.getByLabel('资源集群').selectOption(cluster);

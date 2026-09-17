@@ -15,7 +15,7 @@ import {
   parameterContract,
   enc,
 } from './catalogs.js';
-import { durationText, stateName } from './operations.js';
+import DistributionHistory from './DistributionHistory.vue';
 import CatalogForm from './CatalogForm.vue';
 
 const props = defineProps({ kind: String, api: Function, namespace: String });
@@ -45,9 +45,7 @@ const uploadMode = ref(false),
   buildMode = ref(false),
   buildLog = ref(''),
   archive = ref(null),
-  history = ref([]),
-  historyOffset = ref(0),
-  historyError = ref('');
+  historyRefresh = ref(0);
 const abort = new AbortController();
 let alive = true;
 const dirty = computed(
@@ -123,9 +121,6 @@ function begin(value, saved = false, record = null) {
   buildMode.value = false;
   buildLog.value = '';
   archive.value = null;
-  history.value = [];
-  historyOffset.value = 0;
-  historyError.value = '';
   draft.value = value;
   existing.value = saved;
   raw.value = record;
@@ -155,7 +150,6 @@ async function open(row, upload = false, build = false) {
     if (!alive) return;
     if (props.kind === 'applications') {
       begin(applicationDraft(data), true, data);
-      await loadHistory();
     } else if (props.kind === 'policies')
       begin({ ...data.policy, expectedRevision: data.flow.revision, source: data.flow.source }, true, data);
     else if (props.kind === 'gateways')
@@ -257,7 +251,7 @@ async function prepare() {
       success.value = '镜像准备完成 · 未启动容器';
     }
   }, true);
-  if (alive) await loadHistory();
+  if (alive) historyRefresh.value++;
 }
 async function removeApplication() {
   const id = `${draft.value.applicationId}/${draft.value.version}`;
@@ -293,28 +287,6 @@ async function removeDataset() {
       success.value = '数据集版本已删除，原始文件保留';
     }
   }, true);
-}
-async function loadHistory() {
-  historyError.value = '';
-  const selected = itemPath('applications', draft.value),
-    offset = historyOffset.value;
-  const current = () =>
-    alive &&
-    draft.value &&
-    selected === itemPath('applications', draft.value) &&
-    offset === historyOffset.value;
-  try {
-    const result = await api(`${selected}/preparations?limit=20&offset=${offset}`);
-    if (current()) history.value = result;
-  } catch (e) {
-    if (current()) {
-      history.value = [];
-      historyError.value = errorText(e);
-    }
-  }
-}
-function distributionDuration(row) {
-  return row.finishedAt ? durationText(Date.parse(row.finishedAt) - Date.parse(row.startedAt)) : '—';
 }
 function cell(row, key) {
   const value = row[key];
@@ -478,63 +450,13 @@ onMounted(() => action(loadRows));
           ><code>{{ prepared.image }}</code>
         </div>
       </section>
-      <section v-if="kind === 'applications' && readonly" class="management-editor">
-        <div class="section-heading">
-          <h2>按需分发历史</h2>
-          <button :disabled="busy" @click="action(loadHistory)">刷新历史</button>
-        </div>
-        <p v-if="historyError" class="error" role="alert">{{ historyError }}</p>
-        <div class="table-wrap">
-          <table aria-label="按需分发历史">
-            <thead>
-              <tr>
-                <th>目标集群</th>
-                <th>状态</th>
-                <th>发起人</th>
-                <th>开始时间</th>
-                <th>耗时</th>
-                <th>源 / 目标镜像</th>
-                <th>错误</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="r in history" :key="r.id">
-                <td>{{ r.clusterId }}</td>
-                <td>{{ stateName(r.state) }}</td>
-                <td>{{ r.requestedBy }}</td>
-                <td>{{ time(r.startedAt) }}</td>
-                <td>{{ distributionDuration(r) }}</td>
-                <td class="mono">
-                  <div>{{ r.sourceImage }}</div>
-                  <div>{{ r.targetImage || '—' }}</div>
-                </td>
-                <td>{{ r.error || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-if="!history.length && !historyError" class="empty">暂无分发记录</p>
-        <div class="pagination">
-          <button
-            :disabled="busy || historyOffset === 0"
-            @click="
-              historyOffset -= 20;
-              action(loadHistory);
-            "
-          >
-            上一页</button
-          ><span>第 {{ historyOffset / 20 + 1 }} 页</span
-          ><button
-            :disabled="busy || history.length < 20"
-            @click="
-              historyOffset += 20;
-              action(loadHistory);
-            "
-          >
-            下一页
-          </button>
-        </div>
-      </section>
+      <DistributionHistory
+        v-if="kind === 'applications' && readonly"
+        :api="props.api"
+        :application="draft"
+        :refresh="historyRefresh"
+        :disabled="busy"
+      />
       <details v-if="raw" class="raw-detail">
         <summary>服务端原始记录</summary>
         <pre>{{ JSON.stringify(raw, null, 2) }}</pre>

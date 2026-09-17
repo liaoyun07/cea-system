@@ -1050,12 +1050,6 @@ small {
 .login-brand strong {
   font-size: 1.5rem;
 }
-.login-brand > span:last-child {
-  color: #726981;
-  border-left: 1px solid #d8d1e3;
-  padding-left: 16px;
-  font-size: 0.9rem;
-}
 .brand-mark {
   background: var(--accent);
   color: white;
@@ -1089,8 +1083,8 @@ small {
   min-height: 100vh;
 }
 .sidebar {
-  width: 212px;
-  flex: 0 0 212px;
+  width: 248px;
+  flex: 0 0 248px;
   background: var(--sidebar);
   color: #d7d1e2;
   display: flex;
@@ -1108,15 +1102,12 @@ small {
   color: #fff;
 }
 .brand strong {
-  font-size: 1.25rem;
-  letter-spacing: 0.1em;
-  line-height: 1.25;
+  font-size: 1rem;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 .brand strong span {
   display: block;
-  letter-spacing: 0.13em;
-  font-size: 0.6rem;
-  color: #afa2c8;
 }
 .workspace-name {
   background: #2b2b3b;
@@ -1145,7 +1136,8 @@ small {
   font-size: 0.75rem;
   color: #9990aa;
   padding: 0 14px;
-  margin-bottom: 10px;
+  margin: 18px 0 4px;
+  flex-shrink: 0;
 }
 .sidebar nav {
   display: flex;
@@ -1154,6 +1146,31 @@ small {
   min-height: 0;
   flex: 1;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #51485f transparent;
+  scrollbar-gutter: stable;
+  color-scheme: dark;
+}
+.sidebar nav:hover,
+.sidebar nav:focus-within {
+  scrollbar-color: #78698b transparent;
+}
+.sidebar nav::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.sidebar nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar nav::-webkit-scrollbar-thumb {
+  background: #51485f;
+  border-radius: 6px;
+}
+.sidebar nav::-webkit-scrollbar-thumb:hover {
+  background: #78698b;
+}
+.sidebar nav::-webkit-scrollbar-button {
+  display: none;
 }
 .sidebar nav button {
   flex-shrink: 0;
@@ -1762,8 +1779,8 @@ dd {
 }
 @media (max-width: 1100px) {
   .sidebar {
-    width: 174px;
-    flex-basis: 174px;
+    width: 224px;
+    flex-basis: 224px;
   }
   .list-page,
   .editor-page,
@@ -1813,7 +1830,6 @@ dd {
   .brand strong {
     font-size: 1rem;
   }
-  .brand strong span,
   .nav-caption,
   .workspace-name {
     display: none;

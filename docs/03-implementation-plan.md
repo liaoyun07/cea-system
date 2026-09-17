@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+NAV-01（2026-09-17，DONE，已部署）：依赖现有管理/ING-01接口，按用户确认重组申报书四业务模块及公共资源/账号菜单；更新系统名称和暗色细滚动条。复用组件拆出Service/Ingress及按应用版本查询的分发记录；不改后端/数据库/执行链。54项单测、64项浏览器及18080现场18入口/权限/窄屏/分发异常恢复验收通过；仅发布frontend，原数据和其余19服务保持。见[范围](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。
+
 ING-01（2026-09-17，完成并部署）：用户授权最小HTTP Ingress管理，并单独允许随前后端部署四集群Traefik、本机入口及管理RBAC。复用resource Kubernetes管理、server身份入口和运行资源页面，支持IngressClass查询、域名/路径到同Namespace Service端口的增删改查；沿用所有权和资源版本检查，不新增表或执行链。真实路由创建/更新/删除、Exact/Prefix与Host匹配、越权/缺失Service端口/过期版本拒绝、桌面/窄屏、原业务数据与无关服务保留验收通过；284项Java、54项单测、61项浏览器通过。不含TLS证书、限流、复杂网关策略。[验收](verification/VER-ING-01-ingress.md)。
 
 PRIO-02（2026-09-17，实测完成）：cloud保持2槽，启动A/B（持续60/180秒）并确认两者运行后，提交Parallel low10/high90。low先入队25、high后入队26；A结束后high先启动，high结束后low启动，B持续运行。两Execution/四Job单Attempt全SUCCESS，预约全部释放、原346执行/42Flow及19服务保持。新增两测试Flow已在CEA，无生产代码/配置变更或服务重启。[实际时间与证据](verification/VER-PRIO-02-live-priority.md)。

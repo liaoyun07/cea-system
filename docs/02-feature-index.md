@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+NAV-01（DONE，已部署CEA）：申报书业务导航、系统名称、暗色细滚动条，Service/Ingress及分发历史独立入口；54项单测、64项浏览器及18080验收PASS，仅前端组件复用，不新增后端能力。[功能](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。
+
 ING-01（RES-001/B04管理补齐，已部署CEA）：HTTP Ingress增删改查、IngressClass查询、Service端口引用和入口展示；284项Java、54项单测、61项浏览器及四集群实际HTTP验收通过。执行链/数据库不变，不含TLS/复杂中间件。[功能](features/ING-01-ingress.md)、[验证](verification/VER-ING-01-ingress.md)。
 
 PRIO-02（2026-09-17，CEA实测PASS）：占满cloud两槽后，low先入队但high先获得释放槽；四个真实容器的先后及B不被抢占验证通过。仅新增测试Flow/观察脚本，未新增生产功能或调整并发。[验收](verification/VER-PRIO-02-live-priority.md)。

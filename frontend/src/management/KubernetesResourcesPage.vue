@@ -6,7 +6,17 @@ import { readCatalog } from '../no-code/document.js';
 import { percentText, coresText, memoryText, usageState } from './operations.js';
 import KubernetesManagement from './KubernetesManagement.vue';
 import KubernetesIngress from './KubernetesIngress.vue';
-const props = defineProps({ api: Function, workspace: String });
+const props = defineProps({ api: Function, workspace: String, mode: String });
+const serviceMode = props.mode === 'services';
+const tabs = serviceMode
+  ? [
+      ['services', 'Service'],
+      ['ingresses', 'Ingress'],
+    ]
+  : [
+      ['nodes', '节点'],
+      ['namespace', 'Kubernetes Namespace'],
+    ];
 const emit = defineEmits(['pending']);
 const managementPending = ref(false);
 function pending(value) {
@@ -16,7 +26,7 @@ function pending(value) {
 const refresh = ref(0);
 const clusters = ref([]),
   cluster = ref(''),
-  tab = ref('nodes'),
+  tab = ref(tabs[0][0]),
   data = ref(null);
 const error = ref(''),
   catalogError = ref(''),
@@ -103,7 +113,7 @@ onBeforeUnmount(() => {
     <div class="page-heading">
       <div>
         <span class="eyebrow">KUBERNETES</span>
-        <h1>运行资源</h1>
+        <h1>{{ serviceMode ? '服务与访问入口' : '集群运行资源' }}</h1>
       </div>
       <button
         :disabled="loading || catalogLoading || managementPending"
@@ -125,12 +135,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="tabs" role="tablist" aria-label="Kubernetes 资源类型">
       <button
-        v-for="entry in [
-          ['nodes', '节点'],
-          ['services', 'Service'],
-          ['ingresses', 'Ingress'],
-          ['namespace', 'Kubernetes Namespace'],
-        ]"
+        v-for="entry in tabs"
         :key="entry[0]"
         role="tab"
         :disabled="managementPending"

@@ -13,7 +13,7 @@ async function login(page) {
   await page.getByLabel('账号', { exact: true }).fill(process.env.CEA_E2E_USER);
   await page.getByLabel('密码', { exact: true }).fill(process.env.CEA_E2E_PASSWORD);
   await page.getByRole('button', { name: '连接工作空间 →', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '流程', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '数据流编排', exact: true })).toBeVisible();
 }
 async function save(page, id, yaml = source(id)) {
   await page.getByRole('button', { name: '＋ 新建流程', exact: true }).click();
@@ -337,7 +337,7 @@ test('both federated flows expose explicit dataset SELECT controls without execu
     await page.getByRole('button', { name: '关闭执行参数', exact: true }).click();
     await page
       .getByRole('navigation', { name: '主导航' })
-      .getByRole('button', { name: '流程', exact: true })
+      .getByRole('button', { name: '数据流编排', exact: true })
       .click();
   }
 });
@@ -360,11 +360,11 @@ test('invalid YAML, stale revision conflict and unsaved navigation keep draft', 
   await expect(page.getByRole('alert')).toContainText('409');
   await expect(page.getByLabel('Flow YAML')).toHaveValue(original + 'description: browser-draft\n');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('navigation').getByRole('button', { name: '执行', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: '数据流执行记录', exact: true }).click();
   await expect(page.getByLabel('Flow YAML')).toBeVisible();
   await page.getByLabel('Flow YAML').fill('');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('navigation').getByRole('button', { name: '流程', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: '数据流编排', exact: true }).click();
   await expect(page.getByLabel('Flow YAML')).toHaveValue('');
 });
 test('lost submit response retries same request and creates only one execution', async ({
@@ -507,7 +507,7 @@ test('dynamic instances drain incremental logs and stop polling after navigation
   await page.getByRole('tab', { name: '日志', exact: true }).click();
   await expect(page.locator('.log-entry pre').filter({ hasText: 'pagination-probe' })).toHaveCount(105);
   expect(queries.some((url) => !url.includes('afterId=0&'))).toBe(true);
-  await page.getByRole('navigation').getByRole('button', { name: '流程', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: '数据流编排', exact: true }).click();
   const before = queries.length;
   await page.waitForTimeout(2300); // Prove the 2-second poll no longer runs after unmount.
   expect(queries).toHaveLength(before);

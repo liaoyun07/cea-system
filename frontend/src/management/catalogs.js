@@ -13,7 +13,7 @@ export const catalogs = {
     ],
   },
   clusters: {
-    title: '集群资源',
+    title: '集群管理',
     caption: 'CLUSTERS',
     path: '/resources/clusters',
     create: '登记集群',
@@ -24,7 +24,7 @@ export const catalogs = {
     ],
   },
   datasets: {
-    title: '数据集',
+    title: '数据集管理',
     caption: 'DATASETS',
     path: '/resources/datasets',
     create: '登记数据集版本',
@@ -36,7 +36,7 @@ export const catalogs = {
     ],
   },
   gateways: {
-    title: '边缘网关',
+    title: '边缘网关管理',
     caption: 'GATEWAYS',
     path: '/edge/gateways',
     create: '登记网关',
@@ -49,7 +49,7 @@ export const catalogs = {
     ],
   },
   terminals: {
-    title: '终端设备',
+    title: '终端设备接入',
     caption: 'TERMINALS',
     path: '/edge/terminals',
     create: '登记终端',
@@ -61,7 +61,7 @@ export const catalogs = {
     ],
   },
   policies: {
-    title: '边缘处理策略',
+    title: '边缘数据处理策略',
     caption: 'EDGE POLICIES',
     path: '/edge/policies',
     create: '新建策略',
@@ -73,7 +73,7 @@ export const catalogs = {
     ],
   },
   observations: {
-    title: '卸载观测',
+    title: '任务卸载决策记录',
     caption: 'OFFLOADING',
     path: '/offloading/samples',
     columns: [

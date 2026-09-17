@@ -66,6 +66,27 @@ test('real archive upload and on-demand distribution history, invalid archive ne
   await expect(page.getByRole('button', { name: '准备镜像', exact: true })).toBeEnabled();
   expect(await get(request, `/applications/${id}/versions/v1/preparations`)).toHaveLength(1);
   await page.screenshot({ path: '.local/evidence/operations-upload-history.png', fullPage: true });
+  await nav(page, '应用分发记录');
+  await page.getByLabel('分发记录应用版本').selectOption(`${id}/v1`);
+  const table = page.getByRole('table', { name: '按需分发历史' });
+  await expect(table).toContainText('distribution-edge');
+  await expect(table).toContainText('成功');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: '下一页', exact: true })).toBeDisabled();
+  await page.screenshot({ path: '.local/evidence/nav01-distributions.png', fullPage: true });
+  await page.route(`**/applications/${id}/versions/v1/preparations?*`, (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'history unavailable' }),
+    }),
+  );
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(table.locator('tbody tr')).toHaveCount(0);
+  await page.unroute(`**/applications/${id}/versions/v1/preparations?*`);
+  await page.getByRole('button', { name: '刷新历史', exact: true }).click();
+  await expect(table).toContainText('成功');
 });
 test('deployment config edit and scale use current CAS, show real timing and preserve history', async ({
   page,
@@ -93,7 +114,7 @@ test('deployment config edit and scale use current CAS, show real timing and pre
       .toBe('SUCCEEDED');
     expect((await get(request, path)).latestOperation.durationMs).toBeGreaterThan(0);
     await login(page);
-    await nav(page, '应用部署');
+    await nav(page, '边缘服务部署');
     await page.getByLabel('执行集群', { exact: true }).selectOption('runtime-edge');
     await page
       .getByRole('row')
@@ -151,7 +172,7 @@ test('node metrics remain while the container usage tab and requests are removed
     if (request.url().includes('/kubernetes/usage/pods')) podUsageRequests.push(request.url());
   });
   await login(page, 'viewer');
-  await nav(page, '运行资源');
+  await nav(page, '集群运行资源');
   await page.getByLabel('资源集群', { exact: true }).selectOption('runtime-edge');
   await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
   await expect(page.getByRole('table', { name: '节点', exact: true })).toContainText('可用');
@@ -159,12 +180,10 @@ test('node metrics remain while the container usage tab and requests are removed
   await page.screenshot({ path: '.local/evidence/operations-node-usage.png', fullPage: true });
   await expect(page.getByRole('tablist', { name: 'Kubernetes 资源类型' }).getByRole('tab')).toHaveText([
     '节点',
-    'Service',
-    'Ingress',
     'Kubernetes Namespace',
   ]);
   await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);
-  for (const name of ['Service', 'Kubernetes Namespace', '节点']) {
+  for (const name of ['Kubernetes Namespace', '节点']) {
     await page.getByRole('tab', { name, exact: true }).click();
     await expect(page.getByRole('table', { name, exact: true })).toBeVisible();
   }

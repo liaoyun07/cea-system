@@ -1,5 +1,7 @@
 # 当前进度
 
+NAV-01（2026-09-17，已部署CEA）：15:23确认18080的新申报书业务导航、系统品牌和暗色细滚动条生效；Service/Ingress及分发记录独立入口。54项单测、64项浏览器、18入口及桌面/窄屏现场检查PASS。只更新frontend，原44Flow/348执行/71应用/14数据集/13策略及其余19服务保持；后端、DB、执行链不变。见[功能](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。
+
 ING-01（2026-09-17，已部署CEA）：02:27前后端及新入口健康，四集群Traefik/管理RBAC已应用；18080运行资源新增Ingress CRUD/详情，18090～18093四个实际HTTP示例已逐一验证。284项Java、54项单测、61项浏览器通过，修正严格Prefix匹配。348执行/44Flow/数据集/策略/卸载样本保持，原17个无关服务不重启，保留每集群一个HTTP示例。无数据库/执行链/算法变化，TLS及复杂网关不在范围内。见[验收](verification/VER-ING-01-ingress.md)。
 
 PRIO-02（2026-09-17，CEA实测PASS）：`priority-occupy`及`priority-compete`已保存并运行成功，low入队25、high26；A于01:16:03结束，high 01:16:08～18执行，low 01:16:22～32执行，B直到01:18:03结束。两Execution/四Job均一次Attempt成功，槽位全部释放；原346执行/42Flow与19服务不变，现348执行/44Flow。未改生产代码/配置、未重启服务，FedAvg/FedProx保持；只新增示例和证据。[完整记录](verification/VER-PRIO-02-live-priority.md)。

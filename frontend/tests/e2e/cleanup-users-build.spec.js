@@ -43,13 +43,13 @@ test('flow removal retains historical execution graph, then history is removable
   await page.getByRole('button', { name: '删除流程', exact: true }).click();
   await expect(page.getByRole('table')).not.toContainText(id);
   expect((await request.get(base + `/flows/${id}`, { headers: auth() })).status()).toBe(404);
-  await nav(page, '执行');
+  await nav(page, '数据流执行记录');
   await page.getByRole('button', { name: executionId, exact: true }).click();
   await page.getByRole('tab', { name: '拓扑', exact: true }).click();
   await expect(page.locator('.execution-graph')).toContainText('greet');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.screenshot({ path: '.local/evidence/ui10-history-snapshot.png', fullPage: true });
-  await nav(page, '执行');
+  await nav(page, '数据流执行记录');
   page.once('dialog', (d) => d.accept(executionId));
   await page
     .getByRole('row')
@@ -76,7 +76,7 @@ test('dataset version removal hides catalog but never reuses the version', async
   };
   await api(request, `/resources/datasets/${id}/versions/v1`, 'put', data);
   await login(page);
-  await nav(page, '数据集');
+  await nav(page, '数据集管理');
   await page
     .getByRole('row')
     .filter({ hasText: id })

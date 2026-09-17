@@ -11,59 +11,61 @@ import KubernetesResourcesPage from './management/KubernetesResourcesPage.vue';
 import RegistryPage from './management/RegistryPage.vue';
 import OverviewPage from './OverviewPage.vue';
 import EdgeProcessingPage from './management/EdgeProcessingPage.vue';
+import DistributionPage from './management/DistributionPage.vue';
 import { catalogs } from './management/catalogs.js';
 
 const navigation = [
   {
-    label: '工作空间',
+    label: '',
+    items: [['overview', '运行总览', '◫']],
+  },
+  {
+    label: '云边端协同数据流处理',
     items: [
-      ['overview', '运行总览', '◫'],
-      ['flows', '流程', '◇'],
-      ['executions', '执行', '▷'],
+      ['flows', '数据流编排', '◇'],
+      ['executions', '数据流执行记录', '▷'],
+      ['datasets', '数据集管理', '▥'],
     ],
   },
   {
-    label: '应用与资源',
+    label: '模块化边缘服务部署',
     items: [
       ['applications', '应用与镜像', '▣'],
       ['registries', '镜像仓库', '▧'],
-      ['deployments', '应用部署', '▤'],
-      ['clusters', '集群资源', '⬡'],
-      ['kubernetes', '运行资源', '▦'],
-      ['datasets', '数据集', '▥'],
+      ['deployments', '边缘服务部署', '▤'],
+      ['services', '服务与访问入口', '⇄'],
     ],
   },
   {
-    label: '账号',
+    label: '智能任务卸载',
+    items: [['observations', '任务卸载决策记录', '↗']],
+  },
+  {
+    label: '多云协作',
     items: [
-      ['profile', '个人中心', '○'],
+      ['distributions', '应用分发记录', '⇢'],
+      ['policies', '边缘数据处理策略', '⋈'],
+      ['edge-records', '边缘数据处理记录', '≋'],
+    ],
+  },
+  {
+    label: '基础资源管理',
+    items: [
+      ['clusters', '集群管理', '⬡'],
+      ['kubernetes', '集群运行资源', '▦'],
+      ['gateways', '边缘网关管理', '⌁'],
+      ['terminals', '终端设备接入', '▱'],
+    ],
+  },
+  {
+    label: '系统管理',
+    items: [
       ['users', '用户管理', '♙'],
-    ],
-  },
-  {
-    label: '边缘与终端',
-    items: [
-      ['gateways', '边缘网关', '⌁'],
-      ['terminals', '终端设备', '▱'],
-      ['policies', '边缘处理策略', '⋈'],
-      ['edge-records', '边缘处理记录', '≋'],
-      ['observations', '卸载观测', '↗'],
+      ['profile', '个人中心', '○'],
     ],
   },
 ];
-const titleFor = (key) =>
-  catalogs[key]?.title ||
-  {
-    overview: '运行总览',
-    kubernetes: '运行资源',
-    registries: '镜像仓库',
-    flows: '流程',
-    executions: '执行',
-    'edge-records': '边缘处理记录',
-    deployments: '应用部署',
-    profile: '个人中心',
-    users: '用户管理',
-  }[key];
+const titleFor = (key) => navigation.flatMap((group) => group.items).find(([id]) => id === key)?.[1];
 
 const namespace = ref('lab'),
   username = ref('developer'),
@@ -87,7 +89,7 @@ const pageTitle = computed(() =>
   page.value === 'flows'
     ? selectedFlow.value !== null
       ? editorTitle.value || selectedFlow.value || '新建流程'
-      : '流程'
+      : titleFor('flows')
     : selectedExecution.value || titleFor(page.value),
 );
 let requestGeneration = 0;
@@ -228,9 +230,7 @@ async function removeRow(row) {
 
 <template>
   <div v-if="!connected" class="login-layout">
-    <div class="login-brand">
-      <span class="brand-mark">C</span><strong>CEA</strong><span>云边端协同平台</span>
-    </div>
+    <div class="login-brand"><span class="brand-mark">C</span><strong>云边端协同数据流处理系统</strong></div>
     <form class="login-card" @submit.prevent="login">
       <span class="eyebrow">WORKSPACE</span>
       <h1>连接工作空间</h1>
@@ -244,14 +244,15 @@ async function removeRow(row) {
   <div v-else class="workspace">
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">C</span><strong>CEA<span>WORKFLOW</span></strong>
+        <span class="brand-mark" aria-hidden="true">C</span
+        ><strong>云边端协同<span>数据流处理系统</span></strong>
       </div>
       <div class="workspace-name">
         <span class="tiny-dot"></span>{{ session.namespace }}<small>命名空间</small>
       </div>
       <nav aria-label="主导航">
         <template v-for="group in navigation" :key="group.label">
-          <div class="nav-caption">{{ group.label }}</div>
+          <div v-if="group.label" class="nav-caption">{{ group.label }}</div>
           <button
             v-for="[key, title, icon] in group.items.filter(
               ([key]) => key !== 'users' || session.profile.role === 'ADMIN',
@@ -259,6 +260,7 @@ async function removeRow(row) {
             :key="key"
             :aria-label="title"
             :class="{ active: page === key }"
+            :aria-current="page === key ? 'page' : undefined"
             :disabled="busy"
             @click="navigate(key)"
           >
@@ -317,12 +319,14 @@ async function removeRow(row) {
       />
       <EdgeProcessingPage v-else-if="page === 'edge-records'" :key="pageEpoch" :api="session.api" />
       <KubernetesResourcesPage
-        v-else-if="page === 'kubernetes'"
-        :key="pageEpoch"
+        v-else-if="page === 'kubernetes' || page === 'services'"
+        :key="`${page}/${pageEpoch}`"
         :api="session.api"
+        :mode="page === 'services' ? 'services' : 'resources'"
         :workspace="session.namespace"
         @pending="pending = $event"
       />
+      <DistributionPage v-else-if="page === 'distributions'" :key="pageEpoch" :api="session.api" />
       <RegistryPage
         v-else-if="page === 'registries'"
         :key="pageEpoch"

@@ -189,7 +189,7 @@ onMounted(() => action(catalogs));
     <div class="page-heading">
       <div>
         <span class="eyebrow">DEPLOYMENTS</span>
-        <h1>应用部署</h1>
+        <h1>边缘服务部署</h1>
       </div>
       <button
         v-if="!draft && !selected"
