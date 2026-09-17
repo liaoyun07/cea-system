@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-11（2026-09-17，已部署）：17:39确认18080的应用操作按钮成组和参数卡片简洁排版生效；54项单测、4项定向浏览器/现场验证通过。仅frontend更新，原业务列表和其余19服务保持；不改参数语义、API、DB或执行链。[验证](verification/VER-UI-011-application-layout.md)。
+
 NAV-01a（2026-09-17，已部署）：15:32确认18080模块标题为16px/700字重/亮灰紫色；54项单测、定向导航浏览器测试及现场18入口/字体/窄屏检查通过。仅frontend更新，其他19服务及原业务列表不变；仅CSS可读性调整，见[NAV-01验证追加](verification/VER-NAV-01-proposal-navigation.md)。
 
 NAV-01（2026-09-17，已部署CEA）：15:23确认18080的新申报书业务导航、系统品牌和暗色细滚动条生效；Service/Ingress及分发记录独立入口。54项单测、64项浏览器、18入口及桌面/窄屏现场检查PASS。只更新frontend，原44Flow/348执行/71应用/14数据集/13策略及其余19服务保持；后端、DB、执行链不变。见[功能](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。

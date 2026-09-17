@@ -168,41 +168,63 @@ function addParameter() {
           </tbody>
         </table>
       </div>
-      <div v-for="(p, i) in readonly ? [] : draft.parameterRows" :key="i" class="parameter-card">
+      <div
+        v-for="(p, i) in readonly ? [] : draft.parameterRows"
+        :key="i"
+        class="parameter-card"
+        role="group"
+        :aria-label="`参数 ${i + 1}`"
+      >
+        <div class="parameter-heading">
+          <h3>参数 {{ i + 1 }}</h3>
+          <button
+            type="button"
+            class="text-link danger-text"
+            :aria-label="`移除参数 ${i + 1}`"
+            @click="draft.parameterRows.splice(i, 1)"
+          >
+            移除参数
+          </button>
+        </div>
         <div class="form-grid">
-          <label>参数 {{ i + 1 }} · 名称<input v-model="p.name" required /></label>
+          <label>名称<input v-model="p.name" :aria-label="`参数 ${i + 1} · 名称`" required /></label>
           <label
-            >参数 {{ i + 1 }} · 类型<select v-model="p.type" :aria-label="`参数 ${i + 1} · 类型`">
+            >类型<select v-model="p.type" :aria-label="`参数 ${i + 1} · 类型`">
               <option v-for="t in ['STRING', 'INTEGER', 'NUMBER', 'BOOLEAN']" :key="t">{{ t }}</option>
             </select></label
           >
           <label
-            >参数 {{ i + 1 }} · 默认值 JSON<input
+            >默认值（JSON）<input
               v-model="p.defaultJson"
+              :aria-label="`参数 ${i + 1} · 默认值 JSON`"
               placeholder='例如 "mlp" 或 32；留空不声明'
           /></label>
-          <label class="check-label"><input type="checkbox" v-model="p.required" />必填</label>
-          <label class="check-label"
-            ><input
-              type="checkbox"
-              v-model="p.dataset"
-              :disabled="p.type !== 'STRING'"
-            />数据集参数（STRING）</label
-          >
           <label v-if="!p.dataset"
-            >参数 {{ i + 1 }} · 允许值 JSON<input
+            >允许值（JSON）<input
               v-model="p.choicesJson"
+              :aria-label="`参数 ${i + 1} · 允许值 JSON`"
               placeholder='例如 ["mlp", "cnn"]；留空不限制'
           /></label>
-          <template v-else>
+          <div class="parameter-options span-2">
+            <label class="check-label"><input type="checkbox" v-model="p.required" />必填</label>
+            <label class="check-label"
+              ><input
+                type="checkbox"
+                v-model="p.dataset"
+                :disabled="p.type !== 'STRING'"
+              />数据集参数（STRING）</label
+            >
+          </div>
+          <template v-if="p.dataset">
             <label
-              >参数 {{ i + 1 }} · 数据格式<input
+              >数据格式<input
                 v-model="p.format"
+                :aria-label="`参数 ${i + 1} · 数据格式`"
                 required
                 placeholder="与数据集登记格式精确一致"
             /></label>
             <label class="span-2"
-              >参数 {{ i + 1 }} · 允许的数据集版本<select
+              >允许的数据集版本<select
                 v-model="p.allowed"
                 :aria-label="`参数 ${i + 1} · 允许的数据集版本`"
                 multiple
@@ -220,14 +242,6 @@ function addParameter() {
             >
           </template>
         </div>
-        <button
-          v-if="!readonly"
-          type="button"
-          class="text-link danger-text"
-          @click="draft.parameterRows.splice(i, 1)"
-        >
-          移除参数
-        </button>
       </div>
       <p v-if="!draft.parameterRows.length" class="muted">此版本未声明业务参数。</p>
     </section>

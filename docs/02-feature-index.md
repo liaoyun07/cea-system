@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-11（DONE，已部署）：应用三个操作按钮靠拢、参数卡片只显示一次编号，默认值/允许值及勾选项统一排版；54项单测、4项浏览器及18080实际验证通过，仅frontend变更。[范围](features/UI-11-application-layout.md)、[结果](verification/VER-UI-011-application-layout.md)。
+
 NAV-01a（DONE，已部署）：模块标题由12px浅灰改为16px、加粗、提亮；仅可读性优化，无业务能力变化。[结果](verification/VER-NAV-01-proposal-navigation.md)。
 
 NAV-01（DONE，已部署CEA）：申报书业务导航、系统名称、暗色细滚动条，Service/Ingress及分发历史独立入口；54项单测、64项浏览器及18080验收PASS，仅前端组件复用，不新增后端能力。[功能](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。

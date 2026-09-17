@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-11（2026-09-17，DONE，已部署）：依赖现有应用/上传/构建表单，将三个入口按钮成组、参数编号提到卡片标题、默认值/允许值并排。54项单测、4项定向浏览器及18080三个入口/桌面/窄屏验收通过，仅frontend更新；不改变API/DB/执行链。[范围](features/UI-11-application-layout.md)、[验证](verification/VER-UI-011-application-layout.md)。
+
 NAV-01a（2026-09-17，DONE，已部署）：仅加大、加粗并提亮侧栏模块标题，依赖NAV-01；字体计算样式、桌面/窄屏布局和原导航可达验收通过，只更新frontend。无新组件、API、DB或执行链变化，结果追加于[NAV-01验证](verification/VER-NAV-01-proposal-navigation.md)。
 
 NAV-01（2026-09-17，DONE，已部署）：依赖现有管理/ING-01接口，按用户确认重组申报书四业务模块及公共资源/账号菜单；更新系统名称和暗色细滚动条。复用组件拆出Service/Ingress及按应用版本查询的分发记录；不改后端/数据库/执行链。54项单测、64项浏览器及18080现场18入口/权限/窄屏/分发异常恢复验收通过；仅发布frontend，原数据和其余19服务保持。见[范围](features/NAV-01-proposal-navigation.md)、[验证](verification/VER-NAV-01-proposal-navigation.md)。

@@ -214,6 +214,16 @@
 .management-page .page-heading > button {
   flex-shrink: 0;
 }
+.catalog-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.catalog-heading-actions > button {
+  white-space: nowrap;
+}
 .management-editor {
   margin: 18px 0;
   padding: 24px;
@@ -298,8 +308,21 @@
   padding: 18px;
   margin: 14px 0;
 }
-.parameter-card > button {
-  margin-top: 12px;
+.parameter-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.parameter-heading h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.parameter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
 }
 .inline-form {
   display: flex;
@@ -380,6 +403,9 @@
   min-height: 400px;
 }
 @media (max-width: 900px) {
+  .catalog-heading-actions {
+    justify-content: flex-start;
+  }
   .form-grid {
     grid-template-columns: 1fr;
   }

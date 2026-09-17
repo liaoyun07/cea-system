@@ -307,18 +307,18 @@ onMounted(() => action(loadRows));
         <span class="eyebrow">{{ config.caption }}</span>
         <h1>{{ config.title }}</h1>
       </div>
-      <button v-if="!draft && !raw && config.create" class="primary" :disabled="busy" @click="open()">
-        ＋ {{ config.create }}
-      </button>
-      <button v-if="kind === 'applications' && !draft && !raw" :disabled="busy" @click="open(null, true)">
-        上传镜像
-      </button>
-      <button
+      <div
         v-if="kind === 'applications' && !draft && !raw"
-        :disabled="busy"
-        @click="open(null, false, true)"
+        class="catalog-heading-actions"
+        role="group"
+        aria-label="应用操作"
       >
-        在线构建
+        <button class="primary" :disabled="busy" @click="open()">＋ {{ config.create }}</button>
+        <button :disabled="busy" @click="open(null, true)">上传镜像</button>
+        <button :disabled="busy" @click="open(null, false, true)">在线构建</button>
+      </div>
+      <button v-else-if="!draft && !raw && config.create" class="primary" :disabled="busy" @click="open()">
+        ＋ {{ config.create }}
       </button>
       <button v-if="draft || raw" :disabled="busy" @click="back">← 返回列表</button>
     </div>
