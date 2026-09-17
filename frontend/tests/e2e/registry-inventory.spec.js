@@ -56,7 +56,7 @@ test('registry auto lists images, paginates images across paths and filters opti
   await page.getByLabel('镜像仓库路径').fill('beta');
   await page.getByRole('button', { name: '筛选', exact: true }).click();
   await expect(table(page).locator('tbody tr')).toHaveCount(1);
-  await expect(table(page)).toContainText('无标签（已核验）');
+  await expect(table(page)).toContainText('无标签 · 000000000000…');
   await expect(page.getByRole('button', { name: '上一页', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '清除', exact: true }).click();
   await expect(table(page).locator('tbody tr')).toHaveCount(20);
@@ -96,6 +96,7 @@ test('row details and deletion use row repository even for shared digests', asyn
     .getByRole('button', { name: '镜像详情', exact: true })
     .click();
   await expect(page.getByRole('region', { name: '镜像详情' })).toContainText('lab/beta');
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(digest(0));
   page.once('dialog', (d) => d.accept(`lab/beta@${digest(0)}`));
   await page.getByRole('button', { name: '从当前仓库删除镜像', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('仓库已确认删除 manifest');
@@ -105,6 +106,36 @@ test('row details and deletion use row repository even for shared digests', asyn
     ['GET', 'lab/beta'],
     ['DELETE', 'lab/beta'],
   ]);
+  expect(detailRequests.every((r) => r.digest === digest(0))).toBe(true);
+  expect(detailRequests[1].confirmation).toBe(`lab/beta@${digest(0)}`);
+});
+
+test('inventory shows tags or short digests while detail uses the full digest', async ({ page }) => {
+  const rows = [
+    { repository: 'lab/train', digest: `sha256:${'a1'.repeat(32)}`, tags: ['v1', 'stable'] },
+    { repository: 'lab/train', digest: `sha256:${'b2'.repeat(32)}`, tags: [] },
+    { repository: 'lab/train', digest: `sha256:${'c3'.repeat(32)}`, tags: [] },
+  ];
+  let requested;
+  await page.route('**/registries/*/image?*', (route) => {
+    requested = Object.fromEntries(new URL(route.request().url()).searchParams);
+    return route.fulfill({
+      json: { ...rows[1], mediaType: 'test', layerBytes: 12, created: null, platforms: [], blockers: [] },
+    });
+  });
+  await open(page, (route) => route.fulfill({ json: { images: rows, next: null } }));
+  await expect(table(page).getByRole('columnheader')).toHaveText(['镜像路径', '标签 / 短摘要', '操作']);
+  const cells = table(page).locator('tbody tr td:nth-child(2)');
+  await expect(cells).toHaveText(['v1, stable', '无标签 · b2b2b2b2b2b2…', '无标签 · c3c3c3c3c3c3…']);
+  await expect(table(page)).not.toContainText('sha256:');
+  await expect(table(page)).not.toContainText('a1a1a1a1a1a1');
+  await page.screenshot({ path: '.local/evidence/registry-identifiers-desktop.png', fullPage: true });
+  await table(page).getByRole('button', { name: '镜像详情', exact: true }).nth(1).click();
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(rows[1].digest);
+  expect(requested).toEqual({ repository: rows[1].repository, digest: rows[1].digest });
+  await page.setViewportSize({ width: 390, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: '.local/evidence/registry-identifiers-narrow.png', fullPage: true });
 });
 
 test('empty and failed searches clear old rows and late responses cannot replace switched registry', async ({

@@ -26,3 +26,14 @@
 ## 变更边界
 
 实际调用链为页面→RegistryController.inventory→RegistryManagementService→原RegistryHttpClient/镜像核验。只新增1个只读HTTP接口及3个内嵌响应record；无新生产Java文件、数据库/迁移、库存缓存、SPI或任务执行链变化，不涉及Kestra执行语义。每页20条，不再先分页仓库路径；路径为可选子串筛选。按实时Registry查询，不提供快照或虚构总数；未知且无法由标准Registry API发现的无标签digest仍无法枚举。
+
+## UI-12a 标签优先与短摘要（2026-09-17）
+
+基线d18949c及本批前端差异，19:29（Asia/Shanghai）已部署CEA 18080，PASS。
+
+- 仅列表模板/CSS变更：三列“镜像路径、标签 / 短摘要、操作”，有标签只显示全部标签，无标签显示12位摘要；完整Digest留在详情。行键、分页游标、详情及删除请求/确认仍使用完整摘要。未新增类、业务字段、表、接口或关联应用推断，不涉及Kestra语义，不改主调用链。
+- 本次54项Node单测、Vite生产构建、Prettier、check-scaffold和diff检查通过。4项定向Playwright全部通过（4.2秒）：标签/无标签同路径辨认、列表无完整digest、有标签不显示短摘要、详情完整摘要、删除精确引用、分页/筛选/切换/错误、390px无页面溢出。删除操作在mock中验证，没有删除CEA真实镜像。
+- 原真实Registry测试和部署检查脚本将完整摘要断言移至详情，适配列表展示；本次未重跑完整Java、完整浏览器套件或真实镜像删除，前一节278/71项为UI-12历史结果，不能算成本批重跑。
+- 18080现场四仓库每个首20行与真实inventory响应比对，标签或短摘要全部正确，完整Digest仍可在详情读取；桌面/390px截图复核，JS错误和API写请求均0。44个Flow、348条执行、71个应用版本、14个数据集版本、13个策略完整列表及其余19服务容器ID/镜像/启动时间不变。
+- 仅Compose `up -d --no-deps --wait frontend`，健康；新镜像`cea/frontend:ui12a-20260917`/`local`，ID `sha256:31fe5129c7d8fb765d754808ea443251da71240bdd86e926000ec991a98d6665`；原镜像保留为`cea/frontend:rollback-ui12a-20260917`，ID `sha256:b88b0f7df388e3b808ee8a79903be0876d7df8c11610c9ca8ff871476ddf7e7e`。后端不构建、不重启。
+- 本地忽略目录`.local/ui12a/`保留发布前后快照和4仓库截图；`frontend/.local/evidence/registry-identifiers-*.png`保留标签/无标签同路径边界截图，不提交凭据或本地业务数据。

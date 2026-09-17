@@ -122,16 +122,18 @@ test('actual image inventory protects catalog reference, then separates catalog 
   await page.getByRole('combobox', { name: '镜像仓库', exact: true }).selectOption('ui');
   await page.getByLabel('镜像仓库路径', { exact: true }).fill(`lab/${id}`);
   await page.getByRole('button', { name: '筛选', exact: true }).click();
-  await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(digest);
+  await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(`lab/${id}`);
   await page.getByRole('button', { name: '镜像详情', exact: true }).click();
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(digest);
   await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(`应用契约引用：${id}/v1`);
   await expect(page.getByRole('button', { name: '从当前仓库删除镜像', exact: true })).toBeDisabled();
   await api(request, `/applications/${id}/versions/v1`, 'delete');
   expect((await request.get(base + `/applications/${id}/versions/v1`, { headers })).status()).toBe(404);
   // Removing the directory record has not removed the manifest.
   await page.getByRole('button', { name: '刷新库存', exact: true }).click();
-  await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(digest);
+  await expect(page.getByRole('table', { name: '实际镜像库存' })).toContainText(`lab/${id}`);
   await page.getByRole('button', { name: '镜像详情', exact: true }).click();
+  await expect(page.getByRole('region', { name: '镜像详情' })).toContainText(digest);
   await expect(page.getByRole('button', { name: '从当前仓库删除镜像', exact: true })).toBeEnabled();
   await page.screenshot({ path: '.local/evidence/ui09-registry.png', fullPage: true });
   page.once('dialog', (d) => d.accept(`lab/${id}@${digest}`));

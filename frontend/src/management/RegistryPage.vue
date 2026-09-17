@@ -161,9 +161,8 @@ onBeforeUnmount(() => {
         <table class="registry-inventory-table" aria-label="实际镜像库存">
           <thead>
             <tr>
-              <th>仓库路径</th>
-              <th>Digest</th>
-              <th>标签</th>
+              <th>镜像路径</th>
+              <th>标签 / 短摘要</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -173,9 +172,11 @@ onBeforeUnmount(() => {
                 <code>{{ row.repository }}</code>
               </td>
               <td>
-                <code>{{ row.digest }}</code>
+                <span v-if="row.tags.length">{{ row.tags.join(', ') }}</span>
+                <span v-else
+                  >无标签 · <code>{{ row.digest.slice(7, 19) }}…</code></span
+                >
               </td>
-              <td>{{ row.tags.join(', ') || '无标签（已核验）' }}</td>
               <td><button :disabled="loading || writing" @click="inspect(row)">镜像详情</button></td>
             </tr>
           </tbody>
@@ -256,7 +257,7 @@ onBeforeUnmount(() => {
   flex: 0 1 320px;
 }
 .registry-inventory-table {
-  min-width: 720px;
+  min-width: 520px;
 }
 @media (max-width: 650px) {
   .registry-filters label {

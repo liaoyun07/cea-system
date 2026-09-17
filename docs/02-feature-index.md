@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-12a（DONE，已部署）：镜像列表优先显示标签，无标签以12位短摘要辨认，完整Digest保留详情和请求；54项单测、4项定向浏览器及实际四仓库验证通过，仅前端展示调整。[范围](features/UI-12-registry-inventory.md)、[结果追加](verification/VER-UI-012-registry-inventory.md)。
+
 UI-12（DONE，已部署）：选择镜像仓库即按20条分页显示当前工作空间镜像，路径为可选子串筛选；详情/删除按行路径和摘要定位，原权限保持。278项Java、54项Node、71项浏览器及四仓库现场验证通过，仅前后端更新。[范围](features/UI-12-registry-inventory.md)、[结果](verification/VER-UI-012-registry-inventory.md)。
 
 UI-11（DONE，已部署）：应用三个操作按钮靠拢、参数卡片只显示一次编号，默认值/允许值及勾选项统一排版；54项单测、4项浏览器及18080实际验证通过，仅frontend变更。[范围](features/UI-11-application-layout.md)、[结果](verification/VER-UI-011-application-layout.md)。

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-12a（2026-09-17，DONE，已部署）：依赖UI-12，仅精简镜像列表为路径、标签/短摘要、操作；有标签不显示摘要，无标签显示前12位，完整摘要保留详情及实际请求。54项单测、4项定向浏览器及四仓库实际展示/窄屏验收通过；只更新CEA前端，无后端/DB/执行链变更。[范围](features/UI-12-registry-inventory.md)、[验证追加](verification/VER-UI-012-registry-inventory.md)。
+
 UI-12（2026-09-17，DONE，已部署）：依赖UI-09，仓库选择后直接按镜像分页，路径改为可选筛选；现有服务新增只读库存分页接口，保持权限/详情/删除。278项Java、54项Node、71项浏览器及18080四仓库131条镜像现场验收通过；仅前后端更新，无DB或执行链变化。[范围](features/UI-12-registry-inventory.md)、[验证](verification/VER-UI-012-registry-inventory.md)。
 
 UI-11（2026-09-17，DONE，已部署）：依赖现有应用/上传/构建表单，将三个入口按钮成组、参数编号提到卡片标题、默认值/允许值并排。54项单测、4项定向浏览器及18080三个入口/桌面/窄屏验收通过，仅frontend更新；不改变API/DB/执行链。[范围](features/UI-11-application-layout.md)、[验证](verification/VER-UI-011-application-layout.md)。
