@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { errorText } from '../api.js';
 import { time } from '../model.js';
 import { readCatalog } from '../no-code/document.js';
@@ -36,6 +36,38 @@ const error = ref(''),
 const usage = ref(null),
   usageError = ref('');
 const nodeUsage = (name) => usage.value?.nodes.find((row) => row.name === name)?.usage;
+const usageCards = computed(() =>
+  [
+    { key: 'cpu', label: '集群 CPU 使用率', field: 'cpuCores', percentage: 'cpuPercent' },
+    { key: 'memory', label: '集群内存使用率', field: 'memoryBytes', percentage: 'memoryPercent' },
+  ].map((card) => {
+    const value = usage.value?.[card.percentage];
+    const available = typeof value === 'number' && Number.isFinite(value) && value >= 0;
+    const nodes = usage.value?.nodes || [];
+    const complete =
+      available &&
+      nodes.length > 0 &&
+      nodes.every(
+        (node) =>
+          node.usage.status === 'AVAILABLE' &&
+          typeof node.usage[card.field] === 'number' &&
+          Number.isFinite(node.usage[card.field]),
+      );
+    const total = complete ? nodes.reduce((sum, node) => sum + node.usage[card.field], 0) : null;
+    return {
+      ...card,
+      percentage: available ? percentText(value) : '—',
+      arc: available ? Math.min(value, 100) : 0,
+      used:
+        card.key === 'cpu'
+          ? coresText(total)
+          : total === null
+            ? '—'
+            : `${(total / 1073741824).toFixed(2)} GiB`,
+      state: loading.value ? '正在采样' : available ? '已使用' : '用量不可用',
+    };
+  }),
+);
 let alive = true,
   generation = 0,
   controller;
@@ -164,10 +196,36 @@ onBeforeUnmount(() => {
     />
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="usageError" role="alert" class="error">用量不可用：{{ usageError }}</p>
-    <div v-if="usage && tab === 'nodes'" class="inspection-controls">
-      <span>集群 CPU 使用率 {{ percentText(usage.cpuPercent) }}</span
-      ><span>内存使用率 {{ percentText(usage.memoryPercent) }}</span>
-    </div>
+    <section v-if="cluster && tab === 'nodes'" class="usage-overview" aria-label="集群资源用量">
+      <article v-for="card in usageCards" :key="card.key" class="usage-card" :class="card.key">
+        <div class="usage-ring" role="img" :aria-label="`${card.label} ${card.percentage}`">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-track" cx="60" cy="60" r="50" />
+            <circle
+              v-if="card.arc > 0"
+              class="ring-value"
+              cx="60"
+              cy="60"
+              r="50"
+              pathLength="100"
+              :stroke-dasharray="`${card.arc} 100`"
+              transform="rotate(-90 60 60)"
+            />
+          </svg>
+          <strong aria-hidden="true">{{ card.percentage }}</strong>
+        </div>
+        <div class="usage-description">
+          <h2>{{ card.label }}</h2>
+          <p class="usage-amount">
+            {{ card.state }} <strong>{{ card.used }}</strong>
+          </p>
+          <p class="muted">占全部节点总容量</p>
+        </div>
+      </article>
+    </section>
+    <p v-if="cluster && tab === 'nodes'" class="usage-scope muted">
+      来源：Kubernetes 节点指标；内存为工作集，包含部分文件缓存，不等同于应用进程内存。
+    </p>
     <div v-if="loading || catalogLoading" class="empty">正在读取资源…</div>
     <div v-else-if="!cluster && !catalogError" class="empty">暂无登记集群</div>
     <section v-if="data" class="panel">
@@ -229,6 +287,85 @@ onBeforeUnmount(() => {
   </section>
 </template>
 <style scoped>
+.usage-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+.usage-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  --ring-color: #7544cf;
+}
+.usage-card.memory {
+  --ring-color: #238b87;
+}
+.usage-ring {
+  position: relative;
+  flex: 0 0 120px;
+  width: 120px;
+  height: 120px;
+}
+.usage-ring svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 10;
+}
+.ring-track {
+  stroke: #eeeaf4;
+}
+.ring-value {
+  stroke: var(--ring-color);
+}
+.usage-ring strong {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.usage-description {
+  min-width: 0;
+}
+.usage-description h2 {
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+.usage-description p {
+  margin: 6px 0 0;
+  font-size: 14px;
+}
+.usage-amount strong {
+  margin-left: 6px;
+}
+.usage-scope {
+  margin: 12px 0 20px;
+  font-size: 13px;
+}
+@media (max-width: 1050px) {
+  .usage-overview {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 420px) {
+  .usage-card {
+    padding: 18px;
+    gap: 16px;
+  }
+  .usage-ring {
+    flex-basis: 104px;
+    width: 104px;
+    height: 104px;
+  }
+}
 table[aria-label='节点'] {
   min-width: 1300px;
 }

@@ -174,7 +174,8 @@ test('node metrics remain while the container usage tab and requests are removed
   await login(page, 'viewer');
   await nav(page, '集群运行资源');
   await page.getByLabel('资源集群', { exact: true }).selectOption('runtime-edge');
-  await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
+  await expect(page.getByRole('img', { name: /集群 CPU 使用率 \d/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /集群内存使用率 \d/ })).toBeVisible();
   await expect(page.getByRole('table', { name: '节点', exact: true })).toContainText('可用');
   await expect(page.getByRole('table', { name: '节点', exact: true })).not.toContainText('javaDuration');
   await page.screenshot({ path: '.local/evidence/operations-node-usage.png', fullPage: true });
@@ -188,7 +189,7 @@ test('node metrics remain while the container usage tab and requests are removed
     await expect(page.getByRole('table', { name, exact: true })).toBeVisible();
   }
   await page.getByRole('button', { name: '刷新资源', exact: true }).click();
-  await expect(page.getByText(/集群 CPU 使用率 \d/)).toBeVisible();
+  await expect(page.getByRole('img', { name: /集群 CPU 使用率 \d/ })).toBeVisible();
   await page.setViewportSize({ width: 650, height: 900 });
   await expect(page.getByRole('tab', { name: '容器用量', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

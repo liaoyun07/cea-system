@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-15（DONE，已部署）：节点资源摘要使用CPU/内存环形图及全节点用量，保留真实百分比/不可用态和节点明细，未改变Metrics采集。56项单测、77项浏览器及CEA四集群/桌面/窄屏核验通过，仅frontend更新；已核对旧系统口径和本机共享宿主/缓存因素，不宣称内存优化。[范围](features/UI-15-resource-usage-charts.md)、[验证](verification/VER-UI-015-resource-usage-charts.md)。
+
 NAV-01b（DONE，已部署）：侧栏菜单去除装饰图标，保持醒目模块标题，用缩进、常规/选中字重及紫色选中态区分层级。56项单测、74项浏览器及18080桌面/窄屏/18入口验收通过，仅更新frontend，其余19服务与业务列表保持。[范围](features/NAV-01-proposal-navigation.md)、[验证追加](verification/VER-NAV-01-proposal-navigation.md)。
 
 UI-14（DONE，已部署）：镜像详情显示关联应用版本与服务部署，补齐分发副本关联；有应用即保护，不扫描Job状态/历史。后端完整回归夹具修正后定向复测、56项Node、74项浏览器及18080源/副本/服务实际验证通过，原数据/库存及其余18服务保持；无DB/执行链变化。[范围](features/UI-14-image-associations.md)、[验证](verification/VER-UI-014-image-associations.md)。
