@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { errorText } from '../api.js';
 import { time } from '../model.js';
+import { ingressEntryPoint, ingressRouteUrl } from './operations.js';
 const props = defineProps({ api: Function, cluster: String, refresh: Number });
 const emit = defineEmits(['pending']);
 const namespaces = ref([]),
@@ -25,27 +26,10 @@ const ports = (name) =>
   (services.value.find((s) => s.name === name)?.ports ?? []).filter((p) => p.protocol === 'TCP');
 const freshRoute = () => ({ host: '', path: '/', pathType: 'Prefix', service: '', port: '' });
 function entryPoint(row) {
-  try {
-    const value = new URL(classes.value.find((c) => c.name === row.ingressClassName)?.httpEntryPoint);
-    return value.protocol === 'http:' &&
-      !value.username &&
-      !value.password &&
-      value.pathname === '/' &&
-      !value.search &&
-      !value.hash
-      ? value.origin
-      : '';
-  } catch {
-    return '';
-  }
+  return ingressEntryPoint(row, classes.value);
 }
 function routeUrl(row, route) {
-  const entry = entryPoint(row);
-  if (!entry || route.host?.includes('*') || !route.path?.startsWith('/')) return '';
-  const url = new URL(entry);
-  if (route.host) url.hostname = route.host;
-  url.pathname = route.path;
-  return url.href;
+  return ingressRouteUrl(row, route, classes.value);
 }
 let generation = 0,
   controller;

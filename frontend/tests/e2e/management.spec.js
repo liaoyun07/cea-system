@@ -415,6 +415,8 @@ test('real registry and Kubernetes deployment create, ready, stale delete reject
   await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
   await page.getByLabel('部署名称', { exact: true }).fill(id);
   await page.getByLabel('应用版本', { exact: true }).selectOption(`${id}/v1`);
+  await page.getByText('高级配置', { exact: true }).click();
+  await page.getByLabel('自定义启动命令', { exact: true }).check();
   await page.getByLabel('启动命令 JSON', { exact: true }).fill('["/bin/sh","-c","exec sleep 3600"]');
   await page.getByRole('button', { name: '创建部署', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('部署配置已被接受', { timeout: 60000 });

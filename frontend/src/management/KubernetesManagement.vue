@@ -8,6 +8,7 @@ const props = defineProps({
   tab: String,
   workspace: String,
   refresh: Number,
+  context: Object,
 });
 const emit = defineEmits(['pending']);
 const namespaces = ref([]),
@@ -31,6 +32,7 @@ const servicePath = computed(() => `${base.value}/${encodeURIComponent(selected.
 const canCreate = computed(() => namespaces.value.find((n) => n.name === selected.value)?.phase === 'Active');
 let generation = 0,
   controller;
+let contextApplied = false;
 async function load() {
   const current = ++generation;
   controller?.abort();
@@ -44,6 +46,13 @@ async function load() {
     const values = await props.api(base.value, { signal });
     if (current !== generation) return;
     namespaces.value = values;
+    if (!contextApplied && props.context?.cluster === props.cluster && props.tab === 'services') {
+      selected.value = props.context.namespace;
+      draft.value.name = props.context.name;
+      draft.value.selector = Object.entries(props.context.selector).map(([key, value]) => ({ key, value }));
+      creating.value = true;
+      contextApplied = true;
+    }
     if (!values.some((v) => v.name === selected.value))
       selected.value = values.find((v) => v.executionDefault)?.name || values[0]?.name || '';
     if (props.tab === 'services' && selected.value) {

@@ -5,7 +5,7 @@ import { readCatalog } from '../no-code/document.js';
 import { percentText, coresText, memoryText } from './operations.js';
 import KubernetesManagement from './KubernetesManagement.vue';
 import KubernetesIngress from './KubernetesIngress.vue';
-const props = defineProps({ api: Function, workspace: String, mode: String });
+const props = defineProps({ api: Function, workspace: String, mode: String, context: Object });
 const serviceMode = props.mode === 'services';
 const tabs = serviceMode
   ? [
@@ -24,7 +24,7 @@ function pending(value) {
 }
 const refresh = ref(0);
 const clusters = ref([]),
-  cluster = ref(''),
+  cluster = ref(props.context?.cluster || ''),
   tab = ref(tabs[0][0]),
   data = ref(null);
 const error = ref(''),
@@ -183,6 +183,7 @@ onBeforeUnmount(() => {
       :cluster="cluster"
       :tab="tab"
       :workspace="workspace"
+      :context="context"
       :refresh="refresh"
       @pending="pending"
     />

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deploymentBody, deploymentDraft } from '../../src/management/catalogs.js';
+import { deploymentBody, deploymentDraft, deploymentFields } from '../../src/management/catalogs.js';
 import {
   durationText,
   deploymentTarget,
@@ -19,12 +19,50 @@ test('deployment edit roundtrip retains resource version, false/zero and readine
     command: ['server'],
     resourceVersion: '27',
     readiness: { path: '/ready', port: 8080 },
+    resources: { cpuRequest: '100m', memoryRequest: '128Mi', cpuLimit: '1', memoryLimit: '256Mi' },
   };
-  const draft = deploymentDraft('web', value);
+  const draft = deploymentDraft('web', value, { N: { type: 'INTEGER' }, FLAG: { type: 'BOOLEAN' } });
   assert.deepEqual(deploymentBody(draft), value);
   draft.readinessEnabled = false;
   assert.equal(deploymentBody(draft).readiness, null);
   assert.equal(deploymentBody(draft).resourceVersion, '27');
+});
+
+test('deployment fields preserve seven types, choices, required, false, zero and explicit empty string', () => {
+  const contract = {
+    S: { type: 'STRING', defaultValue: '' },
+    I: { type: 'INTEGER', defaultValue: 0 },
+    N: { type: 'NUMBER', defaultValue: 0.5 },
+    B: { type: 'BOOLEAN', defaultValue: false },
+    O: { type: 'OBJECT', defaultValue: { a: 1 } },
+    A: { type: 'ARRAY', defaultValue: [1] },
+    E: { type: 'SELECT', choices: ['a', 'b'], required: true, defaultValue: 'b' },
+    OPTIONAL: { type: 'STRING' },
+  };
+  const draft = {
+    application: 'http/v1',
+    replicas: 1,
+    parameters: deploymentFields(contract),
+    command: 'not parsed when default',
+    customCommand: false,
+  };
+  assert.deepEqual(deploymentBody(draft).parameters, {
+    S: '',
+    I: 0,
+    N: 0.5,
+    B: false,
+    O: { a: 1 },
+    A: [1],
+    E: 'b',
+  });
+  assert.deepEqual(deploymentBody(draft).command, []);
+  const required = deploymentFields({ choice: { type: 'SELECT', required: true, choices: ['x'] } });
+  assert.throws(() => deploymentBody({ ...draft, parameters: required }), /选择/);
+  assert.equal(deploymentFields({ new: { type: 'STRING' } }).length, 1);
+  assert.deepEqual(
+    deploymentBody({ ...draft, parameters: deploymentFields({ new: { type: 'STRING' } }) }).parameters,
+    {},
+  );
 });
 test('deployment target excludes scaling, missing measurement and failed operations', () => {
   assert.equal(durationText(null), '—');

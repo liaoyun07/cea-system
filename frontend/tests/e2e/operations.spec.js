@@ -123,8 +123,8 @@ test('deployment config edit and scale use current CAS, show real timing and pre
       .click();
     await page.getByRole('button', { name: '编辑配置', exact: true }).click();
     await expect(page.getByLabel('部署名称', { exact: true })).toBeDisabled();
-    await expect(page.getByLabel('参数值 JSON', { exact: true })).toHaveValue(/before/);
-    await page.getByLabel('参数值 JSON', { exact: true }).fill('{"LABEL":"after"}');
+    await expect(page.getByLabel('LABEL', { exact: true })).toHaveValue('before');
+    await page.getByLabel('LABEL', { exact: true }).fill('after');
     await page.getByRole('button', { name: '保存部署', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('部署配置已被接受', { timeout: 60000 });
     await expect

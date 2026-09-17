@@ -32,3 +32,27 @@ export const coresText = (value) =>
   typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(3)} 核` : '—';
 export const memoryText = (value) =>
   typeof value === 'number' && Number.isFinite(value) ? `${(value / 1048576).toFixed(1)} MiB` : '—';
+
+export function ingressEntryPoint(row, classes) {
+  try {
+    const value = new URL(classes.find((c) => c.name === row.ingressClassName)?.httpEntryPoint);
+    return value.protocol === 'http:' &&
+      !value.username &&
+      !value.password &&
+      value.pathname === '/' &&
+      !value.search &&
+      !value.hash
+      ? value.origin
+      : '';
+  } catch {
+    return '';
+  }
+}
+export function ingressRouteUrl(row, route, classes) {
+  const entry = ingressEntryPoint(row, classes);
+  if (!entry || route.host?.includes('*') || !route.path?.startsWith('/')) return '';
+  const url = new URL(entry);
+  if (route.host) url.hostname = route.host;
+  url.pathname = route.path;
+  return url.href;
+}

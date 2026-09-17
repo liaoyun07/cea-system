@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-16（2026-09-18，DONE，已部署）：依赖既有DeploymentService、应用契约及Service/Ingress API，完成七类型部署参数表单、镜像默认启动/高级命令、CPU/内存requests/limits、HTTP就绪配置、按Deployment→ReplicaSet→Pod归属的状态/退出原因，以及访问入口关联/预填跳转。无新表/执行链/日志采集/自动公网入口；保留鉴权/CAS及其它容器配置，不批量改现有部署。真实资源写入/编辑/清除/扩缩容、参数默认值/切换、实例归属、入口关联及旧流程回归通过；57项单测、80项浏览器、3项窄屏专项和实际四集群/18080核验完成。02:06已发布前后端，业务对象和其余18服务保持。[范围](features/UI-16-deployment-core.md)、[验证与修正记录](verification/VER-UI-016-deployment-core.md)。
+
 UI-15a（2026-09-18，DONE，已部署）：依赖UI-15，隐藏节点容量/可分配中的Pod上限及采样状态/时间/窗口，保留CPU/内存环形图、明细、不可用态和只读封锁调度。清理无消费者的格式函数，不改后端字段、有效性判断或节点配置；核实当前InternalIP为Docker桥接地址、maxPods沿用110默认值。56项单测、77项浏览器及四集群/窄屏核验通过，00:55仅发布frontend，原业务列表和其余19服务保持。[验证追加](verification/VER-UI-015-resource-usage-charts.md)。
 
 UI-15（2026-09-18，DONE，已部署）：依赖现有节点Metrics API，集群CPU/内存改为环形图及全节点累计用量，保留节点明细/采样状态，不改口径或增加依赖。56项单测、77项浏览器覆盖真实接口、零/满/超量/不可用、刷新/切换和窄屏；18080四集群读数逐项核对通过。旧源码与本机实测确认Metrics来源相同，当前高占比包含共享宿主和活跃文件缓存，不归因为单个应用内存；没有同期旧指标，不断言历史高低的唯一原因。仅发布frontend，原业务列表和其余19服务保持。[范围](features/UI-15-resource-usage-charts.md)、[诊断与验收](verification/VER-UI-015-resource-usage-charts.md)。

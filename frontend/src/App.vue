@@ -76,6 +76,7 @@ const session = ref(null),
   selectedFlow = ref(null),
   selectedExecution = ref(null);
 const editorTitle = ref('');
+const serviceContext = ref(null);
 const flows = ref([]),
   executions = ref([]),
   query = ref(''),
@@ -165,8 +166,9 @@ async function loadList() {
     if (generation === requestGeneration) busy.value = false;
   }
 }
-function navigate(target) {
+function navigate(target, context = null) {
   if (busy.value || !mayLeave()) return;
+  serviceContext.value = context;
   page.value = target;
   pageEpoch.value++;
   selectedFlow.value = null;
@@ -323,6 +325,7 @@ async function removeRow(row) {
         :api="session.api"
         :mode="page === 'services' ? 'services' : 'resources'"
         :workspace="session.namespace"
+        :context="serviceContext"
         @pending="pending = $event"
       />
       <DistributionPage v-else-if="page === 'distributions'" :key="pageEpoch" :api="session.api" />
@@ -338,6 +341,7 @@ async function removeRow(row) {
         :api="session.api"
         @dirty="dirty = $event"
         @pending="pending = $event"
+        @access="navigate('services', $event)"
       />
       <UsersPage
         v-else-if="page === 'users' || page === 'profile'"

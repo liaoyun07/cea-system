@@ -25,6 +25,10 @@ public final class DeploymentController {
     public DeploymentService.Configuration configuration(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
         return deployments.configuration(identities.actor(principal.getName()),namespace,clusterId,name);
     }
+    @GetMapping("/{name}/runtime")
+    public DeploymentService.RuntimeView runtime(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name) {
+        return deployments.runtime(identities.actor(principal.getName()),namespace,clusterId,name);
+    }
     @PatchMapping("/{name}/scale")
     public DeploymentService.View scale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String name,@RequestBody DeploymentService.ScaleRequest request) {
         return deployments.scale(identities.actor(principal.getName()),namespace,clusterId,name,request);

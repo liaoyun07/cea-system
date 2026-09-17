@@ -125,18 +125,22 @@ try {
   process.env.BACKEND_URL = `http://127.0.0.1:${backendPort}`;
   web = await preview({ root, preview: { port: webPort, host: '127.0.0.1', strictPort: true } });
   console.log(`Isolated UI test: http://127.0.0.1:${webPort} (new MySQL + packaged backend JAR)`);
-  child = spawn(process.execPath, [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test'], {
-    windowsHide: true,
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      CEA_E2E_URL: `http://127.0.0.1:${webPort}`,
-      CEA_E2E_USER: 'owner',
-      CEA_E2E_PASSWORD: apiPass,
-      CEA_E2E_ARCHIVE: runtime.archive,
-      CEA_E2E_INGRESS: runtime.ingressUrl,
+  child = spawn(
+    process.execPath,
+    [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test', ...process.argv.slice(2)],
+    {
+      windowsHide: true,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        CEA_E2E_URL: `http://127.0.0.1:${webPort}`,
+        CEA_E2E_USER: 'owner',
+        CEA_E2E_PASSWORD: apiPass,
+        CEA_E2E_ARCHIVE: runtime.archive,
+        CEA_E2E_INGRESS: runtime.ingressUrl,
+      },
     },
-  });
+  );
   process.exitCode = await new Promise((r, j) => {
     child.on('exit', r);
     child.on('error', j);

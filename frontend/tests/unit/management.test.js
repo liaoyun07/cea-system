@@ -137,8 +137,12 @@ test('deployment create is an explicit full request, not a guessed scale update'
   const draft = {
     application: 'server/v1',
     replicas: 0,
-    parameters: '{"N":0,"FLAG":false}',
+    parameters: [
+      { name: 'N', type: 'INTEGER', provided: true, value: '0' },
+      { name: 'FLAG', type: 'BOOLEAN', provided: true, value: 'false' },
+    ],
     command: '["/bin/sh", "-c", "sleep 60"]',
+    customCommand: true,
   };
   assert.deepEqual(deploymentBody(draft), {
     applicationId: 'server',
@@ -150,5 +154,12 @@ test('deployment create is an explicit full request, not a guessed scale update'
   });
   assert.equal(Object.hasOwn(deploymentBody(draft), 'resourceVersion'), false);
   assert.throws(() => deploymentBody({ ...draft, command: '[1]' }), /字符串/);
-  assert.throws(() => deploymentBody({ ...draft, parameters: '[]' }), /对象/);
+  assert.throws(
+    () =>
+      deploymentBody({
+        ...draft,
+        parameters: [{ name: 'object', type: 'OBJECT', provided: true, value: '[]' }],
+      }),
+    /类型/,
+  );
 });

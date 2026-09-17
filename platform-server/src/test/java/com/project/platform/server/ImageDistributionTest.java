@@ -507,18 +507,20 @@ class ImageDistributionTest {
                 "ITEMS",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.ARRAY,true,Arrays.asList(1,true,null),List.of(),null),
                 "MODEL",new ApplicationVersion.Parameter(ApplicationVersion.ValueType.SELECT,true,"mlp",List.of("mlp","cnn"),null))));
         var command=List.of("python","-c","import os,json,http.server; config=json.loads(os.environ['CONFIG']); assert config == {'batch':1000,'text':'中文 \\\"quoted\\\"'}; assert type(config['batch']) is int; assert json.loads(os.environ['ITEMS']) == [1,True,None]; assert os.environ['MODEL']=='mlp'; http.server.test(HandlerClass=http.server.SimpleHTTPRequestHandler,port=8080)");
-        var initial=new DeploymentService.Request("ops-http","v1",1,Map.of(),command,null,new DeploymentService.Readiness("/",8080));
+        var initial=new DeploymentService.Request("ops-http","v1",1,Map.of(),command,null,new DeploymentService.Readiness("/",8080),
+                new DeploymentService.Resources("100m","64Mi","1","256Mi"));
         deployments().put(actor,"lab","edge","ops-http",initial);
         try {
             await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
             var creation=deployments().get(actor,"lab","edge","ops-http").latestOperation();
             assertNotNull(creation.durationMs());assertTrue(creation.durationMs()>0);assertEquals("CREATE",creation.operation());
+            assertEquals("100m",deployments().configuration(actor,"lab","edge","ops-http").resources().cpuRequest());
             // Simulate an operator-added limit/annotation/environment. A UI edit must retain them.
             var actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
             actual.getMetadata().getAnnotations().put("operator-note","keep");
             var container=actual.getSpec().getTemplate().getSpec().getContainers().getFirst();
             container.getEnv().add(new io.fabric8.kubernetes.api.model.EnvVar("UNMANAGED","keep",null));
-            container.setResources(new io.fabric8.kubernetes.api.model.ResourceRequirementsBuilder().addToLimits("memory",new io.fabric8.kubernetes.api.model.Quantity("128Mi")).build());
+            container.getResources().getLimits().put("ephemeral-storage",new io.fabric8.kubernetes.api.model.Quantity("1Gi"));
             admin.apps().deployments().inNamespace("s4-test").resource(actual).replace();
             await().atMost(Duration.ofSeconds(60)).untilAsserted(()->{
                 var observed=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
@@ -527,11 +529,13 @@ class ImageDistributionTest {
             });
             var config=deployments().configuration(actor,"lab","edge","ops-http");assertEquals(0L,config.parameters().get("COUNT"));
             assertEquals(ApplicationContractValidator.parameters(applications().get(actor,"lab","ops-http","v1"),Map.of()),config.parameters());
-            var edited=deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness()));
+            var edited=deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(config.applicationId(),config.version(),config.replicas(),Map.of("COUNT",2),config.command(),config.resourceVersion(),config.readiness(),
+                    new DeploymentService.Resources("150m","64Mi","1","128Mi")));
             assertEquals("UPDATE",edited.latestOperation().operation());
             actual=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get();
             assertEquals("keep",actual.getMetadata().getAnnotations().get("operator-note"));
             assertEquals("128Mi",actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getResources().getLimits().get("memory").toString());
+            assertEquals("1Gi",actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getResources().getLimits().get("ephemeral-storage").toString());
             assertTrue(actual.getSpec().getTemplate().getSpec().getContainers().getFirst().getEnv().stream().anyMatch(e->"UNMANAGED".equals(e.getName()) && "keep".equals(e.getValue())));
             String staleRevision=config.resourceVersion();
             assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","ops-http",new DeploymentService.ScaleRequest(0,staleRevision)));
@@ -545,7 +549,35 @@ class ImageDistributionTest {
             assertEquals(preparations,distribution().history(actor,"lab","ops-http","v1",100,0).size());
             await().atMost(Duration.ofSeconds(90)).untilAsserted(()->assertEquals("SUCCEEDED",deployments().get(actor,"lab","edge","ops-http").latestOperation().state()));
             assertNull(deployments().get(actor,"lab","edge","ops-http").latestOperation().durationMs());
+            assertEquals("150m",deployments().configuration(actor,"lab","edge","ops-http").resources().cpuRequest());
+            var stopped=deployments().configuration(actor,"lab","edge","ops-http");
+            deployments().put(actor,"lab","edge","ops-http",new DeploymentService.Request(stopped.applicationId(),stopped.version(),0,stopped.parameters(),stopped.command(),stopped.resourceVersion(),stopped.readiness(),new DeploymentService.Resources(null,null,null,null)));
+            var limits=admin.apps().deployments().inNamespace("s4-test").withName("ops-http").get().getSpec().getTemplate().getSpec().getContainers().getFirst().getResources();
+            assertFalse(limits.getLimits().containsKey("memory"));assertEquals("1Gi",limits.getLimits().get("ephemeral-storage").toString());
         } finally { admin.apps().deployments().inNamespace("s4-test").withName("ops-http").delete(); }
+    }
+    @Test void deploymentRuntimeShowsActualFailuresAndExcludesMatchingJobPods() {
+        deployments().put(actor,"lab","edge","runtime-failure",request(1,null,List.of("/bin/sh","-c","exit 17")));
+        try {
+            var deployment=admin.apps().deployments().inNamespace("s4-test").withName("runtime-failure").get();
+            var job=new io.fabric8.kubernetes.api.model.batch.v1.JobBuilder().withNewMetadata().withName("runtime-unrelated").endMetadata()
+                    .withNewSpec().withNewTemplate().withNewMetadata().withLabels(deployment.getSpec().getTemplate().getMetadata().getLabels()).endMetadata()
+                    .withNewSpec().withRestartPolicy("Never").addNewContainer().withName("unrelated").withImage(deployment.getSpec().getTemplate().getSpec().getContainers().getFirst().getImage())
+                    .withCommand("/bin/sh","-c","exec sleep 300").endContainer().endSpec().endTemplate().endSpec().build();
+            admin.batch().v1().jobs().inNamespace("s4-test").resource(job).create();
+            await().atMost(Duration.ofSeconds(90)).untilAsserted(()-> {
+                assertFalse(admin.pods().inNamespace("s4-test").withLabel("job-name","runtime-unrelated").list().getItems().isEmpty());
+                var result=deployments().runtime(new Actor("viewer",Set.of("lab"),Set.of(Action.READ)),"lab","edge","runtime-failure");
+                assertEquals("s4-test",result.namespace());assertEquals(1,result.pods().size());
+                assertFalse(result.pods().getFirst().ready());
+                assertTrue(result.pods().getFirst().reasons().stream().anyMatch(r->r.contains("exit 17")),result.pods().toString());
+                assertFalse(result.pods().getFirst().name().startsWith("runtime-unrelated"));
+            });
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->deployments().runtime(actor,"other","edge","runtime-failure"));
+        } finally {
+            admin.apps().deployments().inNamespace("s4-test").withName("runtime-failure").delete();
+            admin.batch().v1().jobs().inNamespace("s4-test").withName("runtime-unrelated").delete();
+        }
     }
     @Test void metadataOnlyApplicationVersionChangeIsNotADeploymentTimingSample() {
         var contract=Map.<String,ApplicationVersion.Parameter>of();
@@ -651,6 +683,8 @@ class ImageDistributionTest {
         admin.apps().deployments().inNamespace("s4-test").withName("broken").delete();
     }
     @Test void deploymentRejectsBadParametersUnconfiguredClusterAndReadOnlyActor() {
+        for(var invalid:List.of(new DeploymentService.Resources("2",null,"1",null),new DeploymentService.Resources(null,"-1Mi",null,null),new DeploymentService.Resources("bad",null,null,null)))
+            assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",0,Map.of(),List.of(),null,null,invalid)));
         assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",null,Map.of(),List.of(),null,null)));
         assertThrows(ApplicationException.class,()->deployments().scale(actor,"lab","edge","invalid",new DeploymentService.ScaleRequest(null,"1")));
         assertThrows(ApplicationException.class,()->deployments().put(actor,"lab","edge","invalid",new DeploymentService.Request("service","v1",1,Map.of("UNKNOWN",1),List.of(),null,null)));

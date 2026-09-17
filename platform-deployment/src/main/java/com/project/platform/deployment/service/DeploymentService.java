@@ -20,13 +20,19 @@ public final class DeploymentService {
     private static final String OWNER="cea-system";
     private static final String PREFIX="cea-system/";
     public record Readiness(String path,Integer port) {}
+    public record Resources(String cpuRequest,String memoryRequest,String cpuLimit,String memoryLimit) {}
     public record Request(String applicationId,String version,Integer replicas,Map<String,Object> parameters,
-                          List<String> command,String resourceVersion,Readiness readiness) {
+                          List<String> command,String resourceVersion,Readiness readiness,Resources resources) {
         public Request { parameters=parameters==null?Map.of():Map.copyOf(parameters);command=command==null?List.of():List.copyOf(command); }
+        public Request(String applicationId,String version,Integer replicas,Map<String,Object> parameters,List<String> command,String resourceVersion,Readiness readiness) {
+            this(applicationId,version,replicas,parameters,command,resourceVersion,readiness,null);
+        }
     }
     public record ScaleRequest(Integer replicas,String resourceVersion) {}
     public record Configuration(String applicationId,String version,int replicas,Map<String,Object> parameters,
-                                List<String> command,String resourceVersion,Readiness readiness) {}
+                                List<String> command,String resourceVersion,Readiness readiness,Resources resources) {}
+    public record PodInstance(String name,String phase,boolean ready,String node,int restarts,List<String> reasons) {}
+    public record RuntimeView(String namespace,Map<String,String> selector,Map<String,String> labels,List<PodInstance> pods) {}
     public record DeploymentRecord(String id,String applicationId,String version,String operation,int targetReplicas,
                                    String state,Instant startedAt,Instant finishedAt,Long durationMs,String error) {}
     public record View(String name,String clusterId,String applicationId,String version,String image,String resourceVersion,
@@ -52,6 +58,7 @@ public final class DeploymentService {
         if(request==null || request.replicas()==null || request.replicas()<0 || request.replicas()>100 || request.command().size()>100
                 || request.command().stream().anyMatch(v->v==null || v.length()>8192))throw ApplicationException.invalid("invalid deployment request");
         readiness(request.readiness());
+        validateResources(request.resources());
         var app=applications.get(actor,namespace,request.applicationId(),request.version());
         var parameters=ApplicationContractValidator.parameters(app,request.parameters());
         if(!resources.cluster(actor,namespace,clusterId).enabled())throw ApplicationException.invalid("cluster is disabled");
@@ -64,7 +71,8 @@ public final class DeploymentService {
             Configuration current=existing==null?null:configuration(actor,namespace,existing);
             if(current!=null && current.applicationId().equals(app.applicationId()) && current.version().equals(app.version())
                     && current.parameters().equals(parameters) && current.command().equals(request.command())
-                    && Objects.equals(current.readiness(),request.readiness()))
+                    && Objects.equals(current.readiness(),request.readiness())
+                    && (request.resources()==null || Objects.equals(current.resources(),normalized(request.resources()))))
                 return scale(client,namespace,clusterId,existing,request.replicas());
             String id=begin(namespace,clusterId,name,app.applicationId(),app.version(),existing==null?"CREATE":"UPDATE",request.replicas());
             boolean submitted=false;
@@ -82,6 +90,7 @@ public final class DeploymentService {
                 parameters.forEach((key,value)->env.add(new EnvVar(key,ApplicationContractValidator.environmentValue(value),null)));container.setEnv(env);
                 if(current==null || !Objects.equals(current.readiness(),request.readiness()))
                     container.setReadinessProbe(probe(request.readiness(),container.getReadinessProbe()));
+                if(request.resources()!=null)applyResources(container,request.resources());
                 submitted=true;
                 Deployment saved=existing==null?client.apps().deployments().resource(desired).create():client.apps().deployments().resource(desired).lockResourceVersion(request.resourceVersion()).replace();
                 records.submitted(id,saved.getMetadata().getUid(),saved.getMetadata().getGeneration(),clock.instant(),
@@ -153,7 +162,85 @@ public final class DeploymentService {
             readiness=new Readiness(http.getPath()==null?"/":http.getPath(),http.getPort().getIntVal());
         }
         return new Configuration(app.applicationId(),app.version(),value.getSpec().getReplicas(),parameters,
-                Optional.ofNullable(container.getCommand()).orElse(List.of()),value.getMetadata().getResourceVersion(),readiness);
+                Optional.ofNullable(container.getCommand()).orElse(List.of()),value.getMetadata().getResourceVersion(),readiness,resources(container));
+    }
+    /** Read only the Pods owned by this Deployment's ReplicaSets, including an old rolling revision. */
+    public RuntimeView runtime(Actor actor,String namespace,String clusterId,String name) {
+        access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
+        try(var client=connections.open(namespace,clusterId)) {
+            var deployment=required(client,namespace,name);
+            var selector=deployment.getSpec().getSelector().getMatchLabels();
+            var replicaSets=new HashSet<String>();
+            client.apps().replicaSets().withLabels(selector).list().getItems().stream()
+                    .filter(rs->ownedBy(rs.getMetadata(),deployment.getMetadata().getUid()))
+                    .forEach(rs->replicaSets.add(rs.getMetadata().getUid()));
+            var pods=client.pods().withLabels(selector).list().getItems().stream()
+                    .filter(p->replicaSets.stream().anyMatch(uid->ownedBy(p.getMetadata(),uid)))
+                    .sorted(Comparator.comparing(p->p.getMetadata().getName())).map(DeploymentService::podInstance).toList();
+            return new RuntimeView(client.getNamespace(),selector,deployment.getSpec().getTemplate().getMetadata().getLabels(),pods);
+        }
+    }
+    private static boolean ownedBy(ObjectMeta meta,String uid) {
+        return Optional.ofNullable(meta.getOwnerReferences()).orElse(List.of()).stream()
+                .anyMatch(owner->Boolean.TRUE.equals(owner.getController()) && uid.equals(owner.getUid()));
+    }
+    private static PodInstance podInstance(Pod pod) {
+        var status=pod.getStatus();var reasons=new LinkedHashSet<String>();int restarts=0;boolean ready=false;
+        if(status!=null) {
+            if(status.getReason()!=null)reasons.add(status.getReason()+": "+Objects.toString(status.getMessage(),""));
+            for(var condition:Optional.ofNullable(status.getConditions()).orElse(List.of())) {
+                if("Ready".equals(condition.getType()) && "True".equals(condition.getStatus()))ready=true;
+                if("False".equals(condition.getStatus()) && condition.getReason()!=null)
+                    reasons.add(condition.getReason()+": "+Objects.toString(condition.getMessage(),""));
+            }
+            var containers=new ArrayList<ContainerStatus>(Optional.ofNullable(status.getInitContainerStatuses()).orElse(List.of()));
+            containers.addAll(Optional.ofNullable(status.getContainerStatuses()).orElse(List.of()));
+            for(var c:containers) {
+                restarts+=c.getRestartCount()==null?0:c.getRestartCount();
+                var state=c.getState();
+                if(state!=null && state.getWaiting()!=null)reasons.add(c.getName()+": "+state.getWaiting().getReason()+" "+Objects.toString(state.getWaiting().getMessage(),""));
+                var ended=state!=null && state.getTerminated()!=null?state.getTerminated():c.getLastState()==null?null:c.getLastState().getTerminated();
+                if(ended!=null && ended.getExitCode()!=null && ended.getExitCode()!=0)
+                    reasons.add(c.getName()+": "+Objects.toString(ended.getReason(),"Exited")+" (exit "+ended.getExitCode()+") "+Objects.toString(ended.getMessage(),""));
+            }
+        }
+        return new PodInstance(pod.getMetadata().getName(),pod.getMetadata().getDeletionTimestamp()!=null?"Terminating":status==null?"Pending":status.getPhase(),
+                ready,pod.getSpec().getNodeName(),restarts,List.copyOf(reasons));
+    }
+    private static String quantity(String value) { return value==null || value.isBlank()?null:value.trim(); }
+    private static Resources normalized(Resources value) {
+        return new Resources(quantity(value.cpuRequest()),quantity(value.memoryRequest()),quantity(value.cpuLimit()),quantity(value.memoryLimit()));
+    }
+    private static void validateResources(Resources value) {
+        if(value==null)return;var v=normalized(value);
+        resourcePair("CPU",v.cpuRequest(),v.cpuLimit());resourcePair("memory",v.memoryRequest(),v.memoryLimit());
+    }
+    private static void resourcePair(String name,String request,String limit) {
+        try {
+            var r=request==null?null:Quantity.getAmountInBytes(new Quantity(request));
+            var l=limit==null?null:Quantity.getAmountInBytes(new Quantity(limit));
+            if((r!=null && r.signum()<=0) || (l!=null && l.signum()<=0) || (r!=null && l!=null && r.compareTo(l)>0))
+                throw new IllegalArgumentException();
+        } catch(RuntimeException ex) { throw ApplicationException.invalid(name+" quantities must be positive and request must not exceed limit"); }
+    }
+    private static Resources resources(Container container) {
+        var r=container.getResources();
+        return new Resources(resourceValue(r==null?null:r.getRequests(),"cpu"),resourceValue(r==null?null:r.getRequests(),"memory"),
+                resourceValue(r==null?null:r.getLimits(),"cpu"),resourceValue(r==null?null:r.getLimits(),"memory"));
+    }
+    private static String resourceValue(Map<String,Quantity> values,String key) {
+        return values==null || values.get(key)==null?null:values.get(key).toString();
+    }
+    private static void applyResources(Container container,Resources value) {
+        var v=normalized(value);var r=container.getResources()==null?new ResourceRequirements():container.getResources();
+        r.setRequests(resourceMap(r.getRequests(),v.cpuRequest(),v.memoryRequest()));
+        r.setLimits(resourceMap(r.getLimits(),v.cpuLimit(),v.memoryLimit()));container.setResources(r);
+    }
+    private static Map<String,Quantity> resourceMap(Map<String,Quantity> original,String cpu,String memory) {
+        var values=new HashMap<String,Quantity>(original==null?Map.of():original);
+        if(cpu==null)values.remove("cpu");else values.put("cpu",new Quantity(cpu));
+        if(memory==null)values.remove("memory");else values.put("memory",new Quantity(memory));
+        return values;
     }
     public List<DeploymentRecord> history(Actor actor,String namespace,String clusterId,String name,int limit,int offset) {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);

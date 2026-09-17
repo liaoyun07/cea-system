@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-16（DONE，已部署）：常驻部署按七类型应用契约生成参数表单，默认镜像启动配置/高级自定义命令，补CPU/内存申请与上限、HTTP就绪检查排版；详情增加真实Pod状态/退出原因及Service/Ingress关联和预填跳转。后端回归与契约复测、57项单测、80项浏览器及窄屏专项/现场核验通过；仅发布前后端，原业务和其余18服务保持，无DB/执行链变化。[范围](features/UI-16-deployment-core.md)、[契约](contracts/ui16-deployment-core.md)、[验证](verification/VER-UI-016-deployment-core.md)。
+
 UI-15a（DONE，已部署）：节点表隐藏Pod上限与采样状态/时间/窗口，保留CPU/内存及不可用态，不改指标/配置和只读封锁调度。56项单测、77项浏览器与四集群/窄屏核验通过，仅发布frontend。[范围](features/UI-15-resource-usage-charts.md)、[验证追加](verification/VER-UI-015-resource-usage-charts.md)。
 
 UI-15（DONE，已部署）：节点资源摘要使用CPU/内存环形图及全节点用量，保留真实百分比/不可用态和节点明细，未改变Metrics采集。56项单测、77项浏览器及CEA四集群/桌面/窄屏核验通过，仅frontend更新；已核对旧系统口径和本机共享宿主/缓存因素，不宣称内存优化。[范围](features/UI-15-resource-usage-charts.md)、[验证](verification/VER-UI-015-resource-usage-charts.md)。

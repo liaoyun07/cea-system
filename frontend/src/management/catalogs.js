@@ -1,4 +1,5 @@
 import { parseJsonValue } from '../no-code/document.js';
+import { makeFields, inputValues } from '../model.js';
 
 export const applicationParameterTypes = [
   'STRING',
@@ -231,10 +232,11 @@ export function requestBody(kind, draft) {
   }
 }
 export function deploymentBody(draft) {
-  const parameters = parseJsonValue(draft.parameters);
-  const command = parseJsonValue(draft.command);
-  if (!parameters || Array.isArray(parameters) || typeof parameters !== 'object')
-    throw new Error('参数值必须是 JSON 对象。');
+  for (const field of draft.parameters) {
+    if (field.required && !field.provided) throw new Error(`${field.name}：必填参数`);
+  }
+  const parameters = inputValues(draft.parameters);
+  const command = draft.customCommand ? parseJsonValue(draft.command) : [];
   if (!Array.isArray(command) || command.some((v) => typeof v !== 'string'))
     throw new Error('启动命令必须是字符串 JSON 数组。');
   const [applicationId, version] = draft.application.split('/');
@@ -245,19 +247,40 @@ export function deploymentBody(draft) {
     replicas: draft.replicas,
     parameters,
     command,
+    ...(draft.resources ? { resources: draft.resources } : {}),
     ...(draft.resourceVersion ? { resourceVersion: draft.resourceVersion } : {}),
     ...(draft.readinessEnabled
       ? { readiness: { path: draft.readinessPath, port: draft.readinessPort } }
       : { readiness: null }),
   };
 }
-export function deploymentDraft(name, value) {
+export function deploymentFields(contract = {}, values = {}) {
+  return makeFields(
+    Object.fromEntries(
+      Object.entries(contract).map(([name, field]) => [
+        name,
+        {
+          ...field,
+          values: field.choices,
+          defaultValue: Object.hasOwn(values, name) ? values[name] : field.defaultValue,
+        },
+      ]),
+    ),
+  ).map((field) => ({
+    ...field,
+    provided: field.required || field.provided,
+    value: field.type === 'BOOLEAN' && field.value === '' ? 'false' : field.value,
+  }));
+}
+export function deploymentDraft(name, value, contract = {}) {
   return {
     name,
     application: `${value.applicationId}/${value.version}`,
     replicas: value.replicas,
-    parameters: JSON.stringify(value.parameters, null, 2),
+    parameters: deploymentFields(contract, value.parameters),
     command: JSON.stringify(value.command, null, 2),
+    customCommand: !!value.command?.length,
+    resources: value.resources || { cpuRequest: '', memoryRequest: '', cpuLimit: '', memoryLimit: '' },
     resourceVersion: value.resourceVersion,
     readinessEnabled: !!value.readiness,
     readinessPath: value.readiness?.path || '/',

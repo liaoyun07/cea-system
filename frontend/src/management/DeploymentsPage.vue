@@ -2,11 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { errorText } from '../api.js';
 import { readCatalog } from '../no-code/document.js';
-import { deploymentBody, deploymentDraft, enc } from './catalogs.js';
+import { deploymentBody, deploymentDraft, deploymentFields, enc } from './catalogs.js';
+import DeploymentParameters from './DeploymentParameters.vue';
 import { time } from '../model.js';
-import { durationText, deploymentTarget, operationName, stateName } from './operations.js';
+import { durationText, deploymentTarget, operationName, stateName, ingressRouteUrl } from './operations.js';
 const props = defineProps({ api: Function });
-const emit = defineEmits(['dirty', 'pending']);
+const emit = defineEmits(['dirty', 'pending', 'access']);
 const clusters = ref([]),
   apps = ref([]),
   cluster = ref(''),
@@ -20,6 +21,12 @@ const busy = ref(false),
   catalogsLoaded = ref(false),
   error = ref(''),
   success = ref('');
+const runtime = ref(null),
+  runtimeError = ref(''),
+  accessError = ref(''),
+  services = ref([]),
+  ingresses = ref([]),
+  ingressClasses = ref([]);
 const abort = new AbortController();
 const history = ref([]),
   historyOffset = ref(0),
@@ -74,6 +81,7 @@ async function catalogs() {
 async function list() {
   rows.value = [];
   selected.value = null;
+  runtime.value = null;
   loaded.value = false;
   if (!cluster.value) return;
   const result = await api(path());
@@ -87,8 +95,10 @@ function create() {
     name: '',
     application: '',
     replicas: 1,
-    parameters: '{}',
+    parameters: [],
     command: '[]',
+    customCommand: false,
+    resources: { cpuRequest: '', memoryRequest: '', cpuLimit: '', memoryLimit: '' },
     readinessEnabled: false,
     readinessPath: '/',
     readinessPort: 8080,
@@ -124,6 +134,7 @@ async function save() {
       historyOffset.value = 0;
       success.value = '部署配置已被接受；是否就绪以实际状态为准。';
       await loadHistory();
+      await loadRuntime();
     }
   }, true);
 }
@@ -135,6 +146,7 @@ async function detail(row) {
       scaleReplicas.value = result.replicas;
       historyOffset.value = 0;
       await loadHistory();
+      await loadRuntime();
     }
   });
 }
@@ -142,11 +154,60 @@ async function loadHistory() {
   const result = await api(`${path(selected.value.name)}/history?limit=20&offset=${historyOffset.value}`);
   if (alive) history.value = result;
 }
+function changeApplication() {
+  draft.value.parameters = deploymentFields(app.value?.parameters);
+}
+async function loadRuntime() {
+  runtime.value = null;
+  runtimeError.value = '';
+  accessError.value = '';
+  services.value = [];
+  ingresses.value = [];
+  try {
+    const value = await api(`${path(selected.value.name)}/runtime`);
+    if (!alive) return;
+    runtime.value = value;
+    const scope = `/clusters/${enc(cluster.value)}/kubernetes/namespaces/${enc(value.namespace)}`;
+    try {
+      const [allServices, allIngresses, classes] = await Promise.all([
+        api(`${scope}/services`),
+        api(`${scope}/ingresses`),
+        api(`/clusters/${enc(cluster.value)}/kubernetes/ingress-classes`),
+      ]);
+      if (!alive) return;
+      services.value = allServices.filter(
+        (s) =>
+          Object.keys(s.selector || {}).length &&
+          Object.entries(s.selector).every(([key, v]) => value.labels[key] === v),
+      );
+      const names = new Set(services.value.map((s) => s.name));
+      ingresses.value = allIngresses
+        .map((i) => ({ ...i, routes: i.routes.filter((r) => names.has(r.service)) }))
+        .filter((i) => i.routes.length);
+      ingressClasses.value = classes;
+    } catch (e) {
+      if (alive) accessError.value = errorText(e);
+    }
+  } catch (e) {
+    if (alive) runtimeError.value = errorText(e);
+  }
+}
+function configureAccess() {
+  emit('access', {
+    cluster: cluster.value,
+    namespace: runtime.value.namespace,
+    name: selected.value.name,
+    selector: runtime.value.selector,
+  });
+}
 async function edit() {
   await action(async () => {
     const result = await api(`${path(selected.value.name)}/configuration`);
     if (!alive) return;
-    draft.value = deploymentDraft(selected.value.name, result);
+    const contract = apps.value.find(
+      (a) => a.applicationId === result.applicationId && a.version === result.version,
+    )?.parameters;
+    draft.value = deploymentDraft(selected.value.name, result, contract);
     baseline.value = JSON.stringify(draft.value);
   });
 }
@@ -160,6 +221,7 @@ async function scale() {
     selected.value = result;
     historyOffset.value = 0;
     await loadHistory();
+    await loadRuntime();
     success.value = '副本配置已提交';
   }, true);
 }
@@ -237,7 +299,12 @@ onMounted(() => action(catalogs));
               placeholder="小写字母、数字和连字符"
           /></label>
           <label
-            >应用版本<select v-model="draft.application" aria-label="应用版本" required>
+            >应用版本<select
+              v-model="draft.application"
+              aria-label="应用版本"
+              required
+              @change="changeApplication"
+            >
               <option value="" disabled>选择已登记版本</option>
               <option
                 v-for="a in apps"
@@ -251,13 +318,36 @@ onMounted(() => action(catalogs));
           <label
             >副本数<input type="number" v-model.number="draft.replicas" required min="0" max="100" step="1"
           /></label>
-          <label class="span-2"
-            >参数值 JSON<textarea v-model="draft.parameters" rows="4" spellcheck="false" required />
-          </label>
-          <label class="checkbox-row"
+        </div>
+        <section class="deployment-section">
+          <h3>应用参数</h3>
+          <DeploymentParameters v-if="app" :fields="draft.parameters" />
+          <p v-else class="muted">选择应用版本后填写参数。</p>
+        </section>
+        <section class="deployment-section">
+          <h3>每个副本的资源</h3>
+          <div class="form-grid">
+            <label
+              >CPU 申请量<input
+                v-model="draft.resources.cpuRequest"
+                placeholder="例如 500m 或 0.5 核（填写数值）"
+            /></label>
+            <label>CPU 上限<input v-model="draft.resources.cpuLimit" placeholder="例如 1（核）" /></label>
+            <label
+              >内存申请量<input v-model="draft.resources.memoryRequest" placeholder="例如 256Mi"
+            /></label>
+            <label
+              >内存上限<input v-model="draft.resources.memoryLimit" placeholder="例如 512Mi 或 1Gi"
+            /></label>
+          </div>
+          <p class="muted">留空不显式设置；申请量用于调度，上限用于约束用量。</p>
+        </section>
+        <section class="deployment-section">
+          <h3>健康检查</h3>
+          <label class="probe-toggle"
             ><input type="checkbox" v-model="draft.readinessEnabled" />HTTP 就绪探针</label
           >
-          <template v-if="draft.readinessEnabled">
+          <div v-if="draft.readinessEnabled" class="form-grid">
             <label>就绪路径<input v-model="draft.readinessPath" required pattern="/.*" /></label>
             <label
               >就绪端口<input
@@ -268,8 +358,22 @@ onMounted(() => action(catalogs));
                 max="65535"
                 step="1"
             /></label>
-          </template>
-          <label class="span-2"
+          </div>
+          <p class="muted">
+            {{
+              draft.readinessEnabled
+                ? '检查容器内部的 HTTP 接口，不会创建访问入口；路径必须由程序实际提供。'
+                : '未启用时，容器就绪不代表业务接口已通过检查。'
+            }}
+          </p>
+        </section>
+        <details class="deployment-section" :open="draft.customCommand || undefined">
+          <summary>高级配置</summary>
+          <label class="probe-toggle"
+            ><input type="checkbox" v-model="draft.customCommand" />自定义启动命令</label
+          >
+          <p v-if="!draft.customCommand" class="muted">使用镜像默认启动配置。</p>
+          <label class="span-2" v-if="draft.customCommand"
             >启动命令 JSON<textarea
               v-model="draft.command"
               aria-label="启动命令 JSON"
@@ -278,10 +382,6 @@ onMounted(() => action(catalogs));
               required
             />
           </label>
-        </div>
-        <details v-if="app">
-          <summary>所选版本的参数契约</summary>
-          <pre>{{ JSON.stringify(app.parameters, null, 2) }}</pre>
         </details>
         <button class="primary" type="submit">
           {{ writing ? '正在准备镜像并提交…' : draft.resourceVersion ? '保存部署' : '创建部署' }}
@@ -329,6 +429,78 @@ onMounted(() => action(catalogs));
         /></label>
         <button type="submit" :disabled="busy || scaleReplicas === selected.replicas">应用副本数</button>
       </form>
+      <section class="deployment-section">
+        <h3>运行实例</h3>
+        <p v-if="runtimeError" class="notice error" role="alert">{{ runtimeError }}</p>
+        <div v-else-if="runtime" class="table-wrap">
+          <table aria-label="部署实例">
+            <thead>
+              <tr>
+                <th>Pod</th>
+                <th>状态</th>
+                <th>就绪</th>
+                <th>节点</th>
+                <th>重启次数</th>
+                <th>异常 / 最近退出原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="pod in runtime.pods" :key="pod.name">
+                <td>{{ pod.name }}</td>
+                <td>{{ pod.phase }}</td>
+                <td>{{ pod.ready ? '是' : '否' }}</td>
+                <td>{{ pod.node || '—' }}</td>
+                <td>{{ pod.restarts }}</td>
+                <td>
+                  <div v-for="reason in pod.reasons" :key="reason">{{ reason }}</div>
+                  <span v-if="!pod.reasons.length">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="!runtime.pods.length" class="muted">当前没有此部署的实例。</p>
+        </div>
+      </section>
+      <section class="deployment-section">
+        <div class="section-heading">
+          <h3>访问入口</h3>
+          <button :disabled="busy || !runtime" @click="configureAccess">配置访问入口</button>
+        </div>
+        <p v-if="accessError" class="notice error" role="alert">{{ accessError }}</p>
+        <template v-else-if="runtime">
+          <div v-for="service in services" :key="service.name" class="access-item">
+            <strong>{{ service.name }}</strong> · {{ service.type }}
+            <div>
+              集群内地址：{{ service.name }}.{{ runtime.namespace }}.svc<span
+                v-for="port in service.ports"
+                :key="port.name || port.port"
+              >
+                · {{ port.port }}/{{ port.protocol }} → {{ port.targetPort
+                }}<span v-if="port.nodePort">（NodePort {{ port.nodePort }}）</span></span
+              >
+            </div>
+            <div v-if="service.externalAddresses.length">
+              外部地址：{{ service.externalAddresses.join('、') }}
+            </div>
+          </div>
+          <p v-if="!services.length" class="muted">尚未关联 Service，未配置稳定访问入口。</p>
+          <div v-for="ingress in ingresses" :key="ingress.name" class="access-item">
+            <strong>Ingress · {{ ingress.name }}</strong>
+            <div v-for="route in ingress.routes" :key="`${route.host}/${route.path}/${route.service}`">
+              {{ route.host || '任意主机' }}{{ route.path }} → {{ route.service }}:{{ route.port
+              }}<span v-if="ingressRouteUrl(ingress, route, ingressClasses)">
+                ·
+                <a
+                  :href="ingressRouteUrl(ingress, route, ingressClasses)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >访问 ↗</a
+                ></span
+              >
+            </div>
+          </div>
+        </template>
+      </section>
       <h3>控制器条件</h3>
       <ul v-if="selected.conditions.length">
         <li v-for="c in selected.conditions" :key="c" class="mono">{{ c }}</li>
@@ -421,10 +593,65 @@ onMounted(() => action(catalogs));
   </section>
 </template>
 <style scoped>
+.deployment-section {
+  border-top: 1px solid var(--border, #e5e0ef);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.deployment-section h3 {
+  margin: 0 0 16px;
+}
+.probe-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 16px 0;
+}
+.probe-toggle input {
+  width: auto;
+  margin: 0;
+}
+.catalog-fields > button[type='submit'] {
+  margin-top: 20px;
+}
+.access-item {
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+table[aria-label='部署实例'] {
+  min-width: 800px;
+}
+table[aria-label='部署实例'] td {
+  overflow-wrap: anywhere;
+  max-width: 380px;
+}
 table[aria-label='部署操作历史'] {
   min-width: 860px;
 }
 table[aria-label='部署操作历史'] td {
   white-space: nowrap;
+}
+.management-editor li.mono {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) {
+  .list-toolbar,
+  .section-heading {
+    flex-wrap: wrap;
+  }
+  .list-toolbar .inline-select {
+    min-width: 0;
+    width: 100%;
+  }
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .detail-grid dd {
+    margin-bottom: 10px;
+  }
 }
 </style>
