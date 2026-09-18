@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+DEV-01（2026-09-18，DONE，本机联调）：在用户授权范围内新增两个开发辅助容器、生成式IDEA前后端配置及local/docker切换命令；复用原数据库/四集群/仓库/存储/BuildKit和网关，不改业务代码、表、API或权限。原数据只读对比、构建/部署、四集群文件执行、页面、网关双向连接和恢复均通过；原Docker服务已恢复，IDEA配置由用户点击启动。[功能](features/DEV-01-idea-local.md)、[验证](verification/VER-DEV-001-idea-local.md)。
+
 UI-19（2026-09-18，DONE，已部署）：依赖现有分发历史与目录API，完成工作空间级只读分页、默认全部/可选版本筛选/页码重置/版本列/满页前瞻；保留原单版本查询、分发执行和权限，不新增表/字段。285项Java＋1项打包、57项单测通过，浏览器85项首轮及旧夹具修正后9项复测通过；默认全部/筛选/空目录/错误恢复/取消旧请求/权限验收完成。04:35发布前后端，04:36确认2360条真实历史与SQL一致，原数据和其余18服务保持。[范围](features/UI-19-distribution-history.md)、[验证](verification/VER-UI-019-distribution-history.md)。
 
 UI-18（2026-09-18，DONE，已部署）：依赖UI-17部署列表/runtime与既有Service接口，完成同集群同Namespace“目标部署”选择、详情预填与提交时读取真实Selector；移除内部标签编辑，不新增后端/API/表/权限或标签管理。预填、多个Service关联同一部署、切换作用域清空、空列表/读取失败/目标删除不提交、真实Pod关联与窄屏验收通过；57项单测、83项完整浏览器测试通过。03:48仅发布CEA前端，03:49现场双Service实际HTTP访问与原业务/其余19服务保持核验通过。[范围](features/UI-18-service-target.md)、[验证](verification/VER-UI-018-service-target.md)。
