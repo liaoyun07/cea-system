@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+DEV-01a（2026-09-18）：IDEA前后端一键启动、后端自动运行前准备、Docker恢复按钮。[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。无业务代码/执行语义变化。
+
 DEV-01（2026-09-18）：IDEA本地前后端接入现有CEA；私有配置生成、本机网络入口、Linux镜像工具调用与双向切换。[范围](features/DEV-01-idea-local.md)、[使用](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。无业务API/表/Java类新增。
 
 UI-19（DONE，已部署）：应用分发记录默认全部分页，应用版本可选筛选并归第一页，增加版本列及满页前瞻；新增工作空间只读GET，保留原查询/分发逻辑，无DB/权限变化。285项Java＋1项打包、57项前端单测通过；浏览器首轮85通过，旧夹具修正后9项复测通过。04:35发布前后端，04:36现场2360条历史逐页与SQL一致，原业务及其余18服务保持。[范围](features/UI-19-distribution-history.md)、[契约](contracts/ui19-distribution-history.md)、[验证](verification/VER-UI-019-distribution-history.md)。

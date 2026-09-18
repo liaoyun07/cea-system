@@ -1,0 +1,8 @@
+{
+  "name": "cea-idea-launcher",
+  "private": true,
+  "scripts": {
+    "prepare:local": "node switch.mjs local",
+    "restore:docker": "node switch.mjs docker"
+  }
+}

@@ -23,3 +23,12 @@
 - 本地测试JVM和Vite已停止；switch.mjs docker恢复原后端和原网关配置，18080重新可用。两个新开发辅助容器保持就绪，用户按操作说明切到IDEA；未留下占用18100/18185的测试进程。
 - 恢复前后逐条确认原44 Flow、71应用版本、350执行、14数据集记录不变；仅保留一份命名联通Flow及一次成功执行，当前45/71/351/14。原20个CEA容器ID/镜像未变，除获授权的backend和edge-gateway外，另18服务启动时间也未变。
 - scripts/check-scaffold.ps1通过：8模块、109 Java文件、32功能ID、1088链接；不代替业务测试。生成凭据文件和IDEA配置经git check-ignore确认不进入版本库。
+
+## DEV-01a 按钮启动追加
+
+2026-09-18，基线0345edd。用户要求直接点IDEA按钮启动，新增npm有限任务映射与3份生成配置（Prepare、Restore、Compound），将Prepare挂到后端Make之后；原前后端配置名称和连接不变。
+
+- 核对JetBrains官方[组合运行说明](https://www.jetbrains.com/help/idea/run-debug-multiple.html)、[前置任务序列化源码](https://github.com/JetBrains/intellij-community/blob/master/platform/execution-impl/src/com/intellij/execution/impl/RunConfigurationBeforeRunProvider.java)及[Compound源码](https://github.com/JetBrains/intellij-community/blob/master/platform/execution-impl/src/com/intellij/execution/compound/CompoundRunConfiguration.kt)。记录为检索时master，不声称是安装版本源码。
+- 5项Node测试通过，包含原2项路径测试和3项Make→Prepare顺序、组合仅包含前后端、恢复按钮/有限任务映射；5个生成XML均由System.Xml解析通过。
+- 实际执行与IDEA npm配置相同的prepare:local、restore:docker，检查/停止原后端/调整网关/恢复健康均成功。无新增业务记录，不需要再次部署应用镜像或修改DB。
+- 没有控制IDEA GUI点击绿色按钮；已生成并核验项目运行配置，IDEA编译仍由其自身执行。原Docker系统已恢复，未留下本地前后端测试进程。

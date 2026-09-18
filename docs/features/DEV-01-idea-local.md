@@ -9,3 +9,5 @@
 切换前检查现有活动执行；测试阶段先禁用第二实例的Executor/Worker/Scheduler做只读连接检查，随后停止原实例再启用本地执行角色。恢复前要求停止本地后端。文件和密码保存在忽略目录，不纳入Git；不自动迁移、重置或删除现有资源。
 
 [操作说明](../../deploy/cea/idea/README.md)、[实际验证](../verification/VER-DEV-001-idea-local.md)。本批为启动配置，不改变通用工作流语义，不涉及Kestra执行设计变更。
+
+DEV-01a：追加IDEA原生Compound“一键启动”，只组合已有前后端；后端Make之后用RunConfigurationTask调用有限时长的npm prepare:local，准备失败不启动Java。恢复Docker也提供独立npm按钮。不是将持续运行的前端作为阻塞前置任务；未新增基础设施、常驻启动器或业务逻辑。

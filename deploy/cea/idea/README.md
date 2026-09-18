@@ -6,8 +6,11 @@
 
 在 `backend` 项目中打开“运行/调试配置”，选择：
 
+- **`CEA - 前后端一键启动`**：日常入口，点击绿色运行按钮即可，不用先敲命令。
 - `CEA Backend - Local`：JDK 21、platform-server、18185；凭据从私有文件读取，不需要手填。
 - `CEA Frontend - Local`：npm run dev、18100，代理到 18185。
+- `CEA - Restore Docker`：停止本地后端后，点击运行即可恢复原Docker系统。
+- `CEA - Prepare Local`：后端的自动前置任务，无需单独点击。
 
 首次初始化或凭据/CEA配置变更后，在 backend 目录运行：
 
@@ -17,23 +20,24 @@ node deploy/cea/idea/setup.mjs
 
 依赖现有 `frontend/node_modules` 和已安装 Docker Desktop。生成文件位于 Git 忽略的 `.local/idea-cea`、`.idea/runConfigurations`；包含真实凭据，不能提交或分享。不要直接运行旧的 `BackendApplication` 配置来代替本配置。
 
-## 启动（先切换，再在 IDEA 点运行）
+## 按按钮启动
 
-在 IDEA Terminal 中，确认当前目录是 backend：
+在IDEA右上角运行配置下拉框选择 **`CEA - 前后端一键启动`**，点击旁边绿色三角形。Docker Desktop需要已经运行。
 
-```powershell
-node deploy/cea/idea/switch.mjs local
-```
+组合配置并行启动前端和后端；后端先编译，再自动运行一次有限时长的 `CEA - Prepare Local`，成功后才启动Java。准备任务检查现有活动执行、启动两个开发辅助容器、停止原Docker后端并切换网关。前端可能先显示页面，等后端启动完成再登录。
 
-此命令检查现有活动执行，启动两个开发辅助容器，停止原 Docker 后端，将网关切到本地后端。**如果提示有活动执行，等任务结束后重试，不要强停。** 然后依次运行上述后端、前端配置，访问 http://127.0.0.1:18100 。登录仍用原系统账号；所有页面操作作用于真实 CEA 数据。
+**如果准备任务提示有活动执行，等任务结束后重试，不要强停。** 启动完成后访问 http://127.0.0.1:18100 。登录仍用原系统账号；所有页面操作作用于真实 CEA 数据。单独点 `CEA Backend - Local` 的运行/调试按钮，也包含相同的自动准备步骤。
 
 IDEA 未显示新配置时重新打开 backend 项目；不用修改原配置。IDEA 中“有效配置文件”保持空，工作目录和配置文件地址已生成。
 
 ## 恢复原 Docker 运行方式
 
-先在 IDEA 停止本地后端，再运行：
+先在IDEA停止本地后端，再选择 **`CEA - Restore Docker`** 并点绿色运行按钮。
+
+如需命令行，仍可在backend目录使用：
 
 ```powershell
+node deploy/cea/idea/switch.mjs local
 node deploy/cea/idea/switch.mjs docker
 ```
 
@@ -56,3 +60,5 @@ MySQL沿用18306，中心MinIO沿用18900，网关沿用18086。Kubernetes凭据
 网关通过 `host.docker.internal:18185` 回连本地后端；原网关文件会备份到私有目录。切换命令不重启数据库、集群、存储、镜像仓库、BuildKit或终端，不清理数据卷。
 
 验证和边界见[DEV-01验证](../../../docs/verification/VER-DEV-001-idea-local.md)。
+
+使用IDEA原生[组合运行与运行前任务](https://www.jetbrains.com/help/idea/run-debug-multiple.html)，不把持续运行的前端放进阻塞型前置任务。配置格式核对JetBrains的RunConfigurationBeforeRunProvider和CompoundRunConfiguration源码；未增加应用内启动器或业务耦合。

@@ -84,7 +84,10 @@ export function setup() {
     <option name="ALTERNATIVE_JRE_PATH" value="${xml(slash(jdk))}" />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <envs><env name="SPRING_CONFIG_ADDITIONAL_LOCATION" value="file:${xml(slash(path.join(local, 'application.yaml')))}" /></envs>
-    <method v="2"><option name="Make" enabled="true" /></method>
+    <method v="2">
+      <option name="Make" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="CEA - Prepare Local" run_configuration_type="js.build_tools.npm" />
+    </method>
   </configuration>
 </component>\n`);
   fs.writeFileSync(path.join(idea, 'CEA_Frontend_Local.xml'), `<component name="ProjectRunConfigurationManager">
@@ -96,6 +99,26 @@ export function setup() {
     <method v="2" />
   </configuration>
 </component>\n`);
-  console.log('Generated private local configuration and two IDEA run configurations. No services switched.');
+  for (const [file, name, script] of [
+    ['CEA_Prepare_Local.xml', 'CEA - Prepare Local', 'prepare:local'],
+    ['CEA_Restore_Docker.xml', 'CEA - Restore Docker', 'restore:docker'],
+  ]) {
+    fs.writeFileSync(path.join(idea, file), `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="${name}" type="js.build_tools.npm" factoryName="npm">
+    <package-json value="$PROJECT_DIR$/deploy/cea/idea/package.json" />
+    <command value="run" /><scripts><script value="${script}" /></scripts>
+    <node-interpreter value="${xml(slash(process.execPath))}" />
+    <method v="2" />
+  </configuration>
+</component>\n`);
+  }
+  fs.writeFileSync(path.join(idea, 'CEA_Run_All.xml'), `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CEA - 前后端一键启动" type="CompoundRunConfigurationType">
+    <toRun name="CEA Backend - Local" type="SpringBootApplicationConfigurationType" />
+    <toRun name="CEA Frontend - Local" type="js.build_tools.npm" />
+    <method v="2" />
+  </configuration>
+</component>\n`);
+  console.log('Generated private configuration and five IDEA run configurations, including one-click startup. No services switched.');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) setup();
