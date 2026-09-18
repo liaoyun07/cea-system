@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FLPAR-24（2026-09-18，实验DONE）：按用户授权新增读取完成至写出前的计算区间诊断，沿用三客户端累计10万/唯一5万，固定一次预热＋三次正式全部成功。普通完整加载替代实验mmap，原SDK/页面不改；同次正式完整/计算口径均速0.516/1.262GB/s，计算最好1.636GB/s，仍未2GB/s。3Python/2Node、36Job/20模型40张量及完整评估通过；只增加固定脚本/隔离Flow，不改原业务、镜像或容量。不是算法加速或M01验收通过。[完整记录](verification/VER-FLPAR-24-compute-window.md)。
+
 DEV-01a（2026-09-18，DONE）：将已验证切换脚本接入IDEA后端运行前任务，追加前后端Compound一键启动及Docker恢复按钮；5项Node、5份XML解析和真实npm切换/恢复验证通过。不改业务代码、权限或基础设施。[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。
 
 DEV-01（2026-09-18，DONE，本机联调）：在用户授权范围内新增两个开发辅助容器、生成式IDEA前后端配置及local/docker切换命令；复用原数据库/四集群/仓库/存储/BuildKit和网关，不改业务代码、表、API或权限。原数据只读对比、构建/部署、四集群文件执行、页面、网关双向连接和恢复均通过；原Docker服务已恢复，IDEA配置由用户点击启动。[功能](features/DEV-01-idea-local.md)、[验证](verification/VER-DEV-001-idea-local.md)。

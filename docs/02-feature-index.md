@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FLPAR-24（实验完成）：隔离流程可同时输出完整SDK与读取完成至写出前计算区间，正式3/3成功，计算均速1.262GB/s、最好1.636GB/s；36Job及20模型40张量核验通过。正式指标/页面未改，不能当作原口径提速或M01达标。[边界与实测](verification/VER-FLPAR-24-compute-window.md)。
+
 DEV-01a（2026-09-18）：IDEA前后端一键启动、后端自动运行前准备、Docker恢复按钮。[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。无业务代码/执行语义变化。
 
 DEV-01（2026-09-18）：IDEA本地前后端接入现有CEA；私有配置生成、本机网络入口、Linux镜像工具调用与双向切换。[范围](features/DEV-01-idea-local.md)、[使用](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。无业务API/表/Java类新增。
