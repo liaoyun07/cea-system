@@ -1,5 +1,6 @@
 import random
 import unittest
+from unittest.mock import patch
 from dqn import SCHEMA, decide, predict
 
 
@@ -13,9 +14,10 @@ class DqnTest(unittest.TestCase):
     def test_real_weights_relu_and_legal_mask(self):
         body = request()
         self.assertEqual(predict(body["model"], body["state"]), [2, 3, 4])
-        self.assertEqual(decide(body), {"action": 1})
+        with patch("dqn.time.perf_counter_ns", side_effect=[100000, 150000]):
+            self.assertEqual(decide(body), {"action": 1, "inferenceMs": 0.05})
         body["legalActions"] = [0]
-        self.assertEqual(decide(body), {"action": 0})
+        self.assertEqual(decide(body)["action"], 0)
 
     def test_exploration_is_explicit_and_only_legal(self):
         body = request(); body["exploration"] = 1

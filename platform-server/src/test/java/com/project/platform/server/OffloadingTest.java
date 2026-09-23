@@ -178,11 +178,13 @@ class OffloadingTest {
     }
     @Test void edgeDecisionRecordsOnlyLegalLayerAndPinnedModelBeforePlacement() {
         model(0,3,100).validate();String key=key(),version=key();
-        assertThrows(WorkflowException.class,()->service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),2));
+        assertThrows(WorkflowException.class,()->service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),2,0.05));
         assertNull(service().get("lab",key));
-        var selected=service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),1);
+        var selected=service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),1,0.05);
         assertEquals("EDGE",selected.target().kind());assertNull(selected.target().id());assertEquals("DQN",selected.strategy());assertEquals(version,selected.modelVersion());
-        assertEquals(1,service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),0).action());
+        assertEquals(0.05,selected.inferenceMs());
+        assertEquals(1,service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),0,0.07).action());
+        assertEquals(0.05,service().get("lab",key).inferenceMs());
     }
     @Test void rejectsMalformedNonFiniteAndUnknownSchemaModels() {
         assertThrows(WorkflowException.class,()->model(1,2,Double.NaN).validate());

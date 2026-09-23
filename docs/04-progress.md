@@ -1,5 +1,7 @@
 # 当前进度
 
+OFF-04a（2026-09-23，测试通过/IDEA后端待重启）：任务卸载决策记录新增纯 DQN 推理时延采集、可空数据库列与前端列表/详情展示；FIXED/RULE显示“不适用”，历史 DQN 未采集显示“未采集”。网关4项、Java完整verify 249项、前端58单测/86浏览器通过。数据库已备份，三镜像已构建并保存旧标签，仅网关重建健康；IDEA本地后端待用户重启后应用V30，实际API/页面未验收。此值不代表系统卸载总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[验证](verification/VER-OFF-04a-inference-latency.md)。
+
 FLPAR-24（2026-09-18，隔离测试完成）：IDEA当前入口18185/18100复用原CEA，无服务切换或重启。三客户端累计10万、一次预热＋三次正式全成功；读取完成至写出前计算口径0.677/1.473/1.636GB/s，均1.262，原完整SDK同次均0.516GB/s。36Job、20模型40张量及完整评估通过；预处理内存计算仍有明显波动，训练平均有效重叠1.124，不能只归因硬盘。新增par24-compute-window及固定脚本，原SDK/页面/数据/容量不改，不算2GB/s达标。[记录](verification/VER-FLPAR-24-compute-window.md)。
 
 DEV-01a（2026-09-18，按钮配置已生成）：IDEA可选择“CEA - 前后端一键启动”，后端编译后自动准备本地环境，无需手动切换命令；恢复提供“CEA - Restore Docker”。配置/脚本测试通过，实际原Docker系统已恢复；未操控IDEA GUI点击启动。[说明](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。

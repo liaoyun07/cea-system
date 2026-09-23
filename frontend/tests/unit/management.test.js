@@ -8,6 +8,7 @@ import {
   newDraft,
   itemPath,
   offloadingTarget,
+  inferenceLatency,
   measurementStatus,
   applicationParameterTypes,
 } from '../../src/management/catalogs.js';
@@ -16,6 +17,11 @@ test('offloading target distinguishes a layer decision from an allocated locatio
   assert.equal(offloadingTarget({ kind: 'CLOUD', id: null }), 'CLOUD / 未分配');
   assert.equal(offloadingTarget({ kind: 'EDGE', id: 'edge-a' }), 'EDGE / edge-a');
   assert.equal(offloadingTarget(null), '—');
+});
+test('DQN inference latency has an explicit missing and non-model state', () => {
+  assert.equal(inferenceLatency({ strategy: 'DQN', inferenceMs: 0.05325 }), '0.053 ms');
+  assert.equal(inferenceLatency({ strategy: 'DQN', inferenceMs: null }), '未采集');
+  assert.equal(inferenceLatency({ strategy: 'RULE', inferenceMs: null }), '不适用');
 });
 test('offloading measurement distinguishes calibration, missing feedback, next decision and complete sample', () => {
   assert.equal(measurementStatus(null), '未采集六维状态');

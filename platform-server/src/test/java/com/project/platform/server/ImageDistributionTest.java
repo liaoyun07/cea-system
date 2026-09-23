@@ -1553,6 +1553,7 @@ class ImageDistributionTest {
                 drive(id);assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",id).state(),executions().get(actor,"lab",id).error());
                 var run=executions().tasks(actor,"lab",id).getFirst();var sample=context.getBean(OffloadingService.class).get("lab",run.id()+"-1");
                 assertEquals("DQN",sample.strategy());assertEquals(event,sample.modelVersion());assertEquals(layer,sample.target().kind());assertEquals(6,sample.state().length);
+                assertNotNull(sample.inferenceMs());assertTrue(sample.inferenceMs()>=0);
                 var result=gatewayRequest(gatewayUrl,"GET","/v1/executions/"+id,null,"isolated-terminal-token",200);
                 assertEquals(512,((Number)((Map<?,?>)result.get("result")).get("count")).intValue());
                 evidence.add(Map.of("dqnFixture",true,"layer",layer,"execution",id,"sample",sample));

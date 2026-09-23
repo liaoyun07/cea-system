@@ -75,6 +75,7 @@ test('DQN detail identifies the pinned model and actual execution layer', async 
           applicationId: 'signal',
           applicationVersion: 'v1',
           strategy: 'DQN',
+          inferenceMs: 0.05325,
           modelVersion: 'off04-trained-fixture',
           target: { kind: 'EDGE', id: 'edge-a' },
           outcome: 'SUCCESS',
@@ -93,8 +94,12 @@ test('DQN detail identifies the pinned model and actual execution layer', async 
     }),
   );
   await nav(page, '任务卸载决策记录');
+  await expect(page.getByRole('columnheader', { name: '决策时延' })).toBeVisible();
+  await expect(page.locator('tbody tr').first()).toContainText('0.053 ms');
   await page.getByRole('button', { name: '详情 →', exact: true }).click();
   await expect(page.getByText('off04-trained-fixture', { exact: true })).toBeVisible();
+  await expect(page.getByText('决策时延（模型推理）')).toBeVisible();
+  await expect(page.getByText('0.053 ms', { exact: true })).toBeVisible();
   await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
   await expect(page.getByText('12.000 秒', { exact: true })).toBeVisible();
 });
@@ -129,6 +134,7 @@ test('measured offloading detail displays missing as unavailable rather than zer
   );
   await nav(page, '任务卸载决策记录');
   await expect(page.locator('tbody tr')).toContainText('待传输标定');
+  await expect(page.locator('tbody tr')).toContainText('不适用');
   await page.getByRole('button', { name: '详情 →', exact: true }).click();
   await expect(page.getByRole('table', { name: '卸载六维状态' }).locator('tbody tr')).toHaveCount(6);
   await expect(page.getByRole('table', { name: '卸载六维状态' }).getByText('未测得')).toHaveCount(2);

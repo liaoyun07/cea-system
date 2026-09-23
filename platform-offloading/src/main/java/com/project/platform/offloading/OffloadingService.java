@@ -15,7 +15,7 @@ public final class OffloadingService {
     public record Candidate(Layer layer,int capacity,int active,int waiting) {}
     public record Sample(String key,String executionId,String applicationId,String applicationVersion,Map<String,Object> workload,long inputBytes,
                          Target target,String strategy,String modelVersion,double[] state,Integer action,
-                         Instant createdAt,Instant startedAt,Instant finishedAt,String outcome,Double reward,Measurement measurement) {}
+                         Instant createdAt,Instant startedAt,Instant finishedAt,String outcome,Double reward,Measurement measurement,Double inferenceMs) {}
     public record Measurement(String edge,String terminal,String flowId,Double[] inputs,List<Integer> legalActions,String unavailable,
                               String nextKey,double[] nextState,List<Integer> nextLegalActions,Double elapsedSeconds,double limitSeconds,
                               String feedbackOutcome,boolean trainable) {}
@@ -45,14 +45,15 @@ public final class OffloadingService {
         }
         if(selected==null)throw WorkflowException.invalid("offload","no healthy configured layer satisfies dataset locality");
         // No cluster identifier or 13-dimensional legacy state is manufactured at the layer boundary.
-        return repository.begin(ns,key,execution,work,new Target(selected.name(),null),strategy,null,null,selected.ordinal());
+        return repository.begin(ns,key,execution,work,new Target(selected.name(),null),strategy,null,null,selected.ordinal(),null);
     }
     /** Persist the authenticated gateway's layer action; concrete placement belongs to Resource. */
-    public Sample edgeDecision(Actor actor,String ns,String key,String execution,Workload work,String modelVersion,List<Integer> legal,int action) {
+    public Sample edgeDecision(Actor actor,String ns,String key,String execution,Workload work,String modelVersion,List<Integer> legal,int action,double inferenceMs) {
         access.require(actor,ns,Action.EXECUTE);version(modelVersion);
         if(action<0 || action>2 || !legal.contains(action))throw WorkflowException.invalid("offload","edge returned an illegal layer");
+        if(!Double.isFinite(inferenceMs) || inferenceMs<0)throw WorkflowException.invalid("inferenceMs","nonnegative measured inference time required");
         var existing=repository.get(ns,key);if(existing!=null)return existing;
-        return repository.begin(ns,key,execution,work,new Target(Layer.values()[action].name(),null),"DQN",modelVersion,null,action);
+        return repository.begin(ns,key,execution,work,new Target(Layer.values()[action].name(),null),"DQN",modelVersion,null,action,inferenceMs);
     }
     /** Record the position already allocated by Resource; never select or reserve it here. */
     public void placed(Actor actor,String ns,String key,Target actual) {

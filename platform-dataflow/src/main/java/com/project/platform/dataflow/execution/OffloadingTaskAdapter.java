@@ -55,7 +55,9 @@ public final class OffloadingTaskAdapter {
                             Map.of("model",model,"state",state,"legalActions",legal,"exploration",c.offload().exploration()==null?0.0:c.offload().exploration()));
                     if(!(response.get("action") instanceof Number action) || action.doubleValue()!=action.intValue())
                         throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge action must be an integer");
-                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue());
+                    if(!(response.get("inferenceMs") instanceof Number inferenceMs))
+                        throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge inference time required");
+                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue(),inferenceMs.doubleValue());
                 } catch(RuntimeException error) {throw error;} catch(Exception error) {throw new IllegalStateException("edge DQN decision unavailable",error);}
             } else sample=choose.get();
             if(capture) {

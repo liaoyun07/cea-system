@@ -17,12 +17,12 @@ public final class JdbcOffloadingRepository {
         var rows=jdbc.query("SELECT * FROM off_task_observation WHERE namespace=? AND allocation_id=?",this::sample,ns,key);
         return rows.isEmpty()?null:rows.getFirst();
     }
-    public Sample begin(String ns,String key,String execution,Workload work,Target target,String strategy,String model,double[] state,Integer action) {
+    public Sample begin(String ns,String key,String execution,Workload work,Target target,String strategy,String model,double[] state,Integer action,Double inferenceMs) {
         jdbc.update("""
                 INSERT IGNORE INTO off_task_observation(namespace,allocation_id,execution_id,application_id,application_version,
-                workload_json,input_bytes,target_kind,target_id,strategy,model_version,state_json,action_no)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,ns,key,execution,work.applicationId(),work.version(),workload(work),work.inputBytes(),target.kind(),target.id(),strategy,model,state==null?null:json.write(state),action);
+                workload_json,input_bytes,target_kind,target_id,strategy,model_version,state_json,action_no,inference_ms)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,ns,key,execution,work.applicationId(),work.version(),workload(work),work.inputBytes(),target.kind(),target.id(),strategy,model,state==null?null:json.write(state),action,inferenceMs);
         return get(ns,key);
     }
     public void started(String ns,String key,long inputBytes){jdbc.update("UPDATE off_task_observation SET started_at=CURRENT_TIMESTAMP(6),input_bytes=? WHERE namespace=? AND allocation_id=? AND started_at IS NULL AND finished_at IS NULL",inputBytes,ns,key);}
@@ -94,7 +94,7 @@ public final class JdbcOffloadingRepository {
         return new Sample(rs.getString("allocation_id"),rs.getString("execution_id"),rs.getString("application_id"),rs.getString("application_version"),
                 json.map(rs.getString("workload_json")),rs.getLong("input_bytes"),new Target(rs.getString("target_kind"),rs.getString("target_id")),
                 rs.getString("strategy"),rs.getString("model_version"),rs.getString("state_json")==null?null:json.read(rs.getString("state_json"),double[].class),
-                (Integer)rs.getObject("action_no"),created,started,finished,outcome,reward,measurement);
+                (Integer)rs.getObject("action_no"),created,started,finished,outcome,reward,measurement,(Double)rs.getObject("inference_ms"));
     }
     private static Instant instant(ResultSet rs,String column) throws SQLException {var timestamp=rs.getTimestamp(column);return timestamp==null?null:timestamp.toInstant();}
 }

@@ -1,6 +1,7 @@
 """Bounded edge-side model inference only; no placement, workflow state or training."""
 import math
 import random
+import time
 
 SCHEMA = "measured-offload-log1p-v1"
 
@@ -41,7 +42,9 @@ def decide(request, rng=random):
         raise ValueError("legal execution layers required")
     if type(epsilon) not in (int, float) or not math.isfinite(epsilon) or not 0 <= epsilon <= 1:
         raise ValueError("exploration must be 0..1")
+    started = time.perf_counter_ns()
     q = predict(request["model"], request["state"])
+    inference_ms = (time.perf_counter_ns() - started) / 1_000_000
     ordered = sorted(legal)
     action = rng.choice(ordered) if epsilon > 0 and rng.random() < epsilon else max(ordered, key=lambda a: q[a])
-    return {"action": action}
+    return {"action": action, "inferenceMs": inference_ms}

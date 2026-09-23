@@ -6,6 +6,7 @@ import { readCatalog, readDocument } from '../no-code/document.js';
 import {
   catalogs,
   offloadingTarget,
+  inferenceLatency,
   measurementStatus,
   entryId,
   itemPath,
@@ -294,6 +295,7 @@ function cell(row, key) {
   if (key.endsWith('At')) return value ? time(value) : '尚无记录';
   if (key === 'locations') return value.map((v) => v.clusterId).join('、');
   if (key === 'target') return offloadingTarget(value);
+  if (key === 'inferenceMs') return inferenceLatency(row);
   if (key === 'measurement') return measurementStatus(value);
   return value ?? '—';
 }
@@ -471,6 +473,8 @@ onMounted(() => action(loadRows));
         <dd class="mono">{{ raw.modelVersion }}</dd>
         <dt>执行位置</dt>
         <dd>{{ offloadingTarget(raw.target) }}</dd>
+        <dt>决策时延（模型推理）</dt>
+        <dd>{{ inferenceLatency(raw) }}</dd>
       </dl>
       <template v-if="raw.measurement">
         <h3>{{ measurementStatus(raw.measurement) }}</h3>

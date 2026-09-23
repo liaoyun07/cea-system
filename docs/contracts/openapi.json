@@ -6320,6 +6320,14 @@
             "minimum": 0,
             "maximum": 2
           },
+          "inferenceMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "DQN model forward-pass latency in milliseconds, measured at the edge gateway. Null for FIXED/RULE and historical decisions. Excludes RPC, queueing, scheduling and task execution."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"

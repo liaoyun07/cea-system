@@ -8,13 +8,15 @@
 终端元数据请求 → 所属网关 → 原策略 Flow / Execution / Worker
   → OffloadingTaskAdapter / Resource 接纳锁
       冻结真实六维状态和合法动作
-      → 所属网关 offloading/decide：6→32→3 网络，只返回层
-      → OffloadingService：固定模型版本、动作和状态
+      → 所属网关 offloading/decide：6→32→3 网络，返回层及模型推理毫秒数
+      → OffloadingService：固定模型版本、动作、状态和推理时延
   → 原 JobPlacementService 在该层合法范围内选具体位置
   → 原 Runner / 文件助手 → 原结果授权 → 网关 → 终端反馈
 ```
 
 网关不选 cluster，不拥有 Execution 状态。平台不连接终端 Docker，沿用 OFF-02 网关通路；普通 CLUSTER Flow 不进入此路径。控制请求沿用既有独立控制凭据、网关/终端路由校验，终端 Bearer 不能调用决策操作。推理 HTTP 总超时3秒；故障使本次任务失败，不回退 RULE。
+
+`offloading/decide` 的 `inferenceMs` 是网关单调时钟围住一次模型前向预测的非负毫秒值，与 `action` 一同返回并写入 `off_task_observation.inference_ms`；`GET /api/namespaces/{namespace}/offloading/samples` 的每条记录新增可空 `inferenceMs`。不包含网关 RPC、请求解析、合法动作选择、任务排队/部署/执行，不能代替系统卸载总时延。FIXED/RULE 不推理，字段为 `null`；升级前的历史 DQN 记录也保持 `null`。页面分别显示“不适用”和“未采集”。
 
 ## DSL 与模型
 
@@ -26,7 +28,7 @@ offload:
   exploration: 0
 ```
 
-以上为 Application Task 的 `container` 内片段；其余显式参数/文件绑定不变。`modelVersion` 必填且固定；唯一新增 DSL 字段 `exploration` 可省略，默认0，取值0..1，仅 DQN 可用。1用于收集探索样本，0用于冻结模型评估。不可变模型继续通过既有 `PUT /api/namespaces/{namespace}/offloading/models/{version}` 登记；无新增后端API、表、列或SPI。
+以上为 Application Task 的 `container` 内片段；其余显式参数/文件绑定不变。`modelVersion` 必填且固定；原 OFF-04 的唯一新增 DSL 字段 `exploration` 可省略，默认0，取值0..1，仅 DQN 可用。1用于收集探索样本，0用于冻结模型评估。不可变模型继续通过既有 `PUT /api/namespaces/{namespace}/offloading/models/{version}` 登记；此次计时增量不新增后端API、表或SPI，只增加上述可空计时列与响应字段。
 
 模型 JSON `stateSchema=measured-offload-log1p-v1`，`weights1` 为32×6，`bias1` 32，`weights2` 3×32，`bias2` 3。接口允许隐藏层1..128，当前训练器固定32。状态为 OFF-03 六项非负真实量逐项 `log1p`，无虚构缺测值。合法动作索引固定0=TERMINAL、1=EDGE、2=CLOUD；非法动作在探索和贪心时均屏蔽。历史13维模型仍可查询，不能登记为新模型或用于推理，不保留旧网络预测路径。
 

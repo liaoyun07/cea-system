@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+OFF-04a（测试通过/本地后端待重启）：DQN 决策记录展示所属网关模型前向推理时延；非模型策略及历史缺测不伪造数值。新增可空观察字段与响应字段，不改变调度/执行/训练行为；网关4项、Java完整verify 249项、前端58单测/86浏览器通过，网关已更新，IDEA后端V30及实际页面待重启验收。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[记录](verification/VER-OFF-04a-inference-latency.md)。
+
 FLPAR-24（实验完成）：隔离流程可同时输出完整SDK与读取完成至写出前计算区间，正式3/3成功，计算均速1.262GB/s、最好1.636GB/s；36Job及20模型40张量核验通过。正式指标/页面未改，不能当作原口径提速或M01达标。[边界与实测](verification/VER-FLPAR-24-compute-window.md)。
 
 DEV-01a（2026-09-18）：IDEA前后端一键启动、后端自动运行前准备、Docker恢复按钮。[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。无业务代码/执行语义变化。
