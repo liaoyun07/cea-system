@@ -99,6 +99,15 @@ export function setup() {
     <method v="2" />
   </configuration>
 </component>\n`);
+  fs.writeFileSync(path.join(idea, 'CEA_Frontend_Docker.xml'), `<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CEA Frontend - Docker Backend" type="js.build_tools.npm" factoryName="npm">
+    <package-json value="$PROJECT_DIR$/frontend/package.json" />
+    <command value="run" /><scripts><script value="dev" /></scripts>
+    <node-interpreter value="${xml(slash(process.execPath))}" />
+    <envs><env name="BACKEND_URL" value="http://127.0.0.1:18085" /></envs>
+    <method v="2" />
+  </configuration>
+</component>\n`);
   for (const [file, name, script] of [
     ['CEA_Prepare_Local.xml', 'CEA - Prepare Local', 'prepare:local'],
     ['CEA_Restore_Docker.xml', 'CEA - Restore Docker', 'restore:docker'],
@@ -119,6 +128,6 @@ export function setup() {
     <method v="2" />
   </configuration>
 </component>\n`);
-  console.log('Generated private configuration and five IDEA run configurations, including one-click startup. No services switched.');
+  console.log('Generated private configuration and six IDEA run configurations, including Docker-backed frontend development. No services switched.');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) setup();

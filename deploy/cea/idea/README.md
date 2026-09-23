@@ -2,11 +2,14 @@
 
 本机 Java/前端复用现有 CEA 数据库、四个 Kubernetes、四个 Registry 和四个 MinIO，不创建空数据库，不迁移数据。不修改业务 Java、API、数据库或算法。
 
+2026-09-23 起日常开发优先使用 **Docker 后端**（18085）和 Docker 页面（18080）。若只改前端，在 IDEA 选择 `CEA Frontend - Docker Backend` 启动本机 Vite（18100，API 代理到 18085）；无需启动 `CEA Backend - Local` 或运行本地切换任务。当前本地后端已停止，Docker backend/frontend/gateway 正在运行。修改后端 Java 后仍须构建镜像并只重建 backend，源码保存不会自动更新容器。下面的本地后端/一键启动配置保留为需要调试 Java 时的可选模式，不再是日常入口。
+
 ## 已生成的 IDEA 配置
 
 在 `backend` 项目中打开“运行/调试配置”，选择：
 
-- **`CEA - 前后端一键启动`**：日常入口，点击绿色运行按钮即可，不用先敲命令。
+- `CEA - 前后端一键启动`：仅需调试本地 Java 后端时使用，会切到 IDEA 后端；日常 Docker 模式不要点击。
+- `CEA Frontend - Docker Backend`：当前推荐的前端开发入口，只启动 Vite 并连接 Docker 后端 18085。
 - `CEA Backend - Local`：JDK 21、platform-server、18185；凭据从私有文件读取，不需要手填。
 - `CEA Frontend - Local`：npm run dev、18100，代理到 18185。
 - `CEA - Restore Docker`：停止本地后端后，点击运行即可恢复原Docker系统。

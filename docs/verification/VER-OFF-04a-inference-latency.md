@@ -16,4 +16,8 @@
 
 ## 当前 CEA 发布
 
-发布前只读基线：369 条 Execution 均已结束，`wf_worker_job=0`；`off_task_observation=128`，其中 DQN 60 条；Flyway V29 已应用、V30 未应用。完整数据库备份保存在 Git 忽略目录 `.local/cea/off04a/cea-before-off04a-20260923.sql`，7185158 字节。原 backend/frontend/gateway 镜像已各标记 `before-off04a`，新镜像分别构建为 `off04a`。在无活动任务时仅重建 edge-gateway，实际容器镜像 ID `sha256:0a9a7e98…`、健康；容器内直接预测返回动作 1、`inferenceMs=0.014767`。本机 Vite 18100 已返回包含新列的脚本（HTTP 200）。新 Docker backend/frontend 镜像已更新本地标签但未启动，原 IDEA 后端继续服务，V30 尚未进入实际数据库。用户选择保留 IDEA 模式并自行重启后端；待重启后核验迁移和实际页面/API。此处不把测试通过或网关健康写成整项上线成功。
+发布前只读基线：369 条 Execution 均已结束，`wf_worker_job=0`；`off_task_observation=128`，其中 DQN 60 条；Flyway V29 已应用、V30 未应用。完整数据库备份保存在 Git 忽略目录 `.local/cea/off04a/cea-before-off04a-20260923.sql`，7185158 字节。原 backend/frontend/gateway 镜像已各标记 `before-off04a`，新镜像分别构建为 `off04a`。在无活动任务时仅重建 edge-gateway，实际容器镜像 ID `sha256:0a9a7e98…`、健康；容器内直接预测返回动作 1、`inferenceMs=0.014767`。用户重启 IDEA 后端后，Flyway V30 成功；实际 API 200 且全部查询结果包含 `inferenceMs`，历史 60 条 DQN 保持 `null`。
+
+按用户后续选择切回 Docker 后端。再次确认无活动执行或 Worker Job 后停止 IDEA 后端，Compose 只重建 backend/frontend，恢复网关指向 `http://backend:18085`。backend/frontend/gateway 镜像 ID 分别为 `sha256:50779eb0…`、`sha256:ba95df55…`、`sha256:0a9a7e98…`，均健康；18085 `/health`、观察 API、18080 页面均 200。真实浏览器确认“决策时延”列、FIXED“不适用”、历史 DQN“未采集”及详情展示。
+
+主动追加一次既有 `off04-dqn` 小文件请求，不改策略或模型，保留独立 receipt `.local/cea/off02/receipts/off04a-inference-20260923.json`。执行 `4109a0d7-5211-49fa-a0f5-0a7ac721e07c` 的决策被记录为 DQN/TERMINAL，API `inferenceMs=0.056934`，18080 第 7 页列表与详情显示 `0.057 ms`，数值链路验收通过。但该执行最终 **FAILED**：约 120 秒后 `attempt timed out`；终端算法容器退出码 0 且 `result.json` 存在，后端反复记录 TerminalGatewayClient 的 IOException。可定位为推理完成后的终端结果确认/回传阶段，底层错误原因尚未核实；不将此执行记作任务成功，也未盲目重试或清理失败记录。该问题不影响本次计时字段已落库/展示的事实，但端到端卸载路径需另行排查。

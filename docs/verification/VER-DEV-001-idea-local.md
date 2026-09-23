@@ -32,3 +32,9 @@
 - 5项Node测试通过，包含原2项路径测试和3项Make→Prepare顺序、组合仅包含前后端、恢复按钮/有限任务映射；5个生成XML均由System.Xml解析通过。
 - 实际执行与IDEA npm配置相同的prepare:local、restore:docker，检查/停止原后端/调整网关/恢复健康均成功。无新增业务记录，不需要再次部署应用镜像或修改DB。
 - 没有控制IDEA GUI点击绿色按钮；已生成并核验项目运行配置，IDEA编译仍由其自身执行。原Docker系统已恢复，未留下本地前后端测试进程。
+
+## DEV-01b：日常改用 Docker 后端
+
+2026-09-23，用户明确选择后续开发使用 Docker 后端。先确认活动 Execution/Worker Job 均为0，停止原 IDEA Java 进程；仅重建 backend/frontend 两个 Docker 服务，并将网关地址恢复为 `http://backend:18085`。三者健康且镜像 ID 与 OFF-04a 记录一致；18085 `/health`、观察 API、18080 首页均200，真实浏览器可登录并看到新决策列。V30 在切换前已由本地后端迁移成功，不重复执行或重置数据库。其它集群、存储、Registry、终端服务不重启。
+
+新增生成式 IDEA 配置 `CEA Frontend - Docker Backend`（本机18100→Docker 18085），保留旧本地后端与一键启动配置但不作为日常入口。实际运行 `setup.mjs` 生成六份配置；`launch.test.mjs` 与 `tool.test.mjs` 合计6/6、`node --check setup.mjs`、新XML解析及 scaffold 8模块/109 Java/32功能ID/1131链接通过。当前原18100 Vite进程因仍代理停用的18185而已停止并释放端口；用户若需本机热更新前端，可在IDEA点击新配置。实际 IDEA GUI 点击尚未代用户执行，不写作通过。Docker后端不具备Java源码自动热更新，需构建镜像并重建受影响容器。

@@ -11,3 +11,5 @@
 [操作说明](../../deploy/cea/idea/README.md)、[实际验证](../verification/VER-DEV-001-idea-local.md)。本批为启动配置，不改变通用工作流语义，不涉及Kestra执行设计变更。
 
 DEV-01a：追加IDEA原生Compound“一键启动”，只组合已有前后端；后端Make之后用RunConfigurationTask调用有限时长的npm prepare:local，准备失败不启动Java。恢复Docker也提供独立npm按钮。不是将持续运行的前端作为阻塞前置任务；未新增基础设施、常驻启动器或业务逻辑。
+
+DEV-01b（2026-09-23）：按用户后续选择，日常开发改用Docker后端/页面。IDEA额外提供 `CEA Frontend - Docker Backend`，只启动本机Vite并把 `/api` 代理到Docker后端18085；保留原本地Java/一键启动配置供显式调试，不自动启动第二后端。Java源码修改仍需构建镜像并重建backend才会在Docker生效。此调整只有开发启动配置和文档，没有业务API、数据库、任务执行语义或权限变化。[切换与测试](../verification/VER-DEV-001-idea-local.md)。

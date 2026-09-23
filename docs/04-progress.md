@@ -1,6 +1,8 @@
 # 当前进度
 
-OFF-04a（2026-09-23，测试通过/IDEA后端待重启）：任务卸载决策记录新增纯 DQN 推理时延采集、可空数据库列与前端列表/详情展示；FIXED/RULE显示“不适用”，历史 DQN 未采集显示“未采集”。网关4项、Java完整verify 249项、前端58单测/86浏览器通过。数据库已备份，三镜像已构建并保存旧标签，仅网关重建健康；IDEA本地后端待用户重启后应用V30，实际API/页面未验收。此值不代表系统卸载总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[验证](verification/VER-OFF-04a-inference-latency.md)。
+DEV-01b（2026-09-23，Docker后端现行）：停止本地 Java 和旧18100 Vite，Docker backend/frontend/gateway 已健康，18080/18085可用；IDEA新增前端专用配置 `CEA Frontend - Docker Backend`，需本机热更新时点击即可。切换前确认无活动任务；6项配置测试、XML解析和结构检查通过。后端源码变更仍须重建镜像，不再默认使用一键本地Java模式。[范围](features/DEV-01-idea-local.md)、[验证](verification/VER-DEV-001-idea-local.md)。
+
+OFF-04a（2026-09-23，指标功能已部署）：纯 DQN 推理时延已从网关写入可空数据库列，在决策列表/详情展示；FIXED/RULE“不适用”，历史 DQN“未采集”。网关4项、Java完整verify 249项、前端58单测/86浏览器通过。V30备份迁移、三镜像和18080真实页面核验完成，新决策API 0.056934ms、页面0.057ms。该次任务随后终端回传失败、约120秒超时，不计作端到端成功；原因尚未确定且未重试。此字段不代表系统卸载总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[验证](verification/VER-OFF-04a-inference-latency.md)。
 
 FLPAR-24（2026-09-18，隔离测试完成）：IDEA当前入口18185/18100复用原CEA，无服务切换或重启。三客户端累计10万、一次预热＋三次正式全成功；读取完成至写出前计算口径0.677/1.473/1.636GB/s，均1.262，原完整SDK同次均0.516GB/s。36Job、20模型40张量及完整评估通过；预处理内存计算仍有明显波动，训练平均有效重叠1.124，不能只归因硬盘。新增par24-compute-window及固定脚本，原SDK/页面/数据/容量不改，不算2GB/s达标。[记录](verification/VER-FLPAR-24-compute-window.md)。
 

@@ -19,6 +19,12 @@ test('one-click compound launches frontend and backend, not a duplicate switchin
   assert.match(compound, /<toRun name="CEA Backend - Local" type="SpringBootApplicationConfigurationType"/);
   assert.match(compound, /<toRun name="CEA Frontend - Local" type="js.build_tools.npm"/);
 });
+test('Docker-backed frontend configuration proxies API to the running Docker backend', () => {
+  const frontend = generated('CEA_Frontend_Docker.xml');
+  assert.match(frontend, /name="CEA Frontend - Docker Backend" type="js.build_tools.npm"/);
+  assert.match(frontend, /name="BACKEND_URL" value="http:\/\/127\.0\.0\.1:18085"/);
+  assert.doesNotMatch(frontend, /18185|RunConfigurationTask/);
+});
 test('restore button and finite preparation map to the existing tested switch commands', () => {
   const pkg = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
   assert.equal(pkg.scripts['prepare:local'], 'node switch.mjs local');
