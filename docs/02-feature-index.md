@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+OFF-04b（指标功能已部署）：参照旧系统扩展“决策时延”为后端选层处理区间，FIXED/RULE/DQN统一采集；DQN模型推理耗时保留在详情。V31、前后端Docker发布、Java 249项/打包冒烟、前端59单测/86浏览器回归通过；真实FIXED决策20.980ms已显示，历史不回填。验证任务后续终端回传超时，不算端到端成功；此指标不冒充系统总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。
+
 DEV-01b（DONE）：当前日常使用Docker后端与18080页面；IDEA可单独启动本机前端代理到Docker 18085。原本地Java模式仅按需使用，不与Docker后端同时运行。6项配置测试、XML解析、三容器健康与真实页面核验通过。[范围](features/DEV-01-idea-local.md)、[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。
 
 OFF-04a（指标功能已部署）：DQN 决策记录展示所属网关模型前向推理时延；非模型策略及历史缺测不伪造数值。V30和三镜像已发布，网关4项、Java完整verify 249项、前端58单测/86浏览器及真实记录0.056934ms→页面0.057ms通过。验证任务后续终端回传失败并超时，不算执行成功；不改变调度/训练或系统总时延口径。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[记录](verification/VER-OFF-04a-inference-latency.md)。

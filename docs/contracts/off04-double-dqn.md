@@ -16,7 +16,9 @@
 
 网关不选 cluster，不拥有 Execution 状态。平台不连接终端 Docker，沿用 OFF-02 网关通路；普通 CLUSTER Flow 不进入此路径。控制请求沿用既有独立控制凭据、网关/终端路由校验，终端 Bearer 不能调用决策操作。推理 HTTP 总超时3秒；故障使本次任务失败，不回退 RULE。
 
-`offloading/decide` 的 `inferenceMs` 是网关单调时钟围住一次模型前向预测的非负毫秒值，与 `action` 一同返回并写入 `off_task_observation.inference_ms`；`GET /api/namespaces/{namespace}/offloading/samples` 的每条记录新增可空 `inferenceMs`。不包含网关 RPC、请求解析、合法动作选择、任务排队/部署/执行，不能代替系统卸载总时延。FIXED/RULE 不推理，字段为 `null`；升级前的历史 DQN 记录也保持 `null`。页面分别显示“不适用”和“未采集”。
+`offloading/decide` 的 `inferenceMs` 是网关单调时钟围住一次模型前向预测的非负毫秒值，与 `action` 一同返回并写入 `off_task_observation.inference_ms`。不包含网关 RPC、请求解析、合法动作选择、任务排队/部署/执行。FIXED/RULE 不推理，字段为 `null`，详情不展示推理耗时；升级前的历史 DQN 记录保持 `null`，详情显示“未采集”。
+
+`GET /api/namespaces/{namespace}/offloading/samples` 的每条记录另有可空 `decisionMs`。后端以单调时钟从 `OffloadingTaskAdapter.decide` 入口计至目标层选定、持久化之前；包括模型/资源查询、状态准备、DQN 网关往返及其前向推理，也包含当次 Resource 接纳锁等待，但排除此前 Worker 队列等待、后续观察落库、具体位置放置、文件与任务执行。FIXED/RULE/DQN 成功选层均记录，历史为 `null`。此值不等于终端请求到结果的系统总时延；与旧系统后端内推理路径也不构成同环境性能对照。重复决策沿用首条记录，不重新计时。
 
 ## DSL 与模型
 

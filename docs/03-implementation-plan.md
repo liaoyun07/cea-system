@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+OFF-04b（2026-09-24，指标功能DONE/终端回传另待排查）：依赖 OFF-04a 的DQN模型推理计时和卸载记录查询；按旧系统后端选层计时语义，在 `OffloadingTaskAdapter.decide` 入口启表、目标层确定后且写观察记录前停表，FIXED/RULE/DQN写入同一可空毫秒字段。DQN原推理耗时留详情，历史空值不回填；不改卸载选址、执行、训练或系统总时延口径。三策略与重放/缺测测试、Java全量verify、前端59单测/86浏览器、V31迁移、CEA真实API和页面通过；仅发布backend/frontend，保留原业务与其他服务。真实FIXED决策20.980ms；后续任务终端超时不算端到端成功。[范围](features/OFF-04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。
+
 DEV-01b（2026-09-23，DONE）：依赖 DEV-01/01a 既有 IDEA 配置与 Docker 切换脚本。按用户选择恢复 Docker backend/frontend/gateway，并新增单独的 IDEA 前端→Docker 后端配置；本地 Java/一键启动只作可选调试，不并行运行第二后端。验收为无活动任务切换、三服务健康、18080/API可用、新配置6项测试/XML解析和前端旧端口释放；均已通过。无业务API/表/权限变化。[范围](features/DEV-01-idea-local.md)、[记录](verification/VER-DEV-001-idea-local.md)。
 
 OFF-04a（2026-09-23，指标功能DONE/终端回传另待排查）：依赖既有 OFF-04 DQN 网关决策和卸载观察查询。所属网关只计一次模型前向预测耗时，后端按决策持久化非负毫秒值，决策列表与详情展示；FIXED/RULE及历史缺测明确区分。不改模型训练或卸载总时延口径。网关4项、Java完整verify 249项、前端58单测/86浏览器通过；V30备份/迁移、三镜像健康和真实浏览器验收完成，新DQN记录0.056934ms（页面0.057ms）。该验证请求后续终端结果回传失败并超时，保留失败事实，不把它算作端到端成功；具体原因另查。[记录](verification/VER-OFF-04a-inference-latency.md)。

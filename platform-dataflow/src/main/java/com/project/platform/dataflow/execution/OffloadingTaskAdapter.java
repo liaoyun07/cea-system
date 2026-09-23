@@ -19,9 +19,10 @@ public final class OffloadingTaskAdapter {
     }
     public Sample decide(TaskContext context,Actor actor,String ns,String key,ApplicationTaskRunner.TerminalTarget origin,
                          Workload work,List<Candidate> candidates,List<String> clouds,boolean rawFileOnly) throws Exception {
+        long decisionStartedNanos=System.nanoTime();
         var c=context.job().task().container();
         java.util.function.Supplier<Sample> choose=()->offloading.decide(actor,ns,key,context.job().executionId(),work,candidates,c.offload().strategy().name(),c.offload().modelVersion(),
-                c.offload().layer()==null?null:Layer.valueOf(c.offload().layer().name()));
+                c.offload().layer()==null?null:Layer.valueOf(c.offload().layer().name()),decisionStartedNanos);
         if(origin.gateway()==null || clouds.size()!=1 || work.inputBytes()<1)return choose.get();
         String cloud=clouds.getFirst();
         boolean capture=origin.singleTask() && context.job().task().retry()==null && context.job().attemptNo()==1 && rawFileOnly;
@@ -57,7 +58,7 @@ public final class OffloadingTaskAdapter {
                         throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge action must be an integer");
                     if(!(response.get("inferenceMs") instanceof Number inferenceMs))
                         throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge inference time required");
-                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue(),inferenceMs.doubleValue());
+                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue(),inferenceMs.doubleValue(),decisionStartedNanos);
                 } catch(RuntimeException error) {throw error;} catch(Exception error) {throw new IllegalStateException("edge DQN decision unavailable",error);}
             } else sample=choose.get();
             if(capture) {

@@ -8,6 +8,7 @@ import {
   newDraft,
   itemPath,
   offloadingTarget,
+  decisionLatency,
   inferenceLatency,
   measurementStatus,
   applicationParameterTypes,
@@ -22,6 +23,11 @@ test('DQN inference latency has an explicit missing and non-model state', () => 
   assert.equal(inferenceLatency({ strategy: 'DQN', inferenceMs: 0.05325 }), '0.053 ms');
   assert.equal(inferenceLatency({ strategy: 'DQN', inferenceMs: null }), '未采集');
   assert.equal(inferenceLatency({ strategy: 'RULE', inferenceMs: null }), '不适用');
+});
+test('decision latency applies to every strategy and never invents historical values', () => {
+  assert.equal(decisionLatency({ strategy: 'RULE', decisionMs: 12.34567 }), '12.346 ms');
+  assert.equal(decisionLatency({ strategy: 'FIXED', decisionMs: 0.057 }), '0.057 ms');
+  assert.equal(decisionLatency({ strategy: 'DQN', decisionMs: null }), '未采集');
 });
 test('offloading measurement distinguishes calibration, missing feedback, next decision and complete sample', () => {
   assert.equal(measurementStatus(null), '未采集六维状态');

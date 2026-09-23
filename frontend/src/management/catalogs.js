@@ -93,7 +93,7 @@ export const catalogs = {
       ['target', '执行目标'],
       ['strategy', '策略'],
       ['outcome', '结果'],
-      ['inferenceMs', '决策时延'],
+      ['decisionMs', '决策时延'],
       ['createdAt', '决策时间'],
       ['measurement', '样本状态'],
     ],
@@ -101,6 +101,8 @@ export const catalogs = {
 };
 export const entryId = (row) => row.id || row.applicationId || row.datasetId || row.key;
 export const offloadingTarget = (target) => (target ? `${target.kind} / ${target.id ?? '未分配'}` : '—');
+export const decisionLatency = (row) =>
+  row.decisionMs == null ? '未采集' : `${row.decisionMs.toFixed(3)} ms`;
 export const inferenceLatency = (row) =>
   row.strategy !== 'DQN' ? '不适用' : row.inferenceMs == null ? '未采集' : `${row.inferenceMs.toFixed(3)} ms`;
 export function measurementStatus(value) {

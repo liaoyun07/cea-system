@@ -6,6 +6,7 @@ import { readCatalog, readDocument } from '../no-code/document.js';
 import {
   catalogs,
   offloadingTarget,
+  decisionLatency,
   inferenceLatency,
   measurementStatus,
   entryId,
@@ -295,7 +296,7 @@ function cell(row, key) {
   if (key.endsWith('At')) return value ? time(value) : '尚无记录';
   if (key === 'locations') return value.map((v) => v.clusterId).join('、');
   if (key === 'target') return offloadingTarget(value);
-  if (key === 'inferenceMs') return inferenceLatency(row);
+  if (key === 'decisionMs') return decisionLatency(row);
   if (key === 'measurement') return measurementStatus(value);
   return value ?? '—';
 }
@@ -468,13 +469,17 @@ onMounted(() => action(loadRows));
       <h2>卸载样本</h2>
       <p class="muted">{{ raw.strategy }} · {{ raw.outcome || '尚未完成' }}</p>
       <button v-if="raw.executionId" @click="emit('execution', raw.executionId)">查看关联执行</button>
-      <dl v-if="raw.strategy === 'DQN'">
-        <dt>模型版本</dt>
-        <dd class="mono">{{ raw.modelVersion }}</dd>
+      <dl>
         <dt>执行位置</dt>
         <dd>{{ offloadingTarget(raw.target) }}</dd>
-        <dt>决策时延（模型推理）</dt>
-        <dd>{{ inferenceLatency(raw) }}</dd>
+        <dt>决策时延</dt>
+        <dd>{{ decisionLatency(raw) }}</dd>
+        <template v-if="raw.strategy === 'DQN'">
+          <dt>模型版本</dt>
+          <dd class="mono">{{ raw.modelVersion }}</dd>
+          <dt>模型推理耗时</dt>
+          <dd>{{ inferenceLatency(raw) }}</dd>
+        </template>
       </dl>
       <template v-if="raw.measurement">
         <h3>{{ measurementStatus(raw.measurement) }}</h3>

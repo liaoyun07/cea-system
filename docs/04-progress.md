@@ -1,5 +1,7 @@
 # 当前进度
 
+OFF-04b（2026-09-24，指标功能已部署）：后端统一选层时延计时与可空 `decision_ms` 已发布，列表显示“决策时延”、DQN推理耗时留详情；目标层确定后、观察落库前停表。Java全量verify 249/249+打包冒烟、前端59单测/86浏览器、V31迁移、18085 API和18080真实页面通过；原129条历史不回填，真实FIXED决策显示20.980ms。验证任务后续终端回传超时，非端到端成功；不宣称30ms系统总时延达标。[范围](features/OFF-04-double-dqn.md)、[验证](verification/VER-OFF-04b-decision-latency.md)。
+
 DEV-01b（2026-09-23，Docker后端现行）：停止本地 Java 和旧18100 Vite，Docker backend/frontend/gateway 已健康，18080/18085可用；IDEA新增前端专用配置 `CEA Frontend - Docker Backend`，需本机热更新时点击即可。切换前确认无活动任务；6项配置测试、XML解析和结构检查通过。后端源码变更仍须重建镜像，不再默认使用一键本地Java模式。[范围](features/DEV-01-idea-local.md)、[验证](verification/VER-DEV-001-idea-local.md)。
 
 OFF-04a（2026-09-23，指标功能已部署）：纯 DQN 推理时延已从网关写入可空数据库列，在决策列表/详情展示；FIXED/RULE“不适用”，历史 DQN“未采集”。网关4项、Java完整verify 249项、前端58单测/86浏览器通过。V30备份迁移、三镜像和18080真实页面核验完成，新决策API 0.056934ms、页面0.057ms。该次任务随后终端回传失败、约120秒超时，不计作端到端成功；原因尚未确定且未重试。此字段不代表系统卸载总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[验证](verification/VER-OFF-04a-inference-latency.md)。

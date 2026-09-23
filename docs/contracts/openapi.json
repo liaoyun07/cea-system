@@ -6328,6 +6328,14 @@
             "minimum": 0,
             "description": "DQN model forward-pass latency in milliseconds, measured at the edge gateway. Null for FIXED/RULE and historical decisions. Excludes RPC, queueing, scheduling and task execution."
           },
+          "decisionMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Backend decision-processing latency in milliseconds, from OffloadingTaskAdapter entry until the target layer is selected, before observation persistence. Includes state preparation and, for DQN, gateway round trip. Null for historical decisions. Excludes worker queueing, placement, task execution and result transfer."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"

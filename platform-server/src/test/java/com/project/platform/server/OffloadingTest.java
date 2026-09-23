@@ -182,8 +182,10 @@ class OffloadingTest {
         assertNull(service().get("lab",key));
         var selected=service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),1,0.05);
         assertEquals("EDGE",selected.target().kind());assertNull(selected.target().id());assertEquals("DQN",selected.strategy());assertEquals(version,selected.modelVersion());
+        assertNotNull(selected.decisionMs());assertTrue(selected.decisionMs()>=0);
         assertEquals(0.05,selected.inferenceMs());
         assertEquals(1,service().edgeDecision(actor,"lab",key,key,work(),version,List.of(0,1),0,0.07).action());
+        assertEquals(selected.decisionMs(),service().get("lab",key).decisionMs());
         assertEquals(0.05,service().get("lab",key).inferenceMs());
     }
     @Test void rejectsMalformedNonFiniteAndUnknownSchemaModels() {
@@ -214,8 +216,9 @@ class OffloadingTest {
     @Test void rulesUseRealLoadAndPersistOneChoicePerAttempt() {
         String key=key();var selected=service().decide(actor,"lab",key,key,work(),options(1),"RULE",null);
         assertEquals("EDGE",selected.target().kind());assertEquals(1,selected.action());
+        assertNotNull(selected.decisionMs());assertTrue(selected.decisionMs()>=0);assertNull(selected.inferenceMs());
         var again=service().decide(actor,"lab",key,key,work(),options(0),"RULE",null);
-        assertEquals(selected.target(),again.target());assertEquals(selected.createdAt(),again.createdAt());
+        assertEquals(selected.target(),again.target());assertEquals(selected.createdAt(),again.createdAt());assertEquals(selected.decisionMs(),again.decisionMs());
         assertNull(selected.target().id());assertNull(selected.state(),"do not reinterpret legacy 13-dimensional state");
     }
     @Test void oldDqnCannotBeRunWithNewLayerSemanticsEvenWhenRegistered() {
@@ -261,7 +264,8 @@ class OffloadingTest {
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.EDGE,0,0,0)),"RULE",null));
     }
     @Test void fixedSelectsOnlyAnExplicitLegalLayerWithoutClusterSelectionOrFallback() {
-        assertEquals("CLOUD",service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.CLOUD,1,0,0)),"FIXED",null,Layer.CLOUD).target().kind());
+        var selected=service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.CLOUD,1,0,0)),"FIXED",null,Layer.CLOUD);
+        assertEquals("CLOUD",selected.target().kind());assertNotNull(selected.decisionMs());assertTrue(selected.decisionMs()>=0);assertNull(selected.inferenceMs());
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),List.of(new Candidate(Layer.EDGE,1,0,0)),"FIXED",null,Layer.CLOUD));
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),options(0),"FIXED",null,null));
         assertThrows(WorkflowException.class,()->service().decide(actor,"lab",key(),key(),work(),options(0),"RULE",null,Layer.CLOUD));
