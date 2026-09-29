@@ -184,7 +184,7 @@ class ImageDistributionTest {
                         resources: [ingressclasses]
                         verbs: [get, list]
                       - apiGroups: [metrics.k8s.io]
-                        resources: [nodes]
+                        resources: [nodes, pods]
                         verbs: [get, list]
                       - apiGroups: [""]
                         resources: [namespaces]
@@ -718,6 +718,10 @@ class ImageDistributionTest {
             await().atMost(Duration.ofSeconds(150)).ignoreExceptions().untilAsserted(()->{
                 var usage=service.nodeUsage(viewer,"lab","edge");
                 assertFalse(usage.nodes().isEmpty());assertNotNull(usage.cpuPercent());assertNotNull(usage.memoryPercent());
+                assertNotNull(usage.podMemoryBytes());assertTrue(usage.podMemoryBytes()>0);
+                double capacity=admin.nodes().list().getItems().stream().mapToDouble(n->
+                        n.getStatus().getCapacity().get("memory").getNumericalAmount().doubleValue()).sum();
+                assertEquals(usage.podMemoryBytes()/capacity*100,usage.memoryPercent(),.000001);
                 assertTrue(usage.nodes().stream().allMatch(n->"AVAILABLE".equals(n.usage().status())));
                 var containers=service.podUsage(viewer,"lab","edge");
                 assertTrue(containers.stream().anyMatch(c->c.pod().startsWith("usage-fixture-") && c.usage().cpuCores()!=null));
@@ -728,11 +732,11 @@ class ImageDistributionTest {
             var connections=context.getBean(com.project.platform.resource.kubernetes.KubernetesConnections.class);
             var future=new com.project.platform.resource.kubernetes.KubernetesResourceService(resources(),connections,
                     java.time.Clock.fixed(java.time.Instant.now().plusSeconds(300),java.time.ZoneOffset.UTC));
-            var stale=future.nodeUsage(viewer,"lab","edge");assertNull(stale.cpuPercent());assertNull(stale.memoryPercent());
+            var stale=future.nodeUsage(viewer,"lab","edge");assertNull(stale.cpuPercent());assertNull(stale.memoryPercent());assertNull(stale.podMemoryBytes());
             assertTrue(stale.nodes().stream().allMatch(n->"STALE".equals(n.usage().status()) && n.usage().cpuCores()==null));
             assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.nodeUsage(viewer,"other","edge"));
             try(var client=connections.open("lab","edge")) {
-                assertEquals(403,assertThrows(KubernetesClientException.class,()->client.top().pods().inNamespace("default").metrics()).getCode());
+                assertFalse(client.top().pods().metrics().getItems().isEmpty());
             }
         } finally { admin.apps().deployments().inNamespace("s4-test").withName("usage-fixture").delete(); }
     }

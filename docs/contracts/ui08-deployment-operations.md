@@ -39,6 +39,8 @@ V19新增`dep_deployment_record`的真实消费者：应用/集群/名称/operat
 
 `GET /clusters/{cluster}/kubernetes/usage/nodes`、`GET .../usage/pods`，只读Metrics API。node为注册集群范围，pod严格限配置namespace（RBAC同样限制）。CPU为采样窗口平均核数，memory为working set字节；保留采样timestamp/window（ISO-8601时长，如PT15S）。超过120秒为STALE，时间超前>10秒或窗口无效为INVALID，缺失为MISSING；不可用字段为null而不是0。
 
+UI-20：`usage/nodes` 保留 `nodes[]` 原 NodeMetrics 明细和原 `cpuPercent`，新增 `podMemoryBytes` 为该集群所有 Namespace 的 Pod 容器 working set 之和；顶层 `memoryPercent = podMemoryBytes / 所有节点 memory capacity × 100`，不再代表 NodeMetrics working set 占比。缺测或过期时这两个字段为 null。`usage/pods` 仍仅返回配置 Namespace 的明细；新增的跨 Namespace 只读权限只供汇总使用。
+
 节点百分比=用量/capacity；集群=全部节点用量之和/全部节点capacity之和，任何节点缺样不返回全量百分比。不平均百分比，不跨四个同宿主K3s相加。容器只有明确limit才给相对limit的百分比，无limit仅展示用量。指标读取不参与Placement、不入时序库、不做告警，也不是申报书“系统开销”的验收。
 
 CEA K3s1.30对应metrics-server0.7.x；清单为官方v0.7.2发布配置，使用[Rancher的上游镜像映射](https://github.com/rancher/artifact-mirror/blob/master/config.yaml)。本地自签Kubelet使用insecure-tls，不能原样当互联网生产TLS方案。需显式安装采集器和更新RBAC；不因后端启动自动安装。官方用途和精度限制见[Metrics Server](https://github.com/kubernetes-sigs/metrics-server)。

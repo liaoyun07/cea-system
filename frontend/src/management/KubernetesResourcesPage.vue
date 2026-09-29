@@ -36,21 +36,27 @@ const nodeUsage = (name) => usage.value?.nodes.find((row) => row.name === name)?
 const usageCards = computed(() =>
   [
     { key: 'cpu', label: '集群 CPU 使用率', field: 'cpuCores', percentage: 'cpuPercent' },
-    { key: 'memory', label: '集群内存使用率', field: 'memoryBytes', percentage: 'memoryPercent' },
+    { key: 'memory', label: '集群 Pod 内存使用率', field: 'podMemoryBytes', percentage: 'memoryPercent' },
   ].map((card) => {
     const value = usage.value?.[card.percentage];
     const available = typeof value === 'number' && Number.isFinite(value) && value >= 0;
     const nodes = usage.value?.nodes || [];
     const complete =
-      available &&
-      nodes.length > 0 &&
-      nodes.every(
-        (node) =>
-          node.usage.status === 'AVAILABLE' &&
-          typeof node.usage[card.field] === 'number' &&
-          Number.isFinite(node.usage[card.field]),
-      );
-    const total = complete ? nodes.reduce((sum, node) => sum + node.usage[card.field], 0) : null;
+      card.key === 'memory'
+        ? available && typeof usage.value?.podMemoryBytes === 'number'
+        : available &&
+          nodes.length > 0 &&
+          nodes.every(
+            (node) =>
+              node.usage.status === 'AVAILABLE' &&
+              typeof node.usage[card.field] === 'number' &&
+              Number.isFinite(node.usage[card.field]),
+          );
+    const total = complete
+      ? card.key === 'memory'
+        ? usage.value.podMemoryBytes
+        : nodes.reduce((sum, node) => sum + node.usage[card.field], 0)
+      : null;
     return {
       ...card,
       percentage: available ? percentText(value) : '—',
@@ -217,12 +223,13 @@ onBeforeUnmount(() => {
           <p class="usage-amount">
             {{ card.state }} <strong>{{ card.used }}</strong>
           </p>
-          <p class="muted">占全部节点总容量</p>
+          <p class="muted">{{ card.key === 'memory' ? '占共享宿主机总容量' : '占全部节点总容量' }}</p>
         </div>
       </article>
     </section>
     <p v-if="cluster && tab === 'nodes'" class="usage-scope muted">
-      来源：Kubernetes 节点指标；内存为工作集，包含部分文件缓存，不等同于应用进程内存。
+      CPU 来源：Kubernetes 节点指标；内存环图汇总当前集群所有 Namespace 的 Pod
+      工作集，除以共享宿主机容量，包含部分文件缓存；节点表仍显示节点指标。
     </p>
     <div v-if="loading || catalogLoading" class="empty">正在读取资源…</div>
     <div v-else-if="!cluster && !catalogError" class="empty">暂无登记集群</div>

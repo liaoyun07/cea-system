@@ -344,7 +344,7 @@ test('node metrics remain while the container usage tab and requests are removed
   await nav(page, '集群运行资源');
   await page.getByLabel('资源集群', { exact: true }).selectOption('runtime-edge');
   await expect(page.getByRole('img', { name: /集群 CPU 使用率 \d/ })).toBeVisible();
-  await expect(page.getByRole('img', { name: /集群内存使用率 \d/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /集群 Pod 内存使用率 \d/ })).toBeVisible();
   await expect(page.getByRole('table', { name: '节点', exact: true })).toContainText('MiB');
   await expect(page.getByRole('columnheader', { name: /采样|Pod/ })).toHaveCount(0);
   await expect(page.getByRole('table', { name: '节点', exact: true })).not.toContainText('javaDuration');

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+UI-20（DONE，已部署）：集群内存环图按本集群所有 Namespace 的 Pod working set 汇总，百分比除以共享宿主节点容量；节点表、CPU 环图及原 Pod 明细接口不变。四集群仅增加全 Namespace Pod Metrics 只读权限；全量 Maven verify、前端59单测/9定向浏览器及真实页面验收通过。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
+
 OFF-04b（指标功能已部署）：参照旧系统扩展“决策时延”为后端选层处理区间，FIXED/RULE/DQN统一采集；DQN模型推理耗时保留在详情。V31、前后端Docker发布、Java 249项/打包冒烟、前端59单测/86浏览器回归通过；真实FIXED决策20.980ms已显示，历史不回填。验证任务后续终端回传超时，不算端到端成功；此指标不冒充系统总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。
 
 DEV-01b（DONE）：当前日常使用Docker后端与18080页面；IDEA可单独启动本机前端代理到Docker 18085。原本地Java模式仅按需使用，不与Docker后端同时运行。6项配置测试、XML解析、三容器健康与真实页面核验通过。[范围](features/DEV-01-idea-local.md)、[操作](../deploy/cea/idea/README.md)、[验证](verification/VER-DEV-001-idea-local.md)。

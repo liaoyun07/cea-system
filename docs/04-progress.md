@@ -1,5 +1,7 @@
 # 当前进度
 
+UI-20（2026-09-29，已部署）：集群运行资源的内存环图现显示该集群全部 Pod working set／共享宿主节点容量，cloud/edge-a/edge-b/edge-c 页面约 1.0%/3.4%/1.0%/0.8%，后台字节与容量复算一致。节点表仍显示原 NodeMetrics，CPU 环图未改；全量 Maven verify、前端59单测/9定向浏览器和四集群只读权限/真实 API/页面通过。仅重建 backend/frontend；未改执行链、数据库、K3s/工作负载及其它服务。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
+
 OFF-04b（2026-09-24，指标功能已部署）：后端统一选层时延计时与可空 `decision_ms` 已发布，列表显示“决策时延”、DQN推理耗时留详情；目标层确定后、观察落库前停表。Java全量verify 249/249+打包冒烟、前端59单测/86浏览器、V31迁移、18085 API和18080真实页面通过；原129条历史不回填，真实FIXED决策显示20.980ms。验证任务后续终端回传超时，非端到端成功；不宣称30ms系统总时延达标。[范围](features/OFF-04-double-dqn.md)、[验证](verification/VER-OFF-04b-decision-latency.md)。
 
 DEV-01b（2026-09-23，Docker后端现行）：停止本地 Java 和旧18100 Vite，Docker backend/frontend/gateway 已健康，18080/18085可用；IDEA新增前端专用配置 `CEA Frontend - Docker Backend`，需本机热更新时点击即可。切换前确认无活动任务；6项配置测试、XML解析和结构检查通过。后端源码变更仍须重建镜像，不再默认使用一键本地Java模式。[范围](features/DEV-01-idea-local.md)、[验证](verification/VER-DEV-001-idea-local.md)。

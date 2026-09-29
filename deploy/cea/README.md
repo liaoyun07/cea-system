@@ -1,5 +1,7 @@
 # CEA 独立本地部署（DEPLOY-01）
 
+UI-20 内存环图需要在四集群给后端账号增加 `metrics.k8s.io/pods` 的跨 Namespace get/list，只读汇总全部 Pod working set；节点表和原单 Namespace Pod 明细不变。该百分比按各集群 Pod 已用量除以共享宿主节点容量，不能把四个百分比相加。实际发布与验证见 [VER-UI-020](../../docs/verification/VER-UI-020-cluster-pod-memory.md)。
+
 ING-01（2026-09-17）：用户已允许新增四集群Traefik和独立`ingress-access`服务，当前发布结果见[验证](../../docs/verification/VER-ING-01-ingress.md)。入口默认cloud/edge-a/edge-b/edge-c对应本机18090/18091/18092/18093，可由`.env.example`中的四个端口项调整。`setup-ingress.ps1`导入固定版本镜像、应用控制器和后端RBAC、同步IngressClass的HTTP入口注解并只启动端口桥；不会重启K3s、数据库或算法工作负载。后端/前端按原流程构建并单独发布，不运行全量初始化或旧数据迁移。桥保留Host/path，路由事实仍在Kubernetes。真实域名需自行DNS/hosts指向入口，HTTP入口只绑定127.0.0.1；没有公网TLS或跨宿主入口保证。新增组件须先获准，不能把基础`start.ps1`完成等同Ingress可用。
 
 PRIO-01（2026-09-17，已部署）：发布前确认活动Execution及wf_worker_job均为0，备份MySQL并保留 `cea/backend:before-prio01` / `cea/frontend:before-prio01`；V28只给原Worker队列增加priority/enqueue_order及索引。仅重建backend/frontend，18080和后端健康，另外17服务不重启。真实页面、两轮FedAvg/FedProx及原344执行/42Flow/数据目录保留核验通过。`verify-priority.mjs`记录本批基线、迁移、保留和未保存草稿页面证据；非通用重复发布脚本，原证据不覆盖。[完整记录](../../docs/verification/VER-PRIO-01-priority-admission.md)。

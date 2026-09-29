@@ -20,7 +20,7 @@ public final class KubernetesResourceService {
     public record Usage(Double cpuCores,Long memoryBytes,Double cpuPercent,Double memoryPercent,
                         String timestamp,String window,String status) {}
     public record NodeUsage(String name,Usage usage) {}
-    public record ClusterUsage(String namespace,List<NodeUsage> nodes,Double cpuPercent,Double memoryPercent) {}
+    public record ClusterUsage(String namespace,List<NodeUsage> nodes,Double cpuPercent,Long podMemoryBytes,Double memoryPercent) {}
     public record ContainerUsage(String pod,String container,Usage usage) {}
     public static final class Unavailable extends RuntimeException {
         public Unavailable(String message) { super(message); }
@@ -82,17 +82,29 @@ public final class KubernetesResourceService {
     public ClusterUsage nodeUsage(Actor actor,String namespace,String cluster) {
         return read(actor,namespace,cluster,client->{
             var metrics=client.top().nodes().metrics().getItems();
-            var result=new ArrayList<NodeUsage>();double cpu=0,memory=0,cpuCapacity=0,memoryCapacity=0;boolean complete=true;
+            var result=new ArrayList<NodeUsage>();double cpu=0,cpuCapacity=0,memoryCapacity=0;boolean complete=true,capacityComplete=true;
             for(var node:client.nodes().list().getItems()) {
                 var metric=metrics.stream().filter(m->m.getMetadata().getName().equals(node.getMetadata().getName())).findFirst().orElse(null);
                 var capacity=node.getStatus()==null?null:node.getStatus().getCapacity();
                 Usage usage=usage(metric==null?null:metric.getUsage(),capacity,metric==null?null:metric.getTimestamp(),metric==null?null:metric.getWindow());
                 result.add(new NodeUsage(node.getMetadata().getName(),usage));
                 Double c=amount(capacity,"cpu"),m=amount(capacity,"memory");
+                if(m==null || m<=0)capacityComplete=false;
+                else memoryCapacity+=m;
                 if(!"AVAILABLE".equals(usage.status()) || c==null || c<=0 || m==null || m<=0)complete=false;
-                else { cpu+=usage.cpuCores();memory+=usage.memoryBytes();cpuCapacity+=c;memoryCapacity+=m; }
+                else { cpu+=usage.cpuCores();cpuCapacity+=c; }
             }
-            return new ClusterUsage(client.getNamespace(),result,complete?percent(cpu,cpuCapacity):null,complete?percent(memory,memoryCapacity):null);
+            long podMemory=0;boolean podsComplete=true;
+            for(var pod:client.top().pods().metrics().getItems()) {
+                for(var container:pod.getContainers()) {
+                    Usage measured=usage(container.getUsage(),null,pod.getTimestamp(),pod.getWindow());
+                    if(!"AVAILABLE".equals(measured.status()))podsComplete=false;
+                    else podMemory+=measured.memoryBytes();
+                }
+            }
+            Long podMemoryBytes=podsComplete?podMemory:null;
+            return new ClusterUsage(client.getNamespace(),result,complete?percent(cpu,cpuCapacity):null,
+                    podMemoryBytes,podsComplete && capacityComplete?percent((double)podMemory,memoryCapacity):null);
         });
     }
     public List<ContainerUsage> podUsage(Actor actor,String namespace,String cluster) {

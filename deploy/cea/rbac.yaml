@@ -52,7 +52,7 @@ rules:
     resources: [ingressclasses]
     verbs: [get, list]
   - apiGroups: [metrics.k8s.io]
-    resources: [nodes]
+    resources: [nodes, pods]
     verbs: [get, list]
   - apiGroups: [""]
     resources: [namespaces]

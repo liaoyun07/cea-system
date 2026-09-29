@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+UI-20（2026-09-29，DONE，已部署）：依赖 UI-15 节点环图和现有 Metrics API；仅将内存环图改为当前集群所有 Namespace 的 Pod working set 之和，并除以该集群报告的共享宿主节点内存容量。CPU 环图和节点明细仍用原 NodeMetrics；既有单 Namespace Pod 明细接口、调度、执行、数据库不变。四集群后端账号仅补全 Namespace 的 Pod Metrics get/list。定向2项、全量 Maven verify、前端59项单测、9项定向浏览器及四集群实值/页面/权限/服务健康验收通过。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
+
 OFF-04b（2026-09-24，指标功能DONE/终端回传另待排查）：依赖 OFF-04a 的DQN模型推理计时和卸载记录查询；按旧系统后端选层计时语义，在 `OffloadingTaskAdapter.decide` 入口启表、目标层确定后且写观察记录前停表，FIXED/RULE/DQN写入同一可空毫秒字段。DQN原推理耗时留详情，历史空值不回填；不改卸载选址、执行、训练或系统总时延口径。三策略与重放/缺测测试、Java全量verify、前端59单测/86浏览器、V31迁移、CEA真实API和页面通过；仅发布backend/frontend，保留原业务与其他服务。真实FIXED决策20.980ms；后续任务终端超时不算端到端成功。[范围](features/OFF-04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。
 
 DEV-01b（2026-09-23，DONE）：依赖 DEV-01/01a 既有 IDEA 配置与 Docker 切换脚本。按用户选择恢复 Docker backend/frontend/gateway，并新增单独的 IDEA 前端→Docker 后端配置；本地 Java/一键启动只作可选调试，不并行运行第二后端。验收为无活动任务切换、三服务健康、18080/API可用、新配置6项测试/XML解析和前端旧端口释放；均已通过。无业务API/表/权限变化。[范围](features/DEV-01-idea-local.md)、[记录](verification/VER-DEV-001-idea-local.md)。

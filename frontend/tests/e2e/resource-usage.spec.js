@@ -27,7 +27,7 @@ async function open(page) {
 }
 const refresh = (page) => page.getByRole('button', { name: '刷新资源', exact: true }).click();
 
-test('resource rings use authoritative cluster ratios and all-node usage, not current page averages', async ({
+test('CPU ring uses all nodes while memory ring uses this cluster’s Pods over shared-host capacity', async ({
   page,
 }) => {
   await page.route('**/kubernetes/usage/nodes', (route) =>
@@ -35,15 +35,17 @@ test('resource rings use authoritative cluster ratios and all-node usage, not cu
       json: {
         cpuPercent: 25,
         memoryPercent: 75,
+        podMemoryBytes: 3 * 1073741824,
         nodes: [metric('one', 1, 2 * 1073741824), metric('two', 5, 10 * 1073741824)],
       },
     }),
   );
   await open(page);
   await expect(page.getByRole('img', { name: '集群 CPU 使用率 25.0%', exact: true })).toBeVisible();
-  await expect(page.getByRole('img', { name: '集群内存使用率 75.0%', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: '集群 Pod 内存使用率 75.0%', exact: true })).toBeVisible();
   await expect(page.locator('.usage-card.cpu')).toContainText('6.000 核');
-  await expect(page.locator('.usage-card.memory')).toContainText('12.00 GiB');
+  await expect(page.locator('.usage-card.memory')).toContainText('3.00 GiB');
+  await expect(page.locator('.usage-card.memory')).toContainText('占共享宿主机总容量');
   await expect(page.locator('.usage-card.cpu .ring-value')).toHaveAttribute('stroke-dasharray', '25 100');
   await expect(page.getByRole('table', { name: '节点' }).locator('tbody tr')).toHaveCount(1);
   const table = page.getByRole('table', { name: '节点' });
@@ -73,19 +75,34 @@ test('resource rings use authoritative cluster ratios and all-node usage, not cu
 });
 
 test('resource rings distinguish zero, full, over-capacity and unavailable samples', async ({ page }) => {
-  let sample = { cpuPercent: 0, memoryPercent: 100, nodes: [metric('one', 0, 8 * 1073741824)] };
+  let sample = {
+    cpuPercent: 0,
+    memoryPercent: 100,
+    podMemoryBytes: 8 * 1073741824,
+    nodes: [metric('one', 0, 8 * 1073741824)],
+  };
   await page.route('**/kubernetes/usage/nodes', (route) => route.fulfill({ json: sample }));
   await open(page);
   await expect(page.getByRole('img', { name: '集群 CPU 使用率 0.0%', exact: true })).toBeVisible();
   await expect(page.locator('.usage-card.cpu .ring-value')).toHaveCount(0);
   await expect(page.locator('.usage-card.cpu')).toContainText('0.000 核');
   await expect(page.locator('.usage-card.memory .ring-value')).toHaveAttribute('stroke-dasharray', '100 100');
-  sample = { cpuPercent: 125, memoryPercent: 100, nodes: [metric('one', 10, 8 * 1073741824)] };
+  sample = {
+    cpuPercent: 125,
+    memoryPercent: 100,
+    podMemoryBytes: 8 * 1073741824,
+    nodes: [metric('one', 10, 8 * 1073741824)],
+  };
   await refresh(page);
   await expect(page.getByRole('img', { name: '集群 CPU 使用率 125.0%', exact: true })).toBeVisible();
   await expect(page.locator('.usage-card.cpu .ring-value')).toHaveAttribute('stroke-dasharray', '100 100');
   for (const status of ['STALE', 'MISSING', 'INVALID']) {
-    sample = { cpuPercent: null, memoryPercent: null, nodes: [metric('one', null, null, status)] };
+    sample = {
+      cpuPercent: null,
+      memoryPercent: null,
+      podMemoryBytes: null,
+      nodes: [metric('one', null, null, status)],
+    };
     await refresh(page);
     await expect(page.getByRole('button', { name: '刷新资源', exact: true })).toBeEnabled();
     await expect(page.getByRole('img', { name: '集群 CPU 使用率 —', exact: true })).toBeVisible();
@@ -108,7 +125,14 @@ test('resource refresh failure and switching clusters clear old ring readings', 
     await route.fulfill(
       fail
         ? { status: 503, json: { message: 'metrics unavailable' } }
-        : { json: { cpuPercent: 20, memoryPercent: 30, nodes: [metric('one', 1.6, 1073741824)] } },
+        : {
+            json: {
+              cpuPercent: 20,
+              memoryPercent: 30,
+              podMemoryBytes: 1073741824,
+              nodes: [metric('one', 1.6, 1073741824)],
+            },
+          },
     );
   });
   await open(page);
