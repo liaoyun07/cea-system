@@ -1,0 +1,70 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-cloud-edge
+description: Complete UCI 447 native-rate features on three edges and cloud multi-sensor anomaly fusion.
+inputs:
+  dataset: {type: SELECT, values: [hydraulic-signals/hc01-v1], defaultValue: hydraulic-signals/hc01-v1}
+  reference: {type: SELECT, values: [hydraulic-reference/hc01-v1], defaultValue: hydraulic-reference/hc01-v1}
+  z_threshold: {type: NUMBER, defaultValue: 3}
+tasks:
+  - id: edges
+    type: core.Parallel
+    tasks:
+      - id: edge_a
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-edge
+          version: hc02-v1
+          candidateClusters: [edge-a]
+          command: [python, /app/app.py, edge]
+          parameters:
+            DATASET: {source: INPUT, name: dataset}
+            EDGE_GROUP: {source: LITERAL, value: edge-a}
+          outputFiles: [features.npz, metrics.json, compute-profile.json, cea-measurement.json]
+      - id: edge_b
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-edge
+          version: hc02-v1
+          candidateClusters: [edge-b]
+          command: [python, /app/app.py, edge]
+          parameters:
+            DATASET: {source: INPUT, name: dataset}
+            EDGE_GROUP: {source: LITERAL, value: edge-b}
+          outputFiles: [features.npz, metrics.json, compute-profile.json, cea-measurement.json]
+      - id: edge_c
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-edge
+          version: hc02-v1
+          candidateClusters: [edge-c]
+          command: [python, /app/app.py, edge]
+          parameters:
+            DATASET: {source: INPUT, name: dataset}
+            EDGE_GROUP: {source: LITERAL, value: edge-c}
+          outputFiles: [features.npz, metrics.json, compute-profile.json, cea-measurement.json]
+  - id: fusion
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-fusion
+      version: hc02-v1
+      candidateClusters: [cloud]
+      command: [python, /app/app.py, fuse]
+      parameters:
+        REFERENCE: {source: INPUT, name: reference}
+        Z_THRESHOLD: {source: INPUT, name: z_threshold}
+      inputFiles:
+        edge-a.npz: {source: TASK_OUTPUT, taskId: edge_a, port: features.npz}
+        edge-b.npz: {source: TASK_OUTPUT, taskId: edge_b, port: features.npz}
+        edge-c.npz: {source: TASK_OUTPUT, taskId: edge_c, port: features.npz}
+        edge-a-profile.json: {source: TASK_OUTPUT, taskId: edge_a, port: compute-profile.json}
+        edge-b-profile.json: {source: TASK_OUTPUT, taskId: edge_b, port: compute-profile.json}
+        edge-c-profile.json: {source: TASK_OUTPUT, taskId: edge_c, port: compute-profile.json}
+      outputFiles: [anomalies.npz, report.json, metrics.json, compute-profile.json, cea-measurement.json]
+outputs:
+  report: {source: TASK_OUTPUT, taskId: fusion, port: report.json}
+  anomalies: {source: TASK_OUTPUT, taskId: fusion, port: anomalies.npz}

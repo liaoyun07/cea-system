@@ -1,0 +1,8 @@
+**
+!examples/
+!examples/hydraulic-cloud-edge/
+!examples/hydraulic-cloud-edge/*.py
+!examples/hydraulic-cloud-edge/stats.c
+!sdk/
+!sdk/python/
+!sdk/python/cea_measurement.py

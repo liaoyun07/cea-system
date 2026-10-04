@@ -1,5 +1,9 @@
 # 当前进度
 
+HC-02（2026-10-04，已部署/核心2GB/s验收通过）：液压流程当前r3使用hc02-v1单遍稳定SIMD核，数据、参考、资源和计时保持。PS4的小方差回退已确认，edge-b核心降至18～29ms；预热＋三正式全成功，正式4.873/4.052/4.841GB/s，均4.589，原完整SDK均0.598，端到端10～11秒。8单测、实际16Job所有产物/评分/字节/区间复核通过，原20服务/51无关Flow摘要保留；无Java/API/权限/表/通用调度修改。检测质量和端到端吞吐未因本优化达标。[说明](features/HC-02-single-pass.md)、[证据](verification/VER-HC-02.md)。
+
+HC-01（2026-10-04，核心演示已部署/性能目标未达）：`lab/hydraulic-cloud-edge` r2及两个hc01-v2应用已可执行，原r1/v1保持。完整2205液压周期，三个边缘提取17通道分窗统计，云端融合评分；7单测、全部实际32成功Job产物/字节/区间独立复核通过，当前4/4执行成功。正式核心1.306/1.578/1.372GB/s，均1.419，原SDK均0.580，端到端10.27～10.63秒；未到2GB/s。默认阈值误报5/5留出健康周期，仅计算协作演示。20服务与51原Flow摘要保持、无重启/扩权/Java/数据库修改；未重跑全量Maven。失败和旧基线留存，未混入既有暂存批次/推送。[说明](features/HC-01-hydraulic-cloud-edge.md)、[结果](verification/VER-HC-01.md)。
+
 UI-20（2026-09-29，已部署）：集群运行资源的内存环图现显示该集群全部 Pod working set／共享宿主节点容量，cloud/edge-a/edge-b/edge-c 页面约 1.0%/3.4%/1.0%/0.8%，后台字节与容量复算一致。节点表仍显示原 NodeMetrics，CPU 环图未改；全量 Maven verify、前端59单测/9定向浏览器和四集群只读权限/真实 API/页面通过。仅重建 backend/frontend；未改执行链、数据库、K3s/工作负载及其它服务。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
 
 OFF-04b（2026-09-24，指标功能已部署）：后端统一选层时延计时与可空 `decision_ms` 已发布，列表显示“决策时延”、DQN推理耗时留详情；目标层确定后、观察落库前停表。Java全量verify 249/249+打包冒烟、前端59单测/86浏览器、V31迁移、18085 API和18080真实页面通过；原129条历史不回填，真实FIXED决策显示20.980ms。验证任务后续终端回传超时，非端到端成功；不宣称30ms系统总时延达标。[范围](features/OFF-04-double-dqn.md)、[验证](verification/VER-OFF-04b-decision-latency.md)。

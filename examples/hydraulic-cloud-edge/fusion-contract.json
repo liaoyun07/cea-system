@@ -1,0 +1,9 @@
+{
+  "applicationId": "hydraulic-fusion",
+  "version": "hc01-v2",
+  "image": "registry.example/lab/hydraulic-cloud-edge:hc01-v2",
+  "parameters": {
+    "REFERENCE": {"type": "STRING", "required": true, "defaultValue": "hydraulic-reference/hc01-v1", "dataset": {"format": "npz", "allowed": [{"datasetId": "hydraulic-reference", "version": "hc01-v1"}]}},
+    "Z_THRESHOLD": {"type": "NUMBER", "required": true, "defaultValue": 3}
+  }
+}

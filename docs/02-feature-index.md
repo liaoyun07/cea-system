@@ -1,5 +1,9 @@
 # 功能与验证索引
 
+HC-02（2026-10-04，DONE/已部署）：确认PS4的63.48%窗口触发小方差回退，改预编译单线程SIMD锚定单遍统计；数据/结果/计量/资源保持，当前Flow r3与hc02-v1应用。8单测、实际16成功Job全量数值/计量通过；预热＋三正式全成功，核心均4.589GB/s（三次均>2），原SDK均0.598，端到端10～11秒。20服务/51原Flow摘要保持，未改Java/API/表/权限/调度；检测误报未解决。[范围](features/HC-02-single-pass.md)、[验证](verification/VER-HC-02.md)。
+
+HC-01（2026-10-04，核心演示已部署/2GB/s未达）：完整UCI液压2205周期/17通道，三边缘分窗特征、云端对齐融合评分；新轻量镜像/两应用/Flow r2。7单测、32成功Job数值和区间独立核验通过，当前预热＋三正式全成功；核心均1.419GB/s、原SDK均0.580。默认阈值误报全部5留出健康周期，非生产检测器。原20服务/51Flow摘要保持，未重跑全量Maven、未推送。[范围](features/HC-01-hydraulic-cloud-edge.md)、[协议](contracts/hydraulic-cloud-edge.md)、[验证](verification/VER-HC-01.md)。
+
 UI-20（DONE，已部署）：集群内存环图按本集群所有 Namespace 的 Pod working set 汇总，百分比除以共享宿主节点容量；节点表、CPU 环图及原 Pod 明细接口不变。四集群仅增加全 Namespace Pod Metrics 只读权限；全量 Maven verify、前端59单测/9定向浏览器及真实页面验收通过。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
 
 OFF-04b（指标功能已部署）：参照旧系统扩展“决策时延”为后端选层处理区间，FIXED/RULE/DQN统一采集；DQN模型推理耗时保留在详情。V31、前后端Docker发布、Java 249项/打包冒烟、前端59单测/86浏览器回归通过；真实FIXED决策20.980ms已显示，历史不回填。验证任务后续终端回传超时，不算端到端成功；此指标不冒充系统总时延。[范围](features/OFF-04-double-dqn.md)、[协议](contracts/off04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。

@@ -1,0 +1,9 @@
+{
+  "applicationId": "hydraulic-edge",
+  "version": "hc01-v2",
+  "image": "registry.example/lab/hydraulic-cloud-edge:hc01-v2",
+  "parameters": {
+    "DATASET": {"type": "STRING", "required": true, "defaultValue": "hydraulic-signals/hc01-v1", "dataset": {"format": "npz", "allowed": [{"datasetId": "hydraulic-signals", "version": "hc01-v1"}]}},
+    "EDGE_GROUP": {"type": "STRING", "required": true, "choices": ["edge-a", "edge-b", "edge-c"]}
+  }
+}

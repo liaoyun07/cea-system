@@ -1,5 +1,9 @@
 # 云边端协同平台新后端
 
+HC-02（2026-10-04，已部署）：液压云边流程r3改为稳定单遍SIMD统计，PS4低方差慢路径消除；数据/资源/计量不变，三正式核心4.873/4.052/4.841GB/s，均4.589，均超过2。完整SDK均0.598GB/s、端到端仍10～11秒，不能混称端到端达标；8单测和16实际Job全量数值/计量核验通过，旧服务/流程保持。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-02.md)。
+
+HC-01（2026-10-04，云边演示已部署）：数据流中可执行 `hydraulic-cloud-edge` r2，三个边缘处理完整2205周期/17通道液压数据，云端融合异常评分。当前纯计算平均1.419GB/s、原完整SDK平均0.580GB/s，尚未到2GB/s；默认阈值有正常周期误报，仅协作计算演示。[使用](examples/hydraulic-cloud-edge/README.md)、[实测](docs/verification/VER-HC-01.md)。
+
 PRIO-01（2026-09-17，已部署）：可执行子任务支持 priority 0..100，默认0；原就绪队列高优先级先准入、同级FIFO。集群槽位不足留队，不占Worker执行名额；非抢占、不绕过依赖。275项Java、54项前端单测、60项浏览器测试及CEA FedAvg/FedProx各两轮数值复核通过。仅更新前后端和V28队列表两列，原Flow/历史与其他17服务保持。[功能与边界](docs/features/PRIO-01-priority-admission.md)、[验证](docs/verification/VER-PRIO-01-priority-admission.md)。
 
 FLPAR-22（2026-09-16，隔离实验已验证/部署）：累计10万、唯一5万样本不变，线性FedAvg六客户端对照三个双份客户端。修正测试观察器远端进程残留后，独立干净批次8/8成功；正式均速1289.25/1298.95MB/s，仅+0.75%，未证明明显提速或达到2GB/s，端到端46.90/35.96秒。96Job/52模型104张量通过；首批受干扰数据及2次时钟失败另行保留，未修SDK。两新Flow/新数据版本已在CEA，原业务/19服务不改。[完整记录](docs/verification/VER-FLPAR-22-coarse.md)。

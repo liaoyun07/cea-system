@@ -1,5 +1,9 @@
 # 可修改的实施计划
 
+HC-02（2026-10-04，DONE/已部署）：依赖HC-01 r2完整数据及四集群；确认PS4小方差回退慢路径，单遍稳定SIMD统计预编译入hc02-v1，当前Flow r3。保持原采样率、五统计、dtype、字节/计时/资源；8单测、独立全量及实际16Job产物/计量通过，固定修订预热＋三正式全SUCCESS，正式核心均4.589GB/s、三次均>2。原版本/失败保留，无调度/Java/API/表/权限改动或人为同步；完整SDK均0.598GB/s，端到端和误报另待解决。[范围](features/HC-02-single-pass.md)、[验证](verification/VER-HC-02.md)。
+
+HC-01（2026-10-04，核心演示DONE/性能目标未达）：完整UCI液压数据，三边缘向量化分窗统计、云端跨传感器异常评分；新轻量镜像/两个契约/新Flow r2，现有并行文件协议不变。固定核心字节/区间并集，保留完整SDK；独立数值、真实4Job和预热＋三正式通过，核心均1.419GB/s未到2GB/s。实现中增加等义平方求和优化并保留v1/r1，未改数据或计量；5个留出正常周期全误报，仅演示，检测质量/性能目标后续另验收。无Java/API/表/权限改动。[范围](features/HC-01-hydraulic-cloud-edge.md)、[验证](verification/VER-HC-01.md)。
+
 UI-20（2026-09-29，DONE，已部署）：依赖 UI-15 节点环图和现有 Metrics API；仅将内存环图改为当前集群所有 Namespace 的 Pod working set 之和，并除以该集群报告的共享宿主节点内存容量。CPU 环图和节点明细仍用原 NodeMetrics；既有单 Namespace Pod 明细接口、调度、执行、数据库不变。四集群后端账号仅补全 Namespace 的 Pod Metrics get/list。定向2项、全量 Maven verify、前端59项单测、9项定向浏览器及四集群实值/页面/权限/服务健康验收通过。[范围](features/UI-20-cluster-pod-memory.md)、[验证](verification/VER-UI-020-cluster-pod-memory.md)。
 
 OFF-04b（2026-09-24，指标功能DONE/终端回传另待排查）：依赖 OFF-04a 的DQN模型推理计时和卸载记录查询；按旧系统后端选层计时语义，在 `OffloadingTaskAdapter.decide` 入口启表、目标层确定后且写观察记录前停表，FIXED/RULE/DQN写入同一可空毫秒字段。DQN原推理耗时留详情，历史空值不回填；不改卸载选址、执行、训练或系统总时延口径。三策略与重放/缺测测试、Java全量verify、前端59单测/86浏览器、V31迁移、CEA真实API和页面通过；仅发布backend/frontend，保留原业务与其他服务。真实FIXED决策20.980ms；后续任务终端超时不算端到端成功。[范围](features/OFF-04-double-dqn.md)、[记录](verification/VER-OFF-04b-decision-latency.md)。
