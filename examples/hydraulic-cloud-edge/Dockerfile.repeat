@@ -1,0 +1,2 @@
+FROM cea/hydraulic-cloud-edge:hc03-v1
+COPY examples/hydraulic-cloud-edge/repeat.py examples/hydraulic-cloud-edge/test_repeat.py ./

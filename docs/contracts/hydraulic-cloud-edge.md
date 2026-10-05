@@ -1,5 +1,11 @@
 # HC-01 液压云边应用协议
 
+## HC-04 重复处理入口
+
+同一镜像新增 `python /app/repeat.py edge|central|fuse --passes 1|5|10`，目录仍为 `/cea-work/in` 和 `/cea-work/out`。edge 按索引 i 读取 raw-i.npz、输出 features-i.npz；central/fuse 读取 edge-a/b/c-i.npz（分别为原始信号/特征），共用 reference.npz，输出 anomalies-i.npz。所有索引真实执行且独立保存，每个任务只产生一份 SDK 报告；云任务 report.json 包含 metrics.datasetPasses、uniqueCycles、processedCycles、batches（逐次原融合指标）。processedCycles 是重复处理累计数，不能当独立样本。
+
+`hydraulic-compare/hc04-v1` 的 EDGE_GROUP/Z_THRESHOLD 与 hc03 相同；`hc04-reference-v1` 同镜像、额外必填 STRING 数据集参数 REFERENCE，限定 hydraulic-reference/hc01-v1 的 npz。10 次云任务用已有数据集准备下载至 REFERENCE_PATH，并软链接为 reference.npz，避免超过 30 个 inputFiles；不增加引擎绑定类型或放宽限制。两契约仅适配同一入口的文件准备，算法无差异。Flow 顶层暴露 report 和 firstBatch，其余各次产物在子任务输出中可取。[范围](../features/HC-04-repeat-load.md)。
+
 ## HC-03独立对照入口
 
 `hydraulic-compare/hc03-v1` 使用同一HC-02数值核，新命令 `python /app/compare.py edge|central|fuse`。输入目录/输出目录仍为 `/cea-work/in`、`/cea-work/out`，复用现有LITERAL/TASK_OUTPUT的S3文件绑定；不用DATASET标记或数据库文件内容读取。`edge` 输入raw.npz和EDGE_GROUP，输出features.npz；`central` 输入edge-a/b/c.npz原始三组及reference.npz，顺序处理再融合；`fuse` 输入edge-a/b/c.npz特征三组及相同reference。后两者输出anomalies.npz/report.json；所有入口输出原SDK cea-measurement.json，Z_THRESHOLD默认3。原edge/fusion契约和核心吞吐协议未修改，HC-03全流程资源计量由独立观察脚本承担。[范围](../features/HC-03-central-distributed.md)、[计量与结果](../verification/VER-HC-03.md)。

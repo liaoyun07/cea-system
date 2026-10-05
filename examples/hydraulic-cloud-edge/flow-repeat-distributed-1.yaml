@@ -1,0 +1,130 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-distributed-repeat1
+description: HC-04 1 complete dataset passes, 2205 unique cycles, same one/four Jobs.
+tasks:
+  - id: edges
+    type: core.Parallel
+    tasks:
+      - id: edge_a
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-a
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "1"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-a
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+          outputFiles:
+            - features-0.npz
+            - cea-measurement.json
+      - id: edge_b
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-b
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "1"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-b
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+          outputFiles:
+            - features-0.npz
+            - cea-measurement.json
+      - id: edge_c
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-c
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "1"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-c
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+          outputFiles:
+            - features-0.npz
+            - cea-measurement.json
+  - id: fusion
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-compare
+      version: hc04-v1
+      candidateClusters:
+        - cloud
+      command:
+        - python
+        - /app/repeat.py
+        - fuse
+        - --passes
+        - "1"
+      parameters:
+        Z_THRESHOLD:
+          source: LITERAL
+          value: 3
+      inputFiles:
+        edge-a-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-0.npz
+        edge-b-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-0.npz
+        edge-c-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-0.npz
+        reference.npz:
+          source: LITERAL
+          value: s3://datasets/hydraulic/hc01-v1/reference.npz
+      outputFiles:
+        - anomalies-0.npz
+        - report.json
+        - cea-measurement.json
+outputs:
+  report:
+    source: TASK_OUTPUT
+    taskId: fusion
+    port: report.json
+  firstBatch:
+    source: TASK_OUTPUT
+    taskId: fusion
+    port: anomalies-0.npz

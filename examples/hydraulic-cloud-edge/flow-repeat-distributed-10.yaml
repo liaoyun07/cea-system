@@ -1,0 +1,354 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-distributed-repeat10
+description: HC-04 10 complete dataset passes, 2205 unique cycles, same one/four Jobs.
+tasks:
+  - id: edges
+    type: core.Parallel
+    tasks:
+      - id: edge_a
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-a
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "10"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-a
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-1.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-2.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-3.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-4.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-5.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-6.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-7.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-8.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+            raw-9.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+          outputFiles:
+            - features-0.npz
+            - features-1.npz
+            - features-2.npz
+            - features-3.npz
+            - features-4.npz
+            - features-5.npz
+            - features-6.npz
+            - features-7.npz
+            - features-8.npz
+            - features-9.npz
+            - cea-measurement.json
+      - id: edge_b
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-b
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "10"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-b
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-1.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-2.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-3.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-4.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-5.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-6.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-7.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-8.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+            raw-9.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+          outputFiles:
+            - features-0.npz
+            - features-1.npz
+            - features-2.npz
+            - features-3.npz
+            - features-4.npz
+            - features-5.npz
+            - features-6.npz
+            - features-7.npz
+            - features-8.npz
+            - features-9.npz
+            - cea-measurement.json
+      - id: edge_c
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc04-v1
+          candidateClusters:
+            - edge-c
+          command:
+            - python
+            - /app/repeat.py
+            - edge
+            - --passes
+            - "10"
+          parameters:
+            EDGE_GROUP:
+              source: LITERAL
+              value: edge-c
+          inputFiles:
+            raw-0.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-1.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-2.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-3.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-4.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-5.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-6.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-7.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-8.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+            raw-9.npz:
+              source: LITERAL
+              value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+          outputFiles:
+            - features-0.npz
+            - features-1.npz
+            - features-2.npz
+            - features-3.npz
+            - features-4.npz
+            - features-5.npz
+            - features-6.npz
+            - features-7.npz
+            - features-8.npz
+            - features-9.npz
+            - cea-measurement.json
+  - id: fusion
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-compare
+      version: hc04-reference-v1
+      candidateClusters:
+        - cloud
+      command:
+        - sh
+        - -ec
+        - ln -s "$REFERENCE_PATH" /cea-work/in/reference.npz; exec python
+          /app/repeat.py fuse --passes 10
+      parameters:
+        Z_THRESHOLD:
+          source: LITERAL
+          value: 3
+        REFERENCE:
+          source: LITERAL
+          value: hydraulic-reference/hc01-v1
+      inputFiles:
+        edge-a-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-0.npz
+        edge-b-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-0.npz
+        edge-c-0.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-0.npz
+        edge-a-1.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-1.npz
+        edge-b-1.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-1.npz
+        edge-c-1.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-1.npz
+        edge-a-2.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-2.npz
+        edge-b-2.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-2.npz
+        edge-c-2.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-2.npz
+        edge-a-3.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-3.npz
+        edge-b-3.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-3.npz
+        edge-c-3.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-3.npz
+        edge-a-4.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-4.npz
+        edge-b-4.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-4.npz
+        edge-c-4.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-4.npz
+        edge-a-5.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-5.npz
+        edge-b-5.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-5.npz
+        edge-c-5.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-5.npz
+        edge-a-6.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-6.npz
+        edge-b-6.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-6.npz
+        edge-c-6.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-6.npz
+        edge-a-7.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-7.npz
+        edge-b-7.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-7.npz
+        edge-c-7.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-7.npz
+        edge-a-8.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-8.npz
+        edge-b-8.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-8.npz
+        edge-c-8.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-8.npz
+        edge-a-9.npz:
+          source: TASK_OUTPUT
+          taskId: edge_a
+          port: features-9.npz
+        edge-b-9.npz:
+          source: TASK_OUTPUT
+          taskId: edge_b
+          port: features-9.npz
+        edge-c-9.npz:
+          source: TASK_OUTPUT
+          taskId: edge_c
+          port: features-9.npz
+      outputFiles:
+        - anomalies-0.npz
+        - anomalies-1.npz
+        - anomalies-2.npz
+        - anomalies-3.npz
+        - anomalies-4.npz
+        - anomalies-5.npz
+        - anomalies-6.npz
+        - anomalies-7.npz
+        - anomalies-8.npz
+        - anomalies-9.npz
+        - report.json
+        - cea-measurement.json
+outputs:
+  report:
+    source: TASK_OUTPUT
+    taskId: fusion
+    port: report.json
+  firstBatch:
+    source: TASK_OUTPUT
+    taskId: fusion
+    port: anomalies-0.npz

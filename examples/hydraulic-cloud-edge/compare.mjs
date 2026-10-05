@@ -6,6 +6,9 @@ import {randomUUID} from 'node:crypto';
 const socketPath = process.env.CEA_DOCKER_PIPE || '//./pipe/dockerDesktopLinuxEngine';
 const api = 'http://127.0.0.1:18085/api/namespaces/lab';
 const root = path.resolve(process.argv[2] || '.local/cea/hc03/run-1');
+const passes = Number(process.argv[3] || 1);
+const repeatMode = process.argv[3] !== undefined;
+if (![1,5,10].includes(passes)) throw Error('Dataset passes must be 1, 5 or 10.');
 const authorization = process.env.CEA_COMPARE_AUTH;
 if (!authorization) throw Error('Run through compare-run.ps1; authorization is not written to evidence.');
 await fs.mkdir(root, {recursive:true});
@@ -87,7 +90,8 @@ function summarize(samples) {
     maxReadDurationMs:Math.max(...samples.map(s=>s.readDurationMs))};
 }
 
-const flows={central:await request('flows/hydraulic-central-compare'),distributed:await request('flows/hydraulic-distributed-compare')};
+const flowId=mode=>repeatMode?`hydraulic-${mode}-repeat${passes}`:`hydraulic-${mode}-compare`;
+const flows={central:await request(`flows/${flowId('central')}`),distributed:await request(`flows/${flowId('distributed')}`)};
 const trials=[];
 for(let pair=0;pair<=5;pair++) {
   const order=pair%2===0?['central','distributed']:['distributed','central'];
@@ -118,8 +122,8 @@ for(let pair=0;pair<=5;pair++) {
     const final=tasks.find(t=>t.taskId===(mode==='central'?'central':'fusion'));
     const report=execution.state==='SUCCESS'?await request(`executions/${accepted.executionId}/tasks/${final.id}/output-json?port=report.json`):null;
     const upstreamBytes=reports.filter(r=>r.taskId===(mode==='central'?'central':'fusion'))
-      .flatMap(r=>r.report.inputs).filter(f=>!f.path.endsWith('/reference.npz')).reduce((a,f)=>a+f.bytes,0);
-    const trial={pair,warmup:pair===0,mode,execution,tasks,reports,report,samples,idleSamples:idle,
+      .flatMap(r=>r.report.inputs).filter(f=>!f.path.endsWith('/reference.npz')&&!f.path.endsWith('/dataset-REFERENCE')).reduce((a,f)=>a+f.bytes,0);
+    const trial={pair,warmup:pair===0,mode,datasetPasses:passes,execution,tasks,reports,report,samples,idleSamples:idle,
       submittedAtMs,completedObservedAtMs,upstreamBytes,resources:summarize(samples),idleResources:summarize(idle),
       executionSeconds:(Date.parse(execution.endedAt)-Date.parse(execution.createdAt))/1000};
     await save(`${name}.json`,trial);trials.push(trial);
@@ -138,7 +142,7 @@ for(const mode of ['central','distributed']) {
   for(const key of ['executionSeconds','upstreamBytes']) averages[mode][key]=selected.reduce((a,t)=>a+t[key],0)/selected.length;
 }
 const reductions={};for(const key of Object.keys(averages.central)) reductions[key]=(1-averages.distributed[key]/averages.central[key])*100;
-await save('summary.json',{averages,reductions,scope:'Unsubtracted whole-CEA costs in submit/completion-observation envelope; execution latency separately uses API timestamps.',
+await save('summary.json',{datasetPasses:passes,averages,reductions,scope:'Unsubtracted whole-CEA costs in submit/completion-observation envelope; execution latency separately uses API timestamps.',
   formalExecutions:formal.map(t=>({mode:t.mode,id:t.execution.id})),beforeFlows,afterFlows:await request('flows?limit=100')});
 const after=await Promise.all(containers.map(c=>dj(`/containers/${c.Id}/json`)));
 await save('after-containers.json',after.map(c=>({id:c.Id,name:c.Name,image:c.Image,startedAt:c.State.StartedAt,memoryLimit:c.HostConfig.Memory,nanoCpus:c.HostConfig.NanoCpus})));

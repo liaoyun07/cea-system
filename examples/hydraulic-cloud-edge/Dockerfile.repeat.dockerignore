@@ -1,0 +1,5 @@
+**
+!examples/
+!examples/hydraulic-cloud-edge/
+!examples/hydraulic-cloud-edge/repeat.py
+!examples/hydraulic-cloud-edge/test_repeat.py

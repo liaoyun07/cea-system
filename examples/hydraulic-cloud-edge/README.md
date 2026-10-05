@@ -1,5 +1,27 @@
 # 液压云边协同演示（HC-01）
 
+## HC-04 完整数据重复1/5/10次的流任务对照
+
+已部署六个 `hydraulic-{central|distributed}-repeat{1|5|10}` r1，可在数据流页面执行。每流程仍为集中式1 Job或分布式4 Job；同一完整2205周期重复读取、计算、保存，不是拆份、新独立样本或常驻服务。各档预热＋正式5组共36执行均成功、192最终输出及288特征逐批核验通过。
+
+正式集中/分布均值：1次CPU6.221/12.956核秒、内存61.936/104.212GiB·秒；5次14.715/25.110与113.214/147.751；10次30.329/45.967与316.119/300.028。上云三档均少97.65%，仍未验证资源降低15%；10次耗时和快照读取明显波动，不作为稳定提升证据。[完整结果和限制](../../docs/verification/VER-HC-04.md)。
+
+```powershell
+# 首次发布；已部署时不要重跑覆盖。
+node examples/hydraulic-cloud-edge/repeat-flows.mjs
+node --test examples/hydraulic-cloud-edge/repeat-flows.test.mjs
+docker build -f examples/hydraulic-cloud-edge/Dockerfile.repeat -t cea/hydraulic-cloud-edge:hc04-v1 .
+./examples/hydraulic-cloud-edge/repeat-release.ps1
+# 新批次名，禁止覆盖原run-1；两模式各预热1＋正式5。
+foreach($taskPasses in @(1,5,10)) {
+    ./examples/hydraulic-cloud-edge/repeat-run.ps1 -Passes $taskPasses -Batch run-2
+    ./examples/hydraulic-cloud-edge/compare-download.ps1 -Passes $taskPasses -Batch "run-2-p$taskPasses"
+    ./examples/hydraulic-cloud-edge/compare-audit.ps1 -Passes $taskPasses -Batch "run-2-p$taskPasses"
+}
+```
+
+hc04两个契约使用同镜像；10次公共参考通过已有REFERENCE数据集参数准备，保留30输入绑定上限。每次SDK字节对应实际独立本地文件，不虚乘；报告区分uniqueCycles和processedCycles。原有Flow和资源不变。
+
 ## HC-03 集中式与分布式对照（2026-10-05）
 
 新增两条独立流程：`hydraulic-central-compare`（单云任务顺序计算三组再融合）与 `hydraulic-distributed-compare`（三边缘计算后云融合）。同一 `hydraulic-compare/hc03-v1` 镜像，原始数据预置在三个边缘MinIO，原HC-02流程/镜像/中心数据不变。五组正式均值：集中/分布CPU 6.593/13.774核秒、内存63.855/104.478GiB·秒、耗时6.798/11.422秒，上云385.32/9.05MB。只验证上云减少97.65%，未验证系统资源降低15%。[完整口径与证据](../../docs/verification/VER-HC-03.md)。

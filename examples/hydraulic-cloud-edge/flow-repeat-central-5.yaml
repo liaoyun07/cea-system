@@ -1,0 +1,89 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-central-repeat5
+description: HC-04 5 complete dataset passes, 2205 unique cycles, same one/four Jobs.
+tasks:
+  - id: central
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-compare
+      version: hc04-v1
+      candidateClusters:
+        - cloud
+      command:
+        - python
+        - /app/repeat.py
+        - central
+        - --passes
+        - "5"
+      parameters:
+        Z_THRESHOLD:
+          source: LITERAL
+          value: 3
+      inputFiles:
+        edge-a-0.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+        edge-b-0.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+        edge-c-0.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+        reference.npz:
+          source: LITERAL
+          value: s3://datasets/hydraulic/hc01-v1/reference.npz
+        edge-a-1.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+        edge-b-1.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+        edge-c-1.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+        edge-a-2.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+        edge-b-2.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+        edge-c-2.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+        edge-a-3.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+        edge-b-3.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+        edge-c-3.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+        edge-a-4.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz
+        edge-b-4.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz
+        edge-c-4.npz:
+          source: LITERAL
+          value: s3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz
+      outputFiles:
+        - anomalies-0.npz
+        - anomalies-1.npz
+        - anomalies-2.npz
+        - anomalies-3.npz
+        - anomalies-4.npz
+        - report.json
+        - cea-measurement.json
+outputs:
+  report:
+    source: TASK_OUTPUT
+    taskId: central
+    port: report.json
+  firstBatch:
+    source: TASK_OUTPUT
+    taskId: central
+    port: anomalies-0.npz

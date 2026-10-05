@@ -1,6 +1,7 @@
-param([string]$Batch='run-1')
+param([string]$Batch='run-1',[ValidateSet(0,1,5,10)][int]$Passes=0)
 . (Join-Path $PSScriptRoot '../../deploy/cea/common.ps1')
-$taskFolder=Join-Path $taskRepository ".local/cea/hc03/$Batch"
+$taskFamily=if($Passes){'hc04'}else{'hc03'}
+$taskFolder=Join-Path $taskRepository ".local/cea/$taskFamily/$Batch"
 foreach($taskCluster in @('cloud','edge-a','edge-b','edge-c')) {
     $taskNames=@()
     foreach($taskFile in (Get-ChildItem $taskFolder -Filter 'pair-*.json' | Where-Object Name -NotLike '*accepted*')) {
@@ -24,5 +25,5 @@ foreach($taskCluster in @('cloud','edge-a','edge-b','edge-c')) {
 }
 $taskScript=Join-Path $PSScriptRoot 'compare-audit.py'
 $taskData=Join-Path $taskRepository '.local/cea'
-& docker run --rm --mount "type=bind,source=$taskScript,target=/app/compare_audit.py,readonly" --mount "type=bind,source=$taskData,target=/data" cea/hydraulic-cloud-edge:hc03-v1 python /app/compare_audit.py --raw /data/hc01/full --batch "/data/hc03/$Batch"
+& docker run --rm --mount "type=bind,source=$taskScript,target=/app/compare_audit.py,readonly" --mount "type=bind,source=$taskData,target=/data" cea/hydraulic-cloud-edge:hc03-v1 python /app/compare_audit.py --raw /data/hc01/full --batch "/data/$taskFamily/$Batch" --passes $Passes
 if($LASTEXITCODE -ne 0) { throw 'Independent comparison audit failed' }
