@@ -1,0 +1,3 @@
+# Reuse the exact tested HC-02 numeric kernel and dependency versions.
+FROM cea/hydraulic-cloud-edge:hc02-v1
+COPY examples/hydraulic-cloud-edge/compare.py examples/hydraulic-cloud-edge/test_compare.py ./

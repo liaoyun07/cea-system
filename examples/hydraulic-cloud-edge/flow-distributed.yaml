@@ -1,0 +1,66 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-distributed-compare
+description: HC-03 edge features and cloud fusion from the same three edge-origin raw files.
+tasks:
+  - id: edges
+    type: core.Parallel
+    tasks:
+      - id: edge_a
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc03-v1
+          candidateClusters: [edge-a]
+          command: [python, /app/compare.py, edge]
+          parameters:
+            EDGE_GROUP: {source: LITERAL, value: edge-a}
+          inputFiles:
+            raw.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz'}
+          outputFiles: [features.npz, cea-measurement.json]
+      - id: edge_b
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc03-v1
+          candidateClusters: [edge-b]
+          command: [python, /app/compare.py, edge]
+          parameters:
+            EDGE_GROUP: {source: LITERAL, value: edge-b}
+          inputFiles:
+            raw.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz'}
+          outputFiles: [features.npz, cea-measurement.json]
+      - id: edge_c
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: hydraulic-compare
+          version: hc03-v1
+          candidateClusters: [edge-c]
+          command: [python, /app/compare.py, edge]
+          parameters:
+            EDGE_GROUP: {source: LITERAL, value: edge-c}
+          inputFiles:
+            raw.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz'}
+          outputFiles: [features.npz, cea-measurement.json]
+  - id: fusion
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-compare
+      version: hc03-v1
+      candidateClusters: [cloud]
+      command: [python, /app/compare.py, fuse]
+      parameters:
+        Z_THRESHOLD: {source: LITERAL, value: 3}
+      inputFiles:
+        edge-a.npz: {source: TASK_OUTPUT, taskId: edge_a, port: features.npz}
+        edge-b.npz: {source: TASK_OUTPUT, taskId: edge_b, port: features.npz}
+        edge-c.npz: {source: TASK_OUTPUT, taskId: edge_c, port: features.npz}
+        reference.npz: {source: LITERAL, value: 's3://datasets/hydraulic/hc01-v1/reference.npz'}
+      outputFiles: [anomalies.npz, report.json, cea-measurement.json]
+outputs:
+  report: {source: TASK_OUTPUT, taskId: fusion, port: report.json}
+  anomalies: {source: TASK_OUTPUT, taskId: fusion, port: anomalies.npz}

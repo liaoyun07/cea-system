@@ -1,0 +1,24 @@
+schemaVersion: 1
+namespace: lab
+id: hydraulic-central-compare
+description: HC-03 centralized computation from the same three edge-origin raw files.
+tasks:
+  - id: central
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: hydraulic-compare
+      version: hc03-v1
+      candidateClusters: [cloud]
+      command: [python, /app/compare.py, central]
+      parameters:
+        Z_THRESHOLD: {source: LITERAL, value: 3}
+      inputFiles:
+        edge-a.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-a/lab/hc03/raw/edge-a.npz'}
+        edge-b.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-b/lab/hc03/raw/edge-b.npz'}
+        edge-c.npz: {source: LITERAL, value: 's3://cea-artifacts-edge-c/lab/hc03/raw/edge-c.npz'}
+        reference.npz: {source: LITERAL, value: 's3://datasets/hydraulic/hc01-v1/reference.npz'}
+      outputFiles: [anomalies.npz, report.json, cea-measurement.json]
+outputs:
+  report: {source: TASK_OUTPUT, taskId: central, port: report.json}
+  anomalies: {source: TASK_OUTPUT, taskId: central, port: anomalies.npz}

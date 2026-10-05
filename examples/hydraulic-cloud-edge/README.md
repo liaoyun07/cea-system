@@ -1,5 +1,21 @@
 # 液压云边协同演示（HC-01）
 
+## HC-03 集中式与分布式对照（2026-10-05）
+
+新增两条独立流程：`hydraulic-central-compare`（单云任务顺序计算三组再融合）与 `hydraulic-distributed-compare`（三边缘计算后云融合）。同一 `hydraulic-compare/hc03-v1` 镜像，原始数据预置在三个边缘MinIO，原HC-02流程/镜像/中心数据不变。五组正式均值：集中/分布CPU 6.593/13.774核秒、内存63.855/104.478GiB·秒、耗时6.798/11.422秒，上云385.32/9.05MB。只验证上云减少97.65%，未验证系统资源降低15%。[完整口径与证据](../../docs/verification/VER-HC-03.md)。
+
+```powershell
+# 只首次发布；已存在Flow时脚本拒绝覆盖。
+docker build -f examples/hydraulic-cloud-edge/Dockerfile.compare -t cea/hydraulic-cloud-edge:hc03-v1 .
+./examples/hydraulic-cloud-edge/release-compare.ps1
+# 新批次名，不覆盖run-1，失败不补跑。
+./examples/hydraulic-cloud-edge/compare-run.ps1 -Batch run-2
+./examples/hydraulic-cloud-edge/compare-download.ps1 -Batch run-2
+./examples/hydraulic-cloud-edge/compare-audit.ps1 -Batch run-2
+```
+
+`compare.mjs` 通过Docker Desktop命名管道读累计CPU/working set，并单独读取四个Pod子树，避免漏计或重复；依赖本机Node，认证只在进程环境中传递。`compare-audit.ps1` 保存Jobs的脱敏规格，调用 `compare-audit.py` 回读全量产物，独立核对数值/资源/保留状态。不要将共享宿主结果声称为四独立设备实测。没有新增Java/数据库/编排功能或页面。
+
 当前 CEA：`lab/hydraulic-cloud-edge` r3，两个应用 `hydraulic-edge/hc02-v1`、`hydraulic-fusion/hc02-v1`，同一个 NumPy＋预编译单遍C镜像 `lab/hydraulic-cloud-edge:hc02-v1`。当前例子为flow-native.yaml，原v1/v2和r1/r2保留。PS4小方差回退慢路径已用稳定锚定统计消除，CPU/数据/指标不改。
 
 三边缘按通道处理完整 UCI 447 数据的 2205 个周期：edge-a PS1..3，edge-b PS4..6，edge-c 其余11通道。每个60秒周期切为6个10秒窗口，保留通道原1/10/100Hz采样率，计算 mean/std/min/max/RMS。云端对齐三个分片，使用正常参考计算各传感器标准化偏离、窗口最大异常评分与报告。17个通道来自同一试验台，不是真实三个站点采集。

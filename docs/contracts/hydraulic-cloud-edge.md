@@ -1,5 +1,9 @@
 # HC-01 液压云边应用协议
 
+## HC-03独立对照入口
+
+`hydraulic-compare/hc03-v1` 使用同一HC-02数值核，新命令 `python /app/compare.py edge|central|fuse`。输入目录/输出目录仍为 `/cea-work/in`、`/cea-work/out`，复用现有LITERAL/TASK_OUTPUT的S3文件绑定；不用DATASET标记或数据库文件内容读取。`edge` 输入raw.npz和EDGE_GROUP，输出features.npz；`central` 输入edge-a/b/c.npz原始三组及reference.npz，顺序处理再融合；`fuse` 输入edge-a/b/c.npz特征三组及相同reference。后两者输出anomalies.npz/report.json；所有入口输出原SDK cea-measurement.json，Z_THRESHOLD默认3。原edge/fusion契约和核心吞吐协议未修改，HC-03全流程资源计量由独立观察脚本承担。[范围](../features/HC-03-central-distributed.md)、[计量与结果](../verification/VER-HC-03.md)。
+
 HC-02当前修订r3使用hydraulic-edge/hc02-v1与hydraulic-fusion/hc02-v1，参数/数据/输入输出结构和计量完全不变。stats.c预编译单线程SIMD按首样本锚定差值，单遍计算稳定均值/方差/min/max/RMS并检查非有限值，native_stats.py在计算区间内做布局转换和输出分配；无JIT、fast-math或新增线程。旧v2协议与版本保留，完整数值和实际16Job产物核验通过。[优化验证](../verification/VER-HC-02.md)。
 
 复用现有 Application 参数、数据集下载和文件产物协议；不新增接口、表、权限或通用控制流。镜像提供两个命令：`python /app/app.py edge` 和 `python /app/app.py fuse`，默认输入 `/cea-work/in`、输出 `/cea-work/out`。

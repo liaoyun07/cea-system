@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+HC-03（2026-10-05，两个对照流程已部署）：同一液压计算核、原始文件位于边缘MinIO，集中式单云任务与三边缘＋云融合各预热1次/正式5次全部成功；12输出精确一致、30同digest Job/独立计量通过。上云385.32→9.05MB（-97.65%），但CPU6.593→13.774核秒、内存63.855→104.478GiB·秒、耗时6.798→11.422秒，系统资源减少15%未达到。20服务/52原Flow保持，无引擎改动或重启。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-03.md)。
+
 HC-02（2026-10-04，已部署）：液压云边流程r3改为稳定单遍SIMD统计，PS4低方差慢路径消除；数据/资源/计量不变，三正式核心4.873/4.052/4.841GB/s，均4.589，均超过2。完整SDK均0.598GB/s、端到端仍10～11秒，不能混称端到端达标；8单测和16实际Job全量数值/计量核验通过，旧服务/流程保持。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-02.md)。
 
 HC-01（2026-10-04，云边演示已部署）：数据流中可执行 `hydraulic-cloud-edge` r2，三个边缘处理完整2205周期/17通道液压数据，云端融合异常评分。当前纯计算平均1.419GB/s、原完整SDK平均0.580GB/s，尚未到2GB/s；默认阈值有正常周期误报，仅协作计算演示。[使用](examples/hydraulic-cloud-edge/README.md)、[实测](docs/verification/VER-HC-01.md)。
