@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-CONV-01（2026-10-06，实验PARTIAL）：同MNIST/主MLP及资源对照，lr0.1/batch128/epoch1、CADS alpha0.001/rho0.1；种子41达到90%耗时196.141→142.718秒，效率+37.43%。其余执行遇计时SDK校验失败，五种子稳定性未证明；已暂停，未改计时或补跑筛成功。仅新增两个Flow/八个版本，旧服务及流程保持。[实验](examples/federated/convergence/README.md)、[证据](docs/verification/VER-FL-CONV-01.md)。
+
 HC-04（2026-10-05，重复流任务已部署）：完整数据真实重复1/5/10次，固定1/4Job，36执行/90Job成功、192输出＋288特征核验通过。上云均-97.65%，分布CPU仍多108.3%/70.6%/51.6%，内存时间成本+68.3%/+30.5%/-5.1%；10次严重波动，不宣称稳定改善或资源降低15%。旧20服务/54Flow保持，只新增6Flow/同镜像两契约，无引擎/配置/重启。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-04.md)。
 
 HC-03（2026-10-05，两个对照流程已部署）：同一液压计算核、原始文件位于边缘MinIO，集中式单云任务与三边缘＋云融合各预热1次/正式5次全部成功；12输出精确一致、30同digest Job/独立计量通过。上云385.32→9.05MB（-97.65%），但CPU6.593→13.774核秒、内存63.855→104.478GiB·秒、耗时6.798→11.422秒，系统资源减少15%未达到。20服务/52原Flow保持，无引擎改动或重启。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-03.md)。
