@@ -160,8 +160,8 @@ public final class FlowExecutor {
                 if(run.state()==CREATED) {
                     Object count=bindings.resolve(spec.repeat().iterations(),execution.inputs(),execution.variables(),outputs());
                     BindingResolver.validateType("repeat.iterations",InputType.INTEGER,count);
-                    if(!(count instanceof Number number) || !number.toString().matches("[1-9][0-9]?|100"))
-                        throw WorkflowException.invalid("repeat.iterations","integer 1..100 required");
+                    if(!(count instanceof Number number) || !number.toString().matches("[1-9][0-9]?|[12][0-9]{2}|300"))
+                        throw WorkflowException.invalid("repeat.iterations","integer 1..300 required");
                     var initial=bindings.outputs(spec.repeat().initial(),execution.inputs(),execution.variables(),outputs());
                     initial.put("iterations",number.intValue());initial.put("iterationCount",0);
                     store.controlState(run,RUNNING,initial,null,now);refresh();run=runs.get(spec.id());

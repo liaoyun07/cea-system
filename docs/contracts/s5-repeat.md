@@ -4,7 +4,7 @@
 
 `core.Repeat`是控制任务，`tasks`是每轮完整子图（按顺序，可内含Parallel/Dag/If）；`repeat`包含：
 
-- `iterations`：现有Binding，运行时解析为1..100的整数并冻结。
+- `iterations`：现有Binding，运行时解析为1..300的整数并冻结。FL-CIFAR-300因实际300轮需求将原100上限扩大到300；非法数/301继续拒绝，反馈及屏障语义不变，见[验证](../verification/VER-FL-CIFAR-300.md)。
 - `initial`：状态名到初始Binding。
 - `feedback`：相同状态名到每轮完成后的Binding；initial/feedback键必须一致，可都为空。
 

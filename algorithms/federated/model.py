@@ -19,6 +19,9 @@ def dataset_from_refs(training, test):
 
 def build_model(dataset, name):
     channels, size, classes = DATASETS[dataset]
+    if name == "lenet" and dataset == "cifar10":
+        from lenet import LeNet
+        return LeNet()
     if name == "mlp":
         return nn.Sequential(nn.Flatten(), nn.Linear(channels * size * size, 128),
                              nn.ReLU(), nn.Linear(128, classes))
@@ -80,6 +83,12 @@ def train(model, data, epochs, batch_size, learning_rate, mu, seed):
 def model_state_shapes(dataset, name):
     """Only tensor metadata: no model construction, random initialization or weight copies."""
     channels, size, classes = DATASETS[dataset]
+    if name == "lenet" and dataset == "cifar10":
+        return {"conv1.weight": (64,3,5,5), "conv1.bias": (64,),
+                "conv2.weight": (64,64,5,5), "conv2.bias": (64,),
+                "fc1.weight": (384,1600), "fc1.bias": (384,),
+                "fc2.weight": (192,384), "fc2.bias": (192,),
+                "fc3.weight": (10,192), "fc3.bias": (10,)}
     if name == "mlp":
         return {"1.weight": (128, channels * size * size), "1.bias": (128,),
                 "3.weight": (classes, 128), "3.bias": (classes,)}

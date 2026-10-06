@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FL-CIFAR-300（2026-10-06，执行中）：模型对齐作者LeNet普通版/Fusion版，本地epoch5、强非IID两方法各300轮。新镜像/八契约/两Flow发布；初次发现100硬上限而FAILED，最小扩300后19Python/2Node、完整verify通过，仅更新后端。已真实进入Avg首轮三客户端训练，CADS随后；最终全300轮仍待验收，失败记录保留，未完成不得宣称90%。其它参数/参与/资源保持。[验证](verification/VER-FL-CIFAR-300.md)。
+
 FL-CIFAR-90（2026-10-06，进行中）：依赖原完整CIFAR-10与已有CNN/FedAvg/FedCADS核心；新增等量/强非IID两版本并接通新镜像/契约/四Flow，先seed31各40轮。验收完整50000覆盖、对象读回、真实执行及每轮官方测试，双方达到90%才比较首次达标耗时；未达标如实记录，无引擎/SDK/资源/权限变更。[计划](../examples/federated/cifar10-partitions/README.md)。
 
 FL-MNIST-RUN（2026-10-06，DONE）：引用识别＋允许值＋分区权重/选项已接通，8契约4Flow发布。strong seed31两算法各40轮及全轮评估成功，初权重/实际分片/最终模型/402Job及旧资源保持核验通过，19Python/2Node通过。无引擎/SDK/资源修改，不自动调参；CADS早期更快但最终94.93%，不宣称稳定提升。[验证](verification/VER-FL-MNIST-RUN.md)。

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-CIFAR-300（2026-10-06，执行中）：LeNet/Fusion及5epoch/300rounds独立版本发布，强非IID数据保持；19Python/2Node及完整verify通过，Repeat扩300后仅发布后端。Avg首轮三个客户端训练中，CADS待Avg完成自动提交，未完成或宣称90%。旧40轮停止续发而不删除。[契约](contracts/cifar300.md)、[验证](verification/VER-FL-CIFAR-300.md)。
+
 FL-CIFAR-90（2026-10-06，执行中）：新增CIFAR-10两非IID分区并接通新镜像/八契约/四Flow，六对象读回、19+1Python/4Node通过；先CNN四组40轮，未达90%不算达标提升。[边界与验证](verification/VER-FL-CIFAR-90.md)。
 
 FL-MNIST-RUN（2026-10-06，DONE）：新引用识别、八角色契约/四分区Flow接通，旧64Flow保持；strong seed31两算法各40轮SUCCESS，最终Avg96.30%/CADS94.93%，首次95%为21/8轮。19Python/2Node、402Job/实际模型核验通过，不宣称稳定提升。[契约](contracts/mnist-partition-training.md)、[验证](verification/VER-FL-MNIST-RUN.md)。

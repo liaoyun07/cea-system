@@ -1,0 +1,6 @@
+{
+  "applicationId": "fl-aggregate",
+  "version": "cifar300-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:6a09342fd8b7b26459f68e479edecd958b9102afe30f429a9794774fbe589683",
+  "parameters": {}
+}

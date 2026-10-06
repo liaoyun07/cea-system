@@ -1,0 +1,37 @@
+{
+  "applicationId": "fedcads-evaluate",
+  "version": "cifar300-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:6a09342fd8b7b26459f68e479edecd958b9102afe30f429a9794774fbe589683",
+  "parameters": {
+    "BATCH_SIZE": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 32,
+      "choices": [],
+      "dataset": null
+    },
+    "TEST_DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-test/v1",
+      "choices": [],
+      "dataset": {
+        "format": "pt",
+        "allowed": [
+          {
+            "datasetId": "cifar10-test",
+            "version": "v1"
+          },
+          {
+            "datasetId": "cifar100-test",
+            "version": "v1"
+          },
+          {
+            "datasetId": "mnist-test",
+            "version": "v1"
+          }
+        ]
+      }
+    }
+  }
+}

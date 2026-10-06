@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-CIFAR-300（2026-10-06，执行中）：作者LeNet/Fusion、本地epoch5、强非IID两方法各300轮，旧40轮停止续跑、记录保留。19Python/2Node及JDK21完整verify通过，Repeat上限扩300并仅发布后端；Avg首轮三客户端训练中，成功后自动接CADS，未完成或宣称90%提升。[使用](examples/federated/cifar300/README.md)、[状态](docs/verification/VER-FL-CIFAR-300.md)。
+
 FL-CIFAR-90（2026-10-06，执行中）：完整CIFAR-10新增等量/强非IID两版本，已六对象读回验证、新镜像/八契约/四Flow接通；19+1Python/4Node通过。先现有CNN seed31各40轮，双方达到90%才比较首次达标耗时，当前无最终结果。[使用](examples/federated/cifar10-partitions/README.md)、[进度](docs/verification/VER-FL-CIFAR-90.md)。
 
 FL-MNIST-RUN（2026-10-06，DONE）：两版MNIST已通过新镜像、八契约/四独立Flow接通，旧对象保持。强非IID seed31两方法各40轮成功：FedAvg最终96.30%、CADS94.93%，首次95%为21/8轮；CADS后期回落，不宣称稳定提升。19Python/2Node与402Job/实际模型核验通过。[使用](examples/federated/mnist-partitions/README.md)、[结果](docs/verification/VER-FL-MNIST-RUN.md)。

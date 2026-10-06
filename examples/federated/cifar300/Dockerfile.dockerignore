@@ -1,0 +1,9 @@
+**
+!algorithms/
+!algorithms/federated/
+!algorithms/federated/model.py
+!algorithms/federated/lenet.py
+!examples/
+!examples/federated/
+!examples/federated/cifar300/
+!examples/federated/cifar300/enable_lenet.py

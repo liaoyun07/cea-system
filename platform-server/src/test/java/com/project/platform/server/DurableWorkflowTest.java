@@ -1592,11 +1592,23 @@ private String custom(String body) {
         assertEquals(ExecutionState.SUCCESS,executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("cleanup")).findFirst().orElseThrow().state());
     }
     @Test void repeatInvalidCountFailsWithoutCreatingChildren() {
-        for(String count:List.of("0","101","1.5","'two'")) {
+        for(String count:List.of("0","301","1.5","'two'")) {
             String flow=id(),execution=submitRepeat(repeatSource(flow).replace("value: 2}","value: "+count+"}"),flow);drain();
             assertEquals(ExecutionState.FAILED,executions().get(actor,"lab",execution).state());
             assertTrue(executions().tasks(actor,"lab",execution).stream().noneMatch(t->t.iteration()>0));
         }
+    }
+    @Test void repeatThreeHundredAdmitsFirstRoundAndCanCancel() {
+        String flow=id(),execution=submitRepeat(repeatSource(flow).replace("value: 2}","value: 300}"),flow);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(()->{
+            executor().processNext();
+            return executions().tasks(actor,"lab",execution).stream().anyMatch(t->t.taskId().equals("rounds") && t.state()==ExecutionState.RUNNING);
+        });
+        var parent=executions().tasks(actor,"lab",execution).stream().filter(t->t.taskId().equals("rounds")).findFirst().orElseThrow();
+        assertEquals(300,parent.outputs().get("iterations"));
+        assertTrue(executions().tasks(actor,"lab",execution).stream().anyMatch(t->t.iteration()==1));
+        executions().cancel(actor,"lab",execution);drain();
+        assertEquals(ExecutionState.KILLED,executions().get(actor,"lab",execution).state());
     }
     private String loopSource(String flow) {return "schemaVersion: 1\nnamespace: lab\nid: "+flow+"\n"+"""
             inputs:

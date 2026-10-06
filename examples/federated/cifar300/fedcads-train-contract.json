@@ -1,0 +1,89 @@
+{
+  "applicationId": "fedcads-train",
+  "version": "cifar300-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:6a09342fd8b7b26459f68e479edecd958b9102afe30f429a9794774fbe589683",
+  "parameters": {
+    "ALGORITHM": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "fedcads",
+      "choices": [
+        "fedcads"
+      ],
+      "dataset": null
+    },
+    "ALPHA": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.1,
+      "choices": [],
+      "dataset": null
+    },
+    "BATCH_SIZE": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 32,
+      "choices": [],
+      "dataset": null
+    },
+    "CLIENT_ID": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": null,
+      "choices": [],
+      "dataset": null
+    },
+    "DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-train/v1",
+      "choices": [],
+      "dataset": {
+        "format": "pt",
+        "allowed": [
+          {
+            "datasetId": "cifar10-train",
+            "version": "equal-noniid-v1"
+          },
+          {
+            "datasetId": "cifar10-train",
+            "version": "strong-noniid-v1"
+          },
+          {
+            "datasetId": "cifar10-train",
+            "version": "v1"
+          },
+          {
+            "datasetId": "cifar100-train",
+            "version": "v1"
+          },
+          {
+            "datasetId": "mnist-train",
+            "version": "v1"
+          }
+        ]
+      }
+    },
+    "LEARNING_RATE": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.01,
+      "choices": [],
+      "dataset": null
+    },
+    "LOCAL_EPOCHS": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 1,
+      "choices": [],
+      "dataset": null
+    },
+    "SEED": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 13,
+      "choices": [],
+      "dataset": null
+    }
+  }
+}
