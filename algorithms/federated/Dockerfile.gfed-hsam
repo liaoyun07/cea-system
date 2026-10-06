@@ -1,0 +1,5 @@
+ARG FEDERATED_IMAGE=cea/federated:cifar300-v1
+FROM ${FEDERATED_IMAGE}
+# Add a new entry point; preserve existing FedAvg/FedProx/FedCADS entry points.
+COPY algorithms/federated/model.py algorithms/federated/lenet.py algorithms/federated/gfed_hsam.py algorithms/federated/gfed_hsam_app.py algorithms/federated/test_gfed_hsam.py /app/
+CMD ["python", "/app/gfed_hsam_app.py", "--help"]

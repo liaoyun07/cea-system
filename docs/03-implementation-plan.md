@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FL-HSAM-01（2026-10-07，DONE）：用户授权按FedCADS接入方式实现GFed-HSAM核心，数据划分/模型/完整epoch/轮数采用平台定义。依赖既有CPU镜像、真实数据、Repeat/Loop及文件契约；四梯度HSAM、客户端漂移/扰动跨轮状态、云动态修正及四Application/新Flow均已发布。24Python/3Node、独立公式/SGD极限、CEA两轮11Job和9模型/状态/评估复算、旧资源保持与结构检查验收通过；无Java/API/表/权限/工作流语义变更，不宣称论文逐项复现或速度优势。[范围](features/FL-HSAM-01-gfed-hsam.md)、[验证](verification/VER-FL-HSAM-01.md)。
+
 FL-CIFAR-300（2026-10-06，执行中）：模型对齐作者LeNet普通版/Fusion版，本地epoch5、强非IID两方法各300轮。新镜像/八契约/两Flow发布；初次发现100硬上限而FAILED，最小扩300后19Python/2Node、完整verify通过，仅更新后端。已真实进入Avg首轮三客户端训练，CADS随后；最终全300轮仍待验收，失败记录保留，未完成不得宣称90%。其它参数/参与/资源保持。[验证](verification/VER-FL-CIFAR-300.md)。
 
 FL-CIFAR-90（2026-10-06，进行中）：依赖原完整CIFAR-10与已有CNN/FedAvg/FedCADS核心；新增等量/强非IID两版本并接通新镜像/契约/四Flow，先seed31各40轮。验收完整50000覆盖、对象读回、真实执行及每轮官方测试，双方达到90%才比较首次达标耗时；未达标如实记录，无引擎/SDK/资源/权限变更。[计划](../examples/federated/cifar10-partitions/README.md)。

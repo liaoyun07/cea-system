@@ -1,5 +1,7 @@
 # 当前进度
 
+FL-HSAM-01（2026-10-07，DONE/已部署）：GFed-HSAM核心及新四Application/gfed-hsam r1已在CEA，24Python/3Node/结构检查通过。真实强非IIDMNIST两轮11Job全部成功、9模型与独立客户端重训/全局动态状态/官方评估复算通过，第二轮89.23%；74旧Flow/120应用/20数据集/20服务保持，无重启/Java/API/数据库变更。原文歧义已记录，不宣称作者精确复现或速度优势。[使用](../examples/federated/gfed-hsam/README.md)、[验证](verification/VER-FL-HSAM-01.md)。
+
 FL-CIFAR-300（2026-10-06，执行中）：LeNet/Fusion镜像与八契约/两Flow发布，强非IID、epoch5/rounds300；19Python/2Node及完整verify通过，Repeat最小扩300并仅更新后端。Avg fe02f72a-6571-456c-b8f6-31f6c9030520首轮三客户端训练中，成功后自动接CADS，未完成300轮或90%达标核验。[证据](verification/VER-FL-CIFAR-300.md)。
 
 FL-CIFAR-90（2026-10-06，执行中）：两版CIFAR-10数据已登记且六对象读回完全一致，八契约四Flow发布；19+1Python/4Node通过。正在依次执行等量/强非IID的Avg/CADS各40轮，CNN seed31，目标90%，尚无达标提升结论。[证据](verification/VER-FL-CIFAR-90.md)。

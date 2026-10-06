@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-HSAM-01（2026-10-07，DONE/已部署）：GFed-HSAM同批四梯度、动态漂移和扰动跨轮状态/云聚合已接入，24Python/3Node及结构检查通过；新镜像/四应用/gfed-hsam r1已发布，真实强非IIDMNIST两轮11Job成功，9模型/独立客户端重训/云状态及评估复算通过，第二轮89.23%。74旧Flow/120应用/20数据集/20服务保持；无Java/API/数据库变更，不承诺性能。[范围](features/FL-HSAM-01-gfed-hsam.md)、[协议](contracts/gfed-hsam.md)、[验证](verification/VER-FL-HSAM-01.md)。
+
 FL-CIFAR-300（2026-10-06，执行中）：LeNet/Fusion及5epoch/300rounds独立版本发布，强非IID数据保持；19Python/2Node及完整verify通过，Repeat扩300后仅发布后端。Avg首轮三个客户端训练中，CADS待Avg完成自动提交，未完成或宣称90%。旧40轮停止续发而不删除。[契约](contracts/cifar300.md)、[验证](verification/VER-FL-CIFAR-300.md)。
 
 FL-CIFAR-90（2026-10-06，执行中）：新增CIFAR-10两非IID分区并接通新镜像/八契约/四Flow，六对象读回、19+1Python/4Node通过；先CNN四组40轮，未达90%不算达标提升。[边界与验证](verification/VER-FL-CIFAR-90.md)。
