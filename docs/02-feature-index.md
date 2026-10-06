@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-MNIST-PART（2026-10-06，数据版本DONE）：mnist-train新增equal-noniid-v1与strong-noniid-v1，各全量60000、分别20000×3与3000/12000/45000；上传登记、6对象逐张读回/1测试通过。旧v1/测试/Flow保持，新版尚未接入旧训练契约/镜像/Flow选择。[验证](verification/VER-FL-MNIST-PART.md)。
+
 FL-EQUAL-95（2026-10-06，数值实验完成）：等量20000×3、原非IID/MLP/训练参数，3种子40轮；FedAvg2/3达到95%、FedCADS0/3，不能计算95%时延提升或称稳定达标。分区测试/完整性通过，新数据仅本地、线上版本未覆盖。[验证](verification/VER-FL-EQUAL-95.md)。
 
 FL-CONV-02（2026-10-06，实验DONE/固定完整Flow口径通过）：10/7首组两对准确率不足，11/8新五种子均≥90%、各对效率≥25%、平均+33.57%；但首次达90%平均仅+24.17%、未稳定过25%。24执行964Job、十对初主权重/计时/34旧评估核验和3Node/19Python通过；原SDK/算法/62Flow/20服务保持，仅两实验Flow与固定Namespace入口文件。[边界](features/FL-CONV-02-flow-duration.md)、[验证](verification/VER-FL-CONV-02.md)。

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FL-MNIST-PART（2026-10-06，数据准备DONE）：依赖原MNIST和已有DatasetVersion/MinIO，只新增等量非IID与数量/类别不均版本；验收全60000覆盖、像素标签不变、上传读回一致、旧v1保持。已两版6对象/1测试验证通过；不自动扩展到训练、init镜像、角色契约或Flow新选项。[边界](verification/VER-FL-MNIST-PART.md)。
+
 FL-EQUAL-95（2026-10-06，数值实验DONE/95%未稳定）：仅将MNIST三份改成各20000、保留标签非IID，依赖原FedAvg/FedCADS-v2数值核心；3种子各40轮，FedAvg2/3达到95%、FedCADS0/3，未形成可比较95%耗时的配对。新数据保留本地、旧数据/线上Flow未覆盖；不改模型/引擎/服务。[范围与验证](verification/VER-FL-EQUAL-95.md)。
 
 FL-CONV-02（2026-10-06，实验DONE）：用户要求不补早停、逐组尝试完整Flow耗时；首组10/7两对准确率不足后，独立第二组11/8、五新种子均≥90%、各对完整Flow效率32.37%～34.99%、均+33.57%。首次达标诊断平均仅+24.17%、未稳定过25%，保留原口径缺口和全部首组结果。24执行964Job、3Node/19Python/独立模型计时核验通过；旧SDK/算法/62Flow/20服务保持，仅两实验Flow及固定Namespace入口，不改引擎或自动进入算法优化。[结果](verification/VER-FL-CONV-02.md)。

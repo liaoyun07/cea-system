@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-MNIST-PART（2026-10-06）：新增MNIST等量非IID20000×3与强非IID3000/12000/45000两个训练版本，全部60000原样本、共用原测试；已上传登记、6对象读回/1测试通过，旧v1保持。仅数据版本，旧Flow/契约/镜像未接入新选择，无训练或重启。[使用](examples/federated/mnist-partitions/README.md)、[验证](docs/verification/VER-FL-MNIST-PART.md)。
+
 FL-EQUAL-95（2026-10-06）：MNIST改成三个等量20000分片，仍标签非IID；原MLP/参数下3种子各40轮，FedAvg2/3达到95%、FedCADS0/3，未稳定达标。分区完整性/1测试通过；本地数值实验，未改线上数据/Flow或宣称系统计时收益。[使用](examples/federated/equal95/README.md)、[结果](docs/verification/VER-FL-EQUAL-95.md)。
 
 FL-CONV-02（2026-10-06，实验完成）：原配置下固定Avg11/CADS8、五新种子均最终≥90%，完整Flow平均224.71→168.23秒，效率+33.57%（各对32.37%～34.99%）。首组10/7两对未达准确率，最早达标口径新五对平均仅+24.17%、不稳定达25%；不能混称最优收敛指标通过。24执行964Job核验、3Node/19Python通过，旧62Flow/20服务/SDK保持。[使用](examples/federated/flow-duration/README.md)、[结果](docs/verification/VER-FL-CONV-02.md)。

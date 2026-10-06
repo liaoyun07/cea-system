@@ -1,5 +1,7 @@
 # 当前进度
 
+FL-MNIST-PART（2026-10-06）：两版MNIST训练数据已登记，equal-noniid-v1=20000×3、strong-noniid-v1=3000/12000/45000；类别集中、共用原测试。6对象上传读回逐张一致、60000覆盖/1测试通过，后端健康。旧v1/线上Flow/镜像/契约保持，新版本尚不能在旧联邦Flow选择训练。[证据](verification/VER-FL-MNIST-PART.md)。
+
 FL-EQUAL-95（2026-10-06）：完整MNIST等量三份各20000、保留标签非IID，三种子40轮数值测试：FedAvg最终95.13/95.37/94.52%，FedCADS89.47/88.85/89.93%，未稳定达到95%。数据完整性和1分区测试通过；新数据仅本地实验，旧线上数据/Flow保持，无Java/SDK/服务修改。[证据](verification/VER-FL-EQUAL-95.md)。
 
 FL-CONV-02（2026-10-06，实验完成）：同MNIST/主MLP/lr0.1/batch128/epoch1、CADS alpha0.001/rho0.1/schedule12，11/8固定预算五新种子完整Flow耗时平均224.71→168.23秒，均≥90%、各对效率均≥25%；最早90%诊断仅均+24.17%、不稳定过25%。首组10/7两对不足保留；24执行964Job、3Node/19Python及初权重/计时/34旧评估核验通过。旧62Flow/20服务/SDK保持，无Java/API/表/权限/引擎修改，未重跑全量Maven。用户运行两新r1 Flow需传rounds=11/8；原最短收敛指标仍未解决。[完整证据](verification/VER-FL-CONV-02.md)。
