@@ -1,0 +1,58 @@
+{
+  "applicationId": "fl-init",
+  "version": "cifar-part-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:35f03d42e4f8b1600654fa4831961939c47600ca8bbf3dc460557705854be9d5",
+  "parameters": {
+    "ALGORITHM": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "fedavg",
+      "choices": [
+        "fedavg",
+        "fedprox"
+      ],
+      "dataset": null
+    },
+    "MODEL": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mlp",
+      "choices": [
+        "mlp",
+        "cnn"
+      ],
+      "dataset": null
+    },
+    "SEED": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 13,
+      "choices": [],
+      "dataset": null
+    },
+    "TEST_DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-test/v1",
+      "choices": [
+        "mnist-test/v1",
+        "cifar10-test/v1",
+        "cifar100-test/v1"
+      ],
+      "dataset": null
+    },
+    "TRAINING_DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-train/v1",
+      "choices": [
+        "mnist-train/v1",
+        "cifar10-train/v1",
+        "cifar100-train/v1",
+        "cifar10-train/equal-noniid-v1",
+        "cifar10-train/strong-noniid-v1"
+      ],
+      "dataset": null
+    }
+  }
+}

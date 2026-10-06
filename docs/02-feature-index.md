@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-CIFAR-90（2026-10-06，执行中）：新增CIFAR-10两非IID分区并接通新镜像/八契约/四Flow，六对象读回、19+1Python/4Node通过；先CNN四组40轮，未达90%不算达标提升。[边界与验证](verification/VER-FL-CIFAR-90.md)。
+
 FL-MNIST-RUN（2026-10-06，DONE）：新引用识别、八角色契约/四分区Flow接通，旧64Flow保持；strong seed31两算法各40轮SUCCESS，最终Avg96.30%/CADS94.93%，首次95%为21/8轮。19Python/2Node、402Job/实际模型核验通过，不宣称稳定提升。[契约](contracts/mnist-partition-training.md)、[验证](verification/VER-FL-MNIST-RUN.md)。
 
 FL-MNIST-PART（2026-10-06，数据版本DONE）：mnist-train新增equal-noniid-v1与strong-noniid-v1，各全量60000、分别20000×3与3000/12000/45000；上传登记、6对象逐张读回/1测试通过。旧v1/测试/Flow保持，新版尚未接入旧训练契约/镜像/Flow选择。[验证](verification/VER-FL-MNIST-PART.md)。

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FL-CIFAR-90（2026-10-06，进行中）：依赖原完整CIFAR-10与已有CNN/FedAvg/FedCADS核心；新增等量/强非IID两版本并接通新镜像/契约/四Flow，先seed31各40轮。验收完整50000覆盖、对象读回、真实执行及每轮官方测试，双方达到90%才比较首次达标耗时；未达标如实记录，无引擎/SDK/资源/权限变更。[计划](../examples/federated/cifar10-partitions/README.md)。
+
 FL-MNIST-RUN（2026-10-06，DONE）：引用识别＋允许值＋分区权重/选项已接通，8契约4Flow发布。strong seed31两算法各40轮及全轮评估成功，初权重/实际分片/最终模型/402Job及旧资源保持核验通过，19Python/2Node通过。无引擎/SDK/资源修改，不自动调参；CADS早期更快但最终94.93%，不宣称稳定提升。[验证](verification/VER-FL-MNIST-RUN.md)。
 
 FL-MNIST-PART（2026-10-06，数据准备DONE）：依赖原MNIST和已有DatasetVersion/MinIO，只新增等量非IID与数量/类别不均版本；验收全60000覆盖、像素标签不变、上传读回一致、旧v1保持。已两版6对象/1测试验证通过；不自动扩展到训练、init镜像、角色契约或Flow新选项。[边界](verification/VER-FL-MNIST-PART.md)。

@@ -5,10 +5,17 @@ import {execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {parse,stringify} from '../../../frontend/node_modules/yaml/dist/index.js';
 import {connect,partitions} from './flows.mjs';
+import {connectCifar,partitions as cifarPartitions} from '../cifar10-partitions/flows.mjs';
 
 const root=path.resolve(import.meta.dirname,'../../..');
 const kind=process.argv.includes('--equal')?'equal':'strong';
-const folder=path.join(root,`.local/cea/mnist-partitions/flow-${kind}`);
+const dataset=process.argv.includes('--cifar10')?'cifar10':'mnist';
+const choices=dataset==='cifar10'?cifarPartitions:partitions;
+const connector=dataset==='cifar10'?connectCifar:connect;
+const version=dataset==='cifar10'?'cifar-part-v1':'mnist-part-v1';
+const sourceFolder=dataset==='cifar10'?path.resolve(import.meta.dirname,'../cifar10-partitions'):import.meta.dirname;
+const target=dataset==='cifar10'?.90:.95;
+const folder=path.join(root,`.local/cea/${dataset}-partitions/flow-${kind}`);
 const settings=Object.fromEntries((await fs.readFile(path.join(root,'deploy/cea/.env'),'utf8')).split(/\r?\n/)
   .filter(l=>l&&!l.startsWith('#')).map(l=>{const n=l.indexOf('=');return[l.slice(0,n),l.slice(n+1)];}));
 const authorization=`Basic ${Buffer.from(`${settings.BACKEND_USER}:${settings.BACKEND_PASSWORD}`).toString('base64')}`;
@@ -29,31 +36,31 @@ await fs.mkdir(folder,{recursive:true});
 if(mode==='register'){
   const image=process.argv[3];assert.match(image,/^registry-center:5000\/lab\/cea-federated@sha256:[a-f0-9]{64}$/);
   const flows=await all('/flows');
-  assert(!flows.some(f=>/^mnist-(equal|strong)-(fedavg|fedcads)$/.test(f.flowId)),'Do not overwrite existing flows');
+  assert(!flows.some(f=>new RegExp(`^${dataset}-(equal|strong)-(fedavg|fedcads)$`).test(f.flowId)),'Do not overwrite existing flows');
   assert((await all('/executions')).every(e=>['SUCCESS','FAILED','KILLED'].includes(e.state)),'Active execution');
   await save('before.json',{flows:await Promise.all(flows.map(f=>api(`/flows/${f.flowId}`))),services:services(),
     applicationConfig:await fs.readFile(path.join(root,'deploy/cea/application.yaml'),'utf8')});
   await save('image.json',{image});
-  for(const p of Object.values(partitions))assert.equal((await api(`/resources/datasets/mnist-train/versions/${p.version}`)).locations.length,3);
+  for(const p of Object.values(choices))assert.equal((await api(`/resources/datasets/${dataset}-train/versions/${p.version}`)).locations.length,3);
   for(const role of ['fl-init','fedavg-train','fl-aggregate','fl-evaluate','fedcads-init','fedcads-train','fedcads-aggregate','fedcads-evaluate']){
     const contract=await api(`/applications/${role}/versions/conv01-v1`);
-    const next={...structuredClone(contract),version:'mnist-part-v1',image};
-    if(next.parameters.DATASET?.dataset)next.parameters.DATASET.dataset.allowed.push(...Object.values(partitions).map(p=>({datasetId:'mnist-train',version:p.version})));
-    if(next.parameters.TRAINING_DATASET?.choices)next.parameters.TRAINING_DATASET.choices.push(...Object.values(partitions).map(p=>`mnist-train/${p.version}`));
-    await api(`/applications/${role}/versions/mnist-part-v1`,'PUT',next);
+    const next={...structuredClone(contract),version,image};
+    if(next.parameters.DATASET?.dataset)next.parameters.DATASET.dataset.allowed.push(...Object.values(choices).map(p=>({datasetId:`${dataset}-train`,version:p.version})));
+    if(next.parameters.TRAINING_DATASET?.choices)next.parameters.TRAINING_DATASET.choices.push(...Object.values(choices).map(p=>`${dataset}-train/${p.version}`));
+    await api(`/applications/${role}/versions/${version}`,'PUT',next);
     assert.deepEqual(await api(`/applications/${role}/versions/conv01-v1`),contract);
-    await fs.writeFile(path.join(import.meta.dirname,`${role}-contract.json`),JSON.stringify(next,null,2));
+    await fs.writeFile(path.join(sourceFolder,`${role}-contract.json`),JSON.stringify(next,null,2));
   }
   for(const algorithm of ['fedavg','fedcads'])for(const p of ['equal','strong']){
-    const flow=connect(parse((await api(`/flows/conv02-${algorithm}-mnist`)).source),algorithm,p),source=stringify(flow);
+    const flow=connector(parse((await api(`/flows/conv02-${algorithm}-mnist`)).source),algorithm,p),source=stringify(flow);
     await api(`/flows/${flow.id}/validate`,'POST',{source});
     await api(`/flows/${flow.id}/revisions`,'POST',{source,expectedRevision:0});
-    await fs.writeFile(path.join(import.meta.dirname,`${p}-${algorithm}.yaml`),source);
+    await fs.writeFile(path.join(sourceFolder,`${p}-${algorithm}.yaml`),source);
   }
   console.log('Connected two datasets with four independent flows and eight new contracts; original flows preserved.');
 }else{
   assert.equal(mode,'run');
-  const before=JSON.parse(await fs.readFile(path.join(root,'.local/cea/mnist-partitions/flow-strong/before.json'),'utf8'));
+  const before=JSON.parse(await fs.readFile(path.join(root,`.local/cea/${dataset}-partitions/flow-strong/before.json`),'utf8'));
   assert.deepEqual(services(),before.services);
   const results=[];
   for(const algorithm of ['fedavg','fedcads']){
@@ -62,11 +69,11 @@ if(mode==='register'){
     let accepted;
     try{accepted=await read(`${name}-accepted.json`);}catch(error){if(error.code!=='ENOENT')throw error;
       assert((await all('/executions')).every(e=>['SUCCESS','FAILED','KILLED'].includes(e.state)),'Unexpected active execution');
-      accepted=await api('/executions','POST',{flowId:`mnist-${kind}-${algorithm}`,revision:1,inputs:{rounds:40,seed:31}});
+      accepted=await api('/executions','POST',{flowId:`${dataset}-${kind}-${algorithm}`,revision:1,inputs:{rounds:40,seed:31}});
       await save(`${name}-accepted.json`,accepted);
     }
     console.log(`${algorithm} ${kind} 40 rounds seed31: ${accepted.executionId}`);
-    let execution,last=-1;const deadline=Date.now()+2700000;
+    let execution,last=-1;const deadline=Date.now()+(dataset==='cifar10'?14400000:2700000);
     while(true){
       execution=await api(`/executions/${accepted.executionId}`);
       if(['SUCCESS','FAILED','KILLED'].includes(execution.state))break;
@@ -91,7 +98,9 @@ if(mode==='register'){
     assert(evaluations.every(e=>e.samples===10000));
   }
   const summary=results.map(r=>({algorithm:r.algorithm,kind,seed:r.seed,state:r.execution.state,seconds:r.seconds,
-    best:r.evaluations.reduce((a,b)=>a.accuracy>=b.accuracy?a:b),final:r.evaluations.at(-1),first95:r.evaluations.find(e=>e.accuracy>=.95)??null}));
+    best:r.evaluations.reduce((a,b)=>a.accuracy>=b.accuracy?a:b),final:r.evaluations.at(-1),
+    target,firstTarget:r.evaluations.find(e=>e.accuracy>=target)??null,
+    ...(dataset==='mnist'?{first95:r.evaluations.find(e=>e.accuracy>=.95)??null}:{})}));
   for(const old of before.flows)assert.deepEqual(await api(`/flows/${old.flowId}`),old);
   assert.deepEqual(services(),before.services);
   assert.equal(await fs.readFile(path.join(root,'deploy/cea/application.yaml'),'utf8'),before.applicationConfig);

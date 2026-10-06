@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-CIFAR-90（2026-10-06，执行中）：完整CIFAR-10新增等量/强非IID两版本，已六对象读回验证、新镜像/八契约/四Flow接通；19+1Python/4Node通过。先现有CNN seed31各40轮，双方达到90%才比较首次达标耗时，当前无最终结果。[使用](examples/federated/cifar10-partitions/README.md)、[进度](docs/verification/VER-FL-CIFAR-90.md)。
+
 FL-MNIST-RUN（2026-10-06，DONE）：两版MNIST已通过新镜像、八契约/四独立Flow接通，旧对象保持。强非IID seed31两方法各40轮成功：FedAvg最终96.30%、CADS94.93%，首次95%为21/8轮；CADS后期回落，不宣称稳定提升。19Python/2Node与402Job/实际模型核验通过。[使用](examples/federated/mnist-partitions/README.md)、[结果](docs/verification/VER-FL-MNIST-RUN.md)。
 
 FL-MNIST-PART（2026-10-06）：新增MNIST等量非IID20000×3与强非IID3000/12000/45000两个训练版本，全部60000原样本、共用原测试；已上传登记、6对象读回/1测试通过，旧v1保持。仅数据版本，旧Flow/契约/镜像未接入新选择，无训练或重启。[使用](examples/federated/mnist-partitions/README.md)、[验证](docs/verification/VER-FL-MNIST-PART.md)。

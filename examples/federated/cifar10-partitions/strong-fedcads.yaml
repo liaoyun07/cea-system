@@ -1,0 +1,253 @@
+schemaVersion: 1
+namespace: lab
+id: cifar10-strong-fedcads
+description: "CIFAR-10 strong-noniid-v1: full 50000 train, official 10000 test;
+  40-round CNN baseline, no guarantee of 90%"
+inputs:
+  rounds:
+    type: INTEGER
+    defaultValue: 40
+  model:
+    type: STRING
+    defaultValue: cnn
+  training_dataset:
+    type: SELECT
+    values:
+      - cifar10-train/strong-noniid-v1
+    defaultValue: cifar10-train/strong-noniid-v1
+  test_dataset:
+    type: SELECT
+    values:
+      - cifar10-test/v1
+    defaultValue: cifar10-test/v1
+  local_epochs:
+    type: INTEGER
+    defaultValue: 1
+  batch_size:
+    type: INTEGER
+    defaultValue: 128
+  learning_rate:
+    type: NUMBER
+    defaultValue: 0.1
+  alpha:
+    type: NUMBER
+    defaultValue: 0.001
+  rho:
+    type: NUMBER
+    defaultValue: 0.1
+  clients:
+    type: ARRAY
+    defaultValue:
+      - id: edge-a
+        clusters:
+          - edge-a
+        weight: 2500
+      - id: edge-b
+        clusters:
+          - edge-b
+        weight: 10000
+      - id: edge-c
+        clusters:
+          - edge-c
+        weight: 37500
+  seed:
+    type: INTEGER
+    defaultValue: 31
+tasks:
+  - id: init
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: fedcads-init
+      version: cifar-part-v1
+      candidateClusters:
+        - cloud
+      command:
+        - python
+        - /cea-work/in/flow_entry.py
+        - init
+      parameters:
+        ALGORITHM:
+          source: LITERAL
+          value: fedcads
+        MODEL:
+          source: INPUT
+          name: model
+        TRAINING_DATASET:
+          source: INPUT
+          name: training_dataset
+        TEST_DATASET:
+          source: INPUT
+          name: test_dataset
+        CLIENTS:
+          source: INPUT
+          name: clients
+        ROUNDS:
+          source: INPUT
+          name: rounds
+        SEED:
+          source: INPUT
+          name: seed
+      outputFiles:
+        - model.pt
+      namespaceFiles:
+        flow_entry.py:
+          path: experiments/conv02/flow_entry.py
+          revision: 1
+  - id: rounds
+    type: core.Repeat
+    repeat:
+      iterations:
+        source: INPUT
+        name: rounds
+      initial:
+        global_model:
+          source: TASK_OUTPUT
+          taskId: init
+          port: model.pt
+      feedback:
+        global_model:
+          source: TASK_OUTPUT
+          taskId: aggregate
+          port: model.pt
+    tasks:
+      - id: clients
+        type: core.Loop
+        loop:
+          values:
+            source: INPUT
+            name: clients
+          concurrency: 6
+          outputs:
+            models:
+              source: TASK_OUTPUT
+              taskId: train
+              port: model.pt
+        tasks:
+          - id: train
+            type: platform.Application
+            timeout: PT5M
+            container:
+              applicationId: fedcads-train
+              version: cifar-part-v1
+              candidateClusters:
+                source: ITEM
+                path:
+                  - value
+                  - clusters
+              command:
+                - python
+                - /cea-work/in/flow_entry.py
+                - train
+              parameters:
+                ALGORITHM:
+                  source: LITERAL
+                  value: fedcads
+                CLIENT_ID:
+                  source: ITEM
+                  path:
+                    - value
+                    - id
+                DATASET:
+                  source: INPUT
+                  name: training_dataset
+                LOCAL_EPOCHS:
+                  source: INPUT
+                  name: local_epochs
+                BATCH_SIZE:
+                  source: INPUT
+                  name: batch_size
+                LEARNING_RATE:
+                  source: INPUT
+                  name: learning_rate
+                ALPHA:
+                  source: INPUT
+                  name: alpha
+                SEED:
+                  source: INPUT
+                  name: seed
+              inputFiles:
+                global_model:
+                  source: TASK_OUTPUT
+                  taskId: rounds
+                  port: global_model
+              outputFiles:
+                - model.pt
+              namespaceFiles:
+                flow_entry.py:
+                  path: experiments/conv02/flow_entry.py
+                  revision: 1
+      - id: aggregate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fedcads-aggregate
+          version: cifar-part-v1
+          candidateClusters:
+            - cloud
+          command:
+            - python
+            - /cea-work/in/flow_entry.py
+            - aggregate
+            - --clients-manifest
+            - /cea-work/in/client_models.json
+          parameters:
+            RHO:
+              source: INPUT
+              name: rho
+          inputFiles:
+            global_model:
+              source: TASK_OUTPUT
+              taskId: rounds
+              port: global_model
+            client_models:
+              source: TASK_OUTPUT
+              taskId: clients
+              port: models
+          outputFiles:
+            - model.pt
+          namespaceFiles:
+            flow_entry.py:
+              path: experiments/conv02/flow_entry.py
+              revision: 1
+      - id: evaluate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fedcads-evaluate
+          version: cifar-part-v1
+          candidateClusters:
+            - cloud
+          command:
+            - python
+            - /cea-work/in/flow_entry.py
+            - evaluate
+            - --output
+            - /cea-work/out/metrics.json
+          parameters:
+            TEST_DATASET:
+              source: INPUT
+              name: test_dataset
+            BATCH_SIZE:
+              source: INPUT
+              name: batch_size
+          inputFiles:
+            global_model:
+              source: TASK_OUTPUT
+              taskId: aggregate
+              port: model.pt
+          outputFiles:
+            - metrics.json
+          namespaceFiles:
+            flow_entry.py:
+              path: experiments/conv02/flow_entry.py
+              revision: 1
+outputs:
+  global_model:
+    source: TASK_OUTPUT
+    taskId: rounds
+    port: global_model
+  completed_rounds:
+    source: TASK_OUTPUT
+    taskId: rounds
+    port: iterationCount
