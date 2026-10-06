@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-CONV-02（2026-10-06，实验DONE/固定完整Flow口径通过）：10/7首组两对准确率不足，11/8新五种子均≥90%、各对效率≥25%、平均+33.57%；但首次达90%平均仅+24.17%、未稳定过25%。24执行964Job、十对初主权重/计时/34旧评估核验和3Node/19Python通过；原SDK/算法/62Flow/20服务保持，仅两实验Flow与固定Namespace入口文件。[边界](features/FL-CONV-02-flow-duration.md)、[验证](verification/VER-FL-CONV-02.md)。
+
 FL-CONV-01（2026-10-06，PARTIAL/未证明稳定）：验证集筛选后固定90%目标、五种子配对；正式5执行2成功3失败，仅种子41完整配对效率+37.43%。SDK时钟校验报错后暂停余项，未替换失败；两个Flow与八个版本已发布，旧60Flow/20服务保持，无Java/API/表/权限/引擎改动。[范围](features/FL-CONV-01-time-to-accuracy.md)、[验证](verification/VER-FL-CONV-01.md)。
 
 HC-04（2026-10-05，DONE/流任务已部署、资源目标未达）：完整数据重复1/5/10次而非拆分或扩独立样本；同核固定1/4Job，10镜像单测/6Flow测试、36执行90Job、192输出288特征核验通过。上云-97.65%，总CPU仍高，10次采样及耗时波动，未证明资源减少15%。原20服务/54Flow保持，无Java/API/数据库/权限/前端/引擎改动。[范围](features/HC-04-repeat-load.md)、[验证](verification/VER-HC-04.md)。

@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-CONV-02（2026-10-06，实验完成）：原配置下固定Avg11/CADS8、五新种子均最终≥90%，完整Flow平均224.71→168.23秒，效率+33.57%（各对32.37%～34.99%）。首组10/7两对未达准确率，最早达标口径新五对平均仅+24.17%、不稳定达25%；不能混称最优收敛指标通过。24执行964Job核验、3Node/19Python通过，旧62Flow/20服务/SDK保持。[使用](examples/federated/flow-duration/README.md)、[结果](docs/verification/VER-FL-CONV-02.md)。
+
 FL-CONV-01（2026-10-06，实验PARTIAL）：同MNIST/主MLP及资源对照，lr0.1/batch128/epoch1、CADS alpha0.001/rho0.1；种子41达到90%耗时196.141→142.718秒，效率+37.43%。其余执行遇计时SDK校验失败，五种子稳定性未证明；已暂停，未改计时或补跑筛成功。仅新增两个Flow/八个版本，旧服务及流程保持。[实验](examples/federated/convergence/README.md)、[证据](docs/verification/VER-FL-CONV-01.md)。
 
 HC-04（2026-10-05，重复流任务已部署）：完整数据真实重复1/5/10次，固定1/4Job，36执行/90Job成功、192输出＋288特征核验通过。上云均-97.65%，分布CPU仍多108.3%/70.6%/51.6%，内存时间成本+68.3%/+30.5%/-5.1%；10次严重波动，不宣称稳定改善或资源降低15%。旧20服务/54Flow保持，只新增6Flow/同镜像两契约，无引擎/配置/重启。[使用](examples/hydraulic-cloud-edge/README.md)、[验证](docs/verification/VER-HC-04.md)。
