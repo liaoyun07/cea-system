@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-EQUAL-95（2026-10-06，数值实验完成）：等量20000×3、原非IID/MLP/训练参数，3种子40轮；FedAvg2/3达到95%、FedCADS0/3，不能计算95%时延提升或称稳定达标。分区测试/完整性通过，新数据仅本地、线上版本未覆盖。[验证](verification/VER-FL-EQUAL-95.md)。
+
 FL-CONV-02（2026-10-06，实验DONE/固定完整Flow口径通过）：10/7首组两对准确率不足，11/8新五种子均≥90%、各对效率≥25%、平均+33.57%；但首次达90%平均仅+24.17%、未稳定过25%。24执行964Job、十对初主权重/计时/34旧评估核验和3Node/19Python通过；原SDK/算法/62Flow/20服务保持，仅两实验Flow与固定Namespace入口文件。[边界](features/FL-CONV-02-flow-duration.md)、[验证](verification/VER-FL-CONV-02.md)。
 
 FL-CONV-01（2026-10-06，PARTIAL/未证明稳定）：验证集筛选后固定90%目标、五种子配对；正式5执行2成功3失败，仅种子41完整配对效率+37.43%。SDK时钟校验报错后暂停余项，未替换失败；两个Flow与八个版本已发布，旧60Flow/20服务保持，无Java/API/表/权限/引擎改动。[范围](features/FL-CONV-01-time-to-accuracy.md)、[验证](verification/VER-FL-CONV-01.md)。

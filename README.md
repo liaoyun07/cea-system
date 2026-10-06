@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+FL-EQUAL-95（2026-10-06）：MNIST改成三个等量20000分片，仍标签非IID；原MLP/参数下3种子各40轮，FedAvg2/3达到95%、FedCADS0/3，未稳定达标。分区完整性/1测试通过；本地数值实验，未改线上数据/Flow或宣称系统计时收益。[使用](examples/federated/equal95/README.md)、[结果](docs/verification/VER-FL-EQUAL-95.md)。
+
 FL-CONV-02（2026-10-06，实验完成）：原配置下固定Avg11/CADS8、五新种子均最终≥90%，完整Flow平均224.71→168.23秒，效率+33.57%（各对32.37%～34.99%）。首组10/7两对未达准确率，最早达标口径新五对平均仅+24.17%、不稳定达25%；不能混称最优收敛指标通过。24执行964Job核验、3Node/19Python通过，旧62Flow/20服务/SDK保持。[使用](examples/federated/flow-duration/README.md)、[结果](docs/verification/VER-FL-CONV-02.md)。
 
 FL-CONV-01（2026-10-06，实验PARTIAL）：同MNIST/主MLP及资源对照，lr0.1/batch128/epoch1、CADS alpha0.001/rho0.1；种子41达到90%耗时196.141→142.718秒，效率+37.43%。其余执行遇计时SDK校验失败，五种子稳定性未证明；已暂停，未改计时或补跑筛成功。仅新增两个Flow/八个版本，旧服务及流程保持。[实验](examples/federated/convergence/README.md)、[证据](docs/verification/VER-FL-CONV-01.md)。
