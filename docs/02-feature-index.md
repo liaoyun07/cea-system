@@ -1,6 +1,6 @@
 # 功能与验证索引
 
-FL-HSAM-40（2026-10-07，IN_PROGRESS）：FedAvg/FedCADS/GFed-HSAM 在 MNIST/CIFAR-10 强非 IID 上各 40 轮、1 完整 local epoch 的六组顺序对比；六个独立流程已发布，首组已启动，尚无最终比较结论。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
+FL-HSAM-40（2026-10-07，DONE）：六组40轮/1 epoch强非IID对比完成。MNIST最终Avg/CADS/HSAM=96.30/94.93/96.99%，首次95%累计432.508/177.017/94.669s；CIFAR-10最终59.90/52.90/10.18%，均未达90%，HSAM严重不稳定。保留全部结果，不宣称跨数据集或多seed稳定优势。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
 
 FL-HSAM-01（2026-10-07，DONE/已部署）：GFed-HSAM同批四梯度、动态漂移和扰动跨轮状态/云聚合已接入，24Python/3Node及结构检查通过；新镜像/四应用/gfed-hsam r1已发布，真实强非IIDMNIST两轮11Job成功，9模型/独立客户端重训/云状态及评估复算通过，第二轮89.23%。74旧Flow/120应用/20数据集/20服务保持；无Java/API/数据库变更，不承诺性能。[范围](features/FL-HSAM-01-gfed-hsam.md)、[协议](contracts/gfed-hsam.md)、[验证](verification/VER-FL-HSAM-01.md)。
 

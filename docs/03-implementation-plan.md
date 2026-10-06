@@ -1,6 +1,6 @@
 # 可修改的实施计划
 
-FL-HSAM-40（2026-10-07，IN_PROGRESS）：按用户要求实施六组 40 轮/1 epoch 强非 IID 对比；沿用 MLP/CNN 及既有数据，统一 batch128/lr0.1/seed31，逐轮官方评估、完整流程计时、失败保留，不改算法/旧流程/服务配置。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
+FL-HSAM-40（2026-10-07，DONE）：六组40轮/1 epoch强非IID对比完成，统一MLP/CNN、batch128/lr0.1/seed31。240轮官方评估、完整执行计时及旧流程保持核验；MNIST HSAM更早达95%，CIFAR-10 HSAM明显劣化，未重跑/调参或宣称稳定收益。不改算法/服务配置。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
 
 FL-HSAM-01（2026-10-07，DONE）：用户授权按FedCADS接入方式实现GFed-HSAM核心，数据划分/模型/完整epoch/轮数采用平台定义。依赖既有CPU镜像、真实数据、Repeat/Loop及文件契约；四梯度HSAM、客户端漂移/扰动跨轮状态、云动态修正及四Application/新Flow均已发布。24Python/3Node、独立公式/SGD极限、CEA两轮11Job和9模型/状态/评估复算、旧资源保持与结构检查验收通过；无Java/API/表/权限/工作流语义变更，不宣称论文逐项复现或速度优势。[范围](features/FL-HSAM-01-gfed-hsam.md)、[验证](verification/VER-FL-HSAM-01.md)。
 

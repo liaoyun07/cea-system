@@ -5,3 +5,5 @@ MNIST（MLP）、CIFAR-10（CNN）均使用既有 strong-noniid-v1：训练集�
 六组顺序执行，避免实验互相抢资源；新增独立 compare40-* Flow，不覆盖旧流程/执行。统一使用不采集文件读写时间的实验入口，原训练代码不变，以 Execution.startedAt → endedAt 为完整耗时（包括调度、文件准备、训练、聚合、评估）。记录逐轮准确率、最终/最高准确率、首次 90%/95% 的轮数和完整累计耗时；单 seed 探索结果不能证明稳定提升。
 
 运行 `node examples/federated/three-way-strong/run.mjs prepare`，然后 `... run`；`... report` 只读取当前记录。证据写入 `.local/cea/three-way-strong-40/`。接受的 executionId 和提交幂等键持久保存，恢复时继续等待原执行；失败保留并停止，不重跑筛选好结果。未完成组不可记为完成。
+
+2026-10-07 六组已完成，结果见 [验收记录](../../../docs/verification/VER-FL-HSAM-40.md)。`node examples/federated/three-way-strong/audit.mjs` 可核对六个实际执行/1206个Application TaskRun/240轮官方评估及旧流程保持。MNIST HSAM更早首次达95%，但CIFAR-10明显劣化；只跑一个seed，没有跨数据集稳定优势结论。
