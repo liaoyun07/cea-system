@@ -105,4 +105,8 @@ if(mode==='register'){
   assert.deepEqual(services(),before.services);
   assert.equal(await fs.readFile(path.join(root,'deploy/cea/application.yaml'),'utf8'),before.applicationConfig);
   await save('summary.json',summary);console.log(JSON.stringify(summary,null,2));
+  if(dataset==='cifar10'&&kind==='strong'){
+    const {finish}=await import('../cifar10-partitions/finish.mjs');
+    await finish(root);
+  }
 }

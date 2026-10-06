@@ -14,3 +14,5 @@
 - 已启动等量FedAvg b186856d-7015-45bc-a76d-473f9d3eafda，后续等量CADS/强Avg/CADS按顺序执行，任何失败保留证据并停止后续自动提交。每轮10000测试；当前没有最终结果或90%提升结论。
 
 原始执行证据.local/cea/cifar10-partitions/flow-equal和flow-strong；已有accepted ID不重复提交。运行结束后audit.ps1复查真实初始/客户端/最终模型及402Job，每一对完成后才能核算90%时间，未达标值为null。
+
+本轮主命令仍在运行，按等量Avg/CADS→强Avg/CADS顺序。strong运行器结束后自动执行finish.mjs的两组audit并生成comparison.md/json；这是本次实验程序的收尾步骤，不是新定时任务或持续监控。当前训练和收尾尚未完成，不能将报告模板中的通过条件当作已通过。

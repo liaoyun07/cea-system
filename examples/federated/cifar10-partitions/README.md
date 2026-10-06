@@ -17,3 +17,5 @@ node examples/federated/mnist-partitions/run.mjs run --cifar10
 ```
 
 原始文件仅.local/cea/cifar10-partitions，读回在同级cifar10-partitions-readback，执行证据flow-equal/strong。输入注册只创建新对象，已有执行ID不重复提交。[验证](../../../docs/verification/VER-FL-CIFAR-90.md)。
+
+四组均结束后，strong运行器自动调用finish.mjs，先执行两组独立audit，再生成.local/cea/cifar10-partitions/comparison.json及comparison.md。任何训练或audit失败均不生成通过报告；自动汇总尚未完成时不能称804Job核验已通过。核验在全部计时流程之后，不干扰其中一组的计时。
