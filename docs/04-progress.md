@@ -1,5 +1,7 @@
 # 当前进度
 
+FL-HSAM-40（2026-10-07，IN_PROGRESS）：六组独立实验定义测试 6/6 通过、CEA 校验/发布通过；MNIST FedAvg 执行 a6a60e83-a8c7-4ef9-8437-d03230946552 已启动，之后依次 CADS/HSAM 及 CIFAR-10 三组。完整执行结果尚未取得，不能宣称准确率/耗时优势。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
+
 FL-HSAM-01（2026-10-07，DONE/已部署）：GFed-HSAM核心及新四Application/gfed-hsam r1已在CEA，24Python/3Node/结构检查通过。真实强非IIDMNIST两轮11Job全部成功、9模型与独立客户端重训/全局动态状态/官方评估复算通过，第二轮89.23%；74旧Flow/120应用/20数据集/20服务保持，无重启/Java/API/数据库变更。原文歧义已记录，不宣称作者精确复现或速度优势。[使用](../examples/federated/gfed-hsam/README.md)、[验证](verification/VER-FL-HSAM-01.md)。
 
 FL-CIFAR-300（2026-10-06，执行中）：LeNet/Fusion镜像与八契约/两Flow发布，强非IID、epoch5/rounds300；19Python/2Node及完整verify通过，Repeat最小扩300并仅更新后端。Avg fe02f72a-6571-456c-b8f6-31f6c9030520首轮三客户端训练中，成功后自动接CADS，未完成300轮或90%达标核验。[证据](verification/VER-FL-CIFAR-300.md)。
