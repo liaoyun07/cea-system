@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+FL-MNIST-RUN（2026-10-06，DONE）：引用识别＋允许值＋分区权重/选项已接通，8契约4Flow发布。strong seed31两算法各40轮及全轮评估成功，初权重/实际分片/最终模型/402Job及旧资源保持核验通过，19Python/2Node通过。无引擎/SDK/资源修改，不自动调参；CADS早期更快但最终94.93%，不宣称稳定提升。[验证](verification/VER-FL-MNIST-RUN.md)。
+
 FL-MNIST-PART（2026-10-06，数据准备DONE）：依赖原MNIST和已有DatasetVersion/MinIO，只新增等量非IID与数量/类别不均版本；验收全60000覆盖、像素标签不变、上传读回一致、旧v1保持。已两版6对象/1测试验证通过；不自动扩展到训练、init镜像、角色契约或Flow新选项。[边界](verification/VER-FL-MNIST-PART.md)。
 
 FL-EQUAL-95（2026-10-06，数值实验DONE/95%未稳定）：仅将MNIST三份改成各20000、保留标签非IID，依赖原FedAvg/FedCADS-v2数值核心；3种子各40轮，FedAvg2/3达到95%、FedCADS0/3，未形成可比较95%耗时的配对。新数据保留本地、旧数据/线上Flow未覆盖；不改模型/引擎/服务。[范围与验证](verification/VER-FL-EQUAL-95.md)。

@@ -1,0 +1,82 @@
+{
+  "applicationId": "fedavg-train",
+  "version": "mnist-part-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:71768d8fc05aaa34c2b97f657f08d2d31b5a1384bfa3e614b3fa5bdbe01df47b",
+  "parameters": {
+    "ALGORITHM": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "fedavg",
+      "choices": [
+        "fedavg"
+      ],
+      "dataset": null
+    },
+    "BATCH_SIZE": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 32,
+      "choices": [],
+      "dataset": null
+    },
+    "CLIENT_ID": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": null,
+      "choices": [],
+      "dataset": null
+    },
+    "DATASET": {
+      "type": "STRING",
+      "required": true,
+      "defaultValue": "mnist-train/v1",
+      "choices": [],
+      "dataset": {
+        "format": "pt",
+        "allowed": [
+          {
+            "datasetId": "cifar10-train",
+            "version": "v1"
+          },
+          {
+            "datasetId": "cifar100-train",
+            "version": "v1"
+          },
+          {
+            "datasetId": "mnist-train",
+            "version": "v1"
+          },
+          {
+            "datasetId": "mnist-train",
+            "version": "equal-noniid-v1"
+          },
+          {
+            "datasetId": "mnist-train",
+            "version": "strong-noniid-v1"
+          }
+        ]
+      }
+    },
+    "LEARNING_RATE": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.01,
+      "choices": [],
+      "dataset": null
+    },
+    "LOCAL_EPOCHS": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 1,
+      "choices": [],
+      "dataset": null
+    },
+    "SEED": {
+      "type": "INTEGER",
+      "required": true,
+      "defaultValue": 13,
+      "choices": [],
+      "dataset": null
+    }
+  }
+}

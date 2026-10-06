@@ -11,7 +11,8 @@ DATASETS = {"mnist": (1, 28, 10), "cifar10": (3, 32, 10), "cifar100": (3, 32, 10
 def dataset_from_refs(training, test):
     """Init consumes selected version names, not dataset files or storage URLs."""
     for dataset in DATASETS:
-        if training == f"{dataset}-train/v1" and test == f"{dataset}-test/v1":
+        versions = ("v1", "equal-noniid-v1", "strong-noniid-v1") if dataset == "mnist" else ("v1",)
+        if training in {f"{dataset}-train/{version}" for version in versions} and test == f"{dataset}-test/v1":
             return dataset
     raise ValueError("training and test dataset versions must be a matching supported pair")
 

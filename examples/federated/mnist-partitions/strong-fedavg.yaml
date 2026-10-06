@@ -1,0 +1,227 @@
+schemaVersion: 1
+namespace: lab
+id: mnist-strong-fedavg
+description: "MNIST strong-noniid-v1: full 60000 training, 10000 test, fixed
+  partition weights, original numerical core"
+inputs:
+  rounds:
+    type: INTEGER
+    defaultValue: 40
+  model:
+    type: STRING
+    defaultValue: mlp
+  training_dataset:
+    type: SELECT
+    values:
+      - mnist-train/strong-noniid-v1
+    defaultValue: mnist-train/strong-noniid-v1
+  test_dataset:
+    type: SELECT
+    values:
+      - mnist-test/v1
+    defaultValue: mnist-test/v1
+  local_epochs:
+    type: INTEGER
+    defaultValue: 1
+  batch_size:
+    type: INTEGER
+    defaultValue: 128
+  learning_rate:
+    type: NUMBER
+    defaultValue: 0.1
+  seed:
+    type: INTEGER
+    defaultValue: 31
+  clients:
+    type: ARRAY
+    defaultValue:
+      - id: edge-a
+        clusters:
+          - edge-a
+        weight: 1
+      - id: edge-b
+        clusters:
+          - edge-b
+        weight: 4
+      - id: edge-c
+        clusters:
+          - edge-c
+        weight: 15
+tasks:
+  - id: init
+    type: platform.Application
+    timeout: PT5M
+    container:
+      applicationId: fl-init
+      version: mnist-part-v1
+      candidateClusters:
+        - cloud
+      command:
+        - python
+        - /cea-work/in/flow_entry.py
+        - init
+      parameters:
+        ALGORITHM:
+          source: LITERAL
+          value: fedavg
+        MODEL:
+          source: INPUT
+          name: model
+        TRAINING_DATASET:
+          source: INPUT
+          name: training_dataset
+        TEST_DATASET:
+          source: INPUT
+          name: test_dataset
+        SEED:
+          source: INPUT
+          name: seed
+      outputFiles:
+        - model.pt
+      namespaceFiles:
+        flow_entry.py:
+          path: experiments/conv02/flow_entry.py
+          revision: 1
+  - id: rounds
+    type: core.Repeat
+    repeat:
+      iterations:
+        source: INPUT
+        name: rounds
+      initial:
+        global_model:
+          source: TASK_OUTPUT
+          taskId: init
+          port: model.pt
+      feedback:
+        global_model:
+          source: TASK_OUTPUT
+          taskId: aggregate
+          port: model.pt
+    tasks:
+      - id: clients
+        type: core.Loop
+        loop:
+          values:
+            source: INPUT
+            name: clients
+          concurrency: 6
+          outputs:
+            models:
+              source: TASK_OUTPUT
+              taskId: train
+              port: model.pt
+        tasks:
+          - id: train
+            type: platform.Application
+            timeout: PT5M
+            container:
+              applicationId: fedavg-train
+              version: mnist-part-v1
+              candidateClusters:
+                source: ITEM
+                path:
+                  - value
+                  - clusters
+              command:
+                - python
+                - /cea-work/in/flow_entry.py
+                - train
+              parameters:
+                CLIENT_ID:
+                  source: ITEM
+                  path:
+                    - value
+                    - id
+                DATASET:
+                  source: INPUT
+                  name: training_dataset
+                LOCAL_EPOCHS:
+                  source: INPUT
+                  name: local_epochs
+                BATCH_SIZE:
+                  source: INPUT
+                  name: batch_size
+                LEARNING_RATE:
+                  source: INPUT
+                  name: learning_rate
+                SEED:
+                  source: INPUT
+                  name: seed
+              inputFiles:
+                global_model:
+                  source: TASK_OUTPUT
+                  taskId: rounds
+                  port: global_model
+              outputFiles:
+                - model.pt
+              namespaceFiles:
+                flow_entry.py:
+                  path: experiments/conv02/flow_entry.py
+                  revision: 1
+      - id: aggregate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fl-aggregate
+          version: mnist-part-v1
+          candidateClusters:
+            - cloud
+          command:
+            - python
+            - /cea-work/in/flow_entry.py
+            - aggregate
+            - --clients-manifest
+            - /cea-work/in/client_models.json
+          inputFiles:
+            client_models:
+              source: TASK_OUTPUT
+              taskId: clients
+              port: models
+          outputFiles:
+            - model.pt
+          namespaceFiles:
+            flow_entry.py:
+              path: experiments/conv02/flow_entry.py
+              revision: 1
+      - id: evaluate
+        type: platform.Application
+        timeout: PT5M
+        container:
+          applicationId: fl-evaluate
+          version: mnist-part-v1
+          candidateClusters:
+            - cloud
+          command:
+            - python
+            - /cea-work/in/flow_entry.py
+            - evaluate
+            - --output
+            - /cea-work/out/metrics.json
+          parameters:
+            TEST_DATASET:
+              source: INPUT
+              name: test_dataset
+            BATCH_SIZE:
+              source: INPUT
+              name: batch_size
+          inputFiles:
+            global_model:
+              source: TASK_OUTPUT
+              taskId: aggregate
+              port: model.pt
+          outputFiles:
+            - metrics.json
+          namespaceFiles:
+            flow_entry.py:
+              path: experiments/conv02/flow_entry.py
+              revision: 1
+outputs:
+  global_model:
+    source: TASK_OUTPUT
+    taskId: rounds
+    port: global_model
+  completed_rounds:
+    source: TASK_OUTPUT
+    taskId: rounds
+    port: iterationCount

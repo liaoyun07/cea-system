@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-MNIST-RUN（2026-10-06，DONE）：新引用识别、八角色契约/四分区Flow接通，旧64Flow保持；strong seed31两算法各40轮SUCCESS，最终Avg96.30%/CADS94.93%，首次95%为21/8轮。19Python/2Node、402Job/实际模型核验通过，不宣称稳定提升。[契约](contracts/mnist-partition-training.md)、[验证](verification/VER-FL-MNIST-RUN.md)。
+
 FL-MNIST-PART（2026-10-06，数据版本DONE）：mnist-train新增equal-noniid-v1与strong-noniid-v1，各全量60000、分别20000×3与3000/12000/45000；上传登记、6对象逐张读回/1测试通过。旧v1/测试/Flow保持，新版尚未接入旧训练契约/镜像/Flow选择。[验证](verification/VER-FL-MNIST-PART.md)。
 
 FL-EQUAL-95（2026-10-06，数值实验完成）：等量20000×3、原非IID/MLP/训练参数，3种子40轮；FedAvg2/3达到95%、FedCADS0/3，不能计算95%时延提升或称稳定达标。分区测试/完整性通过，新数据仅本地、线上版本未覆盖。[验证](verification/VER-FL-EQUAL-95.md)。

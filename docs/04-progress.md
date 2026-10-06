@@ -1,5 +1,7 @@
 # 当前进度
 
+FL-MNIST-RUN（2026-10-06，DONE）：两版MNIST接通，旧64Flow/契约保持；strong 3000/12000/45000、seed31两方法各40轮SUCCESS。Avg最终96.30%/CADS94.93%，首次95%为21/8轮，CADS后期回落。19Python/2Node与402Job/实际模型独立核验通过，不宣称稳定提升。[证据](verification/VER-FL-MNIST-RUN.md)。
+
 FL-MNIST-PART（2026-10-06）：两版MNIST训练数据已登记，equal-noniid-v1=20000×3、strong-noniid-v1=3000/12000/45000；类别集中、共用原测试。6对象上传读回逐张一致、60000覆盖/1测试通过，后端健康。旧v1/线上Flow/镜像/契约保持，新版本尚不能在旧联邦Flow选择训练。[证据](verification/VER-FL-MNIST-PART.md)。
 
 FL-EQUAL-95（2026-10-06）：完整MNIST等量三份各20000、保留标签非IID，三种子40轮数值测试：FedAvg最终95.13/95.37/94.52%，FedCADS89.47/88.85/89.93%，未稳定达到95%。数据完整性和1分区测试通过；新数据仅本地实验，旧线上数据/Flow保持，无Java/SDK/服务修改。[证据](verification/VER-FL-EQUAL-95.md)。

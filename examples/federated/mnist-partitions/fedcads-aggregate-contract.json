@@ -1,0 +1,14 @@
+{
+  "applicationId": "fedcads-aggregate",
+  "version": "mnist-part-v1",
+  "image": "registry-center:5000/lab/cea-federated@sha256:71768d8fc05aaa34c2b97f657f08d2d31b5a1384bfa3e614b3fa5bdbe01df47b",
+  "parameters": {
+    "RHO": {
+      "type": "NUMBER",
+      "required": true,
+      "defaultValue": 0.1,
+      "choices": [],
+      "dataset": null
+    }
+  }
+}
