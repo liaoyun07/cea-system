@@ -30,11 +30,12 @@ for item in config["terminals"]:
         if existing.labels.get("cea.simulator") != "terminal-load":
             raise RuntimeError("unexpected container owner")
         expected_hosts = sorted(f"{host}:{ip}" for host, ip in config["hosts"].items())
-        if sorted(existing.attrs["HostConfig"].get("ExtraHosts") or []) != expected_hosts:
+        if (sorted(existing.attrs["HostConfig"].get("ExtraHosts") or []) != expected_hosts
+                or existing.image.id != client.images.get(config["agentImage"]).id):
             active = [c for c in client.containers.list() if c.labels.get("com.project.cea.attempt")
                       and c.attrs["HostConfig"].get("CgroupParent") == str(group.relative_to("/sys/fs/cgroup"))]
             if active:
-                raise RuntimeError("stop and drain this terminal before updating its network routes")
+                raise RuntimeError("stop and drain this terminal before updating its image or network routes")
             existing.stop(timeout=10)
             existing.remove()
         else:

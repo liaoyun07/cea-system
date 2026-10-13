@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+TERM-SIZE-01（2026-10-13，DONE/已部署）：本地文件元数据支持1GiB、模拟网关磁盘暂存、分块等价统计镜像和三条独立固定位置策略；5/50/500 MB九组合全部成功，结果及原文一致，20非目标容器/81旧Flow保持。292Java/42Python通过，不改变DQN或原负载页面规模配置，不宣称稳定调度收益。[实验](../deploy/terminal-load/matrix/README.md)、[协议](contracts/terminal-load.md)、[验证](verification/VER-TERM-SIZE-01.md)。
+
 TERM-LOAD-01（2026-10-13，核心功能DONE/已部署）：脚本模拟终端、网关接入、负载启停、策略切换、资源/耗时/实际去向展示闭环。291Java/62前端单测/86浏览器/38Python、23实际请求及31输出核验通过；旧18非目标服务和81Flow保持，未验证25%/40%指标。[功能](features/TERM-LOAD-01-terminal-load.md)、[协议](contracts/terminal-load.md)、[验证](verification/VER-TERM-LOAD-01.md)。
 
 FL-HSAM-40（2026-10-07，DONE）：六组40轮/1 epoch强非IID对比完成。MNIST最终Avg/CADS/HSAM=96.30/94.93/96.99%，首次95%累计432.508/177.017/94.669s；CIFAR-10最终59.90/52.90/10.18%，均未达90%，HSAM严重不稳定。保留全部结果，不宣称跨数据集或多seed稳定优势。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。

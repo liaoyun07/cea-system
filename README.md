@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+TERM-SIZE-01（2026-10-13，九组合完成/已部署）：5/50/500 MB各在终端、edge-a、cloud真实执行一次，全部成功、统计值和上传原文核验一致。完整耗时分别为3.15/8.62/8.59、5.22/7.98/7.92、38.85/32.61/30.42秒；分块计算使500 MB也能在512MiB终端完成。292Java、42Python及20非目标容器/81旧Flow保留通过；云边未新增算力差异/网络整形，单次不作稳定结论、不训练DQN。[实验](deploy/terminal-load/matrix/README.md)、[证据](docs/verification/VER-TERM-SIZE-01.md)。
+
 TERM-LOAD-01（2026-10-13，已部署）：终端设备接入新增负载启停、LOCAL/DQN切换、真实CPU/内存曲线、逐任务耗时与实际去向。脚本创建4个独立限额模拟终端，网关仅接入/转发；23个已接收请求全成功、31次三位置输出核验通过，旧环境保留。291项Java、62前端单测、86浏览器及38Python通过；资源/时延提升指标仍待正式对照。[使用](deploy/terminal-load/README.md)、[结果](docs/verification/VER-TERM-LOAD-01.md)。
 
 FL-CIFAR-300（2026-10-06，执行中）：作者LeNet/Fusion、本地epoch5、强非IID两方法各300轮，旧40轮停止续跑、记录保留。19Python/2Node及JDK21完整verify通过，Repeat上限扩300并仅发布后端；Avg首轮三客户端训练中，成功后自动接CADS，未完成或宣称90%提升。[使用](examples/federated/cifar300/README.md)、[状态](docs/verification/VER-FL-CIFAR-300.md)。

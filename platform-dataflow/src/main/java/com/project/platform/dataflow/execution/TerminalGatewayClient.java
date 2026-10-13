@@ -23,8 +23,8 @@ public final class TerminalGatewayClient {
     }
     public record LocalFile(String fileId,long bytes) {
         public LocalFile {
-            if(fileId==null || !fileId.matches("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}") || bytes<1 || bytes>67108864)
-                throw WorkflowException.invalid("inputFiles","terminal file requires UUID v4 and bytes 1..64MiB");
+            if(fileId==null || !fileId.matches("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}") || bytes<1 || bytes>1073741824L)
+                throw WorkflowException.invalid("inputFiles","terminal file requires UUID v4 and bytes 1..1GiB");
         }
     }
     private final JsonCodec json;

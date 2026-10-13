@@ -52,6 +52,14 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(options["read_only"])
         container.start.assert_called_once()
 
+    def test_large_local_file_is_checked_without_loading_into_memory(self):
+        path = self.agent.data / self.file["fileId"]
+        with path.open("wb") as target:
+            target.truncate(500_000_000)
+        self.assertEqual(path, self.agent.local_file({**self.file, "bytes": 500_000_000}))
+        with self.assertRaises(Rejected):
+            self.agent.local_file({**self.file, "bytes": 1024 ** 3 + 1})
+
     def test_repeat_step_reuses_existing_container(self):
         container = Mock(status="running")
         self.agent.container.return_value = container

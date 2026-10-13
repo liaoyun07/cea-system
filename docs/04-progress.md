@@ -1,5 +1,7 @@
 # 当前进度
 
+TERM-SIZE-01（2026-10-13，DONE/已部署）：5/50/500 MB × 终端/edge-a/cloud九次全部成功，6字段统计与参考一致，六次实际上传共1.11GB逐字节核验、三个终端执行无原文上传。完整耗时3.15/8.62/8.59、5.22/7.98/7.92、38.85/32.61/30.42秒；500 MB算法峰RSS约13.34–14.07MiB。292Java/42Python通过，仅更新backend及本批模拟环境，20非目标容器和81旧Flow保持。云边算力/网络未差异化、每组合仅一次，不证明DQN收益；原混合负载配置未切到新文件。[实验](../deploy/terminal-load/matrix/README.md)、[完整验证](verification/VER-TERM-SIZE-01.md)。
+
 TERM-LOAD-01（2026-10-13，已部署）：终端设备接入可查看4个模拟终端的真实资源并开始/停止随机负载、切换LOCAL/DQN、查看单任务耗时/累计与实际去向。23已接收请求全成功，1停止边界拒绝保留；8云边校准及共31执行输出独立审计通过。291Java、62前端单测、86浏览器、38Python及旧资源保留检查通过。新专用执行环境/网关经用户批准，旧18非目标服务/81Flow保持；只更新前后端及本批配置。下一步若做资源25%/时延40%验收，仍需相同轨迹完整配对与重复实验，本批不宣称提升。[说明](features/TERM-LOAD-01-terminal-load.md)、[证据](verification/VER-TERM-LOAD-01.md)。
 
 FL-HSAM-40（2026-10-07，DONE）：六组独立40轮实验全部SUCCESS、240轮官方评估完成。MNIST Avg/CADS/HSAM最终96.30/94.93/96.99%，首次95%为21/8/4轮；CIFAR-10为59.90/52.90/10.18%，HSAM明显不稳定，均未达90%。总跨度约2h26min，单seed不证明稳定优势，未调参/重跑，不改旧流程或重启服务。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。

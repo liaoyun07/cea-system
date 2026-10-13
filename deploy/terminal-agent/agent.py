@@ -18,6 +18,7 @@ UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 ATTEMPT = r"cea-" + UUID + r"-a[1-9][0-9]*"
 NAME = r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"
 MAX_FILE = 64 * 1024 * 1024
+MAX_LOCAL_FILE = 1024 * 1024 * 1024
 MAX_JSON = 262144
 
 
@@ -45,8 +46,8 @@ class Agent:
     def local_file(self, value):
         if (not isinstance(value, dict) or set(value) != {"fileId", "bytes"} or
             not isinstance(value["fileId"], str) or not re.fullmatch(UUID, value["fileId"]) or
-            type(value["bytes"]) is not int or not 0 < value["bytes"] <= MAX_FILE):
-            raise Rejected("fileId and bytes 1..64MiB required")
+            type(value["bytes"]) is not int or not 0 < value["bytes"] <= MAX_LOCAL_FILE):
+            raise Rejected("fileId and bytes 1..1GiB required")
         path = self.data / value["fileId"]
         if path.is_symlink() or not path.is_file() or path.stat().st_size != value["bytes"]:
             raise Rejected("terminal file missing or size changed")
