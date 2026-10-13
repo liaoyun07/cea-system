@@ -270,7 +270,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(32,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(33,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
     }
     @Test void priorityUpgradeRequiresIdleAndKeepsExistingHistory() throws Exception {
@@ -286,7 +286,9 @@ class DurableWorkflowTest {
         db.update("UPDATE wf_execution SET state='SUCCESS' WHERE id='history'");
         var before=db.queryForMap("SELECT * FROM wf_execution WHERE id='history'");
         upgrade.repair();upgrade.migrate(); // Disposable test database only.
-        assertEquals(before,db.queryForMap("SELECT * FROM wf_execution WHERE id='history'"));
+        var after=db.queryForMap("SELECT * FROM wf_execution WHERE id='history'");
+        assertEquals(false,after.remove("temporary_outputs_cleaned"));
+        assertEquals(before,after);
         assertEquals(2,db.queryForObject("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='wf_worker_job' AND column_name IN ('priority','enqueue_order')",Integer.class));
     }
     @Test void immutableRevisionsAndRollback() {

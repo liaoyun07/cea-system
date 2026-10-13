@@ -12,7 +12,10 @@ import org.springframework.stereotype.Component;
 public final class ExecutorPump {
     private static final Logger LOG = LoggerFactory.getLogger(ExecutorPump.class);
     private final FlowExecutor executor;
-    public ExecutorPump(FlowExecutor executor) { this.executor = executor; }
+    private final com.project.platform.dataflow.execution.ExecutionArtifactCleanup cleanup;
+    public ExecutorPump(FlowExecutor executor,com.project.platform.dataflow.execution.ExecutionArtifactCleanup cleanup) {
+        this.executor=executor;this.cleanup=cleanup;
+    }
 
     @Scheduled(fixedDelayString = "${platform.executor.poll-delay-ms:250}")
     public void poll() {
@@ -21,5 +24,10 @@ public final class ExecutorPump {
         } catch (RuntimeException ex) {
             LOG.error("Execution step rolled back; durable message retained", ex);
         }
+    }
+    @Scheduled(fixedDelay=10000)
+    public void cleanup() {
+        try { cleanup.runBatch(); }
+        catch(RuntimeException ex) { LOG.error("Temporary output cleanup will retry",ex); }
     }
 }

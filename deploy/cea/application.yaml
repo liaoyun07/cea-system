@@ -63,6 +63,7 @@ platform:
           context: cea
           namespace: cea-lab
   jobs:
+    temporary-output-files: prepared.pt
     central-clouds:
       lab: [cloud]
     slots:

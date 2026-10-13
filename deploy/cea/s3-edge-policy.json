@@ -3,6 +3,11 @@
   "Statement": [
     {
       "Effect": "Allow",
+      "Action": ["s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::cea-artifacts-edge-a/lab/*/prepared.pt", "arn:aws:s3:::cea-artifacts-edge-b/lab/*/prepared.pt", "arn:aws:s3:::cea-artifacts-edge-c/lab/*/prepared.pt"]
+    },
+    {
+      "Effect": "Allow",
       "Action": ["s3:GetBucketLocation", "s3:ListBucket"],
       "Resource": ["arn:aws:s3:::cea-artifacts-edge-a", "arn:aws:s3:::cea-artifacts-edge-b", "arn:aws:s3:::cea-artifacts-edge-c"]
     },

@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+ART-CLEAN-01（2026-10-14，已部署）：删除891份历史 `prepared.pt`（208.94 GiB），其他对象未变。CEA默认在流程及后处理全部结束后清理prepared.pt，保留数据集、模型、报告和执行记录。当前工作树304项Java完整回归及线上三任务文件读写/自动清理验证通过。[协议](docs/contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)、[验证](docs/verification/VER-ART-CLEAN-01.md)。
+
 TERM-SIZE-01（2026-10-13，九组合完成/已部署）：5/50/500 MB各在终端、edge-a、cloud真实执行一次，全部成功、统计值和上传原文核验一致。完整耗时分别为3.15/8.62/8.59、5.22/7.98/7.92、38.85/32.61/30.42秒；分块计算使500 MB也能在512MiB终端完成。292Java、42Python及20非目标容器/81旧Flow保留通过；云边未新增算力差异/网络整形，单次不作稳定结论、不训练DQN。[实验](deploy/terminal-load/matrix/README.md)、[证据](docs/verification/VER-TERM-SIZE-01.md)。
 
 TERM-LOAD-01（2026-10-13，已部署）：终端设备接入新增负载启停、LOCAL/DQN切换、真实CPU/内存曲线、逐任务耗时与实际去向。脚本创建4个独立限额模拟终端，网关仅接入/转发；23个已接收请求全成功、31次三位置输出核验通过，旧环境保留。291项Java、62前端单测、86浏览器及38Python通过；资源/时延提升指标仍待正式对照。[使用](deploy/terminal-load/README.md)、[结果](docs/verification/VER-TERM-LOAD-01.md)。

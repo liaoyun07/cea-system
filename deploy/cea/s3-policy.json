@@ -3,6 +3,11 @@
   "Statement": [
     {
       "Effect": "Allow",
+      "Action": ["s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::cea-artifacts/lab/*/prepared.pt"]
+    },
+    {
+      "Effect": "Allow",
       "Action": [
         "s3:GetBucketLocation",
         "s3:ListBucket"

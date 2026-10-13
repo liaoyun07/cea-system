@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+ART-CLEAN-01：新增ExecutionArtifactCleanup（下表），114个生产Java文件。ExecutorPump定时调用；运行时ExecutionService/JdbcExecutionStore拥有候选查询与V34清理完成标记，ObjectStorage仅负责精确前缀和文件名删除。S3副作用与数据库事务分离，无新增表/API/SPI/模块依赖；原Executor/Worker状态、输出和计时不变。[协议](contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)。
+
 TERM-LOAD-01：不新增工作流引擎或模块依赖。以下类仅承担终端负载控制与测量；状态仍属于runtime，实际目标由offloading公开服务查询。
 
 | Java 文件 | 当前职责 |
@@ -247,6 +249,7 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/FlowExecutionService.java` | 提交、取消与运行查询门面 | submit/get/list/tasks/attempts/logs/cancel | 授权；原始请求hash优先查幂等，解析版本后委托runtime | WF-004、WF-006、SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionOutputService.java` | 授权读取已有JSON及快照输出声明，解析terminal_result | readJson/declarations/terminalResult/OutputSource/Unavailable | 真实TaskRun/成功Attempt/执行固定快照；JSON 256KiB；禁止任意URI；无写入 | UI-06/07、OFF-02 | J |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionMeasurementService.java` | SDK报告完整性校验与单一速率查询 | get/View | READ授权、成功Attempt，输入输出累计与活动区间并集；无DB写入 | MET-001 | J |
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/ExecutionArtifactCleanup.java` | 流程全部结束后删除配置的临时输出 | runBatch | 通过ExecutionService选取已结束且全部TaskRun终态的执行；ObjectStorage仅删除本执行指定文件；成功后保存清理标记，S3操作不占数据库事务 | ART-CLEAN-01 | J |
 | `platform-server/src/main/java/com/project/platform/server/BackendApplication.java` | Boot standalone启动 | main | 无业务状态 | FND-001 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/RuntimeConfiguration.java` | 显式构造服务/存储/执行器Bean | 各@Bean工厂 | 共享DataSource与READ_COMMITTED事务；租约/截止/触发使用DB时间 | WF-005 | I |
 | `platform-server/src/main/java/com/project/platform/server/configuration/ExecutorPump.java` | 有限批次内置消息推进 | poll | 每步由Executor独立事务；DB故障下次再试 | WF-005 | I |

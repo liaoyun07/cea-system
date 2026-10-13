@@ -63,6 +63,11 @@ public class RuntimeConfiguration {
         return new FlowService(repository, parser, access, executions, scheduler);
     }
     @Bean ExecutionService executionService(JdbcExecutionStore store) { return new ExecutionService(store); }
+    @Bean com.project.platform.dataflow.execution.ExecutionArtifactCleanup executionArtifactCleanup(ExecutionService executions,
+            com.project.platform.resource.storage.ObjectStorage storage,@Value("${platform.jobs.temporary-output-files:}") String names) {
+        var files=java.util.Arrays.stream(names.split(",")).map(String::trim).filter(s->!s.isEmpty()).collect(java.util.stream.Collectors.toSet());
+        return new com.project.platform.dataflow.execution.ExecutionArtifactCleanup(executions,storage,files);
+    }
     @Bean com.project.platform.dataflow.execution.ExecutionOutputService executionOutputService(FlowExecutionService executions,com.project.platform.resource.storage.ObjectStorage storage) {
         return new com.project.platform.dataflow.execution.ExecutionOutputService(executions,storage);
     }

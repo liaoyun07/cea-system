@@ -48,6 +48,11 @@ public final class ExecutionService {
     public ExecutionRecord get(String namespace, String id) { return store.get(namespace, id); }
     public void remove(String namespace,String id) { store.remove(namespace,id); }
     public boolean hasActive(String namespace,String flowId) { return store.hasActive(namespace,flowId); }
+    /** Includes soft-deleted history, but never an execution with unfinished afterExecution tasks. */
+    public List<ExecutionRecord> temporaryOutputCleanupCandidates(int limit) {
+        page(limit,0);return store.temporaryOutputCleanupCandidates(limit);
+    }
+    public void temporaryOutputsCleaned(String namespace,String id) { store.temporaryOutputsCleaned(namespace,id); }
     public void checkDatabase() { store.now(); }
     public record DayCount(String date, ExecutionState state, long count) {}
     public record Recent(String id, String flowId, ExecutionState state, java.time.Instant createdAt) {}

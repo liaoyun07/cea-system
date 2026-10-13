@@ -116,6 +116,18 @@ public final class JdbcExecutionStore {
             (SELECT 1 FROM wf_task_run t WHERE t.execution_id=e.id AND t.state NOT IN ('SUCCESS','FAILED','KILLED','SKIPPED')))
             """,Integer.class,namespace,flowId)>0;
     }
+    public List<ExecutionRecord> temporaryOutputCleanupCandidates(int limit) {
+        return jdbc.query("""
+            SELECT e.* FROM wf_execution e WHERE e.temporary_outputs_cleaned=FALSE
+            AND e.state IN ('SUCCESS','FAILED','KILLED','SKIPPED')
+            AND NOT EXISTS (SELECT 1 FROM wf_task_run t WHERE t.execution_id=e.id
+                AND t.state NOT IN ('SUCCESS','FAILED','KILLED','SKIPPED'))
+            ORDER BY e.sequence_no LIMIT ?
+            """,this::execution,limit);
+    }
+    public void temporaryOutputsCleaned(String namespace,String id) {
+        jdbc.update("UPDATE wf_execution SET temporary_outputs_cleaned=TRUE WHERE namespace=? AND id=?",namespace,id);
+    }
     public void remove(String namespace,String id) {
         transaction(()->{
             var found=get(namespace,id);

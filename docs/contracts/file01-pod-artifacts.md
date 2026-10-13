@@ -1,6 +1,6 @@
 # FILE-01 文件助手协议
 
-本批不增加外部 HTTP API、Flow 字段或 SQL 迁移。替代 [S4 Job](s4-job-execution.md) 的 Kubernetes 中心搬运；终端 Docker 的 Filesystem 保留。
+FILE-01原批次不增加外部HTTP API、Flow字段或SQL迁移，替代 [S4 Job](s4-job-execution.md) 的Kubernetes中心搬运；终端Docker的Filesystem保留。后续ART-CLEAN-01增加的清理标记与V34迁移见本文末尾。
 
 ## 所有权与文件计划
 
@@ -18,7 +18,7 @@ FLPAR-11 启动顺序：Runner 创建 `suspend: true` 的 Job，附 `cea.platfor
 - `files-in` init：建立共享目录，内联小文本落盘，流式 GET 输入；全部完成后写 start。失败不会启动算法。
 - `task`：原镜像/command/env，读 in、写 out；原 wrapper 执行命令一次，记录 exit，再等待 published。
 - `files-out` 普通伴随容器：等待 exit；算法成功才 PUT 全部声明输出，完成或失败均释放 wrapper；其自身失败使 Job 失败。Runner 检测任一容器异常退出（包括 OOM/被杀、没有 exit 标记）后 suspend 并等其停止，避免助手无限等待。
-- 只有 Job Complete 且所有声明 URI 的对象存在，才返回成功 outputs。部分上传不会成为有效 TaskRun 输出；部分对象不自动 GC。
+- 只有 Job Complete 且所有声明 URI 的对象存在，才返回成功 outputs。部分上传不会成为有效 TaskRun 输出；ART-CLEAN-01仅清理已配置的临时输出，包括失败Attempt留下的同名文件，其他部分对象不自动GC。
 
 输出必须为助手可读的普通文件，拒绝路径穿越、目录、符号链接/FIFO；不展开用户压缩包。算法仍需 `/bin/sh`、sleep 和 wrapper 使用的基本文件命令；K8s 文件搬运不再要求 tar。Docker Runner 仍有自己的 tar/cp 需求。共享目录不是恶意算法强隔离沙箱。
 
@@ -65,6 +65,16 @@ endpoint 用于后端 HEAD/有界 JSON/终端搬运；transfer-endpoint 用于�
 
 CEA 使用既有中心 MinIO 和三个新边缘 MinIO/独立持久卷，无新增宿主公开端口。四算法集群不重启；`setup-files.ps1` 配置 Bucket/用户权限、推送助手 digest、应用 RBAC、生成 ignored 的 `secrets/backend/storage-endpoints.yaml`。因当前关闭 CoreDNS，授权使用发现的 Docker 内网 IP；重建存储/更换网络后需重新运行此配置步骤并更新后端。实际跨地域部署应使用稳定可达的存储域名。现有 datasets 仍在原中心桶，未迁移，也不能据此宣称训练数据已物理驻留边缘。
 
-## 升级边界
+## 流程结束后的临时输出清理（ART-CLEAN-01）
+
+CEA默认配置 `platform.jobs.temporary-output-files: prepared.pt`；无配置的环境不启用。此文件是同一次执行内部消费的临时产物，不能再把它当作跨执行持久数据源；新执行会重新预处理。原始数据集、model.pt、report.json及其他结果不受影响，历史输出URI和日志保留，但已清理的prepared.pt不能再下载。
+
+调用链：ExecutorPump每10秒调用ExecutionArtifactCleanup → ExecutionService按批查询 → ObjectStorage逐存储删除 → ExecutionService记录完成。只有Execution与全部TaskRun（包括errors/finally/afterExecution）都进入终态才处理；SUCCESS、FAILED、KILLED、SKIPPED及软删除历史均纳入。只列举本执行 `namespace/executionId/` 前缀、只匹配 `taskRunId/attempt/配置文件名`，不扫描或删除datasets桶。S3调用不持有DB事务；失败保留待清理标记，下批重试，不改变原执行状态、耗时、日志、输出或指标。
+
+V34新增 `wf_execution.temporary_outputs_cleaned` 及候选索引，唯一消费者是该批处理，用于成功后停止重复扫描并支持进程重启；未新增表、API、Flow字段或执行状态。当前配置按固定策略使用，不提供历史保留时间或策略变更回溯。IAM只增加各产物桶 `lab/*/prepared.pt` 的DeleteObject权限，不授予删除模型/报告/数据集的权限。
+
+参考本地Kestra `core/src/main/java/io/kestra/plugin/core/storage/PurgeCurrentExecutionFiles.java`，提交0354ddf8cbd0d9bd32f5021a59fd982bc36ffdf4：其显式任务调用storage删除当前执行文件。本系统有意简化为执行结束后的后台维护，且只删除配置的临时文件，而非删除全部输入输出；不新增工作流任务类型。验证见[ART-CLEAN-01](../verification/VER-ART-CLEAN-01.md)。
+
+## FILE-01原始升级边界
 
 上线前排空全部活动 Execution/旧 prepared；无 SQL migration，也无旧 K8s 搬运兼容链。保留中心 bucket/原 URI 和所有历史修订/产物。新边缘输出上线后，回退版本也必须理解多存储 URI；旧中心-only版本不能直接接手这些结果。验证及部署状态见 [进度](../04-progress.md)。

@@ -89,6 +89,26 @@ public final class ObjectStorage {
         try(var client=client(c)){client.statObject(StatObjectArgs.builder().bucket(c.artifactBucket()).object(key).build());}
         return uri;
     }
+    /** Delete only named temporary outputs owned by one execution, including abandoned attempts. */
+    public int removeTemporaryOutputs(String namespace,String executionId,Set<String> names) throws Exception {
+        UUID.fromString(executionId);
+        if(!namespace.matches("[a-zA-Z0-9_-]+") || names.stream().anyMatch(n->!n.matches("[a-zA-Z0-9_.-]+")))
+            throw ResourceException.invalid("temporary output scope must contain simple names");
+        int removed=0;
+        String prefix=namespace+"/"+executionId+"/";
+        for(var connection:configuration(namespace).stores().values()) {
+            try(var client=client(connection)) {
+                for(var result:client.listObjects(ListObjectsArgs.builder().bucket(connection.artifactBucket()).prefix(prefix).recursive(true).build())) {
+                    String key=result.get().objectName();
+                    String[] parts=key.substring(prefix.length()).split("/",-1);
+                    if(parts.length!=3 || !parts[0].matches("[0-9a-f-]{36}") || !parts[1].matches("[1-9][0-9]*") || !names.contains(parts[2]))continue;
+                    client.removeObject(RemoveObjectArgs.builder().bucket(connection.artifactBucket()).object(key).build());
+                    removed++;
+                }
+            }
+        }
+        return removed;
+    }
     /** Read only the exact artifact published by this task attempt, never a caller-provided destination. */
     public byte[] readPublished(String namespace,String executionId,String taskRunId,int attempt,String name,String uri,int limit) throws Exception {
         var parsed=validateInput(namespace,uri);var c=connection(namespace,parsed);String key=key(namespace,executionId,taskRunId,attempt,name);
