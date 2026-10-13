@@ -277,6 +277,13 @@ class Handler(BaseHTTPRequestHandler):
                     if not 0 < length <= 4096:
                         raise Denied(413, "compute request exceeds limit")
                     return self.reply(202, gateway.compute(terminal, json.loads(self.rfile.read(length))))
+                if self.path in ("/v1/load/resource", "/v1/load/requests", "/v1/load/report"):
+                    if not 0 < length <= 4096:
+                        raise Denied(413, "load message exceeds limit")
+                    body = json.loads(self.rfile.read(length))
+                    if self.path == "/v1/load/requests":
+                        gateway.agent_request(terminal, "files/check", body["file"])
+                    return self.reply(200, gateway.backend(terminal, self.path.removeprefix("/v1/"), body))
                 feedback = re.fullmatch(r"/v1/executions/(" + UUID + r")/feedback", self.path)
                 if feedback:
                     if not 0 < length <= 4096:

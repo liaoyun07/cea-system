@@ -12,7 +12,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration
+@org.springframework.boot.context.properties.EnableConfigurationProperties(EdgeConfiguration.LoadSettings.class)
 public class EdgeConfiguration {
+    @org.springframework.boot.context.properties.ConfigurationProperties("platform.terminal-load")
+    public record LoadSettings(java.util.Map<String,java.util.Map<String,TerminalLoad.Profile>> profiles) {
+        public LoadSettings {profiles=profiles==null?java.util.Map.of():profiles;}
+    }
+    @Bean JdbcTerminalLoadRepository terminalLoadRepository(JdbcTemplate jdbc,JsonCodec json){return new JdbcTerminalLoadRepository(jdbc,json);}
+    @Bean TerminalLoadService terminalLoadService(JdbcTerminalLoadRepository repository,EdgeAccessService edge,
+            AccessPolicy access,TransactionTemplate transactions,LoadSettings settings){
+        return new TerminalLoadService(repository,edge,access,transactions,settings.profiles());
+    }
     @Bean JdbcEdgeRepository edgeRepository(JdbcTemplate jdbc) { return new JdbcEdgeRepository(jdbc); }
     @Bean EdgeAccessService edgeAccessService(JdbcEdgeRepository repository,TransactionTemplate transactions,
             AccessPolicy access,ResourceCatalogService resources,FlowService flows,FlowExecutionService executions,JsonCodec json) {

@@ -1,5 +1,14 @@
 # 项目结构与 Java 文件索引
 
+TERM-LOAD-01：不新增工作流引擎或模块依赖。以下类仅承担终端负载控制与测量；状态仍属于runtime，实际目标由offloading公开服务查询。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-edge/src/main/java/com/project/platform/edge/TerminalLoad.java` | 负载配置、策略区间、请求计时和资源采样record |
+| `platform-edge/src/main/java/com/project/platform/edge/JdbcTerminalLoadRepository.java` | 仅访问本模块edge_*表 |
+| `platform-edge/src/main/java/com/project/platform/edge/TerminalLoadService.java` | 负载启停、固定策略修订、接入关联、授权与测量 |
+| `platform-server/src/main/java/com/project/platform/server/api/TerminalLoadController.java` | 管理/终端API，组合edge与offloading公开查询 |
+
 UI-17：DeploymentController/DeploymentService 的所有操作显式传递 kubeNamespace，复用 KubernetesManagementService 的范围检查。JdbcDeploymentRecordRepository 保存和按 kube_namespace 查询计量证据，DeploymentRolloutTracker 按记录的 Namespace 查询资源。V29 仅增加该列并调整索引；KubernetesConfiguration 在数据库初始化后按原连接默认值回填旧 NULL 记录。无新生产 Java 文件、模块依赖、表或普通 Flow 执行链变化。[范围](features/UI-17-deployment-namespace.md)、[协议](contracts/ui17-deployment-namespace.md)。
 
 ING-01：复用KubernetesManagementService.java及KubernetesManagementController.java，增加6个Ingress/Class HTTP操作、IngressClassInfo/IngressRoute/IngressRequest/IngressInfo四record；不新增生产Java文件。管理服务直接访问Kubernetes，增加同Namespace Service端口验证、所有权/CAS及Service引用检查。新增前端KubernetesIngress.vue；部署清单增加Traefik及独立HTTP端口桥。没有新增SQL表/列、SPI、模块依赖或执行状态；[协议](contracts/ingress.md)、[状态](verification/VER-ING-01-ingress.md)。

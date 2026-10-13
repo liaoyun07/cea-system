@@ -149,10 +149,12 @@ class Agent:
                     self.engine.images.pull(image, auth_config=self.config.get("registryAuth", {}).get(registry))
                 if (folder / "cancelled").exists():
                     return {"state": "CANCELLED"}
+                limits = ({"cgroup_parent": self.config["cgroupParent"]} if self.config.get("cgroupParent")
+                          else {"mem_limit": "512m", "nano_cpus": 1000000000})
                 container = self.engine.containers.create(image, entrypoint=spec["command"], command=[],
                     environment=spec["environment"], name=name, labels={"com.project.cea.attempt": name},
                     working_dir="/cea-work", network_mode="none", read_only=True,
-                    cap_drop=["ALL"], security_opt=["no-new-privileges"], mem_limit="512m", nano_cpus=1000000000,
+                    cap_drop=["ALL"], security_opt=["no-new-privileges"], **limits,
                     pids_limit=128, tmpfs={"/tmp": "size=64m,mode=1777"},
                     volumes={str(stage / "in"): {"bind": "/cea-work/in", "mode": "ro"},
                              str(stage / "out"): {"bind": "/cea-work/out", "mode": "rw"}})
@@ -247,4 +249,8 @@ if __name__ == "__main__":
     with open(os.environ.get("AGENT_CONFIG", "/run/secrets/agent.json")) as file:
         server = ThreadingHTTPServer(("0.0.0.0", 8080), Handler)
         server.agent = Agent(json.load(file))
+    if server.agent.config.get("load"):
+        from load import LoadClient
+        server.load_client = LoadClient(server.agent.config["load"])
+        server.load_client.start()
     server.serve_forever()

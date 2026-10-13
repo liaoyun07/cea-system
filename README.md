@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+TERM-LOAD-01（2026-10-13，已部署）：终端设备接入新增负载启停、LOCAL/DQN切换、真实CPU/内存曲线、逐任务耗时与实际去向。脚本创建4个独立限额模拟终端，网关仅接入/转发；23个已接收请求全成功、31次三位置输出核验通过，旧环境保留。291项Java、62前端单测、86浏览器及38Python通过；资源/时延提升指标仍待正式对照。[使用](deploy/terminal-load/README.md)、[结果](docs/verification/VER-TERM-LOAD-01.md)。
+
 FL-CIFAR-300（2026-10-06，执行中）：作者LeNet/Fusion、本地epoch5、强非IID两方法各300轮，旧40轮停止续跑、记录保留。19Python/2Node及JDK21完整verify通过，Repeat上限扩300并仅发布后端；Avg首轮三客户端训练中，成功后自动接CADS，未完成或宣称90%提升。[使用](examples/federated/cifar300/README.md)、[状态](docs/verification/VER-FL-CIFAR-300.md)。
 
 FL-CIFAR-90（2026-10-06，执行中）：完整CIFAR-10新增等量/强非IID两版本，已六对象读回验证、新镜像/八契约/四Flow接通；19+1Python/4Node通过。先现有CNN seed31各40轮，双方达到90%才比较首次达标耗时，当前无最终结果。[使用](examples/federated/cifar10-partitions/README.md)、[进度](docs/verification/VER-FL-CIFAR-90.md)。

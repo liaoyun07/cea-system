@@ -12,6 +12,7 @@ import RegistryPage from './management/RegistryPage.vue';
 import OverviewPage from './OverviewPage.vue';
 import EdgeProcessingPage from './management/EdgeProcessingPage.vue';
 import DistributionPage from './management/DistributionPage.vue';
+import TerminalsPage from './management/TerminalsPage.vue';
 import { catalogs } from './management/catalogs.js';
 
 const navigation = [
@@ -301,6 +302,15 @@ async function removeRow(row) {
         :key="selectedExecution"
         :api="session.api"
         :execution-id="selectedExecution"
+      />
+      <TerminalsPage
+        v-else-if="page === 'terminals'"
+        :key="pageEpoch"
+        :api="session.api"
+        :namespace="session.namespace"
+        @dirty="dirty = $event"
+        @pending="pending = $event"
+        @execution="showExecution"
       />
       <CatalogPage
         v-else-if="catalogs[page]"

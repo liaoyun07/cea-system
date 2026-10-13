@@ -63,6 +63,15 @@ class AgentTest(unittest.TestCase):
         with self.assertRaises(Rejected):
             self.agent.step(self.request)
 
+    def test_simulated_task_uses_terminal_parent_not_independent_quota(self):
+        self.agent.config["cgroupParent"] = "cea-terminal-load/sim-terminal-001"
+        self.agent.engine.containers.create.return_value = Mock(status="created")
+        self.agent.step(self.request)
+        options = self.agent.engine.containers.create.call_args.kwargs
+        self.assertEqual(self.agent.config["cgroupParent"], options["cgroup_parent"])
+        self.assertNotIn("mem_limit", options)
+        self.assertNotIn("nano_cpus", options)
+
     def test_cancel_before_create_is_durable(self):
         self.assertEqual("CANCELLED", self.agent.cancel(self.name)["state"])
         self.assertEqual("CANCELLED", self.agent.step(self.request)["state"])

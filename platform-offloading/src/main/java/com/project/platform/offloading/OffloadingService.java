@@ -20,6 +20,7 @@ public final class OffloadingService {
                               String nextKey,double[] nextState,List<Integer> nextLegalActions,Double elapsedSeconds,double limitSeconds,
                               String feedbackOutcome,boolean trainable) {}
     public record Feedback(String outcome,Double elapsedSeconds) {}
+    public record ExecutionTarget(String executionId,Target target,Instant startedAt) {}
     public static final double FEEDBACK_LIMIT_SECONDS=120;
     private final JdbcOffloadingRepository repository;private final AccessPolicy access;
     public OffloadingService(JdbcOffloadingRepository repository,AccessPolicy access){this.repository=repository;this.access=access;}
@@ -99,6 +100,9 @@ public final class OffloadingService {
         if(!Set.of("SUCCESS","FAILED","CANCELLED").contains(outcome))throw WorkflowException.invalid("outcome","invalid observation outcome");repository.finish(ns,key,outcome);
     }
     public List<Sample> samples(Actor actor,String ns,int limit,int offset){access.require(actor,ns,Action.READ);ExecutionService.page(limit,offset);return repository.list(ns,limit,offset);}
+    public List<ExecutionTarget> executionTargets(Actor actor,String ns,List<String> executions) {
+        access.require(actor,ns,Action.READ);return repository.executionTargets(ns,executions);
+    }
     public DqnModel register(Actor actor,String ns,String version,DqnModel model) {
         access.require(actor,ns,Action.WRITE);version(version);if(model==null)throw WorkflowException.invalid("model","required");model.validate();return repository.register(ns,version,model);
     }

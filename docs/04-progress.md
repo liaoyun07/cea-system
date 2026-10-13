@@ -1,5 +1,7 @@
 # 当前进度
 
+TERM-LOAD-01（2026-10-13，已部署）：终端设备接入可查看4个模拟终端的真实资源并开始/停止随机负载、切换LOCAL/DQN、查看单任务耗时/累计与实际去向。23已接收请求全成功，1停止边界拒绝保留；8云边校准及共31执行输出独立审计通过。291Java、62前端单测、86浏览器、38Python及旧资源保留检查通过。新专用执行环境/网关经用户批准，旧18非目标服务/81Flow保持；只更新前后端及本批配置。下一步若做资源25%/时延40%验收，仍需相同轨迹完整配对与重复实验，本批不宣称提升。[说明](features/TERM-LOAD-01-terminal-load.md)、[证据](verification/VER-TERM-LOAD-01.md)。
+
 FL-HSAM-40（2026-10-07，DONE）：六组独立40轮实验全部SUCCESS、240轮官方评估完成。MNIST Avg/CADS/HSAM最终96.30/94.93/96.99%，首次95%为21/8/4轮；CIFAR-10为59.90/52.90/10.18%，HSAM明显不稳定，均未达90%。总跨度约2h26min，单seed不证明稳定优势，未调参/重跑，不改旧流程或重启服务。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
 
 FL-HSAM-01（2026-10-07，DONE/已部署）：GFed-HSAM核心及新四Application/gfed-hsam r1已在CEA，24Python/3Node/结构检查通过。真实强非IIDMNIST两轮11Job全部成功、9模型与独立客户端重训/全局动态状态/官方评估复算通过，第二轮89.23%；74旧Flow/120应用/20数据集/20服务保持，无重启/Java/API/数据库变更。原文歧义已记录，不宣称作者精确复现或速度优势。[使用](../examples/federated/gfed-hsam/README.md)、[验证](verification/VER-FL-HSAM-01.md)。

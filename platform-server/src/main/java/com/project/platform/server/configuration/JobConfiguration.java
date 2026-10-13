@@ -38,10 +38,12 @@ public class JobConfiguration {
     @ConfigurationProperties("platform.jobs")
     public record Settings(Map<String,Map<String,Integer>> slots,Map<String,ObjectStorage.Configuration> storage,Map<String,Map<String,String>> helpers,
                            Map<String,Map<String,CommonTaskRunner.HttpConnection>> http,Map<String,Map<String,CommonTaskRunner.SqlConnection>> sql,
-                           Map<String,Map<String,TerminalConnection>> terminals,Map<String,java.util.List<String>> centralClouds) {
+                           Map<String,Map<String,TerminalConnection>> terminals,Map<String,java.util.List<String>> centralClouds,
+                           Map<String,Map<String,TerminalConnection>> terminalGateways) {
         public Settings {
             slots=slots==null?Map.of():slots;storage=storage==null?Map.of():storage;http=http==null?Map.of():http;sql=sql==null?Map.of():sql;
             terminals=terminals==null?Map.of():terminals;
+            terminalGateways=terminalGateways==null?Map.of():terminalGateways;
             helpers=helpers==null?Map.of():helpers;
             centralClouds=centralClouds==null?Map.of():centralClouds;
         }
@@ -65,6 +67,8 @@ public class JobConfiguration {
             var execution=(Map<?,?>)job.context().get("execution");String namespace=(String)execution.get("namespace");
             var origin=edge.executionOrigin(identities.actor((String)execution.get("submittedBy")),namespace,job.executionId());
             var connection=settings.terminals().getOrDefault(namespace,Map.of()).get(origin.terminalId());
+            // Registered terminals of a configured CONNECT gateway share its transport, never its identity.
+            if(connection==null)connection=settings.terminalGateways().getOrDefault(namespace,Map.of()).get((String)execution.get("submittedBy"));
             if(connection==null)throw com.project.platform.runtime.model.WorkflowException.invalid("terminal","no terminal connection configured for request origin");
             var definition=executions.get(edge.workerActor(identities.actor((String)execution.get("submittedBy")),namespace,job.executionId()),namespace,job.executionId()).definition();
             return new ApplicationTaskRunner.TerminalTarget(origin.terminalId(),origin.clusterId(),connection.dockerContext(),connection.slots(),connection.gateway(),definition.id(),definition.allTasks().size()==1);

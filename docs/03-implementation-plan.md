@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+TERM-LOAD-01（2026-10-13，核心功能DONE/已部署）：脚本创建独立模拟终端及共享执行环境，镜像预热、数据仅在终端；复用终端接入、EDGE_POLICY Execution 和 FIXED TERMINAL/DQN。终端侧增加随机开放式请求发送及资源组采集，网关仅认证/转发。终端设备接入新增设备资源、负载控制、CPU/内存趋势、逐请求端到端耗时及实际执行去向。通过公开服务关联原执行，不新增执行状态机、不改DQN算法。验收：同终端共享限额/计量、策略切换请求归属、停止后排空、真实文件三位置结果一致、自动化与CEA实测均通过；23已接收请求全部成功，另1停止边界拒绝保留，不据功能完成宣称25%/40%达标。[证据](verification/VER-TERM-LOAD-01.md)。
+
 FL-HSAM-40（2026-10-07，DONE）：六组40轮/1 epoch强非IID对比完成，统一MLP/CNN、batch128/lr0.1/seed31。240轮官方评估、完整执行计时及旧流程保持核验；MNIST HSAM更早达95%，CIFAR-10 HSAM明显劣化，未重跑/调参或宣称稳定收益。不改算法/服务配置。[实验定义](../examples/federated/three-way-strong/README.md)、[验证](verification/VER-FL-HSAM-40.md)。
 
 FL-HSAM-01（2026-10-07，DONE）：用户授权按FedCADS接入方式实现GFed-HSAM核心，数据划分/模型/完整epoch/轮数采用平台定义。依赖既有CPU镜像、真实数据、Repeat/Loop及文件契约；四梯度HSAM、客户端漂移/扰动跨轮状态、云动态修正及四Application/新Flow均已发布。24Python/3Node、独立公式/SGD极限、CEA两轮11Job和9模型/状态/评估复算、旧资源保持与结构检查验收通过；无Java/API/表/权限/工作流语义变更，不宣称论文逐项复现或速度优势。[范围](features/FL-HSAM-01-gfed-hsam.md)、[验证](verification/VER-FL-HSAM-01.md)。

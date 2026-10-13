@@ -194,7 +194,7 @@ services:
       BACKEND_USER: ${BACKEND_USER}
       BACKEND_PASSWORD: ${BACKEND_PASSWORD}
       BACKEND_NAMESPACES: lab
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml,file:/run/secrets/storage-endpoints.yaml,optional:file:/run/secrets/edge-access.yaml,optional:file:/run/secrets/terminal-gateway.yaml
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/application.yaml,file:/run/secrets/storage-endpoints.yaml,optional:file:/run/secrets/edge-access.yaml,optional:file:/run/secrets/terminal-gateway.yaml,optional:file:/run/secrets/terminal-load.yaml
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1200m"
       PLATFORM_IMAGE_BUILD_DIRECTORY: /var/lib/cea/uploads/build
     ports: ["127.0.0.1:${CEA_API_PORT:-18085}:18085"]

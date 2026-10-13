@@ -61,6 +61,15 @@ public final class JdbcOffloadingRepository {
         });
     }
     public List<Sample> list(String ns,int limit,int offset){return jdbc.query("SELECT * FROM off_task_observation WHERE namespace=? ORDER BY created_at,allocation_id LIMIT ? OFFSET ?",this::sample,ns,limit,offset);}
+    public List<ExecutionTarget> executionTargets(String ns,List<String> executions) {
+        var result=new ArrayList<ExecutionTarget>();
+        for(int i=0;i<executions.size();i+=100) {
+            var ids=executions.subList(i,Math.min(i+100,executions.size()));var args=new ArrayList<Object>();args.add(ns);args.addAll(ids);
+            result.addAll(jdbc.query("SELECT execution_id,target_kind,target_id,started_at FROM off_task_observation WHERE namespace=? AND target_id IS NOT NULL AND started_at IS NOT NULL AND execution_id IN ("+String.join(",",Collections.nCopies(ids.size(),"?"))+")",
+                (r,n)->new ExecutionTarget(r.getString(1),new Target(r.getString(2),r.getString(3)),r.getTimestamp(4).toInstant()),args.toArray()));
+        }
+        return result;
+    }
     public DqnModel model(String ns,String version) {
         var rows=jdbc.query("SELECT model_json FROM off_dqn_model WHERE namespace=? AND version=?",(rs,row)->json.read(rs.getString(1),DqnModel.class),ns,version);
         if(rows.isEmpty())throw WorkflowException.missing("offloading model version not found");return rows.getFirst();

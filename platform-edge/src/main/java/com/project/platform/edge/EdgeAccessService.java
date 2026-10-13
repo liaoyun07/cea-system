@@ -82,6 +82,17 @@ public final class EdgeAccessService {
     public Terminal terminalHeartbeat(Actor actor,String ns,String id) {
         var gateway=connected(actor,ns);terminal(ns,id,gateway,false);return repository.terminalHeartbeat(ns,id);
     }
+    public Gateway terminalGateway(Actor actor,String ns,String id) {
+        var gateway=connected(actor,ns);terminal(ns,id,gateway,false);return gateway;
+    }
+    /** A load request uses an already pinned policy; admission/provenance remain identical to ordinary events. */
+    public String loadRequest(Actor actor,String ns,String terminal,String key,String policyId,int revision,Map<String,Object> inputs) {
+        return accept(actor,ns,terminal,key,Map.of("kind","LOAD","policy",policyId,"revision",revision,"inputs",inputs),gateway->{
+            var policy=repository.policy(ns,policyId);
+            if(!policy.enabled() || !policy.clusterId().equals(gateway.clusterId()))throw new AccessPolicy.Forbidden();
+            return executions.submitPolicy(executionActor(actor),ns,UUID.randomUUID().toString(),new FlowExecutionService.Request(policyId,revision,inputs));
+        });
+    }
     public String submit(Actor actor,String ns,String terminal,String key,FlowExecutionService.Request request) {
         if(request==null) throw WorkflowException.invalid("request","required");
         return accept(actor,ns,terminal,key,Map.of("kind","FLOW","body",request),gateway ->

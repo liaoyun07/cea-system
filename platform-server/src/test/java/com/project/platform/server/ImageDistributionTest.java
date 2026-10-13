@@ -1467,6 +1467,7 @@ class ImageDistributionTest {
             String agentImage=new org.testcontainers.images.builder.ImageFromDockerfile("cea-agent-test:"+UUID.randomUUID(),true)
                     .withFileFromPath("Dockerfile",Path.of("../deploy/terminal-agent/Dockerfile"))
                     .withFileFromPath("compute.py",Path.of("../deploy/terminal-agent/compute.py"))
+                    .withFileFromPath("load.py",Path.of("../deploy/terminal-agent/load.py"))
                     .withFileFromPath("agent.py",Path.of("../deploy/terminal-agent/agent.py")).get();
             String centerHost=storage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000";
             String edgeHost=edgeStorage.getContainerInfo().getNetworkSettings().getNetworks().values().iterator().next().getIpAddress()+":9000";

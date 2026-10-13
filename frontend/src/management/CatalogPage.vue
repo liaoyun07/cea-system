@@ -20,8 +20,14 @@ import {
 import DistributionHistory from './DistributionHistory.vue';
 import CatalogForm from './CatalogForm.vue';
 
-const props = defineProps({ kind: String, api: Function, namespace: String });
-const emit = defineEmits(['dirty', 'pending', 'execution']);
+const props = defineProps({
+  kind: String,
+  api: Function,
+  namespace: String,
+  formOnly: Boolean,
+  initialRow: Object,
+});
+const emit = defineEmits(['dirty', 'pending', 'execution', 'close']);
 const config = computed(() => catalogs[props.kind]);
 const rows = ref([]),
   offset = ref(0),
@@ -172,6 +178,11 @@ function back() {
   error.value = '';
   success.value = '';
   invalid.value = false;
+  if (props.formOnly) {
+    emit('dirty', false);
+    emit('close');
+    return;
+  }
   action(loadRows);
 }
 function cloneVersion() {
@@ -300,7 +311,7 @@ function cell(row, key) {
   if (key === 'measurement') return measurementStatus(value);
   return value ?? '—';
 }
-onMounted(() => action(loadRows));
+onMounted(() => (props.formOnly ? open(props.initialRow) : action(loadRows)));
 </script>
 
 <template>
