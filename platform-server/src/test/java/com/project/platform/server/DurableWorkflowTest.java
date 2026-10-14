@@ -560,22 +560,80 @@ private String custom(String body) {
         for(var run:executions().tasks(actor,"lab",execution))if(!run.taskId().equals("group"))assertEquals(1,executions().attempts(actor,"lab",execution,run.id()).size());
     }
 
-    @Test void concurrentWorkerAdmissionIsSerializedButExecutionIsNot() throws Exception {
+    @Test void slowAdmissionDoesNotBlockAnotherWorkerOrDuplicateItsClaim() throws Exception {
         String execution=dispatchCustom(admissionTasks());
         advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class)==2);
         var entered=new CountDownLatch(1);var proceed=new CountDownLatch(1);
         TaskRunner runner=new TaskRunner() {
-            public TaskRunner admit(TaskContext c) throws Exception {entered.countDown();assertTrue(proceed.await(5,TimeUnit.SECONDS));return this;}
+            public TaskRunner admit(TaskContext c) throws Exception {
+                if(c.job().task().id().equals("busy")){entered.countDown();assertTrue(proceed.await(10,TimeUnit.SECONDS));}
+                return this;
+            }
             public WorkerJob.Result run(TaskContext c) {return WorkerJob.Result.success(Map.of());}
         };
         try(var one=localWorker(runner);var two=localWorker(runner);var pool=Executors.newVirtualThreadPerTaskExecutor()) {
             var pending=pool.submit(one::admitNext);
             try {
-                assertTrue(entered.await(5,TimeUnit.SECONDS));assertNull(two.admitNext());
+                assertTrue(entered.await(5,TimeUnit.SECONDS));
+                var low=pool.submit(two::admitNext).get(5,TimeUnit.SECONDS);
+                assertNotNull(low);assertEquals("free",low.lease().job().task().id());
+                two.run(low);assertNull(two.admitNext());
             } finally {proceed.countDown();}
             var high=pending.get(5,TimeUnit.SECONDS);assertEquals("busy",high.lease().job().task().id());
-            var low=two.admitNext();assertNotNull(low);assertEquals("free",low.lease().job().task().id());
-            one.run(high);two.run(low);
+            one.run(high);
+        }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+    }
+
+    @Test void pumpRunsFastTaskWhileAnotherAdmissionIsBlocked() throws Exception {
+        String execution=dispatchCustom(admissionTasks());
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class)==2);
+        var entered=new CountDownLatch(1);var proceed=new CountDownLatch(1);var finished=new CountDownLatch(1);
+        var claimed=new CopyOnWriteArrayList<String>();var ran=new CopyOnWriteArrayList<String>();
+        TaskRunner runner=new TaskRunner() {
+            public TaskRunner admit(TaskContext c) throws Exception {
+                claimed.add(c.job().task().id());
+                if(c.job().task().id().equals("busy")){entered.countDown();assertTrue(proceed.await(10,TimeUnit.SECONDS));}
+                return this;
+            }
+            public WorkerJob.Result run(TaskContext c) {ran.add(c.job().task().id());if(c.job().task().id().equals("free"))finished.countDown();return WorkerJob.Result.success(Map.of());}
+        };
+        try(var worker=localWorker(runner)) {
+            var pump=new WorkerPump(worker,2);
+            try {
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->{pump.poll();return entered.getCount()==0&&finished.getCount()==0;});
+                assertEquals(List.of("free"),ran);
+                for(int i=0;i<5;i++)pump.poll();
+                assertEquals(2,claimed.size());assertEquals(Set.of("busy","free"),new HashSet<>(claimed));
+                proceed.countDown();
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==2);
+            } finally {proceed.countDown();pump.close();}
+        }
+        drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
+    }
+
+    @Test void pumpBoundsAdmissionAndExecutionWithTheSamePermits() throws Exception {
+        String execution=dispatchCustom(admissionTasks().replace("{id: free,", "{id: third, type: core.Http, timeout: PT60S, http: {connection: test, method: GET, path: {source: LITERAL, value: /}}}, {id: free,"));
+        advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job",Integer.class)==3);
+        var entered=new CountDownLatch(2);var proceed=new CountDownLatch(1);var calls=new java.util.concurrent.atomic.AtomicInteger();
+        var running=new java.util.concurrent.atomic.AtomicInteger();var peak=new java.util.concurrent.atomic.AtomicInteger();
+        TaskRunner runner=new TaskRunner() {
+            public TaskRunner admit(TaskContext c) throws Exception {
+                calls.incrementAndGet();peak.accumulateAndGet(running.incrementAndGet(),Math::max);entered.countDown();
+                assertTrue(proceed.await(10,TimeUnit.SECONDS));return this;
+            }
+            public WorkerJob.Result run(TaskContext c) {running.decrementAndGet();return WorkerJob.Result.success(Map.of());}
+        };
+        try(var worker=localWorker(runner)) {
+            var pump=new WorkerPump(worker,2);
+            try {
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->{pump.poll();return entered.getCount()==0;});
+                for(int i=0;i<5;i++)pump.poll();
+                assertEquals(2,calls.get());assertEquals(2,peak.get());
+                proceed.countDown();
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->{pump.poll();return jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==3;});
+                assertEquals(3,calls.get());assertEquals(2,peak.get());
+            } finally {proceed.countDown();pump.close();}
         }
         drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",execution).state());
     }
@@ -951,8 +1009,7 @@ private String custom(String body) {
         String executionId=dispatchCustom("tasks: [{id: p, type: core.Parallel, tasks: [{id: a, type: core.Sleep, duration: PT1S}, {id: b, type: core.Sleep, duration: PT1S}]}]\n");
         var pump=new WorkerPump(worker(),2);
         try {
-            pump.poll();
-            advanceUntil(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)==2);
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).until(()->{pump.poll();return jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RUNNING'",Integer.class)==2;});
             org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(4)).until(()->jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE state='RESULT'",Integer.class)==2);
         } finally {pump.close();}
         drain();assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());

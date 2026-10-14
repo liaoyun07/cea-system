@@ -19,7 +19,7 @@ OFF-04在本协议六维/奖励之上消费真实转移，见[Double DQN增量](
 
 R=最近20次成功完整传输的总bytes/总seconds，包括该次实际传输重试等待，不含排队和Pod启动。无历史时null，先用FIXED/RULE标定；不假设带宽或同云零耗时。网络state为逐项log1p。Q不是精确剩余CPU工作量，六维不是严格完备MDP的证明。
 
-Resource接纳事务原子提交Q快照、层决策及工作量；同Attempt接管不累加，原Runner确认完成/停止才释放。有混合配置或未计量活动资源预约则状态不完整，未知不能填0。
+LOCK-01：Resource先无锁采样已提交Q，适配层在事务外调用网关决策，再以短事务原子登记层决策、样本关联和工作量。并发请求可能采到相同或稍旧的Q，不保证严格串行预约前快照；槽位占用仍由Placement原子检查。同Attempt接管不累加，原Runner确认完成/停止才释放。有混合配置或未计量活动资源预约则状态不完整，未知不能填0。
 
 ## 传输事实
 
@@ -39,7 +39,7 @@ Pod授权计划可带`measureInputs:true`。files-in成功下载后写最多4KiB
 
 ## 下一状态与消费者
 
-同namespace、所属边缘、策略、算法版本及参数，按接纳决策顺序固定A.next=B，不按完成顺序关联。每个结果只补自己的execution。连续流尾项无next不能训练，不伪造done；显式批次关闭/Double DQN留到OFF-04。
+同namespace、所属边缘、策略、算法版本及参数，按决策登记顺序固定A.next=B，不按任务完成顺序或并行推理开始顺序关联。每个结果只补自己的execution。连续流尾项无next不能训练，不伪造done；显式批次关闭/Double DQN留到OFF-04。
 
 原`GET /offloading/samples`新增measurement：原始六维、来源/策略、合法动作、缺失原因、nextKey/nextState、耗时/反馈/时限/trainable。18080“卸载观测”列表与详情是消费者；完整不等于已训练。旧记录measurement=null，旧13维不转换。
 

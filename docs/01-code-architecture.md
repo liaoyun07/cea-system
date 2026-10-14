@@ -27,7 +27,7 @@ OFF-03（2026-09-14已实现、验证并发布CEA）：生产 Java 105→108，H
 
 | Java 文件 | 当前职责 |
 |---|---|
-| `platform-resource/src/main/java/com/project/platform/resource/placement/WorkloadLedger.java` | 接纳时事务锁、按层/来源范围累计未完成输入量，接管去重和已确认释放；不是调度器 |
+| `platform-resource/src/main/java/com/project/platform/resource/placement/WorkloadLedger.java` | 无锁采样未完成输入量；仅决策/样本链/工作量登记使用短事务，接管去重和已确认释放；不是调度器 |
 | `platform-resource/src/main/java/com/project/platform/resource/storage/TransferMeasurements.java` | 实际成功传输事实去重、最近20次总字节/总秒数估计；不填造缺失速率 |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/OffloadingTaskAdapter.java` | 对接可信 origin、resource 工作量/传输、offloading 决策与六维快照；不选择 cluster |
 
@@ -238,10 +238,10 @@ S5-03修改既有FlowService/JdbcFlowRepository/FlowExecutionService，增加EDG
 | `workflow-runtime/src/main/java/com/project/platform/runtime/execution/ExecutionService.java` | runtime公开提交/查询入口 | submit/configureConcurrency/transaction及查询取消 | 准入/提交事务+唯一幂等键；不自己验证HTTP身份 | WF-004、WF-005、WF-006 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/FlowExecutor.java` | 唯一状态推进者：控制树解释、叶子派发归并、三段处理 | processNext | 短事务；Repeat轮次屏障/反馈与按作用域读取；分支持久化、并行失败收敛、清理及额度释放；不执行叶子代码 | WF-005、WF-008、WF-009、WF-010 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/executor/ExecutionReducer.java` | 同组节点就绪与固定重试时间的纯决策 | ready/retryAt | 无I/O；供Executor使用 | WF-008 | L/I |
-| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表、优先级/FIFO与结果持久化 | dispatch/claim/defer/admissionLock/result/remove/heartbeat/finish | 短事务领取；会话锁协调准入；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007、PRIO-01 | I/A |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/persistence/JdbcWorkerStore.java` | Worker传输表、优先级/FIFO与结果持久化 | dispatch/claim/defer/result/remove/heartbeat/finish | 短事务领取；无全局准入锁；owner/epoch/租约/deadline隔离；不写运行状态表 | WF-007、PRIO-01 | I/A |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerJob.java` | 派发载荷及Lease/Result记录 | record访问器、Result.success/failed | 冻结Task/上下文；TaskRun+Attempt定位，epoch隔离持有者 | WF-007 | I |
 | `workflow-runtime/src/main/java/com/project/platform/runtime/worker/WorkerEngine.java` | 原队列准入、事务外执行、心跳和协作中断 | admitNext/run/runOnce/close | 等资源defer原记录；不拥有Execution状态；关闭/失租不报告业务失败 | WF-007、WF-008、PRIO-01 | I/A |
-| `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程4个执行名额，可配置；先准入再占名额，业务异步执行 | WF-007、PRIO-01 | I |
+| `platform-server/src/main/java/com/project/platform/server/configuration/WorkerPump.java` | 可关闭的Worker轮询角色 | poll | 默认每进程4个在途名额，可配置；准入和执行共享额度，外部检查可并行 | WF-007、PRIO-01 | I |
 | `platform-foundation/src/main/java/com/project/platform/foundation/identity/AccessPolicy.java` | Actor与命名空间/action授权 | require | 无存储；拒绝越权 | SEC-001 | I |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/FlowRevision.java` | 版本内容和列表摘要 | record访问器 | 不可变版本与来源；删除无业务消费者checksum | WF-003 | I/C |
 | `platform-dataflow/src/main/java/com/project/platform/dataflow/definition/JdbcFlowRepository.java` | 仅定义头/版本表持久化及USER源搜索 | save/get/history/search | 锁稳定head，CAS保存；只追加版本 | WF-003、WF-015 | I/FlowManagementTest |

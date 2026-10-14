@@ -5,8 +5,6 @@ import com.project.platform.runtime.worker.WorkerJob;
 import com.project.platform.runtime.worker.WorkerJob.*;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -77,28 +75,6 @@ public final class JdbcWorkerStore {
                 WHERE task_run_id=? AND attempt_no=? AND epoch=? AND owner=? AND state='RUNNING'
                 AND lease_until>CURRENT_TIMESTAMP(6) AND prepared_json IS NULL
                 """,lease.job().taskRunId(),lease.job().attemptNo(),lease.epoch(),lease.owner())==1;
-    }
-    /** Session lock serializes admission across workers without holding a transaction over resource probes. */
-    public AdmissionLock admissionLock() throws SQLException {
-        Connection connection=jdbc.getDataSource().getConnection();
-        try {
-            String name="cea-admission:"+connection.getCatalog();
-            try(var statement=connection.prepareStatement("SELECT GET_LOCK(?,0)")) {
-                statement.setString(1,name);
-                try(var result=statement.executeQuery()) {
-                    result.next();
-                    if(result.getInt(1)==1)return new AdmissionLock(connection,name);
-                }
-            }
-            connection.close();return null;
-        } catch(SQLException error){connection.close();throw error;}
-    }
-    public record AdmissionLock(Connection connection,String name) implements AutoCloseable {
-        @Override public void close() throws SQLException {
-            try(var statement=connection.prepareStatement("SELECT RELEASE_LOCK(?)")) {
-                statement.setString(1,name);statement.execute();
-            } finally {connection.close();}
-        }
     }
     public boolean heartbeat(Lease lease,long leaseMs) {
         return jdbc.update("""

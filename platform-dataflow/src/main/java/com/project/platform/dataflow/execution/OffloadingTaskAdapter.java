@@ -42,25 +42,26 @@ public final class OffloadingTaskAdapter {
         final Double te=edgeSeconds,tc=cloudSeconds;
         String profile=json.write(Map.of("application",work.applicationId(),"version",work.version(),"command",work.command(),"parameters",new TreeMap<>(work.parameters())));
         context.check();
-        return workloads.accept(actor,ns,key,origin.terminalId(),origin.clusterId(),cloud,profile,work.inputBytes(),load->{
-            Sample sample;
-            Double[] inputs={work.inputBytes()/1048576.0,load.comparable()?load.terminalBytes()/1048576.0:null,
-                    load.comparable()?load.edgeBytes()/1048576.0:null,load.comparable()?load.cloudBytes()/1048576.0:null,te,tc};
-            String missing=!load.comparable()?"mixed or unmeasured active workload":te==null || tc==null?"transfer calibration incomplete":null;
-            var legal=candidates.stream().map(x->x.layer().ordinal()).sorted().toList();
-            if(dqn) {
-                var state=OffloadingService.normalize(inputs,missing);
-                if(state==null)throw com.project.platform.runtime.model.WorkflowException.invalid("offload","DQN state is incomplete: "+missing);
-                try {
-                    var response=gateway.call(context,origin.gateway(),origin.terminalId(),"offloading/decide",
-                            Map.of("model",model,"state",state,"legalActions",legal,"exploration",c.offload().exploration()==null?0.0:c.offload().exploration()));
-                    if(!(response.get("action") instanceof Number action) || action.doubleValue()!=action.intValue())
-                        throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge action must be an integer");
-                    if(!(response.get("inferenceMs") instanceof Number inferenceMs))
-                        throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge inference time required");
-                    sample=offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue(),inferenceMs.doubleValue(),decisionStartedNanos);
-                } catch(RuntimeException error) {throw error;} catch(Exception error) {throw new IllegalStateException("edge DQN decision unavailable",error);}
-            } else sample=choose.get();
+        var load=workloads.snapshot(actor,ns,key,origin.terminalId(),origin.clusterId(),cloud,profile);
+        Double[] inputs={work.inputBytes()/1048576.0,load.comparable()?load.terminalBytes()/1048576.0:null,
+                load.comparable()?load.edgeBytes()/1048576.0:null,load.comparable()?load.cloudBytes()/1048576.0:null,te,tc};
+        String missing=!load.comparable()?"mixed or unmeasured active workload":te==null || tc==null?"transfer calibration incomplete":null;
+        var legal=candidates.stream().map(x->x.layer().ordinal()).sorted().toList();
+        if(dqn) {
+            var state=OffloadingService.normalize(inputs,missing);
+            if(state==null)throw com.project.platform.runtime.model.WorkflowException.invalid("offload","DQN state is incomplete: "+missing);
+            var response=gateway.call(context,origin.gateway(),origin.terminalId(),"offloading/decide",
+                    Map.of("model",model,"state",state,"legalActions",legal,"exploration",c.offload().exploration()==null?0.0:c.offload().exploration()));
+            if(!(response.get("action") instanceof Number action) || action.doubleValue()!=action.intValue())
+                throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge action must be an integer");
+            if(!(response.get("inferenceMs") instanceof Number inferenceMs))
+                throw com.project.platform.runtime.model.WorkflowException.invalid("offload","edge inference time required");
+            choose=()->offloading.edgeDecision(actor,ns,key,context.job().executionId(),work,c.offload().modelVersion(),legal,action.intValue(),inferenceMs.doubleValue(),decisionStartedNanos);
+        }
+        context.check();
+        var record=choose;
+        return workloads.accept(actor,ns,key,origin.terminalId(),origin.clusterId(),cloud,profile,work.inputBytes(),()->{
+            Sample sample=record.get();
             if(capture) {
                 sample=offloading.capture(ns,key,origin.clusterId(),origin.terminalId(),origin.flowId(),inputs,legal,missing);
             }

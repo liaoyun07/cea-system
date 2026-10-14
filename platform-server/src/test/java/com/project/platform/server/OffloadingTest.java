@@ -48,7 +48,8 @@ class OffloadingTest {
     private List<Candidate> options(int busy){return List.of(new Candidate(Layer.TERMINAL,1,busy,0),new Candidate(Layer.EDGE,2,0,0));}
     private com.project.platform.resource.placement.WorkloadLedger ledger(){return context.getBean(com.project.platform.resource.placement.WorkloadLedger.class);}
     private Sample measured(String key,String terminal,String flow,long bytes,Layer layer,Double transfer) {
-        return ledger().accept(actor,"lab",key,terminal,"edge","cloud-a",flow,bytes,load->{
+        var load=ledger().snapshot(actor,"lab",key,terminal,"edge","cloud-a",flow);
+        return ledger().accept(actor,"lab",key,terminal,"edge","cloud-a",flow,bytes,()->{
             service().decide(actor,"lab",key,key,work(),List.of(new Candidate(layer,1,0,0)),"FIXED",null,layer);
             var sample=service().capture("lab",key,"edge",terminal,flow,new Double[]{bytes/1048576.0,load.terminalBytes()/1048576.0,
                     load.edgeBytes()/1048576.0,load.cloudBytes()/1048576.0,transfer,transfer},List.of(layer.ordinal()),
@@ -108,8 +109,11 @@ class OffloadingTest {
         String terminal=key(),flow=key();var keys=new ArrayList<String>();for(int i=0;i<8;i++)keys.add(key());
         try(var pool=Executors.newVirtualThreadPerTaskExecutor()) {
             var pending=new ArrayList<Future<Sample>>();for(String k:keys)pending.add(pool.submit(()->measured(k,terminal,flow,1048576,Layer.TERMINAL,1.0)));
-            var loads=new TreeSet<Double>();for(var p:pending)loads.add(p.get().measurement().inputs()[1]);
-            assertEquals(new TreeSet<>(List.of(0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0)),loads);
+            for(var p:pending) {double sampled=p.get().measurement().inputs()[1];assertTrue(sampled>=0 && sampled<=7);}
+            assertEquals(8*1048576L,ledger().snapshot(actor,"lab",key(),terminal,"edge","cloud-a",flow).terminalBytes());
+            var samples=keys.stream().map(k->service().get("lab",k)).toList();
+            var next=samples.stream().map(s->s.measurement().nextKey()).filter(Objects::nonNull).toList();
+            assertEquals(7,next.size());assertEquals(7,new HashSet<>(next).size());assertTrue(keys.containsAll(next));
         } finally {keys.forEach(k->ledger().release("lab",k));}
     }
     @Test void unknownOrDifferentActiveWorkloadDoesNotBecomeZeroQueue() {
@@ -125,6 +129,63 @@ class OffloadingTest {
                 assertNull(measured(next,terminal,key(),1024,Layer.TERMINAL,1.0).state());
             } finally {slots().releaseTerminal("lab",untracked);ledger().release("lab",next);}
         } finally {ledger().release("lab",a);ledger().release("lab",b);}
+    }
+    @Test void gatewayInferenceDoesNotHoldClusterRowsOrBlockOtherAdmission() throws Exception {
+        var resources=context.getBean(ResourceCatalogService.class);
+        String edge="edge-"+key(),cloud="cloud-"+key(),terminal=key(),bucket=key(),allocation=key(),version=key(),other=key();
+        resources.putCluster(actor,"lab",edge,new Cluster(edge,Kind.EDGE,true));
+        resources.putCluster(actor,"lab",cloud,new Cluster(cloud,Kind.CLOUD,true));
+        service().register(actor,"lab",version,model(0,5,0));
+        var transfers=context.getBean(com.project.platform.resource.storage.TransferMeasurements.class);
+        transfers.record("lab",key(),"UPLOAD","data","terminal:"+terminal,"store:"+bucket,1024,1);
+        transfers.record("lab",key(),"DOWNLOAD","data","store:"+bucket,"cluster:"+edge,1024,1);
+        transfers.record("lab",key(),"DOWNLOAD","data","store:"+bucket,"cluster:"+cloud,1024,1);
+        var requestSeen=new java.util.concurrent.atomic.AtomicBoolean();
+        var handlerError=new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/internal/terminals/",exchange->{
+            int status=200;String reply;
+            try {
+                if(exchange.getRequestURI().getPath().endsWith("/storage"))reply=json.write(Map.of("bucket",bucket));
+                else {
+                    assertTrue(exchange.getRequestURI().getPath().endsWith("/offloading/decide"));
+                    var tx=context.getBean(org.springframework.transaction.support.TransactionTemplate.class);
+                    tx.executeWithoutResult(s->{
+                        for(String cluster:new TreeSet<>(List.of(edge,cloud)))context.getBean(JdbcTemplate.class).queryForObject(
+                                "SELECT enabled FROM res_cluster WHERE namespace='lab' AND id=? FOR UPDATE NOWAIT",Boolean.class,cluster);
+                    });
+                    assertTrue(slots().reserveTerminal(actor,"lab",other,edge,key(),1));
+                    requestSeen.set(true);reply=json.write(Map.of("action",1,"inferenceMs",0.12));
+                }
+            } catch(Throwable error) {handlerError.set(error);status=500;reply="{}";}
+            byte[] response=reply.getBytes(StandardCharsets.UTF_8);exchange.sendResponseHeaders(status,response.length);
+            try(var out=exchange.getResponseBody()){out.write(response);}finally{exchange.close();}
+        });
+        var token=java.nio.file.Files.createTempFile("gateway-lock-test-",".txt");
+        java.nio.file.Files.writeString(token,"test-only");server.start();
+        try {
+            var container=org.mockito.Mockito.mock(com.project.platform.runtime.model.FlowDefinition.Container.class);
+            org.mockito.Mockito.when(container.offload()).thenReturn(new com.project.platform.runtime.model.FlowDefinition.Offload(
+                    com.project.platform.runtime.model.FlowDefinition.OffloadStrategy.DQN,version,null,0.0));
+            var task=org.mockito.Mockito.mock(com.project.platform.runtime.model.FlowDefinition.Task.class);
+            org.mockito.Mockito.when(task.container()).thenReturn(container);
+            var execution=org.mockito.Mockito.mock(com.project.platform.runtime.worker.TaskContext.class);
+            org.mockito.Mockito.when(execution.job()).thenReturn(new com.project.platform.runtime.worker.WorkerJob(allocation,allocation,1,task,Map.of()));
+            var gateway=new com.project.platform.dataflow.execution.TerminalGatewayClient.Connection("http://127.0.0.1:"+server.getAddress().getPort(),token.toString());
+            var origin=org.mockito.Mockito.mock(com.project.platform.dataflow.execution.ApplicationTaskRunner.TerminalTarget.class);
+            org.mockito.Mockito.when(origin.terminalId()).thenReturn(terminal);
+            org.mockito.Mockito.when(origin.clusterId()).thenReturn(edge);
+            org.mockito.Mockito.when(origin.gateway()).thenReturn(gateway);
+            org.mockito.Mockito.when(origin.flowId()).thenReturn(key());
+            org.mockito.Mockito.when(origin.singleTask()).thenReturn(true);
+            var adapter=context.getBean(com.project.platform.dataflow.execution.OffloadingTaskAdapter.class);
+            var sample=adapter.decide(execution,actor,"lab",allocation,origin,work(),List.of(new Candidate(Layer.EDGE,2,0,0)),List.of(cloud),true);
+            assertNull(handlerError.get());assertTrue(requestSeen.get());assertEquals("EDGE",sample.target().kind());
+            assertNotNull(sample.measurement());assertEquals(0.12,sample.inferenceMs());
+        } finally {
+            server.stop(0);java.nio.file.Files.deleteIfExists(token);
+            slots().releaseTerminal("lab",other);ledger().release("lab",allocation);
+        }
     }
     @Test void transferRatesUseLastTwentyCompleteUniqueTransfersAndMeasuredSeconds() {
         var transfers=context.getBean(com.project.platform.resource.storage.TransferMeasurements.class);

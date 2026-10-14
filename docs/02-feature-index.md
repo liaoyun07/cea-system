@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+LOCK-01（2026-10-14，已实现/验证/部署）：普通流与终端卸载共用的全局准入锁已删除；现有Worker额度覆盖并行检查和执行，网关推理不占资源事务。307Java完整回归、真实网关请求期间资源行可用、线上双Sleep并行及旧数据/25服务保留通过；现场模拟终端已停止，额外三位置实测未执行。优先级为领取偏好，不保证并发检查完成次序；无新表/API/配置，不调槽数、不训练DQN。[协议](contracts/priority-admission.md)、[验证](verification/VER-LOCK-01.md)。
+
 ART-CLEAN-01（2026-10-14，DONE/已部署）：历史891份prepared.pt/208.94 GiB已删除，模型、报告、原始数据未变；执行与全部TaskRun终态后自动清理临时输出，运行中保留，存储失败重试且不修改执行结果。当前工作树304Java完整回归、线上三任务/后处理读取与自动清理通过。[协议](contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)、[验证](verification/VER-ART-CLEAN-01.md)。
 
 TERM-SIZE-01（2026-10-13，DONE/已部署）：本地文件元数据支持1GiB、模拟网关磁盘暂存、分块等价统计镜像和三条独立固定位置策略；5/50/500 MB九组合全部成功，结果及原文一致，20非目标容器/81旧Flow保持。292Java/42Python通过，不改变DQN或原负载页面规模配置，不宣称稳定调度收益。[实验](../deploy/terminal-load/matrix/README.md)、[协议](contracts/terminal-load.md)、[验证](verification/VER-TERM-SIZE-01.md)。

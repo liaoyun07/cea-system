@@ -2,6 +2,8 @@
 
 状态：已实施并部署（PRIO-01，2026-09-17）。
 
+2026-10-14 更新：全局会话锁及严格串行准入部分由 [ADR-0030](ADR-0030-bounded-parallel-admission.md) 替代；以下保留历史设计依据，当前语义以新决策和协议为准。
+
 用户授权：可执行子任务 priority 0..100（省略为 0），同级 FIFO；无资源留在原队列，不长期占 Worker 执行名额。依赖、Attempt、超时、容器执行及算法计量不改。
 
 参考 Kestra 本地 0354ddf8cbd0d9bd32f5021a59fd982bc36ffdf4 的 `worker-controller/.../WorkerJobDispatcher.java`（容量预约后派发）与 `core/.../QueueSubscription.java`。本项目有意用现有 JDBC 队列加排序，不复制企业版 Worker Groups/容量分组；集群平台槽位是本项目业务资源，不等同 Kestra Worker permits。

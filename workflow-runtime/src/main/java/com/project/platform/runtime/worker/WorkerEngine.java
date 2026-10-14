@@ -28,24 +28,21 @@ public final class WorkerEngine implements AutoCloseable {
     }
     public record Admitted(WorkerJob.Lease lease,TaskRunner continuation) {}
     public Admitted admitNext() {
-        try(var gate=store.admissionLock()) {
-            if(gate==null)return null;
-            var skipped=new HashSet<String>();
-            while(true) {
-                var lease=store.claim(owner,leaseMs,skipped);
-                if(lease==null)return null;
-                var context=new TaskContext(store,lease);
-                TaskRunner task=java.util.Set.of("core.Log","core.Sleep").contains(lease.job().task().type())?c->execute(c.job()):runner;
-                try {
-                    TaskRunner continuation=await(lease,()->task.admit(context));
-                    context.check();
-                    if(continuation!=null)return new Admitted(lease,continuation);
-                    if(!store.defer(lease))throw new InterruptedException("admission lease lost");
-                } catch(InterruptedException ex) {return null;}
-                catch(ExecutionException ex) {report(lease,ex.getCause());}
-                skipped.add(lease.job().taskRunId());
-            }
-        } catch(java.sql.SQLException ex){throw new IllegalStateException("Worker admission unavailable",ex);}
+        var skipped=new HashSet<String>();
+        while(true) {
+            var lease=store.claim(owner,leaseMs,skipped);
+            if(lease==null)return null;
+            var context=new TaskContext(store,lease);
+            TaskRunner task=java.util.Set.of("core.Log","core.Sleep").contains(lease.job().task().type())?c->execute(c.job()):runner;
+            try {
+                TaskRunner continuation=await(lease,()->task.admit(context));
+                context.check();
+                if(continuation!=null)return new Admitted(lease,continuation);
+                if(!store.defer(lease))throw new InterruptedException("admission lease lost");
+            } catch(InterruptedException ex) {return null;}
+            catch(ExecutionException ex) {report(lease,ex.getCause());}
+            skipped.add(lease.job().taskRunId());
+        }
     }
     public void run(Admitted admitted) {
         var lease=admitted.lease();

@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+LOCK-01（2026-10-14，已部署）：删除全局准入锁，检查和执行使用现有 Worker 有界并发；卸载网关调用移出资源事务，只保留领取、槽位和结果登记的短事务。307项Java完整回归及线上双任务并行通过；2653旧执行、82旧Flow及25个非目标服务保持。现场模拟终端已停止，额外三位置请求未发出，未启动旧环境或重跑大批量实验。[验证](docs/verification/VER-LOCK-01.md)。
+
 ART-CLEAN-01（2026-10-14，已部署）：删除891份历史 `prepared.pt`（208.94 GiB），其他对象未变。CEA默认在流程及后处理全部结束后清理prepared.pt，保留数据集、模型、报告和执行记录。当前工作树304项Java完整回归及线上三任务文件读写/自动清理验证通过。[协议](docs/contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)、[验证](docs/verification/VER-ART-CLEAN-01.md)。
 
 TERM-SIZE-01（2026-10-13，九组合完成/已部署）：5/50/500 MB各在终端、edge-a、cloud真实执行一次，全部成功、统计值和上传原文核验一致。完整耗时分别为3.15/8.62/8.59、5.22/7.98/7.92、38.85/32.61/30.42秒；分块计算使500 MB也能在512MiB终端完成。292Java、42Python及20非目标容器/81旧Flow保留通过；云边未新增算力差异/网络整形，单次不作稳定结论、不训练DQN。[实验](deploy/terminal-load/matrix/README.md)、[证据](docs/verification/VER-TERM-SIZE-01.md)。
