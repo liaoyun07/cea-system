@@ -10,6 +10,7 @@ TERM-LOAD-01：不新增工作流引擎或模块依赖。以下类仅承担终�
 | `platform-edge/src/main/java/com/project/platform/edge/JdbcTerminalLoadRepository.java` | 仅访问本模块edge_*表 |
 | `platform-edge/src/main/java/com/project/platform/edge/TerminalLoadService.java` | 负载启停、固定策略修订、接入关联、授权与测量 |
 | `platform-server/src/main/java/com/project/platform/server/api/TerminalLoadController.java` | 管理/终端API，组合edge与offloading公开查询 |
+| `platform-server/src/main/java/com/project/platform/server/api/OffloadLabController.java` | OFF-INDEP-01：用户鉴权与独立实验 HTTP 代理；无 SQL、无 Flow/Worker 调用 |
 
 UI-17：DeploymentController/DeploymentService 的所有操作显式传递 kubeNamespace，复用 KubernetesManagementService 的范围检查。JdbcDeploymentRecordRepository 保存和按 kube_namespace 查询计量证据，DeploymentRolloutTracker 按记录的 Namespace 查询资源。V29 仅增加该列并调整索引；KubernetesConfiguration 在数据库初始化后按原连接默认值回填旧 NULL 记录。无新生产 Java 文件、模块依赖、表或普通 Flow 执行链变化。[范围](features/UI-17-deployment-namespace.md)、[协议](contracts/ui17-deployment-namespace.md)。
 

@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { errorText } from '../api.js';
 import { time } from '../model.js';
 import LoadLineChart from './LoadLineChart.vue';
+import OffloadLab from './OffloadLab.vue';
 import CatalogPage from './CatalogPage.vue';
 import { places, strategyName, summarize, resourceSeries, usage, stamp } from './terminal-load.js';
 const props = defineProps({ api: Function, namespace: String });
@@ -15,6 +16,7 @@ function edit(row = null) {
 }
 const tab = ref('devices'),
   devices = ref([]),
+  labDevices = ref([]),
   profiles = ref({}),
   runs = ref([]),
   view = ref(null);
@@ -61,7 +63,7 @@ const measured = (device) => now.value - stamp(device.sampledAt) < 15000;
 const percent = (value) => (value == null ? '—' : `${value.toFixed(1)}%`);
 const last = (points) => (points.length ? points[points.length - 1].y : null);
 async function refresh() {
-  if (refreshing || !alive) return;
+  if (refreshing || !alive || tab.value === 'independent') return;
   refreshing = true;
   const epoch = generation;
   try {
@@ -71,6 +73,12 @@ async function refresh() {
     ]);
     if (!alive || epoch !== generation) return;
     devices.value = nextDevices;
+    try {
+      const labs = await props.api('/edge/offload-lab/devices');
+      if (alive && epoch === generation) labDevices.value = labs;
+    } catch {
+      labDevices.value = [];
+    }
     runs.value = nextRuns;
     now.value = Date.now();
     if (!runId.value && nextRuns.length) runId.value = nextRuns[0].id;
@@ -175,7 +183,8 @@ onBeforeUnmount(() => {
     </div>
     <div class="tabs">
       <button :class="{ active: tab === 'devices' }" @click="tab = 'devices'">设备列表</button
-      ><button :class="{ active: tab === 'load' }" @click="tab = 'load'">负载与调度</button>
+      ><button :class="{ active: tab === 'independent' }" @click="tab = 'independent'">负载与调度</button>
+      <button :class="{ active: tab === 'load' }" @click="tab = 'load'">流任务负载记录</button>
     </div>
     <div v-if="error" class="notice error" role="alert">{{ error }}</div>
     <div v-if="tab === 'devices'" class="list-toolbar">
@@ -196,6 +205,34 @@ onBeforeUnmount(() => {
           </tr>
         </thead>
         <tbody>
+          <tr v-for="device in labDevices" :key="device.id">
+            <td>{{ device.id }}</td>
+            <td>{{ device.gateway }}</td>
+            <td>
+              {{
+                device.resource
+                  ? `${device.resource.cpuCores} 核 / ${(device.resource.memoryLimitBytes / 1048576).toFixed(0)} MiB`
+                  : '—'
+              }}
+            </td>
+            <td>
+              {{
+                device.resource && now / 1000 - device.resource.sampledAt < 15
+                  ? percent(usage(device.resource).cpu)
+                  : '—'
+              }}
+            </td>
+            <td>
+              {{
+                device.resource && now / 1000 - device.resource.sampledAt < 15
+                  ? percent(usage(device.resource).memory)
+                  : '—'
+              }}
+            </td>
+            <td>{{ device.resource && now / 1000 - device.resource.sampledAt < 15 ? '在线' : '离线' }}</td>
+            <td>{{ device.resource ? new Date(device.resource.sampledAt * 1000).toLocaleString() : '—' }}</td>
+            <td>脚本管理</td>
+          </tr>
           <tr v-for="device in devices" :key="device.terminal.id">
             <td>{{ device.terminal.id }}</td>
             <td>{{ device.terminal.gatewayId }}</td>
@@ -218,8 +255,9 @@ onBeforeUnmount(() => {
           </tr>
         </tbody>
       </table>
-      <div v-if="!devices.length" class="empty">暂无终端</div>
+      <div v-if="!devices.length && !labDevices.length" class="empty">暂无终端</div>
     </div>
+    <OffloadLab v-else-if="tab === 'independent'" :api="api" />
     <template v-else>
       <div class="load-panel">
         <div class="load-config">
