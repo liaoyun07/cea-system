@@ -1,5 +1,7 @@
 # 当前进度
 
+DEP-WARM-01（2026-10-16，中心云已安装/验证完成）：Agent Sandbox v1.0.2双实例领取确认Pod UID/容器/启动时间不变，补池、HTTP、空池新建及回收通过。控制器保留、测试命名空间已删除，采样CPU1m/内存77Mi；31原服务和四集群23原部署保持。尚未接入平台扩容按钮或完成效率对照。[验证](verification/VER-DEP-WARM-01.md)。
+
 M04公共服务三档（2026-10-16，完成）：Nginx/Prometheus/Jenkins九次部署与HTTP校验通过，首次3.016（Nginx已有缓存）/8.304/31.802秒，Jenkins首次未达30秒，缓存后28.345/28.518秒。保留三份公共服务展示部署，31个原容器/四集群旧Deployment保持，无平台改动。[验证](verification/VER-M04-edge-deployment.md)。
 
 M04常见服务补测（2026-10-16，完成）：官方非特权Nginx1.28.2在edge-a部署首次2.944秒、缓存后2.897/2.772秒，均HTTP可用。保留common-nginx-20261016，旧部署及20个CEA Compose服务不变，无平台发布。[验证](verification/VER-M04-edge-deployment.md)。

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+DEP-WARM-01（2026-10-16，中心云安装验证完成）：用户授权仅在中心云安装Agent Sandbox最小组件，固定上游v1.0.2；K3s1.30.6上服务端校验、双预热实例领取复用/自动补池/Service访问、空池新建和回收通过。测试资源已清理，原31服务/23部署/HPA及其他集群保持，控制器保留、采样1m/77Mi。不接生产页面、不改变普通Deployment扩容或后台账号权限，本批不是完整弹性效率验收。[验证](verification/VER-DEP-WARM-01.md)。
+
 M04公共服务三档（2026-10-16，完成）：官方Nginx非特权版、Prometheus、Jenkins同edge-a/单副本/CPU上限1核/内存1Gi/默认镜像命令，各首次加两次缓存后CREATE全部成功及HTTP验证通过。Jenkins首次31.802秒超30秒，缓存后28.345/28.518秒；不宣称所有样本达标。31个原服务及旧部署保持，保留三份展示部署，不改平台/权限。[脚本](../examples/deployment-benchmark/public-services.mjs)、[结果](verification/VER-M04-edge-deployment.md)。
 
 M04常见服务补测（2026-10-16，完成）：用户授权通过原部署链路测试常见服务。Nginx官方非特权镜像单副本、HTTP就绪，首次加两次缓存后CREATE均成功并验证欢迎页；保留最后部署用于页面查看。无平台功能变更，不扩展MySQL探针或权限。[验证](verification/VER-M04-edge-deployment.md)。
