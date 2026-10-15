@@ -71,17 +71,19 @@ public final class DeploymentService {
                 revision(existing,request.resourceVersion());
             } else if(request.resourceVersion()!=null)throw ApplicationException.conflict("deployment no longer exists");
             Configuration current=existing==null?null:configuration(actor,namespace,existing);
+            var hpas=existing==null?List.<io.fabric8.kubernetes.api.model.autoscaling.v2.HorizontalPodAutoscaler>of():DeploymentAutoscaling.find(client,existing);
+            int replicas=hpas.isEmpty()?request.replicas():existing.getSpec().getReplicas();
             if(current!=null && current.applicationId().equals(app.applicationId()) && current.version().equals(app.version())
                     && current.parameters().equals(parameters) && current.command().equals(request.command())
                     && Objects.equals(current.readiness(),request.readiness())
                     && (request.resources()==null || Objects.equals(current.resources(),normalized(request.resources()))))
-                return scale(client,namespace,clusterId,existing,request.replicas());
-            String id=begin(namespace,clusterId,kubeNamespace,name,app.applicationId(),app.version(),existing==null?"CREATE":"UPDATE",request.replicas());
+                return hpas.isEmpty()?scale(client,namespace,clusterId,existing,replicas):view(existing,namespace,clusterId);
+            String id=begin(namespace,clusterId,kubeNamespace,name,app.applicationId(),app.version(),existing==null?"CREATE":"UPDATE",replicas);
             boolean submitted=false;
             try {
                 String image=images.prepare(actor,namespace,app.applicationId(),app.version(),clusterId).image();
                 var desired=existing==null?initial(name,namespace,kubeNamespace):new DeploymentBuilder(existing).build();
-                desired.getSpec().setReplicas(request.replicas());
+                desired.getSpec().setReplicas(replicas);
                 var annotations=new HashMap<>(Optional.ofNullable(desired.getMetadata().getAnnotations()).orElse(Map.of()));
                 annotations.put(PREFIX+"application",app.applicationId());annotations.put(PREFIX+"version",app.version());
                 desired.getMetadata().setAnnotations(annotations);
@@ -93,6 +95,7 @@ public final class DeploymentService {
                 if(current==null || !Objects.equals(current.readiness(),request.readiness()))
                     container.setReadinessProbe(probe(request.readiness(),container.getReadinessProbe()));
                 if(request.resources()!=null)applyResources(container,request.resources());
+                DeploymentAutoscaling.validateRequests(desired,hpas);
                 submitted=true;
                 Deployment saved=existing==null?client.apps().deployments().inNamespace(kubeNamespace).resource(desired).create():client.apps().deployments().inNamespace(kubeNamespace).resource(desired).lockResourceVersion(request.resourceVersion()).replace();
                 records.submitted(id,saved.getMetadata().getUid(),saved.getMetadata().getGeneration(),clock.instant(),
@@ -117,8 +120,31 @@ public final class DeploymentService {
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
             var current=required(client,namespace,kubeNamespace,name);revision(current,request.resourceVersion());
+            if(!DeploymentAutoscaling.find(client,current).isEmpty())throw ApplicationException.conflict("Disable HPA before manually scaling replicas");
             if(!cluster.enabled() && request.replicas()>current.getSpec().getReplicas())throw ApplicationException.invalid("cluster is disabled");
             return scale(client,namespace,clusterId,current,request.replicas());
+        }
+    }
+    public DeploymentAutoscaling.View autoscaling(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
+        access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            return DeploymentAutoscaling.read(client,required(client,namespace,kubeNamespace,name));
+        }
+    }
+    public DeploymentAutoscaling.View autoscale(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,DeploymentAutoscaling.Request request) {
+        access.require(actor,namespace,Action.WRITE);name(name);
+        if(!resources.cluster(actor,namespace,clusterId).enabled())throw ApplicationException.invalid("cluster is disabled");
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            return DeploymentAutoscaling.put(client,required(client,namespace,kubeNamespace,name),request);
+        }
+    }
+    public void disableAutoscaling(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,String version) {
+        access.require(actor,namespace,Action.WRITE);name(name);resources.cluster(actor,namespace,clusterId);
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            DeploymentAutoscaling.delete(client,required(client,namespace,kubeNamespace,name),version);
         }
     }
     private View scale(KubernetesClient client,String namespace,String clusterId,Deployment current,int replicas) {

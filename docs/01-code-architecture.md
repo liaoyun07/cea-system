@@ -1,5 +1,11 @@
 # 项目结构与 Java 文件索引
 
+DEP-HPA-01：新增原生 HPA 映射类，当前117个生产Java文件；DeploymentService复用原授权/Namespace/Deployment所有权校验，副本由Kubernetes控制。无新表/状态机/模块依赖。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentAutoscaling.java` | 原生autoscaling/v2 CRUD、requests校验、真实状态映射与Deployment所有权关联 |
+
 REG-DOWN-01：新增ImageDownloadService，当前116个生产Java文件；独立管理归档临时文件和下载并发，复用RegistryManagementService的READ范围校验与Skopeo导出。普通镜像Docker-save、索引OCI；无业务表、工作流状态或新基础设施。
 
 | Java 文件 | 当前职责 |

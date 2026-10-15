@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+DEP-HPA-01（2026-10-15，已部署）：部署详情开放原生HPA CPU/内存目标与副本范围，保留原生控制器语义和工作空间隔离；无新增表。四集群仅追加HPA专项权限，旧部署不开启。业务回归及契约复测最终314项报告通过，71前端单测、2浏览器用例及真实1→2→1伸缩通过；旧配置和29个其他服务保持。[功能](features/DEP-HPA-01.md)、[验证](verification/VER-DEP-HPA-01.md)。
+
 REG-DOWN-01（2026-10-15，已部署）：镜像仓库按源摘要下载，普通镜像Docker tar、多平台索引OCI tar；READ授权与临时清理。313Java、71前端单测、6浏览器、真实导入与线上下载通过；29非目标服务保持。[功能](features/REG-DOWN-01.md)、[验证](verification/VER-REG-DOWN-01.md)。
 
 JOB-RES-01（2026-10-15，已部署）：Application CLUSTER子任务可选Kubernetes CPU/内存limits，空白保持原行为；312Java、70前端单测、实际编辑/回读及五种Job/cgroup核验通过，29非目标服务保持。[功能](features/JOB-RES-01.md)、[验证](verification/VER-JOB-RES-01.md)。

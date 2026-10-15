@@ -177,6 +177,9 @@ class ImageDistributionTest {
                     kind: ClusterRole
                     metadata: {name: cea-observe-nodes}
                     rules:
+                      - apiGroups: [autoscaling]
+                        resources: [horizontalpodautoscalers]
+                        verbs: [get, list, create, update, delete]
                       - apiGroups: [networking.k8s.io]
                         resources: [ingresses]
                         verbs: [get, list, create, update, delete]
@@ -786,6 +789,53 @@ class ImageDistributionTest {
                 assertFalse(client.top().pods().metrics().getItems().isEmpty());
             }
         } finally { admin.apps().deployments().inNamespace("s4-test").withName("usage-fixture").delete(); }
+    }
+    @Test void deploymentHpaUsesNativeResourcesAndProtectsReplicaOwnership() {
+        String name="hpa-fixture";var service=deployments();
+        var command=List.of("sh","-c","exec sleep 600");
+        var viewer=new Actor("viewer",Set.of("lab"),Set.of(Action.READ));
+        service.put(actor,"lab","edge","s4-test",name,request(1,null,command));
+        try {
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",service.get(actor,"lab","edge","s4-test",name).latestOperation().state()));
+            assertFalse(service.autoscaling(viewer,"lab","edge","s4-test",name).enabled());
+            var initial=new com.project.platform.deployment.service.DeploymentAutoscaling.Request(1,1,60,70,null);
+            assertThrows(ApplicationException.class,()->service.autoscale(actor,"lab","edge","s4-test",name,initial));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.autoscale(viewer,"lab","edge","s4-test",name,initial));
+            assertThrows(com.project.platform.foundation.identity.AccessPolicy.Forbidden.class,()->service.autoscaling(viewer,"other","edge","s4-test",name));
+            var c=service.configuration(actor,"lab","edge","s4-test",name);
+            service.put(actor,"lab","edge","s4-test",name,new DeploymentService.Request("service","v1",1,Map.of(),command,c.resourceVersion(),null,new DeploymentService.Resources("100m","32Mi","200m","64Mi")));
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",service.get(actor,"lab","edge","s4-test",name).latestOperation().state()));
+            var h=service.autoscale(actor,"lab","edge","s4-test",name,initial);
+            assertTrue(h.enabled());assertTrue(h.editable());assertEquals(2,h.metrics().size());
+            var nativeHpa=admin.autoscaling().v2().horizontalPodAutoscalers().inNamespace("s4-test").withName(name).get();
+            assertEquals("autoscaling/v2",nativeHpa.getApiVersion());assertEquals(name,nativeHpa.getSpec().getScaleTargetRef().getName());
+            assertEquals(admin.apps().deployments().inNamespace("s4-test").withName(name).get().getMetadata().getUid(),nativeHpa.getMetadata().getOwnerReferences().getFirst().getUid());
+            assertThrows(ApplicationException.class,()->service.autoscale(actor,"lab","edge","s4-test",name,new com.project.platform.deployment.service.DeploymentAutoscaling.Request(2,1,50,null,h.resourceVersion())));
+            assertThrows(ApplicationException.class,()->service.autoscale(actor,"lab","edge","s4-test",name,new com.project.platform.deployment.service.DeploymentAutoscaling.Request(1,1,50,null,"stale")));
+            var current=service.get(actor,"lab","edge","s4-test",name);
+            assertThrows(ApplicationException.class,()->service.scale(actor,"lab","edge","s4-test",name,new DeploymentService.ScaleRequest(0,current.resourceVersion())));
+            var edited=service.put(actor,"lab","edge","s4-test",name,new DeploymentService.Request("service","v1",0,Map.of("GREETING","updated"),command,current.resourceVersion(),null));
+            assertEquals(1,edited.replicas());
+            await().atMost(Duration.ofSeconds(120)).untilAsserted(()->assertEquals("SUCCEEDED",service.get(actor,"lab","edge","s4-test",name).latestOperation().state()));
+            var config=service.configuration(actor,"lab","edge","s4-test",name);
+            assertThrows(ApplicationException.class,()->service.put(actor,"lab","edge","s4-test",name,new DeploymentService.Request("service","v1",0,Map.of(),command,config.resourceVersion(),null,new DeploymentService.Resources(null,null,null,null))));
+            assertThrows(ApplicationException.class,()->service.disableAutoscaling(actor,"lab","edge","s4-test",name,"stale"));
+            // Use current resourceVersion because the native HPA controller also writes its status.
+            await().atMost(Duration.ofSeconds(20)).ignoreExceptions().untilAsserted(()->{
+                var now=service.autoscaling(actor,"lab","edge","s4-test",name);
+                service.autoscale(actor,"lab","edge","s4-test",name,new com.project.platform.deployment.service.DeploymentAutoscaling.Request(1,1,55,null,now.resourceVersion()));
+            });
+            assertEquals(1,service.autoscaling(actor,"lab","edge","s4-test",name).metrics().size());
+            await().atMost(Duration.ofSeconds(20)).ignoreExceptions().untilAsserted(()->service.disableAutoscaling(actor,"lab","edge","s4-test",name,service.autoscaling(actor,"lab","edge","s4-test",name).resourceVersion()));
+            assertFalse(service.autoscaling(actor,"lab","edge","s4-test",name).enabled());
+            assertEquals(1,service.get(actor,"lab","edge","s4-test",name).replicas());
+            var stopped=service.scale(actor,"lab","edge","s4-test",name,new DeploymentService.ScaleRequest(0,service.get(actor,"lab","edge","s4-test",name).resourceVersion()));
+            assertEquals(0,stopped.replicas());
+            assertThrows(ApplicationException.class,()->service.autoscale(actor,"lab","edge","s4-test",name,initial));
+        } finally {
+            admin.autoscaling().v2().horizontalPodAutoscalers().inNamespace("s4-test").withName(name).delete();
+            admin.apps().deployments().inNamespace("s4-test").withName(name).delete();
+        }
     }
     private DeploymentService.Request request(int replicas,String revision,List<String> command){
         return new DeploymentService.Request("service","v1",replicas,Map.of(),command,revision,null);

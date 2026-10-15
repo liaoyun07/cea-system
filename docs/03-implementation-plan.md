@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+DEP-HPA-01（2026-10-15，已部署）：部署详情开放原生 autoscaling/v2 CPU/内存 HPA，最小/最大副本、目标利用率和实时状态；不自建控制器/数据库表。依赖现有 Metrics Server、用户授权的四集群 HPA 专项 RBAC。真实 CRUD、requests 校验、权限隔离、自动伸缩下编辑不覆盖副本、手动扩缩互斥、关闭保留当前副本、真实1→2→1扩缩与页面验收通过；不对旧部署自动启用。业务回归、契约复测、构建及临时资源清理完成。[验证](verification/VER-DEP-HPA-01.md)。
+
 REG-DOWN-01（2026-10-15，已部署）：镜像列表/详情按源摘要下载，普通镜像Docker-save tar，索引OCI tar保留多平台/摘要；READ授权、临时归档清理，无业务表/标签写入。313Java完整回归、71前端单测、6浏览器用例、Docker加载运行和真实页面下载通过；前后端healthy，29其他服务保持。[验证](verification/VER-REG-DOWN-01.md)。
 
 JOB-RES-01（2026-10-15，已部署）：Application CLUSTER子任务可选resources.limits.cpu/memory，原生Kubernetes数量；空白不设置、不改变旧流程/卸载默认配置，只约束task容器。复用Flow快照和Job runner，不新增表/接口。编辑/保存/回读、单项/双项/空白/旧任务五种真实Job与cgroup核验通过；312Java完整verify、70前端单测、构建及实际页面通过。仅CEA前后端发布，29其他服务保持。终端Docker资源配置不在本批范围。[验证](verification/VER-JOB-RES-01.md)。

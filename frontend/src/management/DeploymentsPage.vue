@@ -33,6 +33,9 @@ const abort = new AbortController();
 const history = ref([]),
   historyOffset = ref(0),
   scaleReplicas = ref(1);
+const autoscaling = ref(null),
+  autoscalingError = ref(''),
+  hpaDraft = ref(null);
 let alive = true;
 const api = (path, options = {}) =>
   props.api(path, {
@@ -40,7 +43,7 @@ const api = (path, options = {}) =>
     signal: AbortSignal.any([abort.signal, AbortSignal.timeout(options.long ? 600000 : 20000)]),
   });
 watch(
-  () => draft.value && JSON.stringify(draft.value) !== baseline.value,
+  () => !!hpaDraft.value || (draft.value && JSON.stringify(draft.value) !== baseline.value),
   (v) => emit('dirty', !!v),
 );
 watch(writing, (v) => emit('pending', v), { flush: 'sync' });
@@ -83,6 +86,8 @@ async function catalogs() {
   }
 }
 async function list() {
+  autoscaling.value = null;
+  hpaDraft.value = null;
   rows.value = [];
   selected.value = null;
   runtime.value = null;
@@ -108,6 +113,7 @@ async function loadNamespaces(reset = false) {
   await list();
 }
 function create() {
+  autoscaling.value = null;
   draft.value = {
     name: '',
     application: '',
@@ -128,12 +134,12 @@ function create() {
 function back() {
   if (
     busy.value ||
-    (draft.value &&
-      JSON.stringify(draft.value) !== baseline.value &&
+    ((hpaDraft.value || (draft.value && JSON.stringify(draft.value) !== baseline.value)) &&
       !window.confirm('放弃未保存的部署配置？'))
   )
     return;
   draft.value = null;
+  hpaDraft.value = null;
   selected.value = null;
   action(list);
 }
@@ -175,6 +181,7 @@ function changeApplication() {
   draft.value.parameters = deploymentFields(app.value?.parameters);
 }
 async function loadRuntime() {
+  await loadAutoscaling();
   runtime.value = null;
   runtimeError.value = '';
   accessError.value = '';
@@ -208,6 +215,61 @@ async function loadRuntime() {
   } catch (e) {
     if (alive) runtimeError.value = errorText(e);
   }
+}
+async function loadAutoscaling() {
+  autoscaling.value = null;
+  autoscalingError.value = '';
+  try {
+    const value = await api(`${path(selected.value.name)}/autoscaling`);
+    if (alive) autoscaling.value = value;
+  } catch (e) {
+    if (alive) autoscalingError.value = errorText(e);
+  }
+}
+function editAutoscaling() {
+  const value = autoscaling.value;
+  hpaDraft.value = {
+    minReplicas: value.minReplicas ?? 1,
+    maxReplicas: value.maxReplicas ?? 3,
+    cpuUtilization: value.enabled
+      ? (value.metrics.find((m) => m.resource === 'cpu')?.targetUtilization ?? '')
+      : 60,
+    memoryUtilization: value.metrics.find((m) => m.resource === 'memory')?.targetUtilization ?? '',
+    resourceVersion: value.resourceVersion,
+  };
+}
+async function saveAutoscaling() {
+  await action(async () => {
+    const value = hpaDraft.value;
+    await api(`${path(selected.value.name)}/autoscaling`, {
+      method: 'PUT',
+      body: {
+        ...value,
+        cpuUtilization: value.cpuUtilization === '' ? null : Number(value.cpuUtilization),
+        memoryUtilization: value.memoryUtilization === '' ? null : Number(value.memoryUtilization),
+      },
+    });
+    if (!alive) return;
+    hpaDraft.value = null;
+    selected.value = await api(path(selected.value.name));
+    scaleReplicas.value = selected.value.replicas;
+    await loadAutoscaling();
+    success.value = '自动扩缩容配置已保存';
+  }, true);
+}
+async function disableAutoscaling() {
+  await action(async () => {
+    await api(
+      `${path(selected.value.name)}/autoscaling?resourceVersion=${enc(autoscaling.value.resourceVersion)}`,
+      { method: 'DELETE' },
+    );
+    if (!alive) return;
+    hpaDraft.value = null;
+    selected.value = await api(path(selected.value.name));
+    scaleReplicas.value = selected.value.replicas;
+    await loadAutoscaling();
+    success.value = '自动扩缩容已关闭，保留当前副本数';
+  }, true);
 }
 function configureAccess() {
   emit('access', {
@@ -312,7 +374,7 @@ onMounted(() => action(catalogs));
       <button v-if="!catalogsLoaded" :disabled="busy" @click="action(catalogs)">重试目录</button
       ><button
         v-else-if="!draft"
-        :disabled="busy || !cluster"
+        :disabled="busy || !cluster || !!hpaDraft"
         @click="selected ? detail(selected) : action(() => loadNamespaces())"
       >
         {{ busy ? '读取中…' : '↻ 刷新状态' }}
@@ -348,7 +410,14 @@ onMounted(() => action(catalogs));
             </select></label
           >
           <label
-            >副本数<input type="number" v-model.number="draft.replicas" required min="0" max="100" step="1"
+            >副本数<input
+              type="number"
+              v-model.number="draft.replicas"
+              :disabled="autoscaling?.enabled"
+              required
+              min="0"
+              max="100"
+              step="1"
           /></label>
         </div>
         <section class="deployment-section">
@@ -423,8 +492,8 @@ onMounted(() => action(catalogs));
     <section v-else-if="selected" class="management-editor">
       <div class="section-heading">
         <h2>{{ selected.name }}</h2>
-        <button :disabled="busy" @click="edit">编辑配置</button>
-        <button class="danger" :disabled="busy" @click="remove">删除部署</button>
+        <button :disabled="busy || !!hpaDraft || !autoscaling" @click="edit">编辑配置</button>
+        <button class="danger" :disabled="busy || !!hpaDraft" @click="remove">删除部署</button>
       </div>
       <dl class="detail-grid">
         <dt>应用版本</dt>
@@ -447,7 +516,93 @@ onMounted(() => action(catalogs));
         <dt>部署目标（30 s）</dt>
         <dd>{{ deploymentTarget(selected.latestOperation) }}</dd>
       </dl>
-      <form class="inline-form" @submit.prevent="scale">
+      <section class="deployment-section" aria-label="自动扩缩容">
+        <div class="section-heading">
+          <h3>自动扩缩容 · HPA</h3>
+          <span v-if="autoscaling">{{ autoscaling.enabled ? '已启用' : '未启用' }}</span>
+          <button v-if="autoscaling?.editable && !hpaDraft" :disabled="busy" @click="editAutoscaling">
+            {{ autoscaling.enabled ? '编辑自动扩缩容' : '启用自动扩缩容' }}
+          </button>
+          <button
+            v-if="autoscaling?.enabled && autoscaling.editable && !hpaDraft"
+            :disabled="busy"
+            @click="disableAutoscaling"
+          >
+            关闭自动扩缩容
+          </button>
+        </div>
+        <p v-if="autoscalingError" class="notice error" role="alert">{{ autoscalingError }}</p>
+        <form v-if="hpaDraft" @submit.prevent="saveAutoscaling">
+          <fieldset class="catalog-fields" :disabled="busy">
+            <div class="form-grid">
+              <label
+                >最小副本数<input
+                  v-model.number="hpaDraft.minReplicas"
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  required
+              /></label>
+              <label
+                >最大副本数<input
+                  v-model.number="hpaDraft.maxReplicas"
+                  type="number"
+                  :min="hpaDraft.minReplicas"
+                  max="100"
+                  step="1"
+                  required
+              /></label>
+              <label
+                >CPU 目标利用率（%）<input
+                  v-model.number="hpaDraft.cpuUtilization"
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="留空不使用"
+              /></label>
+              <label
+                >内存目标利用率（%）<input
+                  v-model.number="hpaDraft.memoryUtilization"
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="留空不使用"
+              /></label>
+            </div>
+            <p class="muted">至少选择一项指标。利用率以资源申请量 requests 为基准。</p>
+            <div class="inline-form">
+              <button class="primary" type="submit">保存自动扩缩容</button
+              ><button type="button" @click="hpaDraft = null">取消</button>
+            </div>
+          </fieldset>
+        </form>
+        <template v-else-if="autoscaling?.enabled">
+          <dl class="detail-grid">
+            <dt>副本范围</dt>
+            <dd>{{ autoscaling.minReplicas }}～{{ autoscaling.maxReplicas }}</dd>
+            <dt>当前 / 期望副本</dt>
+            <dd>{{ autoscaling.currentReplicas ?? '—' }} / {{ autoscaling.desiredReplicas ?? '—' }}</dd>
+            <template v-for="metric in autoscaling.metrics" :key="metric.resource">
+              <dt>{{ metric.resource === 'cpu' ? 'CPU' : '内存' }} 当前 / 目标利用率</dt>
+              <dd>
+                {{ metric.currentUtilization == null ? '—' : metric.currentUtilization + '%' }} /
+                {{ metric.targetUtilization }}%
+              </dd>
+            </template>
+            <dt>最近伸缩时间</dt>
+            <dd>{{ autoscaling.lastScaleTime ? time(autoscaling.lastScaleTime) : '—' }}</dd>
+          </dl>
+          <p v-if="!autoscaling.editable" class="muted">此 HPA 配置由集群侧管理。</p>
+          <details v-if="autoscaling.conditions.length">
+            <summary>伸缩状态</summary>
+            <ul>
+              <li v-for="condition in autoscaling.conditions" :key="condition">{{ condition }}</li>
+            </ul>
+          </details>
+        </template>
+      </section>
+      <form v-if="autoscaling && !autoscaling.enabled" class="inline-form" @submit.prevent="scale">
         <label
           >调整副本数<input
             aria-label="调整副本数"

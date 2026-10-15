@@ -1,6 +1,7 @@
 package com.project.platform.server.api;
 
 import com.project.platform.deployment.service.DeploymentService;
+import com.project.platform.deployment.service.DeploymentAutoscaling;
 import com.project.platform.server.security.IdentityDirectory;
 import java.security.Principal;
 import java.util.List;
@@ -32,6 +33,18 @@ public final class DeploymentController {
     @PatchMapping("/{name}/scale")
     public DeploymentService.View scale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestBody DeploymentService.ScaleRequest request) {
         return deployments.scale(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,request);
+    }
+    @GetMapping("/{name}/autoscaling")
+    public DeploymentAutoscaling.View autoscaling(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name) {
+        return deployments.autoscaling(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name);
+    }
+    @PutMapping("/{name}/autoscaling")
+    public DeploymentAutoscaling.View autoscale(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestBody DeploymentAutoscaling.Request request) {
+        return deployments.autoscale(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,request);
+    }
+    @DeleteMapping("/{name}/autoscaling")
+    public ResponseEntity<Void> disableAutoscaling(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestParam String resourceVersion) {
+        deployments.disableAutoscaling(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,resourceVersion);return ResponseEntity.noContent().build();
     }
     @GetMapping("/{name}/history")
     public List<DeploymentService.DeploymentRecord> history(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,

@@ -1,5 +1,7 @@
 # 当前进度
 
+DEP-HPA-01（2026-10-15，已部署）：原生autoscaling/v2接口与部署详情已接通，HPA接管副本，编辑不回写旧副本；四集群仅补充授权的HPA权限，旧部署无变更。业务回归与契约复测最终314项报告通过，71前端单测、2浏览器用例及真实1→2→1伸缩通过。临时部署/Pod已删除，29个其他服务保持，前后端healthy。[验证](verification/VER-DEP-HPA-01.md)。
+
 REG-DOWN-01（2026-10-15，已部署）：镜像列表/详情增加下载按钮，普通镜像Docker tar、索引OCI tar，自动清理临时文件，不写业务表或改标签。313Java完整回归、71前端单测、6浏览器及线上真实归档核验通过；前后端healthy，29其他服务保持。[验证](verification/VER-REG-DOWN-01.md)。
 
 JOB-RES-01（2026-10-15，已部署）：任务级resources.limits已接到K3s Job task容器，使用原生单位/请求默认；不改应用契约、终端Docker或槽位。312Java完整回归、70前端单测、真实页面和五种Job/cgroup配置核验通过；前后端healthy，29非目标服务保持。[验证](verification/VER-JOB-RES-01.md)。

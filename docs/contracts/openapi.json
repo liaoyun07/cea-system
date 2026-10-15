@@ -16,6 +16,17 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/clusters/{clusterId}/kubernetes/namespaces/{kubeNamespace}/deployments/{name}/autoscaling": {
+      "parameters": [
+        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"clusterId","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"kubeNamespace","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"name","in":"path","required":true,"schema":{"type":"string"}}
+      ],
+      "get":{"operationId":"getDeploymentAutoscaling","description":"READ. Native HPA configuration and status. Missing metrics remain null; absence is enabled=false, not a query error.","responses":{"200":{"description":"HPA view","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DeploymentAutoscalingView"}}}},"403":{"description":"Scope denied"}}},
+      "put":{"operationId":"putDeploymentAutoscaling","description":"WRITE. Native autoscaling/v2; requests required for selected metrics; no automatic enablement of existing deployments. ResourceVersion CAS on update.","requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/DeploymentAutoscalingRequest"}}}},"responses":{"200":{"description":"Saved HPA","content":{"application/json":{"schema":{"$ref":"#/components/schemas/DeploymentAutoscalingView"}}}},"422":{"description":"Invalid metrics/replicas or missing requests; zero replicas"},"403":{"description":"Scope denied"},"409":{"description":"HPA ownership or version conflict"}}},
+      "delete":{"operationId":"deleteDeploymentAutoscaling","description":"WRITE. Delete owned HPA only; leave current deployment replicas unchanged.","parameters":[{"name":"resourceVersion","in":"query","required":true,"schema":{"type":"string"}}],"responses":{"204":{"description":"Deleted"},"403":{"description":"Scope denied"},"404":{"description":"HPA missing"},"409":{"description":"Ownership or version conflict"}}}
+    },
     "/api/namespaces/{namespace}/image-distributions": {
       "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}}],
       "get": {
@@ -5835,6 +5846,18 @@
       }
     },
     "schemas": {
+      "DeploymentAutoscalingRequest": {
+        "type":"object","required":["minReplicas","maxReplicas"],
+        "properties":{"minReplicas":{"type":"integer","minimum":1,"maximum":100},"maxReplicas":{"type":"integer","minimum":1,"maximum":100},"cpuUtilization":{"type":["integer","null"],"minimum":1},"memoryUtilization":{"type":["integer","null"],"minimum":1},"resourceVersion":{"type":["string","null"]}},
+        "description":"min <= max; at least one positive utilization. Utilization denominator is requests. New HPA uses null resourceVersion."
+      },
+      "DeploymentAutoscalingView": {
+        "type":"object","properties":{
+          "enabled":{"type":"boolean"},"editable":{"type":"boolean"},"name":{"type":["string","null"]},"resourceVersion":{"type":["string","null"]},
+          "minReplicas":{"type":["integer","null"]},"maxReplicas":{"type":["integer","null"]},"currentReplicas":{"type":["integer","null"]},"desiredReplicas":{"type":["integer","null"]},"lastScaleTime":{"type":["string","null"]},
+          "metrics":{"type":"array","items":{"type":"object","properties":{"resource":{"type":"string"},"targetUtilization":{"type":["integer","null"]},"currentUtilization":{"type":["integer","null"]}}}},"conditions":{"type":"array","items":{"type":"string"}}
+        }
+      },
       "IngressClass": {
         "type": "object",
         "properties": {
