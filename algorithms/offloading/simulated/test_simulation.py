@@ -1,8 +1,12 @@
 import copy
+import random
+import json
+import tempfile
+from pathlib import Path
 import unittest
 import torch
-from environment import Environment, POSITIONS, SIZES, arrivals, choose, rollout, rule
-from train_sim import export, inference, targets
+from environment import Environment, POSITIONS, SIZES, arrivals, choose, rollout, rule, calibrate
+from train_sim import export, inference, targets, balanced_batch
 
 
 def calibration(service=2, lag=1):
@@ -16,6 +20,28 @@ def task(at=0, index=0, terminal=0, size="small"):
 
 
 class SimulationTest(unittest.TestCase):
+    def test_mixed_calibration_does_not_pool_fast_local_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            def row(p, s, duration):
+                return {"state": "SUCCESS", "destination": p, "size": s, "bytes": SIZES[s],
+                        "dispatchedAt": 10, "finishedAt": 10+duration, "observedAt": 11+duration,
+                        "uploadStartedAt": 0, "uploadFinishedAt": SIZES[s]/12_500_000+.1}
+            mixed = [row(p,s,37) for p in POSITIONS for s in SIZES if (p,s) != ("TERMINAL","large")]
+            (folder/'mixed.json').write_text(json.dumps({"tasks":mixed}))
+            (folder/'local.json').write_text(json.dumps({"tasks":[row("TERMINAL",s,19) for s in SIZES]}))
+            cells = calibrate(folder, ['mixed.json'], 'local.json')['cells']
+            self.assertEqual(37, cells['TERMINAL:medium']['service'][1])
+            self.assertEqual(['mixed.json'], cells['TERMINAL:medium']['sources'])
+            self.assertEqual(19, cells['TERMINAL:large']['service'][1])
+            self.assertFalse(cells['TERMINAL:large']['olderConfigurationFallback'])
+
+    def test_balanced_replay_covers_rare_size_action_cells(self):
+        buckets = {(size, action): [(size, action)] * (100 if size == "small" else 1)
+                   for size in SIZES for action in range(3)}
+        batch = balanced_batch(buckets, random.Random(31), 900)
+        self.assertEqual(set(buckets), set(batch))
+        self.assertTrue(all(60 < batch.count(key) < 140 for key in buckets))
     def test_trace_matches_existing_277(self):
         rows = arrivals(31)
         self.assertEqual(277, len(rows))

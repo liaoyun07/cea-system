@@ -34,13 +34,20 @@ def targets(online, target, next_states, rewards, done, gamma=.95):
         return rewards + gamma * (1 - done) * target(next_states).gather(1, actions[:, None]).squeeze(1)
 
 
-def fit(calibration, seed, episodes, output):
+def balanced_batch(buckets, rng, count):
+    keys = [key for key, rows in buckets.items() if rows]
+    return [rng.choice(buckets[rng.choice(keys)]) for _ in range(count)]
+
+
+def fit(calibration, seed, episodes, output, *, trace_start=1000, validation_start=20000,
+        width=64, balanced=False, learning_rate=.001):
     torch.manual_seed(seed)
     rng = random.Random(seed)
-    net = torch.nn.Sequential(torch.nn.Linear(5, 64), torch.nn.ReLU(), torch.nn.Linear(64, 3))
+    net = torch.nn.Sequential(torch.nn.Linear(5, width), torch.nn.ReLU(), torch.nn.Linear(width, 3))
     target = copy.deepcopy(net).eval()
-    optimizer = torch.optim.Adam(net.parameters(), lr=.001)
+    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
     replay = deque(maxlen=50_000)
+    buckets = {(size, action): deque(maxlen=5500) for size in ("small", "medium", "large") for action in range(3)}
     best, best_score, history, updates, transitions = None, float("inf"), [], 0, 0
     for episode in range(episodes):
         greedy = inference(export(net))
@@ -48,19 +55,22 @@ def fit(calibration, seed, episodes, output):
         policy = lambda raw, task: rng.randrange(3) if rng.random() < epsilon else greedy(raw, task)
         interval = rng.choice([6, 8, 10, 12, 15])
         # Disjoint from validation 20000+ and test 30000+.
-        trace_seed = 1000 + episode
+        trace_seed = trace_start + episode
         states, actions, records = rollout(calibration, arrivals(trace_seed, interval), policy,
                                           scenario=seed * 100000 + episode, randomized=True)
         for i, task in enumerate(records):
             done = i == len(records) - 1
-            replay.append((states[i], actions[i], -(task["finishedAt"] - task["at"]) / 120,
-                           [0.] * 5 if done else states[i + 1], float(done)))
+            transition = (states[i], actions[i], -(task["finishedAt"] - task["at"]) / 120,
+                          [0.] * 5 if done else states[i + 1], float(done))
+            replay.append(transition)
+            if balanced:
+                buckets[(task["size"], actions[i])].append(transition)
         transitions += len(records)
         # All rewards resolve after drain; s' is the next decision, NOT completion
         # state or an independently fabricated random vector.
         data = list(replay)
         for _ in range(max(1, len(records) // 8)):
-            batch = rng.sample(data, min(128, len(data)))
+            batch = balanced_batch(buckets, rng, 128) if balanced else rng.sample(data, min(128, len(data)))
             s, a, r, ns, done = zip(*batch)
             s, ns = torch.tensor(s), torch.tensor(ns)
             expected = targets(net, target, ns, torch.tensor(r), torch.tensor(done))
@@ -75,7 +85,7 @@ def fit(calibration, seed, episodes, output):
                 target.load_state_dict(net.state_dict())
         if (episode + 1) % 50 == 0 or episode + 1 == episodes:
             model = export(net)
-            validation = evaluate(calibration, inference(model), range(20000, 20006), (6, 10, 15), True)
+            validation = evaluate(calibration, inference(model), range(validation_start, validation_start + 6), (6, 10, 15), True)
             score = statistics.mean(row["meanSeconds"] for row in validation)
             history.append({"episode": episode + 1, "validationMeanSeconds": score, "loss": loss.item(), "epsilon": epsilon})
             if score < best_score:
@@ -83,6 +93,8 @@ def fit(calibration, seed, episodes, output):
                 write(output / f"model-seed-{seed}.json", best)
             print(json.dumps({"trainingSeed": seed, **history[-1], "best": best_score}), flush=True)
     return best, {"seed": seed, "episodes": episodes, "transitions": transitions, "updates": updates,
+                  "width": width, "learningRate": learning_rate, "balancedReplay": balanced,
+                  "traceStart": trace_start, "validationStart": validation_start,
                   "validationScore": best_score, "history": history}
 
 

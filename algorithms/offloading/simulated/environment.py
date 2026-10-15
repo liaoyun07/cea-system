@@ -22,11 +22,11 @@ def quantile(values, p):
     return values[lo] + (values[min(lo + 1, len(values) - 1)] - values[lo]) * (x - lo)
 
 
-def calibrate(folder):
+def calibrate(folder, primary=None, fallback_file="random-result.json"):
     # Current local/fixed runs, NOT held-out jitter run. Older random run fills
     # missing action/size cells only; its different slots/memory are disclosed.
-    primary = ["jitter-LOCAL-result.json", "jitter-TERMINAL_30-result.json"]
-    old = "random-result.json"
+    primary = primary or ["jitter-LOCAL-result.json", "jitter-TERMINAL_30-result.json"]
+    old = fallback_file
     views = {f: json.loads((folder / f).read_text(encoding="utf8")) for f in primary + [old]}
     cells = {}
     for destination in POSITIONS:
@@ -47,11 +47,11 @@ def calibrate(folder):
                       for _, t in rows if destination != "TERMINAL"]
             describe = lambda a: [quantile(a, p) for p in (.1, .5, .9)]
             cells[f"{destination}:{size}"] = {"n": len(rows), "sources": sorted({f for f, _ in rows}),
-                "olderConfigurationFallback": fallback, "service": describe(service), "releaseLag": describe(tail),
+                "olderConfigurationFallback": fallback and old == "random-result.json", "service": describe(service), "releaseLag": describe(tail),
                 "uploadFactor": describe(upload) if upload else [1, 1, 1]}
     return {"stateSchema": SCHEMA, "units": "seconds; bytes; decimal MB", "cells": cells,
             "scope": "Empirical 10/50/90 percentiles, no queue time in service. Pooled timings approximate host contention.",
-            "limitations": ["Not a CPU/memory consumption simulator", "Older random timing fallback has two cloud/edge slots and 512MiB terminals",
+            "limitations": ["Not a CPU/memory consumption simulator", "Fallback source and configuration must be checked in each cell",
                             "No explicit shared-host contention or SQL saturation model", "Upload-wait observation approximates remaining paced bytes",
                             "Observation lag excludes small unrecorded database-update/ledger-release overhead"]}
 
