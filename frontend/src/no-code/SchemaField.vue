@@ -75,6 +75,10 @@ const labels = {
   candidateClusters: '候选集群',
   execution: '执行位置',
   namespaceFiles: '命名空间文件',
+  resources: '资源限制',
+  limits: '上限',
+  cpu: 'CPU 上限',
+  memory: '内存上限',
   schedule: '定时触发',
   cron: 'Cron（含秒）',
   timezone: '时区',
@@ -259,6 +263,11 @@ function json(event) {
       :id="fieldId"
       :value="value"
       :disabled="disabled || 'const' in s"
+      :placeholder="
+        path.at(-2) === 'limits'
+          ? { cpu: '例如 500m、0.5 或 1', memory: '例如 512Mi 或 1Gi' }[path.at(-1)]
+          : undefined
+      "
       @change="scalar"
     />
     <textarea v-else :id="fieldId" :value="JSON.stringify(value, null, 2)" rows="3" @change="json" />

@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+JOB-RES-01（2026-10-15，已部署）：Application CLUSTER子任务可选Kubernetes CPU/内存limits，空白保持原行为；312Java、70前端单测、实际编辑/回读及五种Job/cgroup核验通过，29非目标服务保持。[功能](features/JOB-RES-01.md)、[验证](verification/VER-JOB-RES-01.md)。
+
 OFF-INDEP-01（2026-10-15，已部署/首轮验证完成）：独立网关五维状态、终端 FIFO 上传、直接 k3s/Docker 执行、整批清理及终端接入统计页面。LOCAL/RANDOM 各 277 成功且结果一致，整批跨度降低 10.54%，单任务平均基本持平；不是已训练 DQN 收益。旧 Flow/网关/终端保持。[功能](features/OFF-INDEP-01.md)、[协议](contracts/offload-independent.md)、[证据](verification/VER-OFF-INDEP-01.md)。
 
 LOCK-01（2026-10-14，已实现/验证/部署）：普通流与终端卸载共用的全局准入锁已删除；现有Worker额度覆盖并行检查和执行，网关推理不占资源事务。307Java完整回归、真实网关请求期间资源行可用、线上双Sleep并行及旧数据/25服务保留通过；现场模拟终端已停止，额外三位置实测未执行。优先级为领取偏好，不保证并发检查完成次序；无新表/API/配置，不调槽数、不训练DQN。[协议](contracts/priority-admission.md)、[验证](verification/VER-LOCK-01.md)。

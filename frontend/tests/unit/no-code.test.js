@@ -17,6 +17,17 @@ import {
 
 const source =
   '# keep header\nschemaVersion: 1\nnamespace: lab\nid: edit\nlabels: {owner: lab} # retain\ninputs:\n  n: {type: INTEGER, defaultValue: 0}\ntasks:\n  - id: first\n    type: core.Log\n    message: first # keep message comment\n  - id: second\n    type: core.Log\n    message: second\noutputs:\n  result: {source: TASK_OUTPUT, taskId: second, port: message}\n';
+test('application native resource strings edit and remove without changing command', () => {
+  const input =
+    'schemaVersion: 1\nnamespace: lab\nid: resource\ntasks:\n  - id: job\n    type: platform.Application\n    container:\n      applicationId: app\n      version: v1\n      command: [sh, -c, "true"]\n';
+  const path = ['tasks', 0, 'container', 'resources'];
+  const changed = changeSource(input, path, { limits: { cpu: '500m', memory: '512Mi' } });
+  const value = readDocument(changed).value;
+  assert.deepEqual(value.tasks[0].container.resources, { limits: { cpu: '500m', memory: '512Mi' } });
+  assert.deepEqual(value.tasks[0].container.command, ['sh', '-c', 'true']);
+  const removed = changeSource(changed, path, undefined, true);
+  assert.equal(readDocument(removed).value.tasks[0].container.resources, undefined);
+});
 test('task form order follows required fields and omits unsupported control reliability fields', () => {
   const root = {
     $defs: {

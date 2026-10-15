@@ -1,5 +1,7 @@
 # 项目结构与 Java 文件索引
 
+JOB-RES-01：不新增生产Java文件。FlowDefinition.Container增加可选ContainerResources/ResourceLimits嵌套记录，FlowValidator校验Kubernetes数量与CLUSTER范围，FlowSchema自动反映字段；KubernetesJobRunner创建Job时读取冻结任务定义并仅设置task容器limits，不改变资源准入或普通执行状态机。[协议](contracts/s4-job-execution.md#job-res-01-任务级资源上限)。
+
 ART-CLEAN-01：新增ExecutionArtifactCleanup（下表），114个生产Java文件。ExecutorPump定时调用；运行时ExecutionService/JdbcExecutionStore拥有候选查询与V34清理完成标记，ObjectStorage仅负责精确前缀和文件名删除。S3副作用与数据库事务分离，无新增表/API/SPI/模块依赖；原Executor/Worker状态、输出和计时不变。[协议](contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)。
 
 TERM-LOAD-01：不新增工作流引擎或模块依赖。以下类仅承担终端负载控制与测量；状态仍属于runtime，实际目标由offloading公开服务查询。

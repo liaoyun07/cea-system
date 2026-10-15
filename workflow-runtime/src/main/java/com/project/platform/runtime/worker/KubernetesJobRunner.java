@@ -19,7 +19,7 @@ public final class KubernetesJobRunner {
         while(true) {
             context.check();
             String cancellation=context.cancellation();
-            Job job=ensure(client,name,spec,helperImage);
+            Job job=ensure(client,name,spec,helperImage,context.job().task().container().resources());
             var pods=client.pods().withLabel("job-name",name).list().getItems();
             if(!reported) {
                 if(pods.size()==1 && pods.getFirst().getStatus()!=null && pods.getFirst().getStatus().getInitContainerStatuses()!=null)
@@ -69,7 +69,8 @@ public final class KubernetesJobRunner {
             Thread.sleep(200);
         }
     }
-    private Job ensure(KubernetesClient client,String name,Spec spec,String helperImage) {
+    private Job ensure(KubernetesClient client,String name,Spec spec,String helperImage,
+                       com.project.platform.runtime.model.FlowDefinition.ContainerResources resources) {
         var existing=client.batch().v1().jobs().withName(name).get();if(existing!=null)return existing;
         var args=new ArrayList<>(List.of("-c",WRAPPER,"cea-task"));args.addAll(spec.command());
         var env=spec.environment().entrySet().stream().map(e->new EnvVar(e.getKey(),e.getValue(),null)).toList();
@@ -84,8 +85,18 @@ public final class KubernetesJobRunner {
                 .addNewVolumeMount().withName("work").withMountPath(ROOT).endVolumeMount()
                 .withNewSecurityContext().withAllowPrivilegeEscalation(false).withNewCapabilities().withDrop("ALL").endCapabilities().endSecurityContext()
                 .endContainer().addToContainers(helper("files-out",helperImage,"output")).endSpec().endTemplate().endSpec().build();
+        configureTaskResources(job,resources);
         try {return client.batch().v1().jobs().resource(job).create();}
         catch(KubernetesClientException ex) {if(ex.getCode()!=409)throw ex;return client.batch().v1().jobs().withName(name).get();}
+    }
+    static void configureTaskResources(Job job,com.project.platform.runtime.model.FlowDefinition.ContainerResources resources) {
+        if(resources==null || resources.limits()==null)return;
+        var limits=new LinkedHashMap<String,Quantity>();
+        if(resources.limits().cpu()!=null)limits.put("cpu",new Quantity(resources.limits().cpu()));
+        if(resources.limits().memory()!=null)limits.put("memory",new Quantity(resources.limits().memory()));
+        if(!limits.isEmpty())job.getSpec().getTemplate().getSpec().getContainers().stream()
+                .filter(c->"task".equals(c.getName())).forEach(c->
+                    c.setResources(new ResourceRequirementsBuilder().withLimits(limits).build()));
     }
     private boolean condition(Job job,String type) {
         return job.getStatus()!=null && job.getStatus().getConditions()!=null && job.getStatus().getConditions().stream().anyMatch(c->type.equals(c.getType())&&"True".equals(c.getStatus()));

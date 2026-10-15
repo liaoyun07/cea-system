@@ -7025,6 +7025,13 @@
           "offload": {
             "$ref": "#/components/schemas/Offload"
           },
+          "resources": {
+            "type": "object", "additionalProperties": false,
+            "description": "Optional CLUSTER task container limits. Blank fields are omitted; Kubernetes supplies its own request defaults.",
+            "properties": {"limits": {"type": "object", "additionalProperties": false,
+              "properties": {"cpu": {"type": "string", "examples": ["500m", "0.5", "1"]},
+                "memory": {"type": "string", "examples": ["512Mi", "1Gi"]}}}}
+          },
           "namespaceFiles": {
             "type": "object",
             "additionalProperties": {

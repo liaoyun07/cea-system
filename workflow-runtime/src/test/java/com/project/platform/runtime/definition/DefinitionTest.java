@@ -9,6 +9,19 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DefinitionTest {
+    @Test void applicationResourcesAreOptionalNativeQuantitiesAndRoundTrip() {
+        assertNull(parser.parse(application("")).tasks().getFirst().container().resources());
+        for(String limits:List.of("{cpu: '500m', memory: '512Mi'}","{cpu: '0.5'}","{memory: '1Gi'}","{cpu: '', memory: ' '}")) {
+            var flow=parser.parse(application("      resources: {limits: "+limits+"}\n"));
+            assertEquals(flow,parser.parse(json.write(flow)));
+        }
+        var blank=parser.parse(application("      resources: {limits: {cpu: ''}}\n"));
+        assertNull(blank.tasks().getFirst().container().resources().limits().cpu());
+        for(String limits:List.of("{cpu: '-1'}","{cpu: '0.0001'}","{memory: 'banana'}","{memory: '-1Gi'}"))
+            assertThrows(WorkflowException.class,()->parser.parse(application("      resources: {limits: "+limits+"}\n")));
+        assertThrows(WorkflowException.class,()->parser.parse(application("      resources: {limits: {cpu: '1'}}\n")
+                .replace("candidateClusters: [edge]","execution: TERMINAL")));
+    }
     @Test void runnablePriorityHasDefaultBoundsAndRoundTripsWithoutChangingControlTasks() {
         String source="schemaVersion: 1\nnamespace: lab\nid: priority\ntasks: [{id: work, type: core.Log, message: hi%s}]";
         assertEquals(0,parser.parse(source.formatted("")).tasks().getFirst().effectivePriority());

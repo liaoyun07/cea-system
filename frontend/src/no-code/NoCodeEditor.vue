@@ -417,6 +417,9 @@ onMounted(() => {
                     'inputFiles',
                     'outputFiles',
                     'namespaceFiles',
+                    ...(current.container?.execution !== 'TERMINAL' || current.container?.resources
+                      ? ['resources']
+                      : []),
                   ]"
                   :key="field"
                 >

@@ -72,8 +72,13 @@ public record FlowDefinition(
     public record Container(String applicationId,String version,
                             @tools.jackson.databind.annotation.JsonDeserialize(using=CandidateClustersDeserializer.class) Binding candidateClusters,List<String> command,
                             Map<String,Binding> parameters,Map<String,Binding> inputFiles,List<String> outputFiles,ContainerExecution execution,Offload offload,
-                            Map<String,NamespaceFile> namespaceFiles) {
+                            Map<String,NamespaceFile> namespaceFiles,ContainerResources resources) {
         public Container {command=list(command);parameters=immutable(parameters);inputFiles=immutable(inputFiles);outputFiles=list(outputFiles);execution=execution==null?ContainerExecution.CLUSTER:execution;namespaceFiles=immutable(namespaceFiles);}
+    }
+    public record ContainerResources(ResourceLimits limits) {}
+    public record ResourceLimits(String cpu,String memory) {
+        public ResourceLimits {cpu=quantity(cpu);memory=quantity(memory);}
+        private static String quantity(String value) {return value==null || value.isBlank()?null:value.trim();}
     }
     public enum ContainerExecution { CLUSTER, TERMINAL }
     public record Offload(OffloadStrategy strategy,String modelVersion,OffloadLayer layer,Double exploration) {}

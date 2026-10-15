@@ -16,6 +16,16 @@ public final class FlowValidator {
     private final TemplateRenderer renderer;
     public FlowValidator(TemplateRenderer renderer) { this.renderer = renderer; }
 
+    private static void resourceQuantity(String value,String resource) {
+        if(value==null)return;
+        try {
+            var amount=io.fabric8.kubernetes.api.model.Quantity.getAmountInBytes(new io.fabric8.kubernetes.api.model.Quantity(value));
+            if(amount.signum()<0 || (resource.equals("cpu") && amount.movePointRight(3).stripTrailingZeros().scale()>0))
+                throw new IllegalArgumentException();
+        } catch(IllegalArgumentException ex) {
+            throw WorkflowException.invalid("container.resources.limits."+resource,"nonnegative Kubernetes quantity required; CPU precision is 1m");
+        }
+    }
     public static void identifier(String value, String path) {
         if (value == null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}")) {
             throw WorkflowException.invalid(path, "expected a letter followed by up to 99 letters/digits/._-");
@@ -93,6 +103,12 @@ public final class FlowValidator {
                 if(c.execution()==ContainerExecution.TERMINAL && c.candidateClusters()!=null)
                     throw WorkflowException.invalid("candidateClusters","TERMINAL uses the authenticated request origin, not cluster candidates");
                 if(c.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
+                if(c.resources()!=null && c.resources().limits()!=null) {
+                    var limits=c.resources().limits();
+                    if((limits.cpu()!=null || limits.memory()!=null) && c.execution()!=ContainerExecution.CLUSTER)
+                        throw WorkflowException.invalid("container.resources","resource limits require CLUSTER execution");
+                    resourceQuantity(limits.cpu(),"cpu");resourceQuantity(limits.memory(),"memory");
+                }
                 if(c.offload()!=null) {
                     var o=c.offload();
                     if(c.execution()!=ContainerExecution.TERMINAL || o.strategy()==null)

@@ -1,5 +1,7 @@
 # 可修改的实施计划
 
+JOB-RES-01（2026-10-15，已部署）：Application CLUSTER子任务可选resources.limits.cpu/memory，原生Kubernetes数量；空白不设置、不改变旧流程/卸载默认配置，只约束task容器。复用Flow快照和Job runner，不新增表/接口。编辑/保存/回读、单项/双项/空白/旧任务五种真实Job与cgroup核验通过；312Java完整verify、70前端单测、构建及实际页面通过。仅CEA前后端发布，29其他服务保持。终端Docker资源配置不在本批范围。[验证](verification/VER-JOB-RES-01.md)。
+
 OFF-INDEP-01（2026-10-15，DONE/已部署）：按用户确认的独立卸载链实现五维状态、逐终端串行上传、云边直接 k3s Job、结果就地保存及整批清理；复用基础服务、原统计算法/cgroup 采样，Java 仅鉴权代理。30 终端同计划 LOCAL/RANDOM 各 277 成功、数值/旧资源/自动清理及线上页面核验通过。首次集成故障保留记录并修复为独立 Namespace 权限和按终端清理。整批降 10.54%，平均未降，不扩大为调参/训练或指标达标。依赖与验收见 [功能](features/OFF-INDEP-01.md)、[证据](verification/VER-OFF-INDEP-01.md)。
 
 LOCK-01（2026-10-14，已实现/验证/部署）：按用户要求删除全局准入锁，现有Worker额度内并发准入和执行；卸载采样/网关推理移出资源事务，保留领取、槽位及决策登记短事务。依赖原队列/租约/资源预约，无新表/API/配置，不调槽数、不训练DQN。验收：慢检查不堵另一任务、领取无重复、额度不超限、槽满保留Attempt、样本后继和工作量一致；307Java完整回归、线上双任务并行及旧2653执行/82Flow/25服务保留通过，仅发布backend。现场模拟终端已停止，额外三位置验证未执行，未扩大启动范围或宣称批量提速。优先级只约束领取偏好，检查完成次序可不同；参考本地Kestra 0354ddf8。[决策](decisions/ADR-0030-bounded-parallel-admission.md)、[结果](verification/VER-LOCK-01.md)。

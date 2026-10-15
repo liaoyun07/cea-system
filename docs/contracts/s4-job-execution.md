@@ -1,5 +1,23 @@
 # S4-03 一次性 Application 任务
 
+## JOB-RES-01 任务级资源上限
+
+CLUSTER Application可在`container.resources.limits`填写可选`cpu`、`memory`字符串，使用Kubernetes Quantity，例如`cpu: "500m"`（等于0.5核）、`memory: "512Mi"`。不修改应用契约。空白规范为未提供；两项独立，不填写不产生新的Job资源约束，旧定义继续执行。仅task容器写limits，不给files-in/files-out套同一额度，不改变槽位和集群配置。Kubernetes在未指定requests且无其他默认注入时将对应limits作为requests；本系统不额外写requests。CPU精度1m，不允许负数；语法由Fabric8 Quantity解析，最终准入由Kubernetes处理。
+
+```yaml
+container:
+  applicationId: example
+  version: v1
+  candidateClusters: [edge-a]
+  command: [sh, -c, 'echo hello']
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+```
+
+随现有Flow修订、执行定义和WorkerJob快照持久化，Job首次创建时读取；接管已存在Job不修改资源。每个并行子任务/重试实例各用自己的额度，不是所有实例总额度。TERMINAL Docker链路本批不接入此字段，非空资源在该执行模式保存时拒绝，不静默忽略。空对象保持兼容。没有新增表、HTTP路由或状态所有者。
+
 PRIO-01 更新：原 Worker 队列增加非抢占 priority/FIFO；Application 先尝试资源准入，再占执行名额准备镜像/文件，无槽返回原队列等待。旧文中的 Worker 内轮询等槽已替换；Attempt/超时/Runner 不变，见[当前协议](priority-admission.md)。
 
 FILE-01 更新：本文的后端临时文件/Fabric8 上传收集、单一存储配置及 pods/exec 权限描述为历史 S4 行为，K8s 当前实现由 [Pod 文件助手协议](file01-pod-artifacts.md)替代；Flow/Binding/目录/租约主链不变。测试/发布状态见进度。
