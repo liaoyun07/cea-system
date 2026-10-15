@@ -31,6 +31,13 @@ public final class SkopeoImageClient {
         return digest;
     }
     public Duration timeout() { return timeout; }
+    /** Docker-save for single images; OCI keeps complete multi-platform indexes. No image execution. */
+    public void exportArchive(String image,Registry registry,Path archive,String name,boolean index) {
+        var args=new ArrayList<>(List.of("copy","--quiet","--src-tls-verify="+registry.tlsVerify()));
+        if(index)args.addAll(List.of("--all","--preserve-digests"));
+        if(registry.authFile()!=null)args.addAll(List.of("--src-authfile",registry.authFile()));
+        args.addAll(List.of("docker://"+image,(index?"oci-archive:":"docker-archive:")+archive.toAbsolutePath()+":"+name));run(args);
+    }
     /** Skopeo validates the docker-save archive; Java never extracts or executes its contents. */
     public String importArchive(Path archive,String target,Registry registry) {
         String source="docker-archive:"+archive.toAbsolutePath();

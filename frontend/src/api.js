@@ -18,7 +18,7 @@ export function basicAuthorization(username, password) {
 
 export function createApi(namespace, authorization, fetcher = fetch) {
   const prefix = `/api/namespaces/${encodeURIComponent(namespace)}`;
-  return async (path, { method = 'GET', body, key, signal } = {}) => {
+  return async (path, { method = 'GET', body, key, signal, binary = false } = {}) => {
     const multipart = typeof FormData !== 'undefined' && body instanceof FormData;
     const response = await fetcher(prefix + path, {
       method,
@@ -33,6 +33,12 @@ export function createApi(namespace, authorization, fetcher = fetch) {
       },
       ...(body !== undefined ? { body: multipart ? body : JSON.stringify(body) } : {}),
     });
+    if (response.ok && binary)
+      return {
+        blob: await response.blob(),
+        filename:
+          response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'image.tar',
+      };
     const raw = await response.text();
     let data;
     try {

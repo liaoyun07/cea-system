@@ -17,9 +17,41 @@ const error = ref(''),
   writing = ref(false),
   success = ref('');
 const base = computed(() => `/registries/${encodeURIComponent(registry.value)}`);
-watch(writing, (value) => emit('pending', value), { flush: 'sync' });
 let generation = 0,
-  controller;
+  controller,
+  downloadController;
+const downloading = ref('');
+watch(
+  () => writing.value || !!downloading.value,
+  (value) => emit('pending', value),
+  { flush: 'sync' },
+);
+async function download(row) {
+  downloading.value = `${row.repository}@${row.digest}`;
+  error.value = '';
+  downloadController = new AbortController();
+  try {
+    const { blob, filename } = await props.api(
+      `${base.value}/download?${new URLSearchParams({ repository: row.repository, digest: row.digest })}`,
+      {
+        binary: true,
+        signal: AbortSignal.any([downloadController.signal, AbortSignal.timeout(1000000)]),
+      },
+    );
+    const url = URL.createObjectURL(blob),
+      link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    if (e.name !== 'AbortError') error.value = errorText(e);
+  } finally {
+    downloading.value = '';
+  }
+}
 async function read(work) {
   const current = ++generation;
   controller?.abort();
@@ -117,6 +149,7 @@ onMounted(start);
 onBeforeUnmount(() => {
   generation++;
   controller?.abort();
+  downloadController?.abort();
 });
 </script>
 <template>
@@ -177,7 +210,12 @@ onBeforeUnmount(() => {
                   >无标签 · <code>{{ row.digest.slice(7, 19) }}…</code></span
                 >
               </td>
-              <td><button :disabled="loading || writing" @click="inspect(row)">镜像详情</button></td>
+              <td>
+                <button :disabled="loading || writing" @click="inspect(row)">镜像详情</button>
+                <button class="registry-download" :disabled="writing || !!downloading" @click="download(row)">
+                  {{ downloading === `${row.repository}@${row.digest}` ? '正在下载…' : '下载镜像' }}
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -264,6 +302,7 @@ onBeforeUnmount(() => {
         class="danger"
         :disabled="
           writing ||
+          !!downloading ||
           loading ||
           detail.applications.length > 0 ||
           detail.deployments.length > 0 ||
@@ -273,12 +312,18 @@ onBeforeUnmount(() => {
       >
         从当前仓库删除镜像
       </button>
+      <button class="registry-download" :disabled="writing || !!downloading" @click="download(detail)">
+        {{ downloading === `${detail.repository}@${detail.digest}` ? '正在下载…' : '下载镜像' }}
+      </button>
     </section>
   </section>
 </template>
 <style scoped>
 .registry-filters {
   flex-wrap: wrap;
+}
+.registry-download {
+  margin-left: 8px;
 }
 .registry-filters label {
   min-width: 0;

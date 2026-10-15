@@ -396,6 +396,53 @@ class ImageDistributionTest {
         applications().register(actor,"lab","missing","v1",new ApplicationVersion("missing","v1","source:5000/fixture:missing",Map.of()));
         assertThrows(SkopeoImageClient.Failure.class,()->distribution().prepare(actor,"lab","missing","v1","edge"));
     }
+    @Test void registryDownloadReturnsLoadableArchiveAndPreservesIndexWithoutLeakingFiles() throws Exception {
+        String name="ui-download",repository="lab/"+name;
+        applications().register(actor,"lab",name,"v1",new ApplicationVersion(name,"v1","source:5000/alpine:v1",Map.of()));
+        String digest=distribution().prepare(actor,"lab",name,"v1","edge").image().split("@")[1];
+        String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/registries/target/download?repository="+repository+"&digest="+digest;
+        String viewer="Basic "+Base64.getEncoder().encodeToString("viewer:test-api".getBytes(StandardCharsets.UTF_8));
+        var response=http.send(HttpRequest.newBuilder(URI.create(base)).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200,response.statusCode(),new String(response.body(),StandardCharsets.UTF_8));
+        assertEquals("application/x-tar",response.headers().firstValue("Content-Type").orElseThrow());
+        assertEquals(response.body().length,Long.parseLong(response.headers().firstValue("Content-Length").orElseThrow()));
+        assertTrue(response.headers().firstValue("Content-Disposition").orElseThrow().contains("lab-ui-download-"+digest.substring(7,19)+".tar"));
+        var downloadDir=context.getBean(com.project.platform.server.configuration.DistributionConfiguration.UploadSettings.class).directory().resolve("downloads");
+        try(var entries=Files.list(downloadDir)){assertEquals(0,entries.count());}
+        Path archive=Files.createTempFile("cea-download-test-",".tar");
+        try {
+            Files.write(archive,response.body());dockerCli("--context",terminalContext,"load","-i",archive.toString());
+            var ran=terminalEngine.execInContainer("docker","run","--rm",repository+":sha256-"+digest.substring(7,19),"sh","-c","printf downloaded");
+            assertEquals(0,ran.getExitCode(),ran.getStderr());assertEquals("downloaded",ran.getStdout());
+        } finally {Files.deleteIfExists(archive);}
+        var child=registryCall("GET",endpoint(target)+"/v2/"+repository+"/manifests/"+digest,new byte[0],"application/json");
+        byte[] index=json.write(Map.of("schemaVersion",2,"mediaType","application/vnd.oci.image.index.v1+json","manifests",List.of(Map.of(
+                "mediaType",json.read(new String(child.body(),StandardCharsets.UTF_8),Map.class).get("mediaType"),"digest",digest,"size",child.body().length,
+                "platform",Map.of("os","linux","architecture","amd64"))))).getBytes(StandardCharsets.UTF_8);
+        String indexDigest=hash(index);
+        assertEquals(201,registryCall("PUT",endpoint(target)+"/v2/"+repository+"/manifests/download-index",index,"application/vnd.oci.image.index.v1+json").statusCode());
+        var indexed=http.send(HttpRequest.newBuilder(URI.create(base.replace(digest,indexDigest))).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200,indexed.statusCode());boolean foundIndex=false,foundChild=false;
+        try(var tar=new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(new java.io.ByteArrayInputStream(indexed.body()))) {
+            for(var entry=tar.getNextEntry();entry!=null;entry=tar.getNextEntry()) {
+                if(entry.getName().equals("blobs/sha256/"+indexDigest.substring(7))){assertArrayEquals(index,tar.readAllBytes());foundIndex=true;}
+                if(entry.getName().equals("blobs/sha256/"+digest.substring(7))){assertEquals(digest,hash(tar.readAllBytes()));foundChild=true;}
+            }
+        }
+        assertTrue(foundIndex);assertTrue(foundChild);
+        assertEquals(401,http.send(HttpRequest.newBuilder(URI.create(base)).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        for(var check:Map.of(base.replace("/lab/registries/","/other/registries/"),403,base.replace("/target/","/missing/"),403,
+                base.replace("repository=lab/","repository=other/"),422,base.replace(digest,"bad"),422,base.replace(digest,"sha256:"+"0".repeat(64)),404).entrySet())
+            assertEquals(check.getValue(),http.send(HttpRequest.newBuilder(URI.create(check.getKey())).header("Authorization",viewer).build(),HttpResponse.BodyHandlers.discarding()).statusCode());
+        var failedDir=Files.createTempDirectory("cea-download-failure-");
+        try {
+            var failed=new ImageDownloadService(context.getBean(RegistryManagementService.class),new SkopeoImageClient(List.of("missing-skopeo-for-download-test"),Duration.ofSeconds(1)),
+                    Map.of("target",new SkopeoImageClient.Registry("target:5000",false,null)),failedDir,1);
+            for(int i=0;i<2;i++)assertThrows(SkopeoImageClient.Failure.class,()->failed.prepare(actor,"lab","target",repository,digest));
+            try(var files=Files.list(failedDir)){assertEquals(0,files.count());}
+        } finally {Files.deleteIfExists(failedDir);}
+        try(var entries=Files.list(downloadDir)){assertEquals(0,entries.count());}
+    }
     @Test void preparationHttpChecksIdentityAndReturnsPinnedImage() throws Exception {
         String base="http://127.0.0.1:"+context.getEnvironment().getProperty("local.server.port")+"/api/namespaces/lab/applications/sample/versions/v1/preparations/edge";
         for(String user:List.of("anonymous","viewer","writer")) {

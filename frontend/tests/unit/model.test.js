@@ -163,6 +163,34 @@ test('API sends same-origin namespace, JSON, auth and original idempotency key',
   assert.equal(captured[1].credentials, 'omit');
   assert.equal(captured[1].redirect, 'error');
 });
+test('binary downloads retain bytes and still reject JSON errors', async () => {
+  const bytes = new Uint8Array([0, 255, 128, 17]);
+  const api = createApi(
+    'lab',
+    'Basic test',
+    async () =>
+      new Response(bytes, {
+        headers: {
+          'Content-Type': 'application/x-tar',
+          'Content-Disposition': 'attachment; filename="test.tar"',
+        },
+      }),
+  );
+  assert.deepEqual(
+    new Uint8Array(await (await api('/registries/center/download', { binary: true })).blob.arrayBuffer()),
+    bytes,
+  );
+  assert.equal((await api('/registries/center/download', { binary: true })).filename, 'test.tar');
+  const denied = createApi(
+    'lab',
+    'Basic test',
+    async () => new Response('{"code":"FORBIDDEN","message":"denied"}', { status: 403 }),
+  );
+  await assert.rejects(
+    denied('/registries/center/download', { binary: true }),
+    (e) => e instanceof ApiError && e.status === 403,
+  );
+});
 test('HTTP errors preserve status/code/message and non-JSON is not success', async () => {
   for (const status of [401, 403, 409, 422, 500]) {
     const api = createApi(

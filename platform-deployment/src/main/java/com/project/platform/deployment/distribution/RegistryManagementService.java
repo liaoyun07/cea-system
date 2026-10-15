@@ -33,6 +33,13 @@ public final class RegistryManagementService {
         access.require(actor,namespace,Action.READ);
         return scopes.getOrDefault(namespace,Set.of()).stream().sorted().map(id->new RegistryInfo(id,registries.get(id).address())).toList();
     }
+    public boolean requireDownload(Actor actor,String namespace,String registry,String repository,String digest) {
+        var connection=connection(actor,namespace,registry,Action.READ);repository(namespace,repository);
+        if(digest==null || !digest.matches("sha256:[a-f0-9]{64}"))throw ApplicationException.invalid("download requires the exact sha256 digest");
+        var manifest=client.manifest(connection,repository,digest);
+        if(manifest==null)throw ApplicationException.missing("image manifest not found in this registry");
+        return manifest.document().has("manifests");
+    }
     private RegistryHttpClient.Connection connection(Actor actor,String namespace,String registry,Action action) {
         access.require(actor,namespace,action);
         if(!scopes.getOrDefault(namespace,Set.of()).contains(registry))throw new AccessPolicy.Forbidden();

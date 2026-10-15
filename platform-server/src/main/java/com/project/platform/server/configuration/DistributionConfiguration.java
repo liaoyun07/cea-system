@@ -60,6 +60,11 @@ public class DistributionConfiguration {
     }
     @Bean SkopeoImageClient skopeoImageClient(Settings settings) { return new SkopeoImageClient(settings.command(),settings.timeout()); }
     @Bean RegistryHttpClient registryHttpClient() { return new RegistryHttpClient(); }
+    @Bean ImageDownloadService imageDownloadService(RegistryManagementService management,SkopeoImageClient images,Settings settings,UploadSettings uploads) {
+        var registries=settings.registries().entrySet().stream().collect(java.util.stream.Collectors.toMap(Map.Entry::getKey,
+                e->new SkopeoImageClient.Registry(e.getValue().address(),e.getValue().tlsVerify(),e.getValue().authFile())));
+        return new ImageDownloadService(management,images,registries,uploads.directory().resolve("downloads"),uploads.concurrency());
+    }
     @Bean RegistryManagementService registryManagementService(Settings settings,UploadSettings uploads,AccessPolicy access,ApplicationCatalogService applications,
             com.project.platform.resource.kubernetes.KubernetesManagementService kubernetes,JdbcImageDistributionRepository history,RegistryHttpClient client) {
         var registries=registryConnections(settings);

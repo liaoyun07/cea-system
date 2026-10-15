@@ -2,6 +2,7 @@ package com.project.platform.server.api;
 
 import com.project.platform.deployment.distribution.RegistryManagementService;
 import com.project.platform.deployment.distribution.RegistryManagementService.*;
+import com.project.platform.deployment.distribution.ImageDownloadService;
 import com.project.platform.server.security.IdentityDirectory;
 import java.security.Principal;
 import java.util.List;
@@ -12,7 +13,18 @@ import org.springframework.web.bind.annotation.*;
 public final class RegistryController {
     private final RegistryManagementService service;
     private final IdentityDirectory identities;
-    public RegistryController(RegistryManagementService service,IdentityDirectory identities) { this.service=service;this.identities=identities; }
+    private final ImageDownloadService downloads;
+    public RegistryController(RegistryManagementService service,IdentityDirectory identities,ImageDownloadService downloads) { this.service=service;this.identities=identities;this.downloads=downloads; }
+    @GetMapping("/{registry}/download")
+    public void download(Principal p,@PathVariable String namespace,@PathVariable String registry,@RequestParam String repository,
+            @RequestParam String digest,jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        try(var download=downloads.prepare(identities.actor(p.getName()),namespace,registry,repository,digest)) {
+            response.setContentType("application/x-tar");response.setContentLengthLong(java.nio.file.Files.size(download.archive()));
+            response.setHeader("Content-Disposition",org.springframework.http.ContentDisposition.attachment().filename(download.filename()).build().toString());
+            response.setHeader("Cache-Control","no-store");
+            java.nio.file.Files.copy(download.archive(),response.getOutputStream());
+        }
+    }
     @GetMapping
     public List<RegistryInfo> registries(Principal p,@PathVariable String namespace) { return service.registries(identities.actor(p.getName()),namespace); }
     @GetMapping("/{registry}/repositories")

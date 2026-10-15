@@ -5683,6 +5683,24 @@
         }
       }
     },
+    "/api/namespaces/{namespace}/registries/{registry}/download": {
+      "get": {
+        "operationId": "downloadRegistryImage",
+        "description": "READ. Export exact source digest as Docker-save tar for a single image, or OCI tar preserving all platforms/digests for an image index. Docker archive conversion preserves image configuration/layers but may change manifest digest. Temporary archive is removed after transfer or failure; no catalog, tag or workflow changes.",
+        "parameters": [
+          {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
+          {"name":"registry","in":"path","required":true,"schema":{"type":"string"}},
+          {"name":"repository","in":"query","required":true,"schema":{"type":"string"}},
+          {"name":"digest","in":"query","required":true,"schema":{"type":"string","pattern":"^sha256:[a-f0-9]{64}$"}}
+        ],
+        "responses": {
+          "200":{"description":"Docker-save or OCI image archive; attachment filename identifies format","headers":{"Content-Disposition":{"schema":{"type":"string"}},"Content-Length":{"schema":{"type":"integer","format":"int64"}}},"content":{"application/x-tar":{"schema":{"type":"string","format":"binary"}}}},
+          "401":{"description":"Authentication required"},"403":{"description":"Workspace or registry read forbidden"},
+          "404":{"description":"Manifest not found"},"409":{"description":"Download capacity busy"},
+          "422":{"description":"Invalid repository or digest"},"502":{"description":"Registry or export unavailable"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/registries/{registry}/image": {
       "get": {
         "summary": "Inspect image metadata and deletion blockers",

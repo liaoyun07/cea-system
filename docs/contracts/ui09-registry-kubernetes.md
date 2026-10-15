@@ -6,6 +6,8 @@
 
 ## Registry
 
+- REG-DOWN-01：`GET /registries/{registry}/download?repository=lab/app&digest=sha256:...`，READ权限，复用原工作空间/仓库/路径隔离；仅精确源digest。返回`application/x-tar`：普通镜像为Docker-save格式，attachment文件名`lab-app-<12位摘要>.tar`；索引为保留全部平台/摘要的`.oci.tar`。Docker格式转换保留配置/层内容，不保证manifest摘要不变。内部归档名`lab/app:sha256-<12位摘要>`不依赖可变源标签。不改标签、应用或分发记录。临时目录为image-upload.directory下downloads，并发复用image-upload.concurrency；结束或失败清理本次归档。默认5分钟Skopeo超时保持。接口传输不全量载入Java堆，前端Blob保存本地；无断点续传/后台导出队列。普通tar兼容原应用上传，OCI索引不直接传入只接受docker-save的上传接口。
+
 - UI-14：镜像详情新增`applications`（活动应用ID/版本）和`deployments`（集群 / Kubernetes Namespace / Deployment名称）。源镜像及分发副本均追溯关联，活动应用存在即阻止删除；Deployment包含零副本，不查Job/Pod状态或历史。`blockers`保留索引、未结束分发、查询不可用等既有阻碍。应用/部署关联单独展示，不再混入错误列表。孤立非Deployment工作负载不提供通用防删；镜像删除不影响历史记录，应用目录删除原检查不变。
 - UI-12：`GET /registries/{registry}/inventory?repository=&limit=20&afterRepository=&afterDigest=`按镜像分页；repository可选，去除首尾空白后按路径子串匹配。返回`{images:[{repository,digest,tags}],next:{repository,digest}|null}`，limit为1..100，游标两项同时传入；按路径、digest升序，同一路径同digest多标签合并一行，不同路径同digest保留不同记录。namespace/与Registry授权不变。
 - 前端默认选中仓库即查询第一页，每页20个镜像；路径为空查全部可见路径，筛选/清除/切换仓库/刷新回第一页；删除成功重查第一页。详情/删除使用行自身路径，不使用筛选文本。

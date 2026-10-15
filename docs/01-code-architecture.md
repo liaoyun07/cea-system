@@ -1,5 +1,11 @@
 # 项目结构与 Java 文件索引
 
+REG-DOWN-01：新增ImageDownloadService，当前116个生产Java文件；独立管理归档临时文件和下载并发，复用RegistryManagementService的READ范围校验与Skopeo导出。普通镜像Docker-save、索引OCI；无业务表、工作流状态或新基础设施。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-deployment/src/main/java/com/project/platform/deployment/distribution/ImageDownloadService.java` | 镜像归档导出、有限并发、成功/失败/传输结束清理临时文件 |
+
 JOB-RES-01：不新增生产Java文件。FlowDefinition.Container增加可选ContainerResources/ResourceLimits嵌套记录，FlowValidator校验Kubernetes数量与CLUSTER范围，FlowSchema自动反映字段；KubernetesJobRunner创建Job时读取冻结任务定义并仅设置task容器limits，不改变资源准入或普通执行状态机。[协议](contracts/s4-job-execution.md#job-res-01-任务级资源上限)。
 
 ART-CLEAN-01：新增ExecutionArtifactCleanup（下表），114个生产Java文件。ExecutorPump定时调用；运行时ExecutionService/JdbcExecutionStore拥有候选查询与V34清理完成标记，ObjectStorage仅负责精确前缀和文件名删除。S3副作用与数据库事务分离，无新增表/API/SPI/模块依赖；原Executor/Worker状态、输出和计时不变。[协议](contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)。

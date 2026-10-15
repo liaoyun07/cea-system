@@ -18,6 +18,40 @@ async function open(page, handler) {
   await page.getByRole('navigation').getByRole('button', { name: '镜像仓库', exact: true }).click();
 }
 const table = (page) => page.getByRole('table', { name: '实际镜像库存' });
+test('download pins selected digest, saves tar and displays server failures', async ({ page }) => {
+  const row = { repository: 'lab/download', digest: digest(7), tags: ['v1'] };
+  let fail = false;
+  await page.route('**/registries/*/download?*', async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    expect(query.get('repository')).toBe(row.repository);
+    expect(query.get('digest')).toBe(row.digest);
+    expect(route.request().headers().authorization).toBeTruthy();
+    if (fail)
+      return route.fulfill({
+        status: 502,
+        json: { code: 'IMAGE_PREPARATION_FAILED', message: 'export unavailable' },
+      });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return route.fulfill({
+      contentType: 'application/x-tar',
+      headers: {
+        'Content-Disposition': `attachment; filename="lab-download-${row.digest.slice(7, 19)}.tar"`,
+      },
+      body: Buffer.from([0, 255, 128, 17]),
+    });
+  });
+  await open(page, (route) => route.fulfill({ json: { images: [row], next: null } }));
+  const saved = page.waitForEvent('download');
+  await table(page).getByRole('button', { name: '下载镜像', exact: true }).click();
+  await expect(table(page).getByRole('button', { name: '正在下载…', exact: true })).toBeDisabled();
+  const file = await saved;
+  expect(file.suggestedFilename()).toBe(`lab-download-${row.digest.slice(7, 19)}.tar`);
+  expect(await file.failure()).toBeNull();
+  fail = true;
+  await table(page).getByRole('button', { name: '下载镜像', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('export unavailable');
+  await expect(table(page).getByRole('button', { name: '下载镜像', exact: true })).toBeEnabled();
+});
 test('registry auto lists images, paginates images across paths and filters optionally', async ({ page }) => {
   const rows = Array.from({ length: 25 }, (_, i) => ({
     repository: 'lab/alpha',
