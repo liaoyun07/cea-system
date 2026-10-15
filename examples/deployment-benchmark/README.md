@@ -1,5 +1,24 @@
 # 小、中、大边缘服务部署测试
 
+## 公共服务三档（2026-10-16）
+
+`public-services.mjs` 是独立的公共服务实验，不使用下面的自定义算法镜像。选择Nginx官方非特权镜像、Prometheus和Jenkins，使用上游默认入口/命令/配置；不加文件填充、sleep或初始化插件。三者单副本、CPU request100m/limit1核、内存request128Mi/limit1Gi，HTTP就绪分别为8080 `/`、9090 `/-/ready`、8080 `/login`。Jenkins终点为服务及初始解锁页面可用，不包含人工安装插件、创建管理员、连接构建节点或运行流水线；Prometheus仅默认配置/空数据目录，不采集现有业务。
+
+先拉取上游镜像，再从backend根目录显式选择新的批次ID运行（会创建三个新应用版本和部署）：
+
+```powershell
+docker pull nginxinc/nginx-unprivileged:1.28-alpine
+docker pull prom/prometheus:v3.5.0
+docker pull jenkins/jenkins:lts-jdk21
+node examples/deployment-benchmark/public-services.mjs your-new-run-id
+```
+
+脚本先冻结镜像摘要/配置/环境快照，依次上传注册，每服务测首次和两次缓存后重建，保留全部样本及最后一个部署。公共仓库下载、镜像上传注册在部署计时外；计时包含平台镜像准备/必要分发、Kubernetes调度拉取启动到HTTP就绪观察。已有Nginx缓存不删除，不能将新名称称为冷启动。体积以实际平台manifest层字节之和报告，不混用Docker Desktop的压缩大小。证据写入`.local/cea/public-services/<run-id>`；同ID拒绝重复运行，失败记录保留，不自动重试筛选。没有Service/Ingress/PVC/HPA，不对外暴露或修改旧部署。实测见[验证记录](../../docs/verification/VER-M04-edge-deployment.md)。
+
+上游依据：[Nginx非特权镜像](https://github.com/nginx/docker-nginx-unprivileged)、[Prometheus安装](https://prometheus.io/docs/prometheus/latest/installation/)、[Prometheus就绪接口](https://github.com/prometheus/prometheus/blob/main/docs/management_api.md)、[Jenkins镜像](https://github.com/jenkinsci/docker)、[Jenkins官方Chart探针](https://github.com/jenkinsci/helm-charts/blob/main/charts/jenkins/values.yaml)。
+
+## 自定义算法服务（原实验）
+
 MET-04复用现有算法，新增三个**常驻HTTP示例服务**，不改变平台Java、执行链、Deployment管理或计时协议。仅用于CEA隔离实验；没有公网鉴权/TLS，不应直接暴露到互联网。体积来自实际依赖和模型，不填充无用文件。
 
 | 档位 | 服务与请求 | 依赖及结果 |

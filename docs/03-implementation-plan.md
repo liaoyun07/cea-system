@@ -1,5 +1,9 @@
 # 可修改的实施计划
 
+M04公共服务三档（2026-10-16，完成）：官方Nginx非特权版、Prometheus、Jenkins同edge-a/单副本/CPU上限1核/内存1Gi/默认镜像命令，各首次加两次缓存后CREATE全部成功及HTTP验证通过。Jenkins首次31.802秒超30秒，缓存后28.345/28.518秒；不宣称所有样本达标。31个原服务及旧部署保持，保留三份展示部署，不改平台/权限。[脚本](../examples/deployment-benchmark/public-services.mjs)、[结果](verification/VER-M04-edge-deployment.md)。
+
+M04常见服务补测（2026-10-16，完成）：用户授权通过原部署链路测试常见服务。Nginx官方非特权镜像单副本、HTTP就绪，首次加两次缓存后CREATE均成功并验证欢迎页；保留最后部署用于页面查看。无平台功能变更，不扩展MySQL探针或权限。[验证](verification/VER-M04-edge-deployment.md)。
+
 DEP-HPA-01（2026-10-15，已部署）：部署详情开放原生 autoscaling/v2 CPU/内存 HPA，最小/最大副本、目标利用率和实时状态；不自建控制器/数据库表。依赖现有 Metrics Server、用户授权的四集群 HPA 专项 RBAC。真实 CRUD、requests 校验、权限隔离、自动伸缩下编辑不覆盖副本、手动扩缩互斥、关闭保留当前副本、真实1→2→1扩缩与页面验收通过；不对旧部署自动启用。业务回归、契约复测、构建及临时资源清理完成。[验证](verification/VER-DEP-HPA-01.md)。
 
 REG-DOWN-01（2026-10-15，已部署）：镜像列表/详情按源摘要下载，普通镜像Docker-save tar，索引OCI tar保留多平台/摘要；READ授权、临时归档清理，无业务表/标签写入。313Java完整回归、71前端单测、6浏览器用例、Docker加载运行和真实页面下载通过；前后端healthy，29其他服务保持。[验证](verification/VER-REG-DOWN-01.md)。

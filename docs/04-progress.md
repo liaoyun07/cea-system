@@ -1,5 +1,9 @@
 # 当前进度
 
+M04公共服务三档（2026-10-16，完成）：Nginx/Prometheus/Jenkins九次部署与HTTP校验通过，首次3.016（Nginx已有缓存）/8.304/31.802秒，Jenkins首次未达30秒，缓存后28.345/28.518秒。保留三份公共服务展示部署，31个原容器/四集群旧Deployment保持，无平台改动。[验证](verification/VER-M04-edge-deployment.md)。
+
+M04常见服务补测（2026-10-16，完成）：官方非特权Nginx1.28.2在edge-a部署首次2.944秒、缓存后2.897/2.772秒，均HTTP可用。保留common-nginx-20261016，旧部署及20个CEA Compose服务不变，无平台发布。[验证](verification/VER-M04-edge-deployment.md)。
+
 DEP-HPA-01（2026-10-15，已部署）：原生autoscaling/v2接口与部署详情已接通，HPA接管副本，编辑不回写旧副本；四集群仅补充授权的HPA权限，旧部署无变更。业务回归与契约复测最终314项报告通过，71前端单测、2浏览器用例及真实1→2→1伸缩通过。临时部署/Pod已删除，29个其他服务保持，前后端healthy。[验证](verification/VER-DEP-HPA-01.md)。
 
 REG-DOWN-01（2026-10-15，已部署）：镜像列表/详情增加下载按钮，普通镜像Docker tar、索引OCI tar，自动清理临时文件，不写业务表或改标签。313Java完整回归、71前端单测、6浏览器及线上真实归档核验通过；前后端healthy，29其他服务保持。[验证](verification/VER-REG-DOWN-01.md)。

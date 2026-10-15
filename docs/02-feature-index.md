@@ -1,5 +1,9 @@
 # 功能与验证索引
 
+M04公共服务三档（2026-10-16，完成）：官方Nginx/Prometheus/Jenkins各3次CREATE及HTTP校验成功；9次中8次≤30秒，Jenkins首次31.802秒，真实边界保留，三份部署在原页面可见。[验证](verification/VER-M04-edge-deployment.md)。
+
+M04常见服务补测（2026-10-16，完成）：官方非特权Nginx1.28.2，首次部署2.944秒、缓存后2.897/2.772秒；原页面显示及HTTP响应通过，旧资源保持，无平台代码改动。[验证](verification/VER-M04-edge-deployment.md)。
+
 DEP-HPA-01（2026-10-15，已部署）：部署详情开放原生HPA CPU/内存目标与副本范围，保留原生控制器语义和工作空间隔离；无新增表。四集群仅追加HPA专项权限，旧部署不开启。业务回归及契约复测最终314项报告通过，71前端单测、2浏览器用例及真实1→2→1伸缩通过；旧配置和29个其他服务保持。[功能](features/DEP-HPA-01.md)、[验证](verification/VER-DEP-HPA-01.md)。
 
 REG-DOWN-01（2026-10-15，已部署）：镜像仓库按源摘要下载，普通镜像Docker tar、多平台索引OCI tar；READ授权与临时清理。313Java、71前端单测、6浏览器、真实导入与线上下载通过；29非目标服务保持。[功能](features/REG-DOWN-01.md)、[验证](verification/VER-REG-DOWN-01.md)。
