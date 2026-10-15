@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+DEP-WARM-02（2026-10-16，中心云对照完成）：Grafana同镜像/单Pod资源、1→3各10次，普通14.369秒、预热0.566秒，耗时-96.06%、效率+2439.37%；22条含空池/超库存补测通过。备用2实例约0.020核/578MiB短时采样，初建/补池另记；旧31服务/24部署保持、测试资源清理。仅库存充足扩容响应证据，未接平台Deployment/HPA按钮。[功能](features/DEP-WARM-01.md)、[验证](verification/VER-DEP-WARM-02.md)。
+
 DEP-WARM-01（2026-10-16，中心云安装验证完成）：Agent Sandbox v1.0.2真实双实例预热、领取复用、自动补池、HTTP及空池新建/回收通过；单控制器采样1m/77Mi。测试资源已清理，原31服务/23部署及其他集群保持；未接平台Deployment/HPA，不宣称20%提速。[功能](features/DEP-WARM-01.md)、[验证](verification/VER-DEP-WARM-01.md)。
 
 M04公共服务三档（2026-10-16，完成）：官方Nginx/Prometheus/Jenkins各3次CREATE及HTTP校验成功；9次中8次≤30秒，Jenkins首次31.802秒，真实边界保留，三份部署在原页面可见。[验证](verification/VER-M04-edge-deployment.md)。

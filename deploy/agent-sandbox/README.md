@@ -35,7 +35,9 @@ docker exec cea-cloud-1 kubectl get sandboxwarmpools,sandboxclaims,sandboxes -A
 
 安装后没有默认业务预热池。需要使用时创建 `SandboxTemplate → SandboxWarmPool → SandboxClaim`，由控制器领取已经运行的实例，池自行补充库存。释放 Claim 时本批使用 `shutdownPolicy: Delete`，销毁已使用实例，不把带运行状态的实例放回池。
 
-这是 Sandbox 资源的实例池，不会透明接管 Deployment/ReplicaSet/HPA。现有平台扩容按钮仍调用原生 Deployment scale；接入页面/服务副本管理和正式扩容效率对照属于后续工作，不能把本次冒烟耗时当作提升率。
+这是 Sandbox 资源的实例池，不会透明接管 Deployment/ReplicaSet/HPA。现有平台扩容按钮仍调用原生 Deployment scale；接入页面/服务副本管理仍属于后续工作，不能把安装冒烟耗时当作提升率。
+
+DEP-WARM-02后续独立对照已完成：Grafana同镜像/单实例资源、1→3各10次普通/预热扩容，平均14.369/0.566秒；初建/补池/资源代价及空池、超库存补测均已记录，实验资源已清理。该结果未改变现有平台扩容方式。[实验方案与脚本](SCALE-BENCHMARK.md) · [完整实测](../../docs/verification/VER-DEP-WARM-02.md)。
 
 如以后卸载，先检查四类 CRD 是否已有业务对象并获得对应删除授权；不能直接删除 CRD 导致业务 Sandbox 一并丢失。
 
