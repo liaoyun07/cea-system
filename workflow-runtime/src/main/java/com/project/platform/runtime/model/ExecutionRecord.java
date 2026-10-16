@@ -14,7 +14,11 @@ public record ExecutionRecord(
                           Instant startedAt, Instant endedAt, String error,
                           FlowDefinition.Phase phase, Instant retryAt,String parentTaskRunId,int iteration) {}
     public record Attempt(String taskRunId, int attemptNo, ExecutionState state,
-                          Instant startedAt, Instant endedAt, String error) {}
+                          Instant startedAt, Instant endedAt, String error,JobResourceUsage resourceUsage) {
+        public Attempt(String taskRunId,int attemptNo,ExecutionState state,Instant startedAt,Instant endedAt,String error) {
+            this(taskRunId,attemptNo,state,startedAt,endedAt,error,null);
+        }
+    }
     public record LogEntry(long id, String executionId, String taskRunId, int attemptNo,
                            String level, String message, Instant at) {}
     public record Submission(String id, String requestHash) {}

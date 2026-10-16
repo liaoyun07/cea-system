@@ -78,6 +78,10 @@ public final class ExecutionService {
         if (tasks(namespace, id).stream().noneMatch(t -> t.id().equals(taskRunId))) throw WorkflowException.missing("task run not found");
         return store.attempts(taskRunId);
     }
+    public ExecutionResourceUsage resourceUsage(String namespace,String id) {
+        var execution=store.get(namespace,id);
+        return ExecutionResourceUsage.summarize(execution,store.tasks(id),store.resourceAttempts(id));
+    }
     public List<LogEntry> logs(String namespace, String id, long afterId, int limit) {
         page(limit, 0);
         if (afterId < 0) throw WorkflowException.invalid("afterId", "must not be negative");

@@ -146,7 +146,19 @@ public final class JdbcExecutionStore {
     public List<Attempt> attempts(String taskRunId) {
         return jdbc.query("SELECT * FROM wf_task_attempt WHERE task_run_id=? ORDER BY attempt_no",
                 (rs,row)->new Attempt(taskRunId,rs.getInt("attempt_no"),ExecutionState.valueOf(rs.getString("state")),
-                        instant(rs,"started_at"),instant(rs,"ended_at"),rs.getString("error_text")),taskRunId);
+                        instant(rs,"started_at"),instant(rs,"ended_at"),rs.getString("error_text"),
+                        rs.getString("resource_usage_json")==null?null:json.read(rs.getString("resource_usage_json"),com.project.platform.runtime.model.JobResourceUsage.class)),taskRunId);
+    }
+    public List<Attempt> resourceAttempts(String executionId) {
+        return jdbc.query("""
+                SELECT a.* FROM wf_task_attempt a JOIN wf_task_run t ON t.id=a.task_run_id
+                WHERE t.execution_id=? ORDER BY t.task_index,a.attempt_no
+                """,(rs,row)->new Attempt(rs.getString("task_run_id"),rs.getInt("attempt_no"),ExecutionState.valueOf(rs.getString("state")),
+                instant(rs,"started_at"),instant(rs,"ended_at"),rs.getString("error_text"),
+                rs.getString("resource_usage_json")==null?null:json.read(rs.getString("resource_usage_json"),com.project.platform.runtime.model.JobResourceUsage.class)),executionId);
+    }
+    public void saveResourceUsage(String taskRunId,int attempt,com.project.platform.runtime.model.JobResourceUsage resources) {
+        if(resources!=null)jdbc.update("UPDATE wf_task_attempt SET resource_usage_json=? WHERE task_run_id=? AND attempt_no=?",json.write(resources),taskRunId,attempt);
     }
     public List<LogEntry> logs(String id,long afterId,int limit) {
         return jdbc.query("SELECT * FROM wf_log WHERE execution_id=? AND id>? ORDER BY id LIMIT ?",

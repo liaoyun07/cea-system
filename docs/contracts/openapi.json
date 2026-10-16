@@ -16,6 +16,22 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/executions/{id}/resource-usage": {
+      "parameters": [
+        {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
+        {"name":"id","in":"path","required":true,"schema":{"type":"string"}}
+      ],
+      "get": {
+        "operationId":"executionResourceUsage",
+        "description":"READ. Durable Job container costs including retries and afterExecution. Full totals only when COMPLETE; historical/missing counters never become zero.",
+        "responses": {
+          "200":{"description":"Resource cost rollup","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ExecutionResourceUsage"}}}},
+          "401":{"description":"Authentication required"},
+          "403":{"description":"Namespace/action not permitted"},
+          "404":{"description":"Execution not found"}
+        }
+      }
+    },
     "/api/namespaces/{namespace}/clusters/{clusterId}/kubernetes/namespaces/{kubeNamespace}/deployments/{name}/autoscaling": {
       "parameters": [
         {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
@@ -5846,6 +5862,48 @@
       }
     },
     "schemas": {
+      "ContainerResourceUsage": {
+        "type":"object","additionalProperties":false,
+        "properties": {
+          "name":{"type":"string"},
+          "status":{"type":"string","enum":["COMPLETE","MISSING","INCOMPLETE","INVALID"]},
+          "cpuCoreSeconds":{"type":["number","null"],"minimum":0},
+          "memoryByteSeconds":{"type":["number","null"],"minimum":0},
+          "durationSeconds":{"type":["number","null"],"minimum":0},
+          "peakMemoryBytes":{"type":["integer","null"],"minimum":0,"description":"Sampled working-set peak, not kernel lifetime peak"},
+          "samples":{"type":["integer","null"],"minimum":0}
+        },
+        "required":["name","status","cpuCoreSeconds","memoryByteSeconds","durationSeconds","peakMemoryBytes","samples"]
+      },
+      "JobResourceUsage": {
+        "type":"object","additionalProperties":false,
+        "properties": {
+          "jobName":{"type":"string"},"jobUid":{"type":"string"},"namespace":{"type":"string"},"podUid":{"type":["string","null"]},
+          "containers":{"type":"array","items":{"$ref":"#/components/schemas/ContainerResourceUsage"}}
+        },
+        "required":["jobName","jobUid","namespace","podUid","containers"]
+      },
+      "ExecutionResourceJob": {
+        "type":"object","additionalProperties":false,
+        "properties": {
+          "taskRunId":{"type":"string"},"taskId":{"type":"string"},"attemptNo":{"type":"integer"},
+          "state":{"$ref":"#/components/schemas/State"},
+          "usage":{"anyOf":[{"$ref":"#/components/schemas/JobResourceUsage"},{"type":"null"}]}
+        },
+        "required":["taskRunId","taskId","attemptNo","state","usage"]
+      },
+      "ExecutionResourceUsage": {
+        "type":"object","additionalProperties":false,
+        "properties": {
+          "status":{"type":"string","enum":["COMPLETE","RUNNING","INCOMPLETE","UNAVAILABLE","NOT_APPLICABLE"]},
+          "attempts":{"type":"integer"},"completeJobs":{"type":"integer"},
+          "durationSeconds":{"type":["number","null"]},"cpuCoreSeconds":{"type":["number","null"]},
+          "memoryGiBSeconds":{"type":["number","null"]},"averageMemoryGiB":{"type":["number","null"]},
+          "observedCpuCoreSeconds":{"type":["number","null"]},"observedMemoryGiBSeconds":{"type":["number","null"]},
+          "jobs":{"type":"array","items":{"$ref":"#/components/schemas/ExecutionResourceJob"}}
+        },
+        "required":["status","attempts","completeJobs","durationSeconds","cpuCoreSeconds","memoryGiBSeconds","averageMemoryGiB","observedCpuCoreSeconds","observedMemoryGiBSeconds","jobs"]
+      },
       "DeploymentAutoscalingRequest": {
         "type":"object","required":["minReplicas","maxReplicas"],
         "properties":{"minReplicas":{"type":"integer","minimum":1,"maximum":100},"maxReplicas":{"type":"integer","minimum":1,"maximum":100},"cpuUtilization":{"type":["integer","null"],"minimum":1},"memoryUtilization":{"type":["integer","null"],"minimum":1},"resourceVersion":{"type":["string","null"]}},
@@ -7665,6 +7723,7 @@
       "Attempt": {
         "type": "object",
         "properties": {
+          "resourceUsage":{"anyOf":[{"$ref":"#/components/schemas/JobResourceUsage"},{"type":"null"}]},
           "taskRunId": {
             "type": "string"
           },
@@ -7714,7 +7773,8 @@
           "state",
           "startedAt",
           "endedAt",
-          "error"
+          "error",
+          "resourceUsage"
         ],
         "additionalProperties": false
       },

@@ -49,6 +49,10 @@ class ContractTest {
         var spec = specification();
         Map<?,?> schemas = (Map<?,?>)((Map<?,?>)spec.get("components")).get("schemas");
         Map<String,Class<?>> records = Map.ofEntries(
+                Map.entry("ExecutionResourceUsage",com.project.platform.runtime.execution.ExecutionResourceUsage.class),
+                Map.entry("ExecutionResourceJob",com.project.platform.runtime.execution.ExecutionResourceUsage.Job.class),
+                Map.entry("JobResourceUsage",com.project.platform.runtime.model.JobResourceUsage.class),
+                Map.entry("ContainerResourceUsage",com.project.platform.runtime.model.JobResourceUsage.Container.class),
                 Map.entry("IngressClass",com.project.platform.resource.kubernetes.KubernetesManagementService.IngressClassInfo.class),
                 Map.entry("IngressRoute",com.project.platform.resource.kubernetes.KubernetesManagementService.IngressRoute.class),
                 Map.entry("IngressSave",com.project.platform.resource.kubernetes.KubernetesManagementService.IngressRequest.class),

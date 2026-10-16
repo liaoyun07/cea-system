@@ -88,6 +88,10 @@ public final class ExecutionController {
                                               @RequestParam(defaultValue="0") long afterId, @RequestParam(defaultValue="50") int limit) {
         return executions.logs(identities.actor(principal.getName()), namespace, id, afterId, limit);
     }
+    @GetMapping("/{id}/resource-usage")
+    public com.project.platform.runtime.execution.ExecutionResourceUsage resourceUsage(Principal principal,@PathVariable String namespace,@PathVariable String id) {
+        return executions.resourceUsage(identities.actor(principal.getName()),namespace,id);
+    }
     @GetMapping("/{id}/tasks/{taskRunId}/output-json")
     public Map<?,?> outputJson(Principal principal,@PathVariable String namespace,@PathVariable String id,@PathVariable String taskRunId,@RequestParam String port) {
         return outputs.readJson(identities.actor(principal.getName()),namespace,id,taskRunId,port);

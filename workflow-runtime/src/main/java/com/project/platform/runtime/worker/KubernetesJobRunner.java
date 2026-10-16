@@ -16,11 +16,13 @@ public final class KubernetesJobRunner {
         String name=ContainerTask.name(context.job());
         long lastRefresh=0;
         boolean reported=false;
+        Pod lastPod=null;
         while(true) {
             context.check();
             String cancellation=context.cancellation();
             Job job=ensure(client,name,spec,helperImage,context.job().task().container().resources());
             var pods=client.pods().withLabel("job-name",name).list().getItems();
+            if(pods.size()==1)lastPod=pods.getFirst();
             if(!reported) {
                 if(pods.size()==1 && pods.getFirst().getStatus()!=null && pods.getFirst().getStatus().getInitContainerStatuses()!=null)
                     for(var init:pods.getFirst().getStatus().getInitContainerStatuses())if("files-in".equals(init.getName()) && init.getState()!=null && init.getState().getTerminated()!=null) {
@@ -31,7 +33,7 @@ public final class KubernetesJobRunner {
             }
             if(cancellation!=null) {
                 if(!Boolean.TRUE.equals(job.getSpec().getSuspend()))client.batch().v1().jobs().withName(name).edit(j->{j.getSpec().setSuspend(true);return j;});
-                if(stopped(client,name)){removeAuthorization(client,job);return WorkerJob.Result.failed(cancellation);}
+                if(stopped(client,name)){removeAuthorization(client,job);return measured(WorkerJob.Result.failed(cancellation),client,job,lastPod);}
             } else if("true".equals(job.getMetadata().getAnnotations()==null?null:job.getMetadata().getAnnotations().get(FILES_PENDING))) {
                 if(!Boolean.TRUE.equals(job.getSpec().getSuspend()))throw new IOException("file preparation Job must remain suspended");
                 context.check();authorize(client,job,files.authorization());
@@ -45,14 +47,14 @@ public final class KubernetesJobRunner {
                 });
                 lastRefresh=System.nanoTime();
             } else if(Boolean.TRUE.equals(job.getSpec().getSuspend())) {
-                if(stopped(client,name)){removeAuthorization(client,job);return WorkerJob.Result.failed("remote Job was suspended");}
+                if(stopped(client,name)){removeAuthorization(client,job);return measured(WorkerJob.Result.failed("remote Job was suspended"),client,job,lastPod);}
             } else if(condition(job,"Complete")) {
                 var outputs=new LinkedHashMap<String,Object>();
                 for(String output:spec.outputs())outputs.put(output,files.published(output));
                 removeAuthorization(client,job);
-                return WorkerJob.Result.success(outputs);
+                return measured(WorkerJob.Result.success(outputs),client,job,lastPod);
             } else if(condition(job,"Failed")) {
-                removeAuthorization(client,job);return WorkerJob.Result.failed("Kubernetes Job failed; inspect "+name);
+                removeAuthorization(client,job);return measured(WorkerJob.Result.failed("Kubernetes Job failed; inspect "+name),client,job,lastPod);
             } else {
                 if(lastRefresh==0 || System.nanoTime()-lastRefresh>=java.time.Duration.ofMinutes(15).toNanos()) {
                     context.check();authorize(client,job,files.authorization());
@@ -63,16 +65,23 @@ public final class KubernetesJobRunner {
                     // A killed main cannot write its exit marker; don't leave the output helper waiting forever.
                     context.check();client.batch().v1().jobs().withName(name).edit(j->{j.getSpec().setSuspend(true);return j;});
                     while(!stopped(client,name)){context.check();Thread.sleep(200);}
-                    removeAuthorization(client,job);return WorkerJob.Result.failed("algorithm or file helper failed; inspect "+name);
+                    removeAuthorization(client,job);return measured(WorkerJob.Result.failed("algorithm or file helper failed; inspect "+name),client,job,lastPod);
                 }
             }
             Thread.sleep(200);
         }
     }
+    private WorkerJob.Result measured(WorkerJob.Result result,KubernetesClient client,Job job,Pod previous) {
+        var pods=client.pods().withLabel("job-name",job.getMetadata().getName()).list().getItems();
+        return result.withResources(KubernetesResourceReport.read(job,pods.size()==1?pods.getFirst():previous));
+    }
     private Job ensure(KubernetesClient client,String name,Spec spec,String helperImage,
                        com.project.platform.runtime.model.FlowDefinition.ContainerResources resources) {
         var existing=client.batch().v1().jobs().withName(name).get();if(existing!=null)return existing;
-        var args=new ArrayList<>(List.of("-c",WRAPPER,"cea-task"));args.addAll(spec.command());
+        // Old helper images used by existing terminal experiments have no meter.
+        // Keep those commands working and report MISSING, never fabricate zero cost.
+        String launch="if [ -x /cea-work/.cea-tools/resource-meter ]; then exec /cea-work/.cea-tools/resource-meter -- \"$@\"; else exec \"$@\"; fi";
+        var args=new ArrayList<>(List.of("-c",launch,"cea-meter","/bin/sh","-c",WRAPPER,"cea-task"));args.addAll(spec.command());
         var env=spec.environment().entrySet().stream().map(e->new EnvVar(e.getKey(),e.getValue(),null)).toList();
         var job=new JobBuilder().withNewMetadata().withName(name).addToAnnotations(FILES_PENDING,"true").endMetadata().withNewSpec()
                 .withBackoffLimit(0).withSuspend(true).withNewTemplate().withNewMetadata().endMetadata().withNewSpec()
@@ -102,8 +111,13 @@ public final class KubernetesJobRunner {
         return job.getStatus()!=null && job.getStatus().getConditions()!=null && job.getStatus().getConditions().stream().anyMatch(c->type.equals(c.getType())&&"True".equals(c.getStatus()));
     }
     private Container helper(String name,String image,String phase) {
+        String launch="if [ -x /app/resource-meter ]; then exec /app/resource-meter -- \"$@\"; else exec \"$@\"; fi";
+        var args=new ArrayList<>(List.of("-c",launch,"cea-meter"));
+        if("input".equals(phase))args.addAll(List.of("/bin/sh","-c",
+                "if [ -x /app/resource-meter ]; then mkdir -p /cea-work/.cea-tools && cp /app/resource-meter /cea-work/.cea-tools/resource-meter && chmod 755 /cea-work/.cea-tools/resource-meter || exit 1; fi; exec python /app/transfer.py input"));
+        else args.addAll(List.of("python","/app/transfer.py",phase));
         return new ContainerBuilder().withName(name).withImage(image).withImagePullPolicy("IfNotPresent")
-                .withCommand("python","/app/transfer.py",phase)
+                .withCommand("/bin/sh").withArgs(args)
                 .addNewVolumeMount().withName("work").withMountPath(ROOT).endVolumeMount()
                 .addNewVolumeMount().withName("file-plan").withMountPath("/cea-files").withReadOnly(true).endVolumeMount()
                 .withNewSecurityContext().withRunAsUser(0L).withReadOnlyRootFilesystem(true).withAllowPrivilegeEscalation(false)

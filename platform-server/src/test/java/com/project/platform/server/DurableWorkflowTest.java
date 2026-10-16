@@ -270,7 +270,7 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(33,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(34,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
     }
     @Test void priorityUpgradeRequiresIdleAndKeepsExistingHistory() throws Exception {
@@ -681,6 +681,26 @@ private String custom(String body) {
         drain();
         assertEquals(ExecutionState.SUCCESS,executions().get(actor,"lab",executionId).state());
         assertEquals(1,executions().logs(actor,"lab",executionId,0,50).size());
+    }
+
+    @Test void jobResourcesSurviveResultMergeRestartAndKeepReadPermissions() throws Exception {
+        String executionId=dispatchCustom("tasks: [{id: one, type: core.Log, message: durable}]\n");
+        var lease=jobs().claim("resource-worker",3000);
+        var usage=new com.project.platform.runtime.model.JobResourceUsage("job","job-uid","lab","pod-uid",
+                java.util.stream.Stream.of("files-in","task","files-out").map(name->
+                        new com.project.platform.runtime.model.JobResourceUsage.Container(name,"COMPLETE",1d,1073741824d,1d,100L,11)).toList());
+        assertTrue(jobs().finish(lease,WorkerJob.Result.success(Map.of("message","durable")).withResources(usage)));
+        context.close();context=open();drain();
+        assertEquals(usage,executions().attempts(actor,"lab",executionId,first(executionId).id()).getFirst().resourceUsage());
+        assertEquals(0,jdbc().queryForObject("SELECT COUNT(*) FROM wf_worker_job WHERE task_run_id=?",Integer.class,first(executionId).id()));
+        var totals=executions().resourceUsage(actor,"lab",executionId);
+        assertEquals("COMPLETE",totals.status());assertEquals(3d,totals.cpuCoreSeconds());assertEquals(3d,totals.memoryGiBSeconds());
+        context.close();context=open();assertEquals(totals,executions().resourceUsage(actor,"lab",executionId));
+        String path="/api/namespaces/lab/executions/"+executionId+"/resource-usage";
+        var response=call(port(),"GET",path,"viewer",null,null);
+        assertEquals(200,response.statusCode());assertEquals("COMPLETE",json.map(response.body()).get("status"));
+        assertEquals(403,call(port(),"GET",path.replace("/lab/","/other/"),"viewer",null,null).statusCode());
+        assertEquals(404,call(port(),"GET",path.replace(executionId,"missing"),"viewer",null,null).statusCode());
     }
 
     @Test void constantRetryWaitIsDurableAndMaxAttemptsIncludesFirst() {

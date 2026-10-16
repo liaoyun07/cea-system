@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+JOB-USAGE-01（2026-10-17，已部署）：普通Job自动采集三容器CPU核秒与内存时间积分，每Attempt持久化、按流程汇总，失败重试计入；无需修改业务镜像。四集群4个成功Job与2次失败尝试通过，删除6个测试Job后记录保持，2938旧执行/85旧Flow/19非后端服务未变。前端未新增展示，历史不补采，不代表算法资源降低指标已达标。[功能](docs/features/JOB-USAGE-01.md)、[验证](docs/verification/VER-JOB-USAGE-01.md)。
+
 LOCK-01（2026-10-14，已部署）：删除全局准入锁，检查和执行使用现有 Worker 有界并发；卸载网关调用移出资源事务，只保留领取、槽位和结果登记的短事务。307项Java完整回归及线上双任务并行通过；2653旧执行、82旧Flow及25个非目标服务保持。现场模拟终端已停止，额外三位置请求未发出，未启动旧环境或重跑大批量实验。[验证](docs/verification/VER-LOCK-01.md)。
 
 ART-CLEAN-01（2026-10-14，已部署）：删除891份历史 `prepared.pt`（208.94 GiB），其他对象未变。CEA默认在流程及后处理全部结束后清理prepared.pt，保留数据集、模型、报告和执行记录。当前工作树304项Java完整回归及线上三任务文件读写/自动清理验证通过。[协议](docs/contracts/file01-pod-artifacts.md#流程结束后的临时输出清理art-clean-01)、[验证](docs/verification/VER-ART-CLEAN-01.md)。

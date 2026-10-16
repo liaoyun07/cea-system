@@ -127,6 +127,7 @@ class ImageDistributionTest {
             String pause=new org.testcontainers.images.RemoteDockerImage(DockerImageName.parse("rancher/mirrored-pause:3.6")).get();
             String helper=new org.testcontainers.images.builder.ImageFromDockerfile("cea-file-helper-test:"+UUID.randomUUID(),true)
                     .withFileFromPath("Dockerfile",Path.of("../deploy/file-helper/Dockerfile"))
+                    .withFileFromPath("meter",Path.of("../deploy/file-helper/meter"))
                     .withFileFromPath("transfer.py",Path.of("../deploy/file-helper/transfer.py")).get();
             Path helperArchive=Files.createTempFile("cea-file-helper-",".tar");
             try(var content=DockerClientFactory.instance().client().saveImageCmd(helper).exec()) {
@@ -1276,6 +1277,9 @@ class ImageDistributionTest {
             assertEquals("hello\nactual dataset bytes\n",new String(input.readAllBytes(),StandardCharsets.UTF_8));
         }
         assertTrue(executions().get(actor,"lab",id).definition().inputs().isEmpty());
+        var cost=executions().resourceUsage(actor,"lab",id);
+        assertEquals("COMPLETE",cost.status(),cost.toString());assertEquals(2,cost.completeJobs());
+        assertTrue(cost.cpuCoreSeconds()>0);assertTrue(cost.memoryGiBSeconds()>0);
         for(var task:executions().tasks(actor,"lab",id)) {
             assertEquals(1,executions().attempts(actor,"lab",id,task.id()).size());
             var job=admin.batch().v1().jobs().inNamespace("s4-test").withName("cea-"+task.id()+"-a1").get();

@@ -244,6 +244,7 @@ public final class FlowExecutor {
                 else result=WorkerJob.Result.failed("attempt timed out");
             }
             if(result==null) return;
+            store.saveResourceUsage(run.id(),attempt.attemptNo(),result.resourceUsage());
             workers.remove(run.id(),attempt.attemptNo());
             store.finishAttempt(run,attempt.attemptNo(),result.success()?SUCCESS:FAILED,result.outputs(),result.error(),now);
             if(!result.success()||"core.Log".equals(spec.type())) store.log(execution.id(),run.id(),attempt.attemptNo(),result.success()?"INFO":"ERROR",result.success()?(String)result.outputs().get("message"):result.error(),now);
@@ -283,7 +284,9 @@ public final class FlowExecutor {
                 if(spec.container()!=null && run.state()==RUNNING && !attempts.isEmpty()) {
                     int attempt=attempts.getLast().attemptNo();
                     workers.cancel(run.id(),attempt,"cancelled");
-                    if(workers.result(run.id(),attempt)==null)return false;
+                    var result=workers.result(run.id(),attempt);
+                    if(result==null)return false;
+                    store.saveResourceUsage(run.id(),attempt,result.resourceUsage());
                 }
                 if(!attempts.isEmpty()) workers.remove(run.id(),attempts.getLast().attemptNo());
                 store.killTask(run,now);

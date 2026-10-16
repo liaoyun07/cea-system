@@ -1,5 +1,13 @@
 # 项目结构与 Java 文件索引
 
+JOB-USAGE-01：新增三个生产Java类，资源沿原Worker结果回Executor，在原事务中保存Attempt JSON；不引入跨模块表访问或指标服务。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `workflow-runtime/src/main/java/com/project/platform/runtime/model/JobResourceUsage.java` | Job身份与三个容器的资源摘要；完整性判定 |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/worker/KubernetesResourceReport.java` | 从Pod终止消息解析资源，缺失/异常不冒充0 |
+| `workflow-runtime/src/main/java/com/project/platform/runtime/execution/ExecutionResourceUsage.java` | Attempt含失败重试/并行/后处理的查询时汇总，不改变执行状态 |
+
 DEP-HPA-01：新增原生 HPA 映射类，当前117个生产Java文件；DeploymentService复用原授权/Namespace/Deployment所有权校验，副本由Kubernetes控制。无新表/状态机/模块依赖。
 
 | Java 文件 | 当前职责 |

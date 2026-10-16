@@ -86,6 +86,10 @@ public final class FlowExecutionService {
         access.require(actor, namespace, Action.READ);
         return executions.attempts(namespace, id, taskRunId);
     }
+    public com.project.platform.runtime.execution.ExecutionResourceUsage resourceUsage(Actor actor,String namespace,String id) {
+        access.require(actor,namespace,Action.READ);
+        return executions.resourceUsage(namespace,id);
+    }
     public List<ExecutionRecord.LogEntry> logs(Actor actor, String namespace, String id, long afterId, int limit) {
         access.require(actor, namespace, Action.READ);
         return executions.logs(namespace, id, afterId, limit);
