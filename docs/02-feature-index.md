@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+FL-RESOURCE95-01（2026-10-17，实测完成）：原强非IID MNIST、seed31/40轮各一次，FedAvg第21轮95.12%、FedCADS第8轮95.49%；首达标CPU381.42→141.21核秒（降62.98%）、内存101.55→40.47GiB·s（降60.15%），平均内存124.49→141.19MiB（增13.41%）。402 Job/1206容器摘要、独立模型复评、旧环境及8项汇总单测通过；同40轮不省资源，单seed/首次达标不作稳定达标声明。[方案](../examples/federated/resource95/README.md)、[验证](verification/VER-FL-RESOURCE95-01.md)。
+
 JOB-USAGE-01（2026-10-17，已部署）：通用Job三容器CPU核秒/内存积分/采样峰值、每Attempt持久化、流程汇总READ接口。四集群4成功Job、2失败尝试及清理后记录保留通过；业务镜像/前端不改，历史缺失不填0。完整回归的2项契约遗漏已修复并专项复测通过。[功能](features/JOB-USAGE-01.md)、[协议](contracts/job-resource-usage.md)、[验证](verification/VER-JOB-USAGE-01.md)。
 
 DEP-WARM-02（2026-10-16，中心云对照完成）：Grafana同镜像/单Pod资源、1→3各10次，普通14.369秒、预热0.566秒，耗时-96.06%、效率+2439.37%；22条含空池/超库存补测通过。备用2实例约0.020核/578MiB短时采样，初建/补池另记；旧31服务/24部署保持、测试资源清理。仅库存充足扩容响应证据，未接平台Deployment/HPA按钮。[功能](features/DEP-WARM-01.md)、[验证](verification/VER-DEP-WARM-02.md)。
