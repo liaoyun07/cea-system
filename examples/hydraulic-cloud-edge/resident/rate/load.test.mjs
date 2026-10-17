@@ -76,6 +76,14 @@ test('HC15 only changes log identity, not requests, retries or failure accountin
   assert(result.logs.some(value => value.startsWith('HC15_REQUEST_ERROR ')));
   assert.equal(result.requests.length, 3); assert.deepEqual(result.metrics.failed_batches, [1]);
 });
+test('HC16 preserves complete-chain requests and byte accounting with isolated logs', async () => {
+  const good = await exercise({experiment: 'HC-16'});
+  assert.equal(good.requests.length, 3);assert.deepEqual(good.gets, ['cloud/result/test/0']);
+  assert.deepEqual(good.metrics.completed_signal_bytes, [24]);assert.deepEqual(good.metrics.failed_batches, [0]);
+  const failed = await exercise({experiment: 'HC-16', responses: [{status: 200}, {status: 400}, {status: 200}]});
+  assert(failed.logs.some(value => value.startsWith('HC16_REQUEST_ERROR ')));
+  assert.equal(failed.requests.length, 3);assert.deepEqual(failed.metrics.failed_batches, [1]);
+});
 
 test('cloud HTTP and numerical errors both fail complete-chain accounting', async () => {
   for (const cloud of [{status: 503, body: 'not complete'}, {status: 200, json: () => ({...expected, flagCount: 9})}]) {

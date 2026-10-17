@@ -1,4 +1,30 @@
-# HC-14/15：3 GB/s 目标输入下的完整业务压测
+# HC-14/15/16：3 GB/s 目标输入下的完整业务压测
+
+## HC-16：32 → 48 VU 小对照
+
+仅改变k6并发上限，继续使用已有 `cea/hydraulic-resident:hc15-fixed` 镜像。四业务各2核、边缘2GiB/中心1GiB，k6为7核5GiB、Go软预算4GiB；原35批、64周期、算法、HTTP结果核验和273批/秒目标不变。不允许 `configure`、64 VU或额外60秒确认。
+
+独立命名空间 `cea-hc16-20261017`、NodePort31096和证据目录 `.local/cea/hc16-20261017`，不读取覆盖HC14/15结果。冻结顺序如下，各轮结束后人工查看内存、错误、TCP计数和漏发再继续，不可无条件整段执行；失败或宿主保护触发后不重跑。
+
+```powershell
+$env:HC_EXPERIMENT='HC-16'
+$env:HC_REVISION='fixed'
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs setup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs verify
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial warmup-32 10s 32 32
+# 每轮必须先检查健康和余量；此处仅列出顺序，不是自动连续运行脚本。
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial baseline-32 30s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial probe-48 10s 48 48
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial candidate-48 30s 48 48
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial return-32 30s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs report
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs cleanup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs audit
+```
+
+只比较 `baseline-32`、`candidate-48`、`return-32` 的完整业务速率、时延、漏发和资源。预热/探测不计入对照；最后32 VU用于观察执行顺序/热缓存漂移。每轮继续保存四Pod TCP原始计数、cgroup、宿主和k6证据，保留原来的错误/内存保护。增加VU不等于增加CPU配额，不预先宣称提高吞吐或稳定达到2GB/s。
+
+本次结果：32/48/32为1.460758/1.186767/1.275676 GB/s，正式10747批全成功，但48慢于前后32、均有漏发，且后32比前32低12.67%。不能把全部差异视为无漂移A/B效应；未达2GB/s。五档及清理审计完整保留，见[HC-16验证](../../../../docs/verification/VER-HC-16.md)。每档结束只请求异步删除压测Pod，须等该Pod正常删除再进入下一档；不要强制删除或因前档仍终止而重跑已提交档位。
 
 ## HC-15 连接修复与复测
 

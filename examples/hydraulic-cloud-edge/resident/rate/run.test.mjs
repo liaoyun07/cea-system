@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers} from './run.mjs';
+import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters} from './run.mjs';
 
 test('initial allocation stays within 16-core host minus reserve',()=>{assertBudget(initialAllocation,16);assert.throws(()=>assertBudget(initialAllocation,15));});
 test('single business increase requires spare quota and leaves other services untouched',()=>{
-  assert.throws(()=>changedAllocation(initialAllocation,'edge-a',3,2048,16));
-  const lowerLoad=changedAllocation(initialAllocation,'load',6,5120,16),raised=changedAllocation(lowerLoad,'edge-a',3,2048,16);
+  assert.throws(()=>changedAllocation(initialAllocation,'edge-a',3,2048,16,'HC-14'));
+  const lowerLoad=changedAllocation(initialAllocation,'load',6,5120,16,'HC-14'),raised=changedAllocation(lowerLoad,'edge-a',3,2048,16,'HC-14');
   assert.equal(raised['edge-a'].cpu,3);assert.deepEqual(raised['edge-b'],initialAllocation['edge-b']);assert.equal(raised.load.cpu,6);assert.equal(initialAllocation.load.cpu,7);
 });
 test('resource changes cannot target old services or raise k6 RAM',()=>{
@@ -16,6 +16,13 @@ test('k6 Pod keeps fixed arrival rate, explicit VU ceilings and real limit captu
   const p=loadPodSpec('probe','10s',32,32,{},initialAllocation),c=p.spec.containers[0],env=Object.fromEntries(c.env.map(x=>[x.name,x.value]));
   assert.equal(env.RATE,'273');assert.equal(env.DURATION,'10s');assert.equal(env.PRE_ALLOCATED_VUS,'32');assert.equal(env.MAX_VUS,'32');
   assert.equal(p.metadata.namespace,experimentConfig(process.env.HC_EXPERIMENT||'HC-14',process.env.HC_REVISION).namespace);assert.deepEqual(c.resources.limits,{cpu:'7',memory:'5120Mi'});assert(c.command[2].includes('/sys/fs/cgroup/cpu.max'));
+});
+test('32 and 48 VU Pods differ only in explicit concurrency environment',()=>{
+  const baseline=loadPodSpec('same','30s',32,32,{},initialAllocation),candidate=loadPodSpec('same','30s',48,48,{},initialAllocation);
+  const env=Object.fromEntries(candidate.spec.containers[0].env.map(row=>[row.name,row.value]));
+  assert.equal(env.GOMEMLIMIT,'4096MiB');assert.equal(env.GOGC,'50');assert.equal(env.PRE_ALLOCATED_VUS,'48');assert.equal(env.MAX_VUS,'48');
+  for(const row of candidate.spec.containers[0].env)if(['PRE_ALLOCATED_VUS','MAX_VUS'].includes(row.name))row.value='32';
+  assert.deepEqual(candidate,baseline);
 });
 test('console stats parser handles quoted JSON and escaped trailing newline',()=>{
   const message='HC14_STATS cloud '+JSON.stringify({completed:1,stages:{message:'a "b"'}})+'\n';
@@ -52,6 +59,25 @@ test('HC15 revisions isolate image, namespace and evidence root without changing
   assert.notEqual(diagnostic.batch,fixed.batch);assert.notEqual(diagnostic.namespace,fixed.namespace);assert.equal(fixed.nodePort,31095);
   assert.throws(()=>experimentConfig('HC-15'));assert.throws(()=>experimentConfig('HC-15','retry'));
 });
+test('HC16 isolates the concurrency comparison while retaining the fixed HC15 image',()=>{
+  const previous=experimentConfig('HC-15','fixed'),current=experimentConfig('HC-16');
+  assert.equal(current.batch,'hc16-20261017');assert.equal(current.namespace,'cea-hc16-20261017');assert.equal(current.nodePort,31096);
+  assert.equal(current.image,previous.image);assert.equal(current.logPrefix,'HC16');assert.notEqual(current.batch,previous.batch);
+  assert.deepEqual(experimentConfig('HC-16','fixed'),current);assert.throws(()=>experimentConfig('HC-16','diagnostic'));
+  assert.throws(()=>changedAllocation(initialAllocation,'load',6,5120,16,'HC-16'));
+  assert.throws(()=>changedAllocation(initialAllocation,'edge-a',3,2048,18,'HC-16'));
+});
+test('HC16 freezes only the authorized 32/48/32 sequence, not historical confirmation rules',()=>{
+  const protocol=experimentProtocol('HC-16');assert.equal(protocol.rate,273);assert.equal(protocol.confirmRepetitions,undefined);
+  assert.deepEqual(protocol.sequence.map(row=>[row.label,row.duration,row.preVUs,row.maxVUs]),[
+    ['warmup-32','10s',32,32],['baseline-32','30s',32,32],['probe-48','10s',48,48],['candidate-48','30s',48,48],['return-32','30s',32,32]
+  ]);
+  for(const row of hc16Sequence)validateTrialParameters(row.label,row.duration,row.preVUs,row.maxVUs,'HC-16');
+  assert.throws(()=>validateTrialParameters('confirm-1','60s',32,32,'HC-16'));
+  assert.throws(()=>validateTrialParameters('candidate-48','30s',32,48,'HC-16'));
+  assert.throws(()=>validateTrialParameters('candidate-48','60s',48,48,'HC-16'));
+  validateTrialParameters('confirm-1','60s',32,32,'HC-15');
+});
 test('TCP evidence parses paired raw counters and reports relevant same-Pod deltas',()=>{
   const beforeCounters=parseNetworkCounters('TcpExt: ListenOverflows ListenDrops TCPAbortOnData\nTcpExt: 4 5 0\nTcp: OutRsts EstabResets\nTcp: 8 1\n');
   const afterCounters=parseNetworkCounters('TcpExt: ListenOverflows ListenDrops TCPAbortOnData\nTcpExt: 6 7 3\nTcp: OutRsts EstabResets\nTcp: 12 2\n');
@@ -63,6 +89,10 @@ test('TCP evidence parses paired raw counters and reports relevant same-Pod delt
 test('HC15 stats prefix is explicit and does not accidentally consume old experiment logs',()=>{
   const log='time=x msg='+JSON.stringify('HC15_STATS cloud {"completed":4}\n')+' source=console';
   assert.equal(parseServiceStats(log,'HC15').cloud.completed,4);assert.deepEqual(parseServiceStats(log,'HC14'),{});
+});
+test('HC16 stats are isolated from HC15 log identity',()=>{
+  const log='time=x msg='+JSON.stringify('HC16_STATS cloud {"completed":4}\n')+' source=console';
+  assert.equal(parseServiceStats(log,'HC16').cloud.completed,4);assert.deepEqual(parseServiceStats(log,'HC15'),{});
 });
 test('audit excludes only the exact completed HC15 diagnostic unit container and preserves its snapshot evidence',()=>{
   const old={name:'/cea-cloud-1',id:'old',running:true};

@@ -9,8 +9,12 @@ import {arrivalBoundaryAllowance} from './metrics.mjs';
 
 // Distinct revisions own distinct evidence/failed markers. Never reset an old run.
 export function experimentConfig(experiment='HC-14',revision){
-  assert(['HC-14','HC-15'].includes(experiment),'Unknown experiment');
+  assert(['HC-14','HC-15','HC-16'].includes(experiment),'Unknown experiment');
   if(experiment==='HC-14')return {experiment,revision:null,batch:'hc14-20261017',namespace:'cea-hc14-20261017',nodePort:31094,image:'cea/hydraulic-resident:hc05-v1',logPrefix:'HC14'};
+  if(experiment==='HC-16'){
+    assert(revision===undefined||revision==='fixed','HC-16 only uses the existing HC-15 fixed image');
+    return {experiment,revision:'fixed',batch:'hc16-20261017',namespace:'cea-hc16-20261017',nodePort:31096,image:'cea/hydraulic-resident:hc15-fixed',logPrefix:'HC16'};
+  }
   assert(['diagnostic','fixed'].includes(revision),'HC-15 requires explicit HC_REVISION=diagnostic|fixed');
   const batch='hc15-'+revision+'-20261017';
   return {experiment,revision,batch,namespace:'cea-'+batch,nodePort:31095,image:'cea/hydraulic-resident:hc15-'+revision,logPrefix:'HC15'};
@@ -19,6 +23,28 @@ const {experiment,revision,batch,namespace,nodePort,image,logPrefix}=experimentC
 const folder=path.resolve('.local/cea/'+batch),remote='/tmp/'+namespace;
 const source='examples/hydraulic-cloud-edge/resident/rate',clusters=['edge-a','edge-b','edge-c','cloud'];
 export const initialAllocation=Object.fromEntries([...clusters.map(c=>[c,{cpu:2,memoryMiB:c==='cloud'?1024:2048}]),['load',{cpu:7,memoryMiB:5120}]]);
+export const hc16Sequence=[
+  {label:'warmup-32',duration:'10s',preVUs:32,maxVUs:32},
+  {label:'baseline-32',duration:'30s',preVUs:32,maxVUs:32},
+  {label:'probe-48',duration:'10s',preVUs:48,maxVUs:48},
+  {label:'candidate-48',duration:'30s',preVUs:48,maxVUs:48},
+  {label:'return-32',duration:'30s',preVUs:32,maxVUs:32}
+];
+export function experimentProtocol(experimentName=experiment,runRevision=revision){
+  if(experimentName==='HC-16')return {rate,sequence:hc16Sequence,defaultPreAllocatedVUs:32,defaultMaxVUs:32,
+    freeze:'existing hc15-fixed image; same original algorithm/35 batches/64 cycles/HTTP result verification, buffer reuse, 273 batches/s and CPU/memory quotas; only k6 VU concurrency changes; preserve TCP evidence',
+    adjustment:'no resource reconfiguration, no 64 VUs or extra 60-second confirmation; review health and memory after each trial before continuing',
+    acceptance:'zero request/accounting failures; compare baseline-32/candidate-48/return-32 throughput, latency, drops and resources; warmup/probe excluded from comparison; return-32 identifies ordering/cache drift; no automatic retry or stable-performance claim'};
+  return {rate,probeSeconds:10,sweepSeconds:30,confirmSeconds:60,confirmRepetitions:3,defaultPreAllocatedVUs:32,defaultMaxVUs:32,
+    freeze:experimentName==='HC-14'?'same hc05-v1 business image, original 35 batches/64 cycles, HTTP/result verification and reused k6 buffers; no algorithm, connection-recovery, WSL or old-service change':
+      'HC-15 '+runRevision+' image fixed per revision; original algorithm/35 batches/64 cycles/HTTP result verification, resources and arrival schedule unchanged; collect TCP evidence; no automatic request retry or old-service/WSL change',
+    adjustment:'only CPU/memory quota changes after measured saturation; single business 2 to 3/4 cores, load 7 to 5/6 only if measured spare; total quotas <= WSL cores minus 1; reverify after changes',
+    acceptance:'zero request/accounting failures; record drops and late starts separately; observed throughput with drops is not sustained 3GB/s offered load; healthy >=2GB/s then three 60-second confirmations; no retries'};
+}
+export function validateTrialParameters(label,duration,preVUs,maxVUs,experimentName=experiment){
+  assert(/^[a-z0-9-]+$/.test(label));assert(['10s','30s','60s'].includes(duration));assert([12,24,32,48].includes(preVUs)&&[32,48].includes(maxVUs)&&preVUs<=maxVUs);
+  if(experimentName==='HC-16')assert.deepEqual({label,duration,preVUs,maxVUs},hc16Sequence.find(row=>row.label===label),'HC-16 trial must match frozen concurrency comparison');
+}
 const docker=(args,input,timeout=30000)=>execFileSync('docker',args,{input,encoding:'utf8',windowsHide:true,timeout,maxBuffer:64*1024*1024}).trim();
 const kube=(cluster,args,input)=>docker(['exec','-i',`cea-${cluster}-1`,'kubectl',...args],input);
 const get=(cluster,resource,args=[])=>JSON.parse(kube(cluster,['get',resource,...args,'-o','json']));
@@ -115,16 +141,12 @@ async function setup(){
   save('allocation.json',initialAllocation);
   save('plan.json',{experiment,revision,namespace,image,nodePort,endpoints,initialAllocation,sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),imageId:docker(['image','inspect',image,'--format','{{.Id}}']),
     scope:'complete hydraulic HTTP chain; original raw signal bytes once / first HTTP send to last verified result; no deployment/startup/persistence in timed interval',
-    protocol:{rate,probeSeconds:10,sweepSeconds:30,confirmSeconds:60,confirmRepetitions:3,defaultPreAllocatedVUs:32,defaultMaxVUs:32,
-      freeze:experiment==='HC-14'?'same hc05-v1 business image, original 35 batches/64 cycles, HTTP/result verification and reused k6 buffers; no algorithm, connection-recovery, WSL or old-service change':
-        'HC-15 '+revision+' image fixed per revision; original algorithm/35 batches/64 cycles/HTTP result verification, resources and arrival schedule unchanged; collect TCP evidence; no automatic request retry or old-service/WSL change',
-      adjustment:'only CPU/memory quota changes after measured saturation; single business 2 to 3/4 cores, load 7 to 5/6 only if measured spare; total quotas <= WSL cores minus 1; reverify after changes',
-      acceptance:'zero request/accounting failures; record drops and late starts separately; observed throughput with drops is not sustained 3GB/s offered load; healthy >=2GB/s then three 60-second confirmations; no retries'}});
+    protocol:experimentProtocol()});
   const archiveFolder=path.join(folder,'protocol');mkdirSync(archiveFolder);
   for(const f of ['run.mjs','load.js'])copyFileSync(path.join(source,f),path.join(archiveFolder,f));
   copyFileSync(path.join(source,'metrics.mjs'),path.join(archiveFolder,'load-metrics.mjs'));
   for(const f of ['host-monitor.mjs','metrics.mjs','fixtures.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
-  if(experiment==='HC-15')for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
+  if(experiment!=='HC-14')for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
   console.log(copiedInput('prepare',path.resolve('.local/cea/hc01/full'),'/source',['prepare','/source','/fixtures'],'none','1g','/fixtures'));
   save('manifest.json',JSON.parse(readFileSync(path.join(folder,'fixtures/manifest.json'),'utf8')));
   const archive=path.join(folder,'image.tar');docker(['image','save','-o',archive,image],undefined,120000);
@@ -160,7 +182,8 @@ export function assertBudget(allocation,cpuCores){
   assert.equal(Object.keys(allocation).length,5);for(const c of [...clusters,'load'])assert(allocation[c].cpu>0&&allocation[c].memoryMiB>0);
   assert(Object.values(allocation).reduce((n,a)=>n+a.cpu,0)<=cpuCores-1,'Experiment CPU quotas exceed WSL budget');
 }
-export function changedAllocation(before,target,cpu,memoryMiB,cpuCores){
+export function changedAllocation(before,target,cpu,memoryMiB,cpuCores,experimentName=experiment){
+  assert.notEqual(experimentName,'HC-16','HC-16 freezes all resource quotas; configure is not allowed');
   assert([...clusters,'load'].includes(target),'Unknown allocation target');
   if(target==='load'){assert([5,6,7].includes(cpu));assert.equal(memoryMiB,5120);}
   else {assert([2,3,4].includes(cpu));assert(cpu>=before[target].cpu,'Business CPU cannot decrease in this exploration');assert(Number.isInteger(memoryMiB)&&memoryMiB>=before[target].memoryMiB);}
@@ -182,7 +205,7 @@ function configure(target,cpu,memoryMiB){
 }
 export function parseServiceStats(log,prefix=logPrefix){
   const stats={};
-  assert(['HC14','HC15'].includes(prefix));
+  assert(['HC14','HC15','HC16'].includes(prefix));
   for(const line of log.split('\n')){
     const match=line.match(/msg=("(?:[^"\\]|\\.)*") source=console/);if(!match)continue;
     const stat=JSON.parse(match[1]).match(new RegExp('^'+prefix+'_STATS (edge-[abc]|cloud) (\\{[\\s\\S]*\\})\\s*$'));if(stat)stats[stat[1]]=JSON.parse(stat[2]);
@@ -211,13 +234,18 @@ export function validateProcessing(result,stats,manifest){
   }
 }
 async function trial(label,duration,preVUs=32,maxVUs=32){
-  assert(/^[a-z0-9-]+$/.test(label));assert(['10s','30s','60s'].includes(duration));assert([12,24,32,48].includes(preVUs)&&[32,48].includes(maxVUs)&&preVUs<=maxVUs);assertIdle();
+  validateTrialParameters(label,duration,preVUs,maxVUs);assertIdle();
+  if(experiment==='HC-16'){
+    const index=hc16Sequence.findIndex(row=>row.label===label);
+    for(const previous of hc16Sequence.slice(0,index))assert.equal(load(previous.label+'/validation.json').status,'PASS','Previous HC-16 trial must pass before continuing');
+  }
   const allocation=load('allocation.json');assertBudget(allocation,load('capacity.json').cpuCores);assert.deepEqual(load('correctness.json').allocation,allocation,'Reverify changed allocation first');
+  if(experiment==='HC-16')assert.deepEqual(allocation,initialAllocation,'HC-16 resource quotas are frozen');
   const target=path.join(folder,label);assert(!existsSync(target),'Trial label exists; never overwrite');mkdirSync(target);
   const host=[sampleHost()];assert(allocation.load.memoryMiB+512<=host[0].linux.MemAvailable/2**20,'Insufficient available WSL RAM for k6 plus reserve');
   assert(!hostStopReasons(host,'capacity').length,'Critical host pressure');appendFileSync(path.join(target,'host.jsonl'),JSON.stringify(host[0])+'\n');write(target,'allocation.json',allocation);
   write(target,'cgroups-before.json',podCgroups());
-  if(experiment==='HC-15')write(target,'network-before.json',podNetwork());
+  if(experiment!=='HC-14')write(target,'network-before.json',podNetwork());
   const name='load-'+label,spec=loadPodSpec(label,duration,preVUs,maxVUs,load('plan.json').endpoints,allocation);write(target,'pod.json',spec);
   const started=Date.now();let exit=null,stopped=false;create('cloud',[spec]);
   try{
@@ -247,7 +275,7 @@ async function trial(label,duration,preVUs=32,maxVUs=32){
     for(const f of ['k6.log','resources.txt','exit','cpu.max','memory.max'])write(target,f,kube('cloud',['exec',name,'-n',namespace,'--','cat','/output/'+f]));
     try{write(target,'summary.json',kube('cloud',['exec',name,'-n',namespace,'--','cat','/output/summary.json']));}catch{}
     const log=readFileSync(path.join(target,'k6.log'),'utf8'),stats=parseServiceStats(log);write(target,'stats.json',stats);write(target,'host-summary.json',hostSummary(host,'capacity'));write(target,'cgroups-after.json',podCgroups());
-    if(experiment==='HC-15')write(target,'network-after.json',podNetwork());
+    if(experiment!=='HC-14')write(target,'network-after.json',podNetwork());
     const limits={cpuMax:readFileSync(path.join(target,'cpu.max'),'utf8').trim(),memoryMax:Number(readFileSync(path.join(target,'memory.max'),'utf8'))};write(target,'actual-limits.json',limits);
     kube('cloud',['delete','pod',name,'-n',namespace,'--wait=false']);console.log(log.split('\n').filter(v=>v.includes(logPrefix+'_REPORT')||v.includes('level=error')).join('\n'));
     assert.equal(exit,0,'k6 failed; no retry');assert(!stopped,'Host capacity guard');assert.equal(limits.cpuMax,allocation.load.cpu*100000+' 100000');assert.equal(limits.memoryMax,allocation.load.memoryMiB*2**20);
@@ -256,7 +284,7 @@ async function trial(label,duration,preVUs=32,maxVUs=32){
     write(target,'validation.json',{status:'PASS',processingValid:true,offeredLoadAchieved:result.offeredLoadAchieved});console.log(JSON.stringify(result));
   }catch(error){
     save('failed.json',{label,error:String(error),at:new Date().toISOString()});write(target,'host-summary.json',hostSummary(host,'capacity'));
-    if(experiment==='HC-15'&&!existsSync(path.join(target,'network-after.json'))){
+    if(experiment!=='HC-14'&&!existsSync(path.join(target,'network-after.json'))){
       try{write(target,'network-after.json',podNetwork());}catch(captureError){write(target,'network-after-error.json',{error:String(captureError)});}
     }
     throw error;
@@ -282,7 +310,7 @@ function report(){
     row.allocation=JSON.parse(readFileSync(path.join(target,'allocation.json'),'utf8'));row.host=JSON.parse(readFileSync(path.join(target,'host-summary.json'),'utf8'));
     const cgroupFile=name=>existsSync(path.join(target,name))?JSON.parse(readFileSync(path.join(target,name),'utf8')):null;
     row.business=businessSummary(stats,row.allocation,cgroupFile('cgroups-before.json'),cgroupFile('cgroups-after.json'));
-    if(experiment==='HC-15')row.network=networkDelta(cgroupFile('network-before.json'),cgroupFile('network-after.json'));
+    if(experiment!=='HC-14')row.network=networkDelta(cgroupFile('network-before.json'),cgroupFile('network-after.json'));
     if(existsSync(path.join(target,'resources.txt'))){
       const samples=readFileSync(path.join(target,'resources.txt'),'utf8').trim().split('\n').map(l=>l.trim().split(/\s+/).map(Number)).filter(v=>v.length===5);
       const convert=s=>({at:s[0],cpuUsec:s[1],throttledUsec:s[2],workingSetBytes:s[3]-s[4]});if(samples.length>1)row.generator=resourceSummary(samples.map(convert));
@@ -290,7 +318,8 @@ function report(){
     rows.push(row);
   }
   const confirmed=rows.filter(r=>r.run.startsWith('confirm-')&&r.processingValid);
-  const result={rows,confirmedMeanGBps:confirmed.length?confirmed.reduce((n,r)=>n+r.GBps,0)/confirmed.length:null,
+  const result=experiment==='HC-16'?{rows,comparisonRuns:['baseline-32','candidate-48','return-32'],
+    scope:'Same complete hydraulic chain and quotas: 32/48/32 VU short comparison; warmup/probe excluded, dropped arrivals disclosed; not a three-run stability confirmation'}:{rows,confirmedMeanGBps:confirmed.length?confirmed.reduce((n,r)=>n+r.GBps,0)/confirmed.length:null,
     allThreeAbove2GBps:confirmed.length===3&&confirmed.every(r=>r.GBps>=2),allThreeOfferedLoadAchieved:confirmed.length===3&&confirmed.every(r=>r.offeredLoadAchieved),
     scope:'Complete original hydraulic HTTP processing chain; dropped arrivals must not be described as sustained 3GB/s input'};save('report.json',result);console.log(JSON.stringify(result,null,2));
 }
@@ -298,7 +327,7 @@ function capture(label){
   assert(/^[a-z0-9-]+$/.test(label));const target=path.join(folder,label);assert(existsSync(target));assert(!existsSync(path.join(target,'k8s-state.json')),'Already captured');
   write(target,'k8s-state.json',Object.fromEntries(clusters.map(c=>[c,get(c,'pods,events,endpointslices',['-n',namespace])])));
   for(const c of clusters)write(target,c+'.log',kube(c,['logs','deployment/hydraulic','-n',namespace,'--timestamps']));
-  if(experiment==='HC-15')write(target,'network-capture.json',podNetwork());
+  if(experiment!=='HC-14')write(target,'network-capture.json',podNetwork());
 }
 function cleanup(){
   save('host-after-load.json',sampleHost());
