@@ -52,7 +52,7 @@ async function setup(){
     const inspect=JSON.parse(docker(['inspect',`cea-${c}-1`]))[0];
     endpoints[c]='http://'+inspect.NetworkSettings.Networks.cea_default.IPAddress+':31085';
   }
-  save('plan.json',{namespace,image,endpoints,sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+  save('plan.json',{namespace,image,endpoints,reuseBuffers:process.env.HC_REUSE_BUFFERS==='1',sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
     imageId:docker(['image','inspect',image,'--format','{{.Id}}']),cpuLimit:'1',edgeMemory:'1Gi',cloudMemory:'512Mi',
     cyclesPerBatch:64,sourceCycles:2205,scope:'raw-signal bytes once / first-send to last-batch completion; HTTP, no result persistence',
     protocol:{warmupSeconds:10,sweepVus:[1,2,4,8],sweepSeconds:30,confirmSeconds:60,confirmRepetitions:3}});
@@ -103,7 +103,7 @@ async function trial(label,vus,duration){
     volumes:[{name:'input',hostPath:{path:remote,type:'Directory'}},{name:'output',emptyDir:{}}],containers:[{name:'k6',image:'grafana/k6:1.3.0',imagePullPolicy:'Never',
       command:['sh','-c',`(${sampler}) > /output/resources.txt & k6 run /input/load.js > /output/k6.log 2>&1; echo $? > /output/exit; wait; sleep 3600`],
       env:[{name:'RUN',value:label},{name:'VUS',value:String(vus)},{name:'DURATION',value:duration},{name:'ENDPOINTS',value:JSON.stringify(endpoints)},
-           {name:'GOMEMLIMIT',value:'1400MiB'},{name:'GOGC',value:'50'}],
+           {name:'GOMEMLIMIT',value:'1400MiB'},{name:'GOGC',value:'50'},...(load('plan.json').reuseBuffers?[{name:'REUSE_BUFFERS',value:'1'}]:[])],
       resources:{requests:{cpu:'1',memory:'512Mi'},limits:{cpu:'4',memory:'2Gi'}},
       volumeMounts:[{name:'input',mountPath:'/input',readOnly:true},{name:'input',mountPath:'/fixtures',subPath:'fixtures',readOnly:true},{name:'output',mountPath:'/output'}]}]}};
   writeFileSync(path.join(target,'pod.json'),JSON.stringify(loadPod,null,2));

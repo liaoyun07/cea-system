@@ -7,10 +7,16 @@ import { open as fsOpen, SeekMode } from 'k6/experimental/fs';
 const manifest = JSON.parse(open('/fixtures/manifest.json'));
 const urls = JSON.parse(__ENV.ENDPOINTS);
 const groups = ['edge-a', 'edge-b', 'edge-c'];
+const captureErrors = __ENV.CAPTURE_ERRORS === '1';
+const reuseBuffers = __ENV.REUSE_BUFFERS === '1';
 const files = [];
+const buffers = groups.map(() => new Map());
 for (const item of manifest) {
   const handles = [];
-  for (const file of item.files) handles.push(await fsOpen('/fixtures/' + file.name));
+  for (const [g, file] of item.files.entries()) {
+    handles.push(await fsOpen('/fixtures/' + file.name));
+    if (reuseBuffers && !buffers[g].has(file.length)) buffers[g].set(file.length, new Uint8Array(file.length));
+  }
   files.push(handles);
 }
 const completedBytes = new Counter('completed_signal_bytes');
@@ -42,7 +48,7 @@ export default async function () {
   for (let g=0; g<3; g++) {
     const file = files[index][g];
     await file.seek(0, SeekMode.Start);
-    const bytes = new Uint8Array(item.files[g].length);
+    const bytes = reuseBuffers ? buffers[g].get(item.files[g].length) : new Uint8Array(item.files[g].length);
     const size = await file.read(bytes);
     if (size !== bytes.byteLength) throw Error('short fixture read');
     payloads.push(bytes.buffer);
@@ -51,8 +57,16 @@ export default async function () {
   let ok = false;
   try {
     const responses = http.batch(groups.map((g,i) => ['POST', urls[g]+'/process/'+__ENV.RUN+'/'+iteration,
-      payloads[i], {headers:{'Content-Type':'application/octet-stream'},timeout:'30s',tags:{name:g}}]));
-    if (!responses.every(r=>r.status===200)) throw Error('edge request failed');
+      payloads[i], {headers:{'Content-Type':'application/octet-stream'},timeout:'30s',tags:{name:g},
+        ...(captureErrors ? {responseType:'text'} : {})}]));
+    if (!responses.every(r=>r.status===200)) {
+      if (captureErrors) for (let i=0;i<responses.length;i++) {
+        const r=responses[i];
+        if (r.status!==200) console.error('HC_REQUEST_ERROR '+JSON.stringify({run:__ENV.RUN,iteration,group:groups[i],
+          status:r.status,error:r.error,errorCode:r.error_code,body:String(r.body||'').slice(0,4096)}));
+      }
+      throw Error('edge request failed');
+    }
     const response = http.get(urls.cloud+'/result/'+__ENV.RUN+'/'+iteration,
       {responseType:'text',timeout:'30s',tags:{name:'cloud-result'}});
     if (response.status !== 200) throw Error('cloud incomplete: ' + response.body);
