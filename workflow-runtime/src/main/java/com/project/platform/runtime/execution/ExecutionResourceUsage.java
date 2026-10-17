@@ -12,7 +12,7 @@ public record ExecutionResourceUsage(String status,int attempts,int completeJobs
                                      Double observedCpuCoreSeconds,Double observedMemoryGiBSeconds,List<Job> jobs) {
     public record Job(String taskRunId,String taskId,int attemptNo,ExecutionState state,JobResourceUsage usage) {}
     public static ExecutionResourceUsage summarize(ExecutionRecord execution,List<ExecutionRecord.TaskRun> tasks,List<ExecutionRecord.Attempt> attempts) {
-        var definitions=execution.definition().allTasks().stream().filter(t->t.container()!=null && t.container().execution()==FlowDefinition.ContainerExecution.CLUSTER)
+        var definitions=execution.definition().allTasks().stream().filter(t->"platform.Application".equals(t.type()) && t.container().execution()==FlowDefinition.ContainerExecution.CLUSTER)
                 .map(FlowDefinition.Task::id).collect(Collectors.toSet());
         var byId=tasks.stream().collect(Collectors.toMap(ExecutionRecord.TaskRun::id,t->t));
         var jobs=new ArrayList<Job>();

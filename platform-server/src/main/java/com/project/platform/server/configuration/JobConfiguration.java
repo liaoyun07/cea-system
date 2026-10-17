@@ -58,7 +58,13 @@ public class JobConfiguration {
     @Bean OffloadingTaskAdapter offloadingTaskAdapter(WorkloadLedger ledger,TransferMeasurements transfers,OffloadingService offloading,JsonCodec json){return new OffloadingTaskAdapter(ledger,transfers,offloading,json);}
     @Bean TaskRunner applicationTaskRunner(ApplicationCatalogService applications,ResourceCatalogService resources,ImageDistributionService images,
             JobPlacementService placement,KubernetesConnections connections,ObjectStorage storage,IdentityDirectory identities,EdgeAccessService edge,JsonCodec json,BindingResolver bindings,Settings settings,OffloadingService offloading,
-            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,FlowExecutionService executions,OffloadingTaskAdapter measurements) {
+            com.project.platform.dataflow.definition.NamespaceFileService namespaceFiles,FlowExecutionService executions,OffloadingTaskAdapter measurements,
+            com.project.platform.deployment.service.DeploymentService deployments,com.project.platform.resource.kubernetes.KubernetesManagementService management) {
+        var deploymentRunner=new com.project.platform.dataflow.execution.DeploymentTaskRunner(deployments,management,connections,bindings,job->{
+            var execution=(Map<?,?>)job.context().get("execution");
+            var actor=identities.actor((String)execution.get("submittedBy"));
+            return actor.actions().contains(Action.CONNECT)?edge.workerActor(actor,(String)execution.get("namespace"),job.executionId()):actor;
+        });
         var applicationsRunner=new ApplicationTaskRunner(applications,resources,images,placement,connections,storage,job->{
             var execution=(Map<?,?>)job.context().get("execution");
             var actor=identities.actor((String)execution.get("submittedBy"));
@@ -76,9 +82,11 @@ public class JobConfiguration {
         var common=new CommonTaskRunner(settings.http(),settings.sql(),bindings);
         return new TaskRunner() {
             @Override public TaskRunner admit(com.project.platform.runtime.worker.TaskContext context) throws Exception {
+                if("platform.Deployment".equals(context.job().task().type()))return deploymentRunner;
                 return context.job().task().container()!=null?applicationsRunner.admit(context):common;
             }
             @Override public com.project.platform.runtime.worker.WorkerJob.Result run(com.project.platform.runtime.worker.TaskContext context) throws Exception {
+                if("platform.Deployment".equals(context.job().task().type()))return deploymentRunner.run(context);
                 return context.job().task().container()!=null?applicationsRunner.run(context):common.run(context);
             }
         };

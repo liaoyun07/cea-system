@@ -17,6 +17,21 @@ import {
 
 const source =
   '# keep header\nschemaVersion: 1\nnamespace: lab\nid: edit\nlabels: {owner: lab} # retain\ninputs:\n  n: {type: INTEGER, defaultValue: 0}\ntasks:\n  - id: first\n    type: core.Log\n    message: first # keep message comment\n  - id: second\n    type: core.Log\n    message: second\noutputs:\n  result: {source: TASK_OUTPUT, taskId: second, port: message}\n';
+test('Deployment uses the existing container and binding model, with endpoint output', () => {
+  let next = addTask(source, ['tasks'], 'platform.Deployment', 'deploy_cloud');
+  next = addTask(next, ['tasks'], 'platform.Deployment', 'deploy_edge');
+  next = changeSource(next, ['tasks', 3, 'container', 'parameters', 'CLOUD_URL'], {
+    source: 'TASK_OUTPUT',
+    taskId: 'deploy_cloud',
+    port: 'endpoint',
+  });
+  const flow = readDocument(next).value;
+  assert.deepEqual(outputPorts(flow.tasks[2]), ['endpoint']);
+  assert.equal(flow.tasks[2].deployment.name, 'deploy-cloud');
+  assert.equal(flow.tasks[2].container.outputFiles, undefined);
+  assert.equal(flow.tasks[3].container.parameters.CLOUD_URL.taskId, 'deploy_cloud');
+  assert.throws(() => removeTask(next, ['tasks', 2]), /仍被引用/);
+});
 test('application native resource strings edit and remove without changing command', () => {
   const input =
     'schemaVersion: 1\nnamespace: lab\nid: resource\ntasks:\n  - id: job\n    type: platform.Application\n    container:\n      applicationId: app\n      version: v1\n      command: [sh, -c, "true"]\n';

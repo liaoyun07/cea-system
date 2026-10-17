@@ -55,12 +55,17 @@ public record FlowDefinition(
     public record Task(String id, String type, String message, Retry retry, String timeout, String duration,
                        List<Task> tasks, List<String> dependsOn, String condition,
                        @JsonProperty("then") List<Task> thenTasks, @JsonProperty("else") List<Task> elseTasks,
-                       Container container,Http http,Sql sql,Repeat repeat,Loop loop,Integer priority) {
+                       Container container,Http http,Sql sql,Repeat repeat,Loop loop,Integer priority,Deployment deployment) {
         public Task { tasks=list(tasks); dependsOn=list(dependsOn); thenTasks=list(thenTasks); elseTasks=list(elseTasks); }
         public boolean control() { return type!=null && Set.of("core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat","core.Loop").contains(type); }
         public boolean dynamic() {return repeat!=null || loop!=null;}
         public int effectivePriority() {return priority==null?0:priority;}
     }
+    public record Deployment(String name,String kubeNamespace,Integer replicas,Readiness readiness,Service service) {
+        public Deployment { replicas=replicas==null?1:replicas; }
+    }
+    public record Readiness(String path,Integer port) {}
+    public record Service(Integer port,Integer targetPort,Integer nodePort,String endpoint) {}
     public record Repeat(Binding iterations,Map<String,Binding> initial,Map<String,Binding> feedback) {
         public Repeat {initial=immutable(initial);feedback=immutable(feedback);}
     }

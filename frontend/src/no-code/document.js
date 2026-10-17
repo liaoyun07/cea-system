@@ -12,6 +12,7 @@ export const taskLabels = {
   'core.Http': 'HTTP 请求',
   'core.Sql': 'SQL 查询',
   'platform.Application': '应用任务',
+  'platform.Deployment': '服务部署',
   'core.Sequential': '顺序',
   'core.Parallel': '并行',
   'core.Dag': '依赖图',
@@ -97,10 +98,11 @@ export function taskEntries(flow) {
 }
 export function newTask(type, id) {
   const task = { id, type };
-  if (['platform.Application', 'core.Http', 'core.Sql'].includes(type)) task.timeout = 'PT5M';
+  if (['platform.Application', 'platform.Deployment', 'core.Http', 'core.Sql'].includes(type))
+    task.timeout = 'PT5M';
   if (type === 'core.Log') task.message = 'Hello';
   else if (type === 'core.Sleep') task.duration = 'PT1S';
-  else if (type === 'platform.Application')
+  else if (['platform.Application', 'platform.Deployment'].includes(type)) {
     task.container = {
       applicationId: '',
       version: '',
@@ -110,7 +112,12 @@ export function newTask(type, id) {
       inputFiles: {},
       outputFiles: [],
     };
-  else if (type === 'core.Http')
+    if (type === 'platform.Deployment') {
+      delete task.container.inputFiles;
+      delete task.container.outputFiles;
+      task.deployment = { name: id.replaceAll('_', '-').toLowerCase(), replicas: 1 };
+    }
+  } else if (type === 'core.Http')
     task.http = { connection: '', method: 'GET', path: { source: 'LITERAL', value: '/' } };
   else if (type === 'core.Sql') task.sql = { connection: '', query: 'SELECT 1', parameters: [] };
   else if (type === 'core.If') Object.assign(task, { condition: 'true', then: [], else: [] });
@@ -203,6 +210,7 @@ export function taskFormFields(task, root) {
       'core.Http': ['http.connection', 'http.method', 'http.path', 'timeout'],
       'core.Sql': ['sql.connection', 'sql.query', 'timeout'],
       'platform.Application': ['timeout'],
+      'platform.Deployment': ['timeout'],
     }[task.type] || [];
   const optional =
     {
@@ -212,10 +220,21 @@ export function taskFormFields(task, root) {
       'core.Sql': ['sql.parameters'],
     }[task.type] || [];
   if (['core.Log', 'core.Sleep'].includes(task.type)) optional.push('timeout');
-  if (['core.Log', 'core.Sleep', 'core.Http', 'core.Sql', 'platform.Application'].includes(task.type))
+  if (
+    [
+      'core.Log',
+      'core.Sleep',
+      'core.Http',
+      'core.Sql',
+      'platform.Application',
+      'platform.Deployment',
+    ].includes(task.type)
+  )
     optional.push('priority');
   if (
-    ['core.Log', 'core.Sleep', 'core.Sql', 'platform.Application'].includes(task.type) ||
+    ['core.Log', 'core.Sleep', 'core.Sql', 'platform.Application', 'platform.Deployment'].includes(
+      task.type,
+    ) ||
     (task.type === 'core.Http' && task.http?.method !== 'POST')
   )
     optional.push('retry');
@@ -227,6 +246,7 @@ export function taskFormFields(task, root) {
   });
 }
 export function outputPorts(task) {
+  if (task.type === 'platform.Deployment') return ['endpoint'];
   if (task.container) return task.container.outputFiles || [];
   if (task.loop) return Object.keys(task.loop.outputs || {});
   if (task.repeat) return [...Object.keys(task.repeat.initial || {}), 'iterations', 'iterationCount'];

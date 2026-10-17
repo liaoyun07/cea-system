@@ -1,5 +1,11 @@
 # 项目结构与 Java 文件索引
 
+FLOW-DEP-01：新增有限时长的服务部署任务适配器；复用公开 DeploymentService / KubernetesManagementService，执行状态仍由既有 Executor/Worker 管理。无新表或模块依赖。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-dataflow/src/main/java/com/project/platform/dataflow/execution/DeploymentTaskRunner.java` | 解析共享参数 Binding，创建/更新 Deployment 与 Service，等待当前修订就绪后输出 endpoint；取消仅停止等待 |
+
 JOB-USAGE-01：新增三个生产Java类，资源沿原Worker结果回Executor，在原事务中保存Attempt JSON；不引入跨模块表访问或指标服务。
 
 | Java 文件 | 当前职责 |

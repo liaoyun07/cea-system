@@ -6867,6 +6867,7 @@
               "core.Log",
               "core.Sleep",
               "platform.Application",
+              "platform.Deployment",
               "core.Http",
               "core.Sql",
               "core.Repeat",
@@ -6949,6 +6950,9 @@
               "null"
             ],
             "description": "If expression must render true or false; choice persisted"
+          },
+          "deployment": {
+            "anyOf": [{"$ref": "#/components/schemas/FlowDeployment"}, {"type": "null"}]
           },
           "container": {
             "anyOf": [
@@ -7058,6 +7062,30 @@
           }
         },
         "description": "Snapshot an array of 0..1000 items; sequential child tasks per item. Bounded concurrent groups. Declared outputs collected in input order after all items succeed. Repeat may contain Loop; Loop cannot contain Repeat/Loop. See s5-loop.md."
+      },
+      "FlowDeployment": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {"type": "string"},
+          "kubeNamespace": {"type": ["string", "null"]},
+          "replicas": {"type": ["integer", "null"], "minimum": 0, "maximum": 100, "default": 1},
+          "readiness": {"anyOf": [{"$ref": "#/components/schemas/FlowDeploymentReadiness"}, {"type": "null"}]},
+          "service": {"anyOf": [{"$ref": "#/components/schemas/FlowDeploymentService"}, {"type": "null"}]}
+        }
+      },
+      "FlowDeploymentReadiness": {
+        "type": "object", "required": ["path", "port"],
+        "properties": {"path": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}}
+      },
+      "FlowDeploymentService": {
+        "type": "object", "required": ["port", "targetPort"],
+        "properties": {
+          "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+          "targetPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+          "nodePort": {"type": ["integer", "null"], "minimum": 1, "maximum": 65535},
+          "endpoint": {"type": ["string", "null"]}
+        }
       },
       "Container": {
         "type": "object",

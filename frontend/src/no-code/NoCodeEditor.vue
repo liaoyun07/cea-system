@@ -234,7 +234,11 @@ function toggleCluster(id) {
   const ids = current.value.container.candidateClusters;
   patch({
     path: [...selected.value, 'container', 'candidateClusters'],
-    value: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    value: ids.includes(id)
+      ? ids.filter((value) => value !== id)
+      : current.value.type === 'platform.Deployment'
+        ? [id]
+        : [...ids, id],
   });
 }
 function options(parameter) {
@@ -357,7 +361,7 @@ onMounted(() => {
                 >
               </div>
             </template>
-            <template v-if="current.type === 'platform.Application'">
+            <template v-if="['platform.Application', 'platform.Deployment'].includes(current.type)">
               <div v-if="catalogError" class="notice warning">
                 目录读取失败：{{ catalogError }}<button @click="loadCatalogs">重试目录</button>
               </div>
@@ -408,19 +412,21 @@ onMounted(() => {
                 </div>
               </details>
               <details open class="form-section">
-                <summary>位置与文件</summary>
+                <summary>{{ current.type === 'platform.Deployment' ? '容器配置' : '位置与文件' }}</summary>
                 <div
-                  v-for="field in [
-                    'execution',
-                    'candidateClusters',
-                    'command',
-                    'inputFiles',
-                    'outputFiles',
-                    'namespaceFiles',
-                    ...(current.container?.execution !== 'TERMINAL' || current.container?.resources
-                      ? ['resources']
-                      : []),
-                  ]"
+                  v-for="field in current.type === 'platform.Deployment'
+                    ? ['candidateClusters', 'command', 'resources']
+                    : [
+                        'execution',
+                        'candidateClusters',
+                        'command',
+                        'inputFiles',
+                        'outputFiles',
+                        'namespaceFiles',
+                        ...(current.container?.execution !== 'TERMINAL' || current.container?.resources
+                          ? ['resources']
+                          : []),
+                      ]"
                   :key="field"
                 >
                   <template v-if="field === 'candidateClusters'">
@@ -488,6 +494,17 @@ onMounted(() => {
                   />
                 </div>
               </details>
+              <SchemaField
+                v-if="current.type === 'platform.Deployment'"
+                :schema="{ $ref: '#/$defs/Deployment' }"
+                :root="schema"
+                :value="current.deployment"
+                :path="[...selected, 'deployment']"
+                :flow="flow"
+                required
+                @patch="patch"
+                @invalid="invalid"
+              />
             </template>
             <SchemaField
               v-for="field in taskFields.filter((f) => !f.required)"

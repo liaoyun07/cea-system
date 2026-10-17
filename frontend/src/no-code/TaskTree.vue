@@ -38,7 +38,7 @@ function toggle(id) {
         </button>
         <button class="task-select" :disabled="disabled" @click="emit('select', [...path, i])">
           <span class="task-symbol">{{
-            task.type === 'platform.Application'
+            ['platform.Application', 'platform.Deployment'].includes(task.type)
               ? '▣'
               : task.type === 'core.Loop' || task.type === 'core.Repeat'
                 ? '↻'

@@ -46,8 +46,7 @@ public final class DeploymentRolloutTracker implements AutoCloseable {
                 if(observed && status.getConditions()!=null && status.getConditions().stream().anyMatch(c->"Progressing".equals(c.getType()) && "False".equals(c.getStatus()) && "ProgressDeadlineExceeded".equals(c.getReason()))) {
                     records.finish(item.id(),"FAILED","Kubernetes reported ProgressDeadlineExceeded",now,false);continue;
                 }
-                if(observed && count(status.getUpdatedReplicas())==item.replicas() && count(status.getAvailableReplicas())==item.replicas()
-                        && count(status.getReadyReplicas())==item.replicas() && count(status.getReplicas())==item.replicas()) {
+                if(ready(deployment)) {
                     records.finish(item.id(),"SUCCEEDED",null,now,continuous);continue;
                 }
                 records.observed(item.id(),now,continuous);
@@ -55,6 +54,12 @@ public final class DeploymentRolloutTracker implements AutoCloseable {
                 records.observed(item.id(),clock.instant(),false);
             }
         }
+    }
+    static boolean ready(Deployment value) {
+        var status=value.getStatus();int replicas=value.getSpec().getReplicas();
+        return status!=null && status.getObservedGeneration()!=null && status.getObservedGeneration()>=value.getMetadata().getGeneration()
+                && count(status.getUpdatedReplicas())==replicas && count(status.getAvailableReplicas())==replicas
+                && count(status.getReadyReplicas())==replicas && count(status.getReplicas())==replicas;
     }
     private static int count(Integer value) { return value==null?0:value; }
     @Override public synchronized void close() { if(timer!=null){timer.shutdownNow();timer=null;} }

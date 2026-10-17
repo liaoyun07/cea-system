@@ -287,6 +287,13 @@ public final class DeploymentService {
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace); return view(required(client,namespace,kubeNamespace,name),namespace,clusterId); }
     }
+    public boolean ready(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
+        access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            return DeploymentRolloutTracker.ready(required(client,namespace,kubeNamespace,name));
+        }
+    }
     public List<View> list(Actor actor,String namespace,String clusterId,String kubeNamespace) {
         access.require(actor,namespace,Action.READ);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {

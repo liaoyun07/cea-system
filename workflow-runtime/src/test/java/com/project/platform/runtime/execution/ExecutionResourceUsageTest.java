@@ -11,8 +11,8 @@ class ExecutionResourceUsageTest {
     private final Instant start=Instant.parse("2026-10-17T00:00:00Z");
     private final FlowDefinition flow=new JsonCodec().read("""
             {"schemaVersion":1,"namespace":"lab","id":"resources","tasks":[
-              {"id":"one","type":"application","container":{"applicationId":"app","version":"v1"}},
-              {"id":"two","type":"application","container":{"applicationId":"app","version":"v1"}}]}
+              {"id":"one","type":"platform.Application","container":{"applicationId":"app","version":"v1"}},
+              {"id":"two","type":"platform.Application","container":{"applicationId":"app","version":"v1"}}]}
             """,FlowDefinition.class);
     private ExecutionRecord execution(ExecutionState state) {
         return new ExecutionRecord("e","lab","resources",1,"user",state,flow,Map.of(),Map.of(),Map.of(),start,start,
@@ -53,5 +53,11 @@ class ExecutionResourceUsageTest {
                 List.of(attempt("one",1,ExecutionState.FAILED,usage(true))));
         assertEquals("RUNNING",result.status());assertNull(result.cpuCoreSeconds());assertNull(result.durationSeconds());
         assertEquals(4d,result.observedCpuCoreSeconds());
+    }
+    @Test void persistentDeploymentIsNotAnUncollectedJob() {
+        var services=new JsonCodec().read(new JsonCodec().write(flow).replace("platform.Application","platform.Deployment"),FlowDefinition.class);
+        var execution=new ExecutionRecord("e","lab","resources",1,"user",ExecutionState.SUCCESS,services,Map.of(),Map.of(),Map.of(),start,start,start.plusSeconds(10),null,null,null,null);
+        var result=ExecutionResourceUsage.summarize(execution,List.of(task("one",ExecutionState.SUCCESS,10)),List.of(attempt("one",1,ExecutionState.SUCCESS,null)));
+        assertEquals("NOT_APPLICABLE",result.status());assertEquals(0,result.attempts());assertNull(result.cpuCoreSeconds());
     }
 }

@@ -93,6 +93,16 @@ const labels = {
   path: '路径',
   body: '请求体',
   query: '只读 SQL',
+  deployment: '部署配置',
+  name: '名称',
+  kubeNamespace: 'K8s 命名空间',
+  replicas: '副本数',
+  readiness: 'HTTP 就绪检查',
+  service: 'Service',
+  port: '端口',
+  targetPort: '容器端口',
+  nodePort: 'NodePort',
+  endpoint: '访问地址',
 };
 function addKey() {
   const key = newKey.value.trim();

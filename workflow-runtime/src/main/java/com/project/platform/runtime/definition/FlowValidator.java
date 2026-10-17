@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import com.project.platform.runtime.scheduler.ScheduleCalculator;
 
 public final class FlowValidator {
-    private static final Set<String> TASK_TYPES=Set.of("core.Log","core.Sleep","core.Http","core.Sql","platform.Application",
+    private static final Set<String> TASK_TYPES=Set.of("core.Log","core.Sleep","core.Http","core.Sql","platform.Application","platform.Deployment",
             "core.Sequential","core.Parallel","core.Dag","core.If","core.Repeat","core.Loop");
     public static Set<String> taskTypes() {return TASK_TYPES;}
     private final TemplateRenderer renderer;
@@ -91,18 +91,26 @@ public final class FlowValidator {
                         throw WorkflowException.invalid("sql","single parameterized SELECT required");
                     identifier(s.connection(),"sql.connection");
                 }
-            } else if("platform.Application".equals(task.type())) {
+            } else if(Set.of("platform.Application","platform.Deployment").contains(task.type())) {
+                boolean deployment="platform.Deployment".equals(task.type());
                 var c=task.container();
                 if(c==null || task.timeout()==null || task.message()!=null || task.duration()!=null)
-                    throw WorkflowException.invalid("container","Application requires container/timeout and forbids message/duration");
+                    throw WorkflowException.invalid("container","application tasks require container/timeout and forbid message/duration");
                 identifier(c.applicationId(),"applicationId");
                 if(c.version()==null || !c.version().matches("[A-Za-z0-9][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("version","version token required");
-                if((c.execution()==ContainerExecution.CLUSTER && c.candidateClusters()==null) || c.command().isEmpty() || c.command().size()>100
+                if((c.execution()==ContainerExecution.CLUSTER && c.candidateClusters()==null) || (!deployment && c.command().isEmpty()) || c.command().size()>100
                         || c.parameters().size()>100 || c.inputFiles().size()>30 || c.outputFiles().size()>30)
                     throw WorkflowException.invalid("container","invalid command, candidates or file/parameter count");
                 if(c.execution()==ContainerExecution.TERMINAL && c.candidateClusters()!=null)
                     throw WorkflowException.invalid("candidateClusters","TERMINAL uses the authenticated request origin, not cluster candidates");
                 if(c.candidateClusters() instanceof Literal literal)candidateClusters(literal.value());
+                if(deployment) {
+                    deployment(task.deployment());
+                    if(c.execution()!=ContainerExecution.CLUSTER || c.offload()!=null || !c.inputFiles().isEmpty() || !c.outputFiles().isEmpty() || !c.namespaceFiles().isEmpty())
+                        throw WorkflowException.invalid("container","Deployment uses CLUSTER execution and application parameters, not Job files or offloading");
+                    if(c.candidateClusters() instanceof Literal literal && candidateClusters(literal.value()).size()!=1)
+                        throw WorkflowException.invalid("candidateClusters","Deployment requires exactly one target cluster");
+                }
                 if(c.resources()!=null && c.resources().limits()!=null) {
                     var limits=c.resources().limits();
                     if((limits.cpu()!=null || limits.memory()!=null) && c.execution()!=ContainerExecution.CLUSTER)
@@ -153,7 +161,8 @@ public final class FlowValidator {
                     if(children.stream().anyMatch(child->"core.Repeat".equals(child.type())))throw WorkflowException.invalid("repeat","nested Repeat is not supported");
                 }
             } else throw WorkflowException.invalid("tasks." + task.id(), "unsupported task type");
-            if(!"platform.Application".equals(task.type()) && task.container()!=null)throw WorkflowException.invalid("container","only Application supports container");
+            if(!Set.of("platform.Application","platform.Deployment").contains(task.type()) && task.container()!=null)throw WorkflowException.invalid("container","only application tasks support container");
+            if(!"platform.Deployment".equals(task.type()) && task.deployment()!=null)throw WorkflowException.invalid("deployment","only Deployment supports deployment");
             if(!"core.Http".equals(task.type()) && task.http()!=null)throw WorkflowException.invalid("http","only Http supports http");
             if(!"core.Sql".equals(task.type()) && task.sql()!=null)throw WorkflowException.invalid("sql","only Sql supports sql");
             if(!"core.Repeat".equals(task.type()) && task.repeat()!=null)throw WorkflowException.invalid("repeat","only Repeat supports repeat");
@@ -190,6 +199,33 @@ public final class FlowValidator {
     }
     private void fileName(String value) {
         if(value==null || !value.matches("[A-Za-z][A-Za-z0-9_.-]{0,99}"))throw WorkflowException.invalid("files","simple named files required; no directories or traversal");
+    }
+    private static void deployment(Deployment value) {
+        if(value==null)throw WorkflowException.invalid("deployment","deployment configuration required");
+        kubeName(value.name(),"deployment.name");
+        if(value.kubeNamespace()!=null)kubeName(value.kubeNamespace(),"deployment.kubeNamespace");
+        if(value.replicas()<0 || value.replicas()>100)throw WorkflowException.invalid("deployment.replicas","0..100 required");
+        if(value.readiness()!=null) {
+            port(value.readiness().port());
+            if(value.readiness().path()==null || !value.readiness().path().startsWith("/") || value.readiness().path().length()>1024)
+                throw WorkflowException.invalid("deployment.readiness.path","HTTP path required");
+        }
+        if(value.service()!=null) {
+            var service=value.service();port(service.port());port(service.targetPort());
+            if(service.nodePort()!=null)port(service.nodePort());
+            if(service.endpoint()!=null && !service.endpoint().isBlank()) {
+                try {
+                    var uri=java.net.URI.create(service.endpoint());
+                    if(!Set.of("http","https").contains(java.util.Objects.toString(uri.getScheme(),"")) || uri.getHost()==null || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null)throw new IllegalArgumentException();
+                } catch(IllegalArgumentException ex) {throw WorkflowException.invalid("deployment.service.endpoint","HTTP(S) address required");}
+            }
+        }
+    }
+    private static void port(Integer value) {
+        if(value==null || value<1 || value>65535)throw WorkflowException.invalid("deployment.port","port 1..65535 required");
+    }
+    private static void kubeName(String value,String path) {
+        if(value==null || !value.matches("[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?"))throw WorkflowException.invalid(path,"Kubernetes name required");
     }
     public static void namespacePath(String path) {
         if(path==null || path.length()>200 || !path.matches("[A-Za-z0-9_][A-Za-z0-9_./-]*")
@@ -304,7 +340,7 @@ public final class FlowValidator {
             case TaskOutputRef ref -> {
                 var task=flow.allTasks().stream().filter(t->t.id().equals(ref.taskId())).findFirst().orElse(null);
                 String port=task!=null && "core.If".equals(task.type())?"evaluationResult":"message";
-                boolean valid=task!=null && (task.loop()!=null?task.loop().outputs().containsKey(ref.port()):task.repeat()!=null?task.repeat().initial().containsKey(ref.port()) || Set.of("iterations","iterationCount").contains(ref.port()):task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
+                boolean valid=task!=null && (task.deployment()!=null?"endpoint".equals(ref.port()):task.loop()!=null?task.loop().outputs().containsKey(ref.port()):task.repeat()!=null?task.repeat().initial().containsKey(ref.port()) || Set.of("iterations","iterationCount").contains(ref.port()):task.container()!=null?task.container().outputFiles().contains(ref.port()):task.http()!=null?Set.of("statusCode","body").contains(ref.port()):task.sql()!=null?Set.of("rows","size").contains(ref.port()):port.equals(ref.port()) && ("core.Log".equals(task.type()) || "core.If".equals(task.type())));
                 if (!taskIds.contains(ref.taskId()) || !valid) {
                     throw WorkflowException.invalid(path, "unknown task output");
                 }

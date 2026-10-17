@@ -122,6 +122,13 @@ public final class KubernetesManagementService {
         });
     }
     public ServiceInfo createService(Actor actor,String workspace,String cluster,String namespace,ServiceRequest request) {
+        return service(actor,workspace,cluster,namespace,request,true);
+    }
+    /** Flow deployment tasks use the same managed Service configuration as the resource page. */
+    public ServiceInfo putService(Actor actor,String workspace,String cluster,String namespace,ServiceRequest request) {
+        return service(actor,workspace,cluster,namespace,request,false);
+    }
+    private ServiceInfo service(Actor actor,String workspace,String cluster,String namespace,ServiceRequest request,boolean createOnly) {
         return call(actor,workspace,cluster,Action.WRITE,client->{
             active(allowed(client,workspace,namespace));
             if(request==null)throw ResourceException.invalid("Service configuration required");name(request.name());
@@ -146,6 +153,18 @@ public final class KubernetesManagementService {
             var value=new ServiceBuilder().withNewMetadata().withName(request.name()).withNamespace(namespace)
                     .withLabels(Map.of(OWNER,"cea-system",WORKSPACE,workspace)).endMetadata().withNewSpec()
                     .withType(request.type()).withSelector(request.selector()).withPorts(ports).endSpec().build();
+            var existing=createOnly?null:client.services().inNamespace(namespace).withName(request.name()).get();
+            if(existing!=null) {
+                if(!owned(existing.getMetadata(),workspace))throw ResourceException.conflict("cannot edit an unmanaged Service");
+                // Preserve the allocated ClusterIP and automatically allocated NodePorts on repeated execution.
+                for(var port:ports)if(port.getNodePort()==null && !"ClusterIP".equals(request.type()))
+                    existing.getSpec().getPorts().stream().filter(p->Objects.equals(p.getPort(),port.getPort()) && Objects.equals(p.getProtocol(),port.getProtocol()))
+                            .findFirst().ifPresent(p->port.setNodePort(p.getNodePort()));
+                if(Objects.equals(existing.getSpec().getType(),request.type()) && Objects.equals(existing.getSpec().getSelector(),request.selector()) && Objects.equals(existing.getSpec().getPorts(),ports))
+                    return serviceInfo(client,existing,workspace,false);
+                existing.getSpec().setType(request.type());existing.getSpec().setSelector(request.selector());existing.getSpec().setPorts(ports);
+                return serviceInfo(client,client.services().inNamespace(namespace).resource(existing).lockResourceVersion(existing.getMetadata().getResourceVersion()).update(),workspace,false);
+            }
             return serviceInfo(client,client.services().inNamespace(namespace).resource(value).create(),workspace,false);
         });
     }
