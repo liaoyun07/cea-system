@@ -119,6 +119,35 @@ class InputCodecTest(unittest.TestCase):
 
 
 class FixtureTest(unittest.TestCase):
+    def test_128_cycle_batches_preserve_all_inputs_and_reference_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(temporary)
+            source = root / 'source'
+            source.mkdir()
+            groups = {group: inputs(group, 157) for group in GROUPS}
+            for group, arrays in groups.items():
+                np.savez(source / f'{group}.npz', **arrays)
+            np.savez(source / 'reference.npz', **reference(157))
+            prepare(source, root / 'small', 'arrays')
+            prepare(source, root / 'large', 'arrays', 128)
+            small = json.loads((root / 'small/manifest.json').read_text())
+            large = json.loads((root / 'large/manifest.json').read_text())
+            self.assertEqual([item['expected']['cycles'] for item in large], [128, 29])
+            self.assertEqual(sum(x['expected']['inputBytes'] for x in small),
+                             sum(x['expected']['inputBytes'] for x in large))
+            for group_index, group in enumerate(GROUPS):
+                decoded = [decode_input((root / 'large' / item['files'][group_index]['name']).read_bytes())
+                           for item in large]
+                for key in groups[group]:
+                    np.testing.assert_array_equal(np.concatenate([x[key] for x in decoded]), groups[group][key])
+            old = [load(root / 'small' / f'{i}-expected.npz') for i in range(len(small))]
+            new = [load(root / 'large' / f'{i}-expected.npz') for i in range(len(large))]
+            for key in old[0]:
+                np.testing.assert_array_equal(np.concatenate([x[key] for x in old]),
+                                              np.concatenate([x[key] for x in new]))
+            with self.assertRaises(ValueError):
+                prepare(source, root / 'invalid', 'arrays', 0)
+
     def test_optional_arrays_fixtures_keep_original_bytes_batches_and_npz_results(self):
         with tempfile.TemporaryDirectory() as temporary, contextlib.redirect_stdout(io.StringIO()):
             root = Path(temporary)

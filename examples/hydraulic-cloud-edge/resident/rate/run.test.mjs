@@ -2,6 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,hc18Sequence,hc19Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
 
+test('HC20 changes batching only and keeps approximately 3 GB/s with 32 VUs and original quotas',()=>{
+  const config=experimentConfig('HC-20'),protocol=experimentProtocol('HC-20');
+  assert.equal(config.namespace,'cea-hc20-batch128-20261018');assert.equal(config.nodePort,31100);
+  assert.equal(config.image,'cea/hydraulic-resident:hc20-batch128');assert.equal(protocol.rate,140);
+  assert.equal(385257600/18*protocol.rate/1e9,2.996448);
+  assert.deepEqual(fixturePrepareArgs('HC-20'),['prepare','/source','/fixtures','arrays','128']);
+  validateFixtureFormat([{files:[{contentType:'application/vnd.cea.hydraulic-arrays'}]}],'HC-20');
+  for(const row of protocol.sequence)validateTrialParameters(row.label,row.duration,row.preVUs,row.maxVUs,'HC-20');
+  assert.throws(()=>experimentConfig('HC-20','baseline'));
+  assert.throws(()=>validateTrialParameters('measure-1','60s',48,48,'HC-20'));
+  assert.throws(()=>changedAllocation(initialAllocation,'load',6,5120,16,'HC-20'));
+  const log='time=x msg='+JSON.stringify('HC20_STATS cloud {"completed":4}\n')+' source=console';
+  assert.equal(parseServiceStats(log,'HC20').cloud.completed,4);
+});
+
 test('HC19 tests only the new cloud-no-limit image with unchanged fixtures and quotas',()=>{
   const p=experimentConfig('HC-19');
   assert.equal(p.image,'cea/hydraulic-resident:hc19-no-limit');assert.equal(p.namespace,'cea-hc19-no-limit-20261018');assert.equal(p.nodePort,31099);

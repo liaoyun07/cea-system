@@ -11,7 +11,7 @@ const expected = {inputBytes: 24, cycles: 1, flagCount: 0, scoreSum: 1};
 const manifest = [0, 1].map(index => ({files: [0, 1, 2].map(group => ({name: `${index}-${group}.npz`, length: 8})), expected}));
 
 async function exercise({responses = [{status: 200}, {status: 200}, {status: 200}], shortRead = false,
-  cloud = {status: 200, json: () => expected}, iterations = [0], now = 1000000, experiment = 'HC-14', contentType} = {}) {
+  cloud = {status: 200, json: () => expected}, iterations = [0], now = 1000000, experiment = 'HC-14', contentType, rate = '273'} = {}) {
   const metrics = {}, logs = [], requests = [], gets = [], reads = [];
   const execution = {scenario: {iterationInTest: 0, startTime: 1000000}};
   class Metric {constructor(name) {this.name = name; metrics[name] = [];} add(value) {metrics[this.name].push(value);}}
@@ -21,7 +21,7 @@ async function exercise({responses = [{status: 200}, {status: 200}, {status: 200
   const module = await initialize(http, () => {}, execution, Metric, Metric,
     async name => ({seek: async () => {}, read: async bytes => {reads.push(name); return bytes.length - Number(shortRead);}}),
     {Start: 0}, () => JSON.stringify(manifest.map(item=>({...item,files:item.files.map(file=>({...file,...(contentType?{contentType}:{})}))}))),
-    {RUN: 'test', EXPERIMENT: experiment, RATE: '273', DURATION: '10s', PRE_ALLOCATED_VUS: '32', MAX_VUS: '48',
+    {RUN: 'test', EXPERIMENT: experiment, RATE: rate, DURATION: '10s', PRE_ALLOCATED_VUS: '32', MAX_VUS: '48',
       ENDPOINTS: JSON.stringify({'edge-a': 'a', 'edge-b': 'b', 'edge-c': 'c', cloud: 'cloud'})},
     {error: value => logs.push(value), log: value => logs.push(value)}, {now: () => now}, buildRatePlan, summarizeRate);
   for (const iteration of iterations) {execution.scenario.iterationInTest = iteration; await module.run();}
@@ -43,6 +43,16 @@ test('uses an open arrival schedule and reuses separate VU-local group buffers',
   assert.deepEqual(result.metrics.failed_batches, [0, 0]);
   assert.equal(result.reads.length, 6);
   assert.deepEqual(result.gets, ['cloud/result/test/0', 'cloud/result/test/2']);
+});
+
+test('HC20 uses the supplied 140 batch rate without changing three uploads or verified result accounting', async () => {
+  const result = await exercise({experiment:'HC-20',rate:'140',contentType:'application/vnd.cea.hydraulic-arrays'});
+  assert.equal(result.options.scenarios.batches.rate,140);
+  assert.equal(result.requests.length,3);assert.equal(result.gets.length,1);
+  assert.deepEqual(result.metrics.completed_signal_bytes,[24]);
+  const failed = await exercise({experiment:'HC-20',rate:'140',responses:[{status:500},{status:200},{status:200}]});
+  assert(failed.logs.some(value=>value.startsWith('HC20_REQUEST_ERROR ')));
+  assert.deepEqual(failed.metrics.failed_batches,[1]);assert.equal(failed.gets.length,0);
 });
 
 test('global iteration selects the cyclic source and preserves original service routes', async () => {

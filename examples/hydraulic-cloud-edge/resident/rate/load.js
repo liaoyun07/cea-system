@@ -7,7 +7,7 @@ import {buildRatePlan, summarizeRate} from './metrics.mjs';
 
 const manifest = JSON.parse(open('/fixtures/manifest.json'));
 const experiment = __ENV.EXPERIMENT || 'HC-14';
-if (!['HC-14', 'HC-15', 'HC-16', 'HC-17', 'HC-18', 'HC-19'].includes(experiment)) throw Error('Unknown experiment');
+if (!['HC-14', 'HC-15', 'HC-16', 'HC-17', 'HC-18', 'HC-19', 'HC-20'].includes(experiment)) throw Error('Unknown experiment');
 const logPrefix = experiment.replace('-', '');
 const urls = JSON.parse(__ENV.ENDPOINTS);
 const groups = ['edge-a', 'edge-b', 'edge-c'];

@@ -9,7 +9,11 @@ import {arrivalBoundaryAllowance} from './metrics.mjs';
 
 // Distinct revisions own distinct evidence/failed markers. Never reset an old run.
 export function experimentConfig(experiment='HC-14',revision){
-  assert(['HC-14','HC-15','HC-16','HC-17','HC-18','HC-19'].includes(experiment),'Unknown experiment');
+  assert(['HC-14','HC-15','HC-16','HC-17','HC-18','HC-19','HC-20'].includes(experiment),'Unknown experiment');
+  if(experiment==='HC-20'){
+    assert(revision===undefined||revision==='batch128','HC-20 only tests 128-cycle batches');
+    return {experiment,revision:'batch128',batch:'hc20-batch128-20261018',namespace:'cea-hc20-batch128-20261018',nodePort:31100,image:'cea/hydraulic-resident:hc20-batch128',logPrefix:'HC20'};
+  }
   if(experiment==='HC-19'){
     assert(revision===undefined||revision==='no-limit','HC-19 only tests the changed image; no baseline/return');
     return {experiment,revision:'no-limit',batch:'hc19-no-limit-20261018',namespace:'cea-hc19-no-limit-20261018',nodePort:31099,image:'cea/hydraulic-resident:hc19-no-limit',logPrefix:'HC19'};
@@ -33,7 +37,7 @@ export function experimentConfig(experiment='HC-14',revision){
   const batch='hc15-'+revision+'-20261017';
   return {experiment,revision,batch,namespace:'cea-'+batch,nodePort:31095,image:'cea/hydraulic-resident:hc15-'+revision,logPrefix:'HC15'};
 }
-const {experiment,revision,batch,namespace,nodePort,image,logPrefix}=experimentConfig(process.env.HC_EXPERIMENT||'HC-14',process.env.HC_REVISION),rate=273;
+const {experiment,revision,batch,namespace,nodePort,image,logPrefix}=experimentConfig(process.env.HC_EXPERIMENT||'HC-14',process.env.HC_REVISION),rate=experiment==='HC-20'?140:273;
 const folder=path.resolve('.local/cea/'+batch),remote='/tmp/'+namespace;
 const source='examples/hydraulic-cloud-edge/resident/rate',clusters=['edge-a','edge-b','edge-c','cloud'];
 export const initialAllocation=Object.fromEntries([...clusters.map(c=>[c,{cpu:2,memoryMiB:c==='cloud'?1024:2048}]),['load',{cpu:7,memoryMiB:5120}]]);
@@ -51,11 +55,12 @@ export function hc17Sequence(runRevision){
   return sequence;
 }
 export function fixturePrepareArgs(experimentName=experiment,runRevision=revision){
+  if(experimentName==='HC-20')return ['prepare','/source','/fixtures','arrays','128'];
   return ['prepare','/source','/fixtures',...(['HC-18','HC-19'].includes(experimentName)||experimentName==='HC-17'&&runRevision==='views'?['arrays']:[])];
 }
 export function validateFixtureFormat(manifest,experimentName=experiment,runRevision=revision){
-  if(!['HC-17','HC-18','HC-19'].includes(experimentName))return;
-  const expected=['HC-18','HC-19'].includes(experimentName)||runRevision==='views'?'application/vnd.cea.hydraulic-arrays':'application/octet-stream';
+  if(!['HC-17','HC-18','HC-19','HC-20'].includes(experimentName))return;
+  const expected=['HC-18','HC-19','HC-20'].includes(experimentName)||runRevision==='views'?'application/vnd.cea.hydraulic-arrays':'application/octet-stream';
   for(const item of manifest)for(const file of item.files)assert.equal(file.contentType||'application/octet-stream',expected,'Input format differs from the frozen phase');
 }
 export function assertConfirmationGate(baseline,candidate,approval,experimentName='HC-17'){
@@ -77,6 +82,10 @@ export function hc18Sequence(runRevision){
 export const hc19Sequence=[{label:'probe-10s',duration:'10s',preVUs:32,maxVUs:32},
   ...[1,2,3].map(n=>({label:'measure-'+n,duration:'60s',preVUs:32,maxVUs:32}))];
 export function experimentProtocol(experimentName=experiment,runRevision=revision){
+  if(experimentName==='HC-20')return {rate:140,revision:'batch128',batchCycles:128,sequence:hc19Sequence,defaultPreAllocatedVUs:32,defaultMaxVUs:32,
+    freeze:'Only batch size 64 to 128 cycles; 18 batches including final 29 cycles; 140 batches/s ~2.996448 GB/s; unchanged HC19 business code, algorithm, precision, 32 VUs and quotas',
+    adjustment:'candidate only; no baseline/return or quota changes; review each run health before next; stop on errors or host guard',
+    acceptance:'90 full arrays covering 2205 cycles; 10s probe then three 60s runs; disclose drops, latency, resources and historical-only HC19 comparison'};
   if(experimentName==='HC-19')return {rate,revision:'no-limit',sequence:hc19Sequence,defaultPreAllocatedVUs:32,defaultMaxVUs:32,
     freeze:'Remove only cloud fusion semaphore; keep short state locks and single edge compute slot, algorithm/precision/35 batches/64 cycles/array-view input/NPZ features/32 VUs/273 batches per second/quotas/full HTTP chain',
     adjustment:'candidate only as requested; no baseline/return or quota changes; review each run health before next; no retry on failure',
@@ -104,7 +113,7 @@ export function validateTrialParameters(label,duration,preVUs,maxVUs,experimentN
   if(experimentName==='HC-16')assert.deepEqual({label,duration,preVUs,maxVUs},hc16Sequence.find(row=>row.label===label),'HC-16 trial must match frozen concurrency comparison');
   if(experimentName==='HC-17')assert.deepEqual({label,duration,preVUs,maxVUs},hc17Sequence(runRevision).find(row=>row.label===label),'HC-17 trial must match the frozen phase');
   if(experimentName==='HC-18')assert.deepEqual({label,duration,preVUs,maxVUs},hc18Sequence(runRevision).find(row=>row.label===label),'HC-18 trial must match the frozen phase');
-  if(experimentName==='HC-19')assert.deepEqual({label,duration,preVUs,maxVUs},hc19Sequence.find(row=>row.label===label),'HC-19 only permits candidate probe and three measurements');
+  if(['HC-19','HC-20'].includes(experimentName))assert.deepEqual({label,duration,preVUs,maxVUs},hc19Sequence.find(row=>row.label===label),'Candidate only permits probe and three measurements');
 }
 const docker=(args,input,timeout=30000)=>execFileSync('docker',args,{input,encoding:'utf8',windowsHide:true,timeout,maxBuffer:64*1024*1024}).trim();
 const kube=(cluster,args,input)=>docker(['exec','-i',`cea-${cluster}-1`,'kubectl',...args],input);
@@ -179,8 +188,8 @@ function copiedInput(label,input,target,args,network,memory,output){
   const name=namespace+'-'+label;
   const id=docker(['create','--name',name,'--network',network,'--cpus','1','--memory',memory,image,'python','/app/fixtures.py',...args]);
   save(label+'-container.json',{id,name});docker(['cp',input,id+':'+target],undefined,120000);
-  if(['HC-17','HC-18','HC-19'].includes(experiment)&&label==='prepare'){
-    const archived=['service.py','fixtures.py','test_service.py',...(['HC-18','HC-19'].includes(experiment)||revision==='views'?['input_codec.py','test_input_codec.py']:[])];
+  if(['HC-17','HC-18','HC-19','HC-20'].includes(experiment)&&label==='prepare'){
+    const archived=['service.py','fixtures.py','test_service.py',...(['HC-18','HC-19','HC-20'].includes(experiment)||revision==='views'?['input_codec.py','test_input_codec.py']:[])];
     for(const file of archived)docker(['cp',id+':/app/'+file,path.join(folder,'protocol',file)]);
     save('protocol/image-source.json',{image,imageId:load('plan.json').imageId,files:archived,source:'Copied from the actual preparation image container; not current working-tree service source'});
   }
@@ -221,11 +230,16 @@ async function setup(){
   const archiveFolder=path.join(folder,'protocol');mkdirSync(archiveFolder);
   for(const f of ['run.mjs','load.js'])copyFileSync(path.join(source,f),path.join(archiveFolder,f));
   copyFileSync(path.join(source,'metrics.mjs'),path.join(archiveFolder,'load-metrics.mjs'));
-  for(const f of ['host-monitor.mjs','metrics.mjs',...(['HC-17','HC-18','HC-19'].includes(experiment)?[]:['fixtures.py'])])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
-  if(!['HC-14','HC-17','HC-18','HC-19'].includes(experiment))for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
+  for(const f of ['host-monitor.mjs','metrics.mjs',...(['HC-17','HC-18','HC-19','HC-20'].includes(experiment)?[]:['fixtures.py'])])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
+  if(!['HC-14','HC-17','HC-18','HC-19','HC-20'].includes(experiment))for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
   console.log(copiedInput('prepare',path.resolve('.local/cea/hc01/full'),'/source',fixturePrepareArgs(),'none','1g','/fixtures'));
   save('manifest.json',JSON.parse(readFileSync(path.join(folder,'fixtures/manifest.json'),'utf8')));
   validateFixtureFormat(load('manifest.json'));
+  if(experiment==='HC-20'){
+    const items=load('manifest.json');assert.equal(items.length,18);
+    assert.deepEqual(items.map(v=>v.expected.cycles),[...Array(17).fill(128),29]);
+    assert.equal(items.reduce((n,v)=>n+v.expected.inputBytes,0),385257600);
+  }
   const archive=path.join(folder,'image.tar');docker(['image','save','-o',archive,image],undefined,120000);
   for(const c of clusters){
     docker(['cp',archive,`cea-${c}-1:/tmp/${namespace}-image.tar`],undefined,120000);
@@ -260,7 +274,7 @@ export function assertBudget(allocation,cpuCores){
   assert(Object.values(allocation).reduce((n,a)=>n+a.cpu,0)<=cpuCores-1,'Experiment CPU quotas exceed WSL budget');
 }
 export function changedAllocation(before,target,cpu,memoryMiB,cpuCores,experimentName=experiment){
-  assert(!['HC-16','HC-17','HC-18','HC-19'].includes(experimentName),experimentName+' freezes all resource quotas; configure is not allowed');
+  assert(!['HC-16','HC-17','HC-18','HC-19','HC-20'].includes(experimentName),experimentName+' freezes all resource quotas; configure is not allowed');
   assert([...clusters,'load'].includes(target),'Unknown allocation target');
   if(target==='load'){assert([5,6,7].includes(cpu));assert.equal(memoryMiB,5120);}
   else {assert([2,3,4].includes(cpu));assert(cpu>=before[target].cpu,'Business CPU cannot decrease in this exploration');assert(Number.isInteger(memoryMiB)&&memoryMiB>=before[target].memoryMiB);}
@@ -282,7 +296,7 @@ function configure(target,cpu,memoryMiB){
 }
 export function parseServiceStats(log,prefix=logPrefix){
   const stats={};
-  assert(['HC14','HC15','HC16','HC17','HC18','HC19'].includes(prefix));
+  assert(['HC14','HC15','HC16','HC17','HC18','HC19','HC20'].includes(prefix));
   for(const line of log.split('\n')){
     const match=line.match(/msg=("(?:[^"\\]|\\.)*") source=console/);if(!match)continue;
     const stat=JSON.parse(match[1]).match(new RegExp('^'+prefix+'_STATS (edge-[abc]|cloud) (\\{[\\s\\S]*\\})\\s*$'));if(stat)stats[stat[1]]=JSON.parse(stat[2]);
@@ -312,9 +326,9 @@ export function validateProcessing(result,stats,manifest){
 }
 async function trial(label,duration,preVUs=32,maxVUs=32){
   validateTrialParameters(label,duration,preVUs,maxVUs);assertIdle();
-  if(experiment==='HC-19'){
+  if(['HC-19','HC-20'].includes(experiment)){
     const index=hc19Sequence.findIndex(row=>row.label===label);
-    for(const previous of hc19Sequence.slice(0,index))assert.equal(load(previous.label+'/validation.json').status,'PASS','Previous HC-19 trial must pass');
+    for(const previous of hc19Sequence.slice(0,index))assert.equal(load(previous.label+'/validation.json').status,'PASS','Previous candidate trial must pass');
   }
   if(experiment==='HC-18'){
     const sequence=hc18Sequence(revision),index=sequence.findIndex(row=>row.label===label);
@@ -341,7 +355,7 @@ async function trial(label,duration,preVUs=32,maxVUs=32){
     }
   }
   const allocation=load('allocation.json');assertBudget(allocation,load('capacity.json').cpuCores);assert.deepEqual(load('correctness.json').allocation,allocation,'Reverify changed allocation first');
-  if(['HC-16','HC-17','HC-18','HC-19'].includes(experiment))assert.deepEqual(allocation,initialAllocation,experiment+' resource quotas are frozen');
+  if(['HC-16','HC-17','HC-18','HC-19','HC-20'].includes(experiment))assert.deepEqual(allocation,initialAllocation,experiment+' resource quotas are frozen');
   const target=path.join(folder,label);assert(!existsSync(target),'Trial label exists; never overwrite');mkdirSync(target);
   const host=[sampleHost()];assert(allocation.load.memoryMiB+512<=host[0].linux.MemAvailable/2**20,'Insufficient available WSL RAM for k6 plus reserve');
   assert(!hostStopReasons(host,'capacity').length,'Critical host pressure');appendFileSync(path.join(target,'host.jsonl'),JSON.stringify(host[0])+'\n');write(target,'allocation.json',allocation);
@@ -419,11 +433,11 @@ function report(){
     rows.push(row);
   }
   const confirmed=rows.filter(r=>r.run.startsWith('confirm-')&&r.processingValid);
-  if(experiment==='HC-19'){
+  if(['HC-19','HC-20'].includes(experiment)){
     const measured=rows.filter(r=>r.run.startsWith('measure-')&&r.durationSeconds===60&&r.processingValid);
     const result={rows,revision,measurementRuns:measured.map(r=>r.run),measuredMeanGBps:measured.length===3?measured.reduce((n,r)=>n+r.GBps,0)/3:null,
       allThreeAbove2_5GBps:measured.length===3&&measured.every(r=>r.GBps>=2.5),allThreeOfferedLoadAchieved:measured.length===3&&measured.every(r=>r.offeredLoadAchieved),
-      scope:'HC19 candidate only: cloud fusion no longer serialized; raw signal bytes / full HTTP chain; no new baseline; historical difference is not controlled gain; drops are not accepted load'};
+      scope:experiment+' candidate only: '+(experiment==='HC-20'?'128 cycles per batch; ':'cloud fusion no longer serialized; ')+'raw signal bytes / full HTTP chain; no new baseline; historical difference is not controlled gain; drops are not accepted load'};
     save('report.json',result);console.log(JSON.stringify(result,null,2));return;
   }
   if(experiment==='HC-18'){

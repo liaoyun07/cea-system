@@ -11,7 +11,9 @@ from service import pack, unpack, summary
 from input_codec import CONTENT_TYPE, encode_input
 
 
-def prepare(source, output, encoding='npz'):
+def prepare(source, output, encoding='npz', batch_cycles=64):
+    if not isinstance(batch_cycles, int) or batch_cycles <= 0:
+        raise ValueError('batch_cycles must be a positive integer')
     if encoding not in ('npz', 'arrays'):
         raise ValueError('input encoding must be npz or arrays')
     output.mkdir(exist_ok=False)
@@ -20,8 +22,8 @@ def prepare(source, output, encoding='npz'):
     parts = [edge(groups[g], g) for g in GROUPS]
     expected, _ = fuse(parts, reference, 3.)
     manifest = []
-    for index, start in enumerate(range(0, len(reference['cycle_ids']), 64)):
-        stop = min(start+64, len(reference['cycle_ids']))
+    for index, start in enumerate(range(0, len(reference['cycle_ids']), batch_cycles)):
+        stop = min(start+batch_cycles, len(reference['cycle_ids']))
         files, raw_bytes = [], 0
         for group in GROUPS:
             values = {name: array[start:stop] for name, array in groups[group].items()}
@@ -69,6 +71,7 @@ def verify(folder, endpoints):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'prepare':
-        prepare(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else 'npz')
+        prepare(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else 'npz',
+                int(sys.argv[5]) if len(sys.argv) > 5 else 64)
     else:
         verify(Path(sys.argv[2]), json.loads(sys.argv[3]))
