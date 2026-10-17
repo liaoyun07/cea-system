@@ -5,7 +5,7 @@
 ## 范围、环境与变化
 
 - 用户要求先确保压测端能达到2～3GB/s。本批隔离测试 `k6 → 三个边缘HTTP接收器 → 完整性确认`，不经过液压解包、特征计算、边缘向中心转发、中心聚合和结果领取。接收器流式读取全部NPZ并验证长度及CRC32C才返回成功，没有零字节请求、伪造回执或自动重试。
-- 四集群专用命名空间 `cea-hc13-20261017`、NodePort31093。三个Go接收器各2核/512MiB，中心只部署k6压测端7核/5GiB、GOMEMLIMIT4096MiB、GOGC50。官方k6版本1.3.0，未修改二进制；接收器镜像 `cea/hc-generator-receiver:hc13-v1`，ID `sha256:bb66cc3c497cecf254fe679ffff5a25a61e70824fcbe7f2b5901eb7e6d5b945a`。
+- 四集群专用命名空间 `cea-hc13-20261017`、NodePort31093。三个Go接收器各2核/512MiB，中心只部署k6压测端7核/5GiB、GOMEMLIMIT4096MiB、GOGC50。官方k6版本1.3.0，未修改二进制；接收器镜像 `cea/hc-generator-receiver:hc13-v1`，三个Pod实际imageID均为 `sha256:bb66cc3c497cecf254fe679ffff5a25a61e70824fcbe7f2b5901eb7e6d5b945a`；plan保存的Docker镜像ID为 `sha256:b6299adc83c8fe764708d5706578ab8ee55c222462268fb6764a0b5aa5ffe244`，两者层级不同，不混称同一标识。
 - 实际cgroup核验：k6 `cpu.max=700000 100000`、`memory.max=5368709120`；各接收器 `200000 100000`、536870912。CPU实验配额13核，WSL16核/约15.39GiB；不提高WSL上限，不重启旧服务，不变更业务镜像。
 - 数据仍为原2205周期、385257600原始信号字节，64周期分35批、末批29周期；每次三路POST，全局iteration按35批轮转。重复回放每次真实传输，累计字节不是不同样本数据集大小。不做每VU全量数据副本，不压缩输入，不缓存计算结果。
 - `legacy`逐批分配三份Uint8Array；`reuse`按每VU、每组、每种精确文件长度复用缓冲区（约15.51MiB/VU），仍每批读取并上传原文件。三组不共享可变buffer，末批使用精确短buffer，不发送多余尾部。
