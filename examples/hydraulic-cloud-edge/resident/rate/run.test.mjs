@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters} from './run.mjs';
+import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
 
 test('initial allocation stays within 16-core host minus reserve',()=>{assertBudget(initialAllocation,16);assert.throws(()=>assertBudget(initialAllocation,15));});
 test('single business increase requires spare quota and leaves other services untouched',()=>{
@@ -78,6 +78,40 @@ test('HC16 freezes only the authorized 32/48/32 sequence, not historical confirm
   assert.throws(()=>validateTrialParameters('candidate-48','60s',48,48,'HC-16'));
   validateTrialParameters('confirm-1','60s',32,32,'HC-15');
 });
+test('HC17 phases isolate evidence while baseline and return keep the original fixed image',()=>{
+  const phases=['baseline','views','return'].map(revision=>experimentConfig('HC-17',revision));
+  assert.equal(new Set(phases.map(p=>p.namespace)).size,3);assert.equal(new Set(phases.map(p=>p.batch)).size,3);
+  assert(phases.every(p=>p.nodePort===31097&&p.logPrefix==='HC17'));
+  assert.equal(phases[0].image,'cea/hydraulic-resident:hc15-fixed');assert.equal(phases[2].image,phases[0].image);
+  assert.equal(phases[1].image,'cea/hydraulic-resident:hc17-views');assert.equal(phases[1].batch,'hc17-views-20261017');
+  assert.throws(()=>experimentConfig('HC-17'));assert.throws(()=>experimentConfig('HC-17','fixed'));
+  assert.throws(()=>changedAllocation(initialAllocation,'load',6,5120,16,'HC-17'));
+});
+test('only HC17 views passes a new fixture format argument; legacy images receive their original command',()=>{
+  for(const revision of ['baseline','return'])assert.deepEqual(fixturePrepareArgs('HC-17',revision),['prepare','/source','/fixtures']);
+  assert.deepEqual(fixturePrepareArgs('HC-17','views'),['prepare','/source','/fixtures','arrays']);
+  assert.deepEqual(fixturePrepareArgs('HC-15','fixed'),['prepare','/source','/fixtures']);
+  const old=[{files:[{name:'x.npz',length:8}]}],views=[{files:[{name:'x.arrays',length:8,contentType:'application/vnd.cea.hydraulic-arrays'}]}];
+  validateFixtureFormat(old,'HC-17','baseline');validateFixtureFormat(old,'HC-17','return');validateFixtureFormat(views,'HC-17','views');
+  assert.throws(()=>validateFixtureFormat(old,'HC-17','views'));assert.throws(()=>validateFixtureFormat(views,'HC-17','baseline'));
+});
+test('HC17 allows only fixed 32 VU phase steps and views-only optional confirmations',()=>{
+  for(const revision of ['baseline','views','return']){
+    const sequence=hc17Sequence(revision);assert.equal(sequence.length,revision==='views'?5:2);
+    assert.equal(experimentProtocol('HC-17',revision).optionalConfirmations,revision==='views');
+    for(const row of sequence)validateTrialParameters(row.label,row.duration,row.preVUs,row.maxVUs,'HC-17',revision);
+    assert.throws(()=>validateTrialParameters('compare-30s','30s',48,48,'HC-17',revision));
+  }
+  for(const revision of ['baseline','return'])assert.throws(()=>validateTrialParameters('confirm-1','60s',32,32,'HC-17',revision));
+  assert.throws(()=>validateTrialParameters('confirm-4','60s',32,32,'HC-17','views'));
+});
+test('HC17 optional confirmations require explicit review plus zero-error measured short-run gain',()=>{
+  const base={run:'compare-30s',processingValid:true,failed:0,started:100,batches:100,exitCode:0,durationSeconds:30,preAllocatedVUs:32,maxVUs:32,rate:273,allocation:initialAllocation,GBps:1.4};
+  const views={...base,GBps:1.8};assertConfirmationGate(base,views,'1');
+  assert.throws(()=>assertConfirmationGate(base,views,undefined),/explicit review approval/);assert.throws(()=>assertConfirmationGate(base,{...views,GBps:1.3},'1'));
+  assert.throws(()=>assertConfirmationGate(base,{...views,failed:1},'1'));assert.throws(()=>assertConfirmationGate(base,{...views,processingValid:false},'1'));
+  assert.throws(()=>assertConfirmationGate(base,{...views,allocation:{...initialAllocation,load:{cpu:6,memoryMiB:5120}}},'1'));
+});
 test('TCP evidence parses paired raw counters and reports relevant same-Pod deltas',()=>{
   const beforeCounters=parseNetworkCounters('TcpExt: ListenOverflows ListenDrops TCPAbortOnData\nTcpExt: 4 5 0\nTcp: OutRsts EstabResets\nTcp: 8 1\n');
   const afterCounters=parseNetworkCounters('TcpExt: ListenOverflows ListenDrops TCPAbortOnData\nTcpExt: 6 7 3\nTcp: OutRsts EstabResets\nTcp: 12 2\n');
@@ -93,6 +127,15 @@ test('HC15 stats prefix is explicit and does not accidentally consume old experi
 test('HC16 stats are isolated from HC15 log identity',()=>{
   const log='time=x msg='+JSON.stringify('HC16_STATS cloud {"completed":4}\n')+' source=console';
   assert.equal(parseServiceStats(log,'HC16').cloud.completed,4);assert.deepEqual(parseServiceStats(log,'HC15'),{});
+});
+test('HC17 stats are isolated and no HC17 phase inherits an old-container audit exception',()=>{
+  const log='time=x msg='+JSON.stringify('HC17_STATS cloud {"completed":4}\n')+' source=console';
+  assert.equal(parseServiceStats(log,'HC17').cloud.completed,4);assert.deepEqual(parseServiceStats(log,'HC16'),{});
+  const old={name:'/cea-cloud-1',id:'old'};
+  for(const revision of ['baseline','views','return']){
+    assert.deepEqual(auditContainers([old],[old],'HC-17',revision).excludedBatchContainers,[]);
+    assert.throws(()=>auditContainers([old],[],'HC-17',revision));
+  }
 });
 test('audit excludes only the exact completed HC15 diagnostic unit container and preserves its snapshot evidence',()=>{
   const old={name:'/cea-cloud-1',id:'old',running:true};

@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import numpy as np
 from app import GROUPS, edge, fuse, load
+from input_codec import CONTENT_TYPE, decode_input
 
 
 def unpack(body):
@@ -232,7 +233,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('wrong run')
             start = time.perf_counter()
             self.stage = 'decode'
-            arrays = unpack(body)
+            arrays = (decode_input(body) if endpoint == 'process' and self.headers.get('Content-Type') == CONTENT_TYPE
+                      else unpack(body))
             decoded = time.perf_counter()
             if endpoint == 'partial' and state.role == 'cloud':
                 self.stage = 'aggregate'
@@ -247,6 +249,9 @@ class Handler(BaseHTTPRequestHandler):
                     computed = time.perf_counter()
                 self.stage = 'encode'
                 payload = pack(result)
+                # edge() passes cycle_ids through. Drop that view as well as the
+                # input views/body before waiting on the cloud's small result.
+                del result, arrays, body
                 encoded = time.perf_counter()
                 # Reuse one connection per inbound persistent HTTP handler/thread.
                 self.forward_to_cloud(run, batch, payload, raw_bytes)

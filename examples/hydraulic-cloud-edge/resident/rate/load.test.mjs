@@ -11,7 +11,7 @@ const expected = {inputBytes: 24, cycles: 1, flagCount: 0, scoreSum: 1};
 const manifest = [0, 1].map(index => ({files: [0, 1, 2].map(group => ({name: `${index}-${group}.npz`, length: 8})), expected}));
 
 async function exercise({responses = [{status: 200}, {status: 200}, {status: 200}], shortRead = false,
-  cloud = {status: 200, json: () => expected}, iterations = [0], now = 1000000, experiment = 'HC-14'} = {}) {
+  cloud = {status: 200, json: () => expected}, iterations = [0], now = 1000000, experiment = 'HC-14', contentType} = {}) {
   const metrics = {}, logs = [], requests = [], gets = [], reads = [];
   const execution = {scenario: {iterationInTest: 0, startTime: 1000000}};
   class Metric {constructor(name) {this.name = name; metrics[name] = [];} add(value) {metrics[this.name].push(value);}}
@@ -20,7 +20,7 @@ async function exercise({responses = [{status: 200}, {status: 200}, {status: 200
     'console', 'Date', 'buildRatePlan', 'summarizeRate', source + ';return {run,options,handleSummary};');
   const module = await initialize(http, () => {}, execution, Metric, Metric,
     async name => ({seek: async () => {}, read: async bytes => {reads.push(name); return bytes.length - Number(shortRead);}}),
-    {Start: 0}, () => JSON.stringify(manifest),
+    {Start: 0}, () => JSON.stringify(manifest.map(item=>({...item,files:item.files.map(file=>({...file,...(contentType?{contentType}:{})}))}))),
     {RUN: 'test', EXPERIMENT: experiment, RATE: '273', DURATION: '10s', PRE_ALLOCATED_VUS: '32', MAX_VUS: '48',
       ENDPOINTS: JSON.stringify({'edge-a': 'a', 'edge-b': 'b', 'edge-c': 'c', cloud: 'cloud'})},
     {error: value => logs.push(value), log: value => logs.push(value)}, {now: () => now}, buildRatePlan, summarizeRate);
@@ -83,6 +83,14 @@ test('HC16 preserves complete-chain requests and byte accounting with isolated l
   const failed = await exercise({experiment: 'HC-16', responses: [{status: 200}, {status: 400}, {status: 200}]});
   assert(failed.logs.some(value => value.startsWith('HC16_REQUEST_ERROR ')));
   assert.equal(failed.requests.length, 3);assert.deepEqual(failed.metrics.failed_batches, [1]);
+});
+test('HC17 input content type follows each manifest file while old NPZ requests remain unchanged', async () => {
+  const old=await exercise({experiment:'HC-17'}),views=await exercise({experiment:'HC-17',contentType:'application/vnd.cea.hydraulic-arrays'});
+  assert(old.requests.every(request=>request[3].headers['Content-Type']==='application/octet-stream'));
+  assert(views.requests.every(request=>request[3].headers['Content-Type']==='application/vnd.cea.hydraulic-arrays'));
+  assert.deepEqual(views.metrics.completed_signal_bytes,old.metrics.completed_signal_bytes);assert.deepEqual(views.gets,old.gets);
+  const failed=await exercise({experiment:'HC-17',responses:[{status:503},{status:200},{status:200}]});
+  assert(failed.logs.some(value=>value.startsWith('HC17_REQUEST_ERROR ')));assert.deepEqual(failed.metrics.failed_batches,[1]);
 });
 
 test('cloud HTTP and numerical errors both fail complete-chain accounting', async () => {

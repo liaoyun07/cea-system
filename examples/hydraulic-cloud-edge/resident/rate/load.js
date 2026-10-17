@@ -7,7 +7,7 @@ import {buildRatePlan, summarizeRate} from './metrics.mjs';
 
 const manifest = JSON.parse(open('/fixtures/manifest.json'));
 const experiment = __ENV.EXPERIMENT || 'HC-14';
-if (!['HC-14', 'HC-15', 'HC-16'].includes(experiment)) throw Error('Unknown experiment');
+if (!['HC-14', 'HC-15', 'HC-16', 'HC-17'].includes(experiment)) throw Error('Unknown experiment');
 const logPrefix = experiment.replace('-', '');
 const urls = JSON.parse(__ENV.ENDPOINTS);
 const groups = ['edge-a', 'edge-b', 'edge-c'];
@@ -82,7 +82,7 @@ export default async function () {
     lateStarts.add(sentAt > scenarioEnd ? 1 : 0);
     const responses = http.batch(groups.map((group, g) => ['POST',
       urls[group] + '/process/' + __ENV.RUN + '/' + iteration, payloads[g],
-      {headers: {'Content-Type': 'application/octet-stream'}, responseType: 'text',
+      {headers: {'Content-Type': item.files[g].contentType || 'application/octet-stream'}, responseType: 'text',
         timeout: '30s', tags: {name: group}}]));
     if (!responses.every(response => response.status === 200)) {
       responses.forEach((response, g) => {if (response.status !== 200) logRequestError(iteration, groups[g], response);});

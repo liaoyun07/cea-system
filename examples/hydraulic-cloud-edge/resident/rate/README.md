@@ -1,4 +1,30 @@
-# HC-14/15/16：3 GB/s 目标输入下的完整业务压测
+# HC-14/15/16/17：3 GB/s 目标输入下的完整业务压测
+
+## HC-17：低复制输入的隔离对照
+
+按 `baseline → views → return` 顺序执行，每阶段完成清理和审计后才启动下一阶段，共用NodePort31097。证据与命名空间分别为 `.local/cea/hc17-<阶段>-20261017`、`cea-hc17-<阶段>-20261017`，失败记录及旧批次不可覆盖。baseline/return使用已有 `hc15-fixed` 镜像及原NPZ输入；views使用 `hc17-views` 镜像和array-view输入格式。业务算法、原35批/64周期数据、32 VU、273批/秒、全部资源额度和完整HTTP链计量不变，禁止 `configure`。
+
+准备输入时仅views额外传 `arrays` 参数，manifest每文件声明 `application/vnd.cea.hydraulic-arrays`；k6按文件声明发送Content-Type，无声明仍为原 `application/octet-stream`。verify由当前阶段镜像内的fixtures程序执行。三个阶段的service/fixtures/test_service源码均从实际prepare容器归档，而非把当前工作树新源码冒充旧镜像；仅views再归档input_codec及其测试。镜像ID记录于plan和protocol证据。
+
+每阶段手动执行：
+
+```powershell
+$env:HC_EXPERIMENT='HC-17'
+$env:HC_REVISION='baseline' # baseline清理审计后改views；views清理审计后改return
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs setup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs verify
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial probe-10s 10s 32 32
+# 查看错误、TCP、内存和宿主保护，等待load Pod正常删除，再继续。
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial compare-30s 30s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs report
+# 仅views在显式审核30秒较本批baseline明显提速且零错后，才执行下方可选确认。
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs cleanup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs audit
+```
+
+可选确认仅在views尚未清理时执行；不会自动追加。在用户已授权的整批范围内，实验执行代理结合漂移与资源证据显式审核通过后设置 `$env:HC17_CONFIRM_APPROVED='1'`，依次运行 `trial confirm-1 60s 32 32`、`confirm-2`、`confirm-3`，每轮独立检查健康并等前轮Pod删除。脚本还会核验本批baseline和views的30秒报告均零错、额度相同且views实测速率更高；“明显”不靠任意硬编码阈值。审核记录保存 `reviewApproved:true`、`reviewer:experiment-runner`，不将代理的审核写成用户逐次确认。结束后重新report、cleanup、audit，再进入return阶段。
+
+短测结果与可选三次60秒确认分别报告，原始信号字节仍只计一次，不能把格式包装/中间输出算进业务字节，不能将名义3GB/s当实际承接或把单次短测当稳定收益。保留全部TCP、cgroup、宿主和漏发证据，错误/OOM/危急内存/监控失败停止，不自动重试。
 
 ## HC-16：32 → 48 VU 小对照
 
@@ -32,7 +58,7 @@ HC14之后用户授权定位修复。新的诊断批次实证中心连接接入�
 
 通过环境变量选择独立revision，各自保留证据/失败标记。先清理并审计diagnostic，才能复用31095部署fixed；不能删failed标记或重用已有标签。对应镜像分别为`cea/hydraulic-resident:hc15-diagnostic`、`cea/hydraulic-resident:hc15-fixed`，需要先构建明确的镜像版本。
 
-当前源码是fixed版，可用本目录上级Dockerfile构建；diagnostic当时源码保留在本地证据的protocol中，原镜像仍保留，不能用当前修复源码覆盖历史diagnostic标签。以下是协议说明，已存在的批次目录不会被脚本重跑或覆盖。
+HC-15两版当时源码保留在各自本地证据的protocol中，原镜像仍保留；当前工作树已进入后续实验，不能用当前源码覆盖历史diagnostic/fixed标签。以下是协议说明，已存在的批次目录不会被脚本重跑或覆盖。
 
 ```powershell
 $env:HC_EXPERIMENT='HC-15'
