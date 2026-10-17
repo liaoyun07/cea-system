@@ -1,6 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,hc18Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
+import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,hc18Sequence,hc19Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
+
+test('HC19 tests only the new cloud-no-limit image with unchanged fixtures and quotas',()=>{
+  const p=experimentConfig('HC-19');
+  assert.equal(p.image,'cea/hydraulic-resident:hc19-no-limit');assert.equal(p.namespace,'cea-hc19-no-limit-20261018');assert.equal(p.nodePort,31099);
+  assert.deepEqual(experimentConfig('HC-19','no-limit'),p);
+  for(const phase of ['baseline','return','short-lock'])assert.throws(()=>experimentConfig('HC-19',phase));
+  assert.deepEqual(fixturePrepareArgs('HC-19'),['prepare','/source','/fixtures','arrays']);
+  validateFixtureFormat([{files:[{contentType:'application/vnd.cea.hydraulic-arrays'}]}],'HC-19');
+  assert.throws(()=>validateFixtureFormat([{files:[{}]}],'HC-19'));
+  assert.throws(()=>changedAllocation(initialAllocation,'cloud',3,1024,18,'HC-19'));
+  assert.deepEqual(experimentProtocol('HC-19').sequence,hc19Sequence);
+  assert.deepEqual(hc19Sequence.map(r=>[r.label,r.duration]),[['probe-10s','10s'],['measure-1','60s'],['measure-2','60s'],['measure-3','60s']]);
+  for(const r of hc19Sequence)validateTrialParameters(r.label,r.duration,r.preVUs,r.maxVUs,'HC-19');
+  assert.throws(()=>validateTrialParameters('measure-1','60s',48,48,'HC-19'));
+  assert.throws(()=>validateTrialParameters('compare-60s','60s',32,32,'HC-19'));
+  const log='msg='+JSON.stringify('HC19_STATS cloud {"completed":4}')+' source=console';
+  assert.equal(parseServiceStats(log,'HC19').cloud.completed,4);assert.deepEqual(parseServiceStats(log,'HC18'),{});
+  const old={name:'/cea-cloud-1',id:'old'};
+  assert.deepEqual(auditContainers([old],[old],'HC-19').excludedBatchContainers,[]);
+  assert.throws(()=>auditContainers([old],[],'HC-19'));
+});
 
 test('HC18 changes only the candidate image, not input format, quotas or computation concurrency',()=>{
   const phases=['baseline','short-lock','return'].map(revision=>experimentConfig('HC-18',revision));

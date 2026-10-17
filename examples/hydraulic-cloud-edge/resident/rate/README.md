@@ -1,4 +1,30 @@
-# HC-14/15/16/17/18：3 GB/s 目标输入下的完整业务压测
+# HC-14/15/16/17/18/19：3 GB/s 目标输入下的完整业务压测
+
+## HC-19：取消中心计算限流，只测修改版
+
+只去掉中心融合计算的信号量等待；收齐三路、重复拒绝、发布/领取结果的短状态锁保留，边缘计算仍单路。不同批次使用自己的数组、只读公共参考数据；计算失败保留该批特征，不自动重试。中心`stages.queue`为0表示没有应用层计算限流等待，不代表没有线程调度、CPU竞争或端到端等待。
+
+独立镜像`cea/hydraulic-resident:hc19-no-limit`，四集群命名空间`cea-hc19-no-limit-20261018`、NodePort31099、本地`.local/cea/hc19-no-limit-20261018`。只测修改版，不运行baseline/return或依赖新的基线结果。原算法/精度、35批/64周期、array-view输入/NPZ特征、32VU、273批/s和所有资源额度保持不变；不允许configure。
+
+```powershell
+$env:HC_EXPERIMENT='HC-19'
+$env:HC_REVISION='no-limit'
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs setup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs verify
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial probe-10s 10s 32 32
+# 每轮分别检查错误/宿主/内存/TCP证据，等上一load Pod删除才继续。
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial measure-1 60s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial measure-2 60s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial measure-3 60s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs report
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs cleanup
+# 等四命名空间删除后
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs audit
+```
+
+先并发回归及175完整数组验证；任何错误/宿主保护触发均停止，不覆盖证据或重跑。报告三次完整链吞吐和全部漏发/时延/资源，2.5GB/s为目标不是预设结果。HC18仅作历史参照，不能将跨时段差异写成同期控制实验收益。旧容器/业务/数据不动，实验完成只清理本批派生输入和Pod。
+
+HC19实测：三次60秒1.953267/1.910952/1.951815GB/s，均1.938678；31711正式批全部成功，较历史HC18均值-2.98%，未体现提速或2.5GB/s达标。包括探针33215批零错，仍有18659漏发/3迟发；不得重用此目录或标签重跑。完整数据、初次单元测试夹具时序问题及清理审计见[验证记录](../../../../docs/verification/VER-HC-19.md)。
 
 ## HC-18：仅缩小中心共享锁范围
 

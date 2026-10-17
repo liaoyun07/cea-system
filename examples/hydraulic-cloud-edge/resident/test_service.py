@@ -94,20 +94,8 @@ class ResidentTest(unittest.TestCase):
         self.assertNotIn('computing', self.state.parts)
         self.assertEqual(json.loads(self.state.take('computing'))['cycles'], 2)
 
-    def test_compute_wait_does_not_hold_state_lock_and_fusion_stays_serial(self):
-        entered, release, queued = threading.Event(), threading.Event(), threading.Event()
-        actual_semaphore = threading.Semaphore(1)
-
-        class ObservedSemaphore:
-            def __enter__(self):
-                if entered.is_set():
-                    queued.set()
-                actual_semaphore.acquire()
-
-            def __exit__(self, *_):
-                actual_semaphore.release()
-
-        self.state.compute = ObservedSemaphore()
+    def test_second_batch_finishes_while_first_fusion_is_still_computing(self):
+        entered, release = threading.Event(), threading.Event()
         calls = []
 
         def blocked_first(*args):
@@ -125,27 +113,35 @@ class ResidentTest(unittest.TestCase):
             try:
                 self.assertTrue(entered.wait(2))
                 second = pool.submit(self.state.add_part, 'second', 'edge-c', self.part('edge-c'), 10)
-                self.assertTrue(queued.wait(2))
+                second.result(timeout=2)
                 pool.submit(self.state.add_part, 'third', 'edge-a', self.part('edge-a'), 10).result(timeout=2)
-                self.assertEqual(len(calls), 1)
-                self.assertFalse(second.done())
+                self.assertEqual(len(calls), 2)
+                self.assertFalse(first.done())
+                self.assertEqual(json.loads(self.state.take('second'))['inputBytes'], 30)
+                self.assertEqual(self.state.completed, 1)
             finally:
                 release.set()
             first.result(timeout=2)
             second.result(timeout=2)
         self.assertEqual(len(calls), 2)
         self.assertEqual(self.state.completed, 2)
-        self.assertGreater(self.state.stage_seconds['queue'], 0)
+        self.assertEqual(self.state.stage_seconds['queue'], 0)
 
     def test_simultaneous_final_parts_compute_each_batch_exactly_once(self):
+        reference_before = {k: v.copy() for k, v in self.reference.items()}
+        parts = {batch: {group: dict(cycle_ids=self.ids.copy(), **{
+            k: np.full((2, 6, 5), batch + index / 10) for k in GROUPS[group]})
+            for index, group in enumerate(GROUPS)} for batch in range(20)}
+        expected = {batch: fuse(list(groups.values()), reference_for(self.reference, self.ids), 3.)[0]
+                    for batch, groups in parts.items()}
         for batch in range(20):
-            self.state.add_part(str(batch), 'edge-a', self.part('edge-a'), 10)
+            self.state.add_part(str(batch), 'edge-a', parts[batch]['edge-a'], 10)
         ready = threading.Barrier(40)
 
         def send(pair):
             batch, group = pair
             ready.wait(timeout=5)
-            self.state.add_part(str(batch), group, self.part(group), 10)
+            self.state.add_part(str(batch), group, parts[batch][group], 10)
 
         with mock.patch('service.fuse', wraps=fuse) as fusion, ThreadPoolExecutor(40) as pool:
             list(pool.map(send, [(batch, group) for batch in range(20) for group in ('edge-b', 'edge-c')]))
@@ -154,9 +150,13 @@ class ResidentTest(unittest.TestCase):
         self.assertEqual(self.state.raw_bytes, 600)
         self.assertEqual(self.state.parts, {})
         for batch in range(20):
-            self.assertEqual(json.loads(self.state.take(str(batch)))['inputBytes'], 30)
+            actual = unpack(self.state.take(str(batch), True))
+            for key, values in expected[batch].items():
+                np.testing.assert_array_equal(actual[key], values)
+        for key, values in reference_before.items():
+            np.testing.assert_array_equal(self.reference[key], values)
 
-    def test_fusion_failure_retains_evidence_and_releases_compute_slot(self):
+    def test_fusion_failure_retains_evidence_without_blocking_other_batches(self):
         for group in ('edge-a', 'edge-b'):
             self.state.add_part('bad', group, self.part(group), 10)
         with mock.patch('service.fuse', side_effect=ValueError('bad fusion')):
@@ -226,6 +226,13 @@ class ConnectionTest(unittest.TestCase):
 
     def test_real_reset_fails_original_request_but_next_request_gets_fresh_connection(self):
         received = []
+        addresses_captured = threading.Event()
+        original_addresses = Handler.cloud_addresses
+
+        def capture_addresses(handler):
+            original_addresses(handler)
+            if 'peer' in handler.cloud_context:
+                addresses_captured.set()
 
         class ResetOnce(BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
@@ -237,6 +244,10 @@ class ConnectionTest(unittest.TestCase):
                 self.rfile.read(int(self.headers['Content-Length']))
                 received.append(self.path)
                 if len(received) == 1:
+                    # The address assertion tests the saved snapshot, not a
+                    # race between getpeername() and a peer-originated reset.
+                    if not addresses_captured.wait(5):
+                        raise RuntimeError('test did not capture connection addresses')
                     # A real peer-originated TCP RST after accepting the body.
                     self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
                     self.close_connection = True
@@ -265,6 +276,7 @@ class ConnectionTest(unittest.TestCase):
         try:
             with mock.patch.dict('os.environ', {'CLOUD_URL': f'http://127.0.0.1:{cloud.server_port}'}), \
                  mock.patch('service.edge', return_value=dict(cycle_ids=np.array([0]))), \
+                 mock.patch.object(Handler, 'cloud_addresses', capture_addresses), \
                  contextlib.redirect_stderr(log):
                 connection.request('POST', '/process/test/first', body)
                 response = connection.getresponse()
@@ -288,6 +300,7 @@ class ConnectionTest(unittest.TestCase):
             self.assertEqual(event['cloud']['peer'], ['127.0.0.1', cloud.server_port])
             self.assertIn('local', event['cloud'])
         finally:
+            addresses_captured.set()
             connection.close()
             for server in (edge_server, cloud):
                 server.shutdown()

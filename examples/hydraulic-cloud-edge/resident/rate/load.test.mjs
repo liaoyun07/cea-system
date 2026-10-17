@@ -108,6 +108,13 @@ test('HC18 preserves full three-upload/result validation and its own evidence pr
   assert(failed.logs.some(value=>value.startsWith('HC18_REQUEST_ERROR ')));assert.deepEqual(failed.metrics.failed_batches,[1]);
 });
 
+test('HC19 changes only log identity, preserving three uploads, result check and no retries', async () => {
+  const result=await exercise({experiment:'HC-19',contentType:'application/vnd.cea.hydraulic-arrays'});
+  assert.equal(result.requests.length,3);assert.equal(result.gets.length,1);assert.deepEqual(result.metrics.completed_signal_bytes,[24]);
+  const failed=await exercise({experiment:'HC-19',responses:[{status:400},{status:200},{status:200}]});
+  assert(failed.logs.some(value=>value.startsWith('HC19_REQUEST_ERROR ')));assert.deepEqual(failed.metrics.failed_batches,[1]);assert.equal(failed.requests.length,3);
+});
+
 test('upload only becomes late after the configured sending window ends', async () => {
   const onTime = await exercise({now: 1000002});
   const late = await exercise({now: 1010001});

@@ -88,20 +88,19 @@ class State:
             ordered = [parts[g][0] for g in GROUPS]
             total = sum(v[1] for v in parts.values())
             # Keep all three parts registered until publication: duplicates are
-            # rejected and reset cannot discard a batch waiting/being computed.
-        queued = time.perf_counter()
-        with self.compute:
-            started = time.perf_counter()
-            result, _ = fuse(ordered, reference_for(self.reference, ordered[0]['cycle_ids']), 3.)
-            computed = time.perf_counter()
-            meta = summary(result, total)
-            with self.lock:
-                self.stage_seconds['queue'] += started - queued
-                self.stage_seconds['compute'] += computed - started
-                self.results[batch] = (meta, result)
-                self.completed += 1
-                self.raw_bytes += total
-                del self.parts[batch]
+            # rejected and reset cannot discard a batch being computed.
+        # Different batches own their arrays and only read the shared reference.
+        # Keep the edge compute limit, but do not serialize cloud fusion.
+        started = time.perf_counter()
+        result, _ = fuse(ordered, reference_for(self.reference, ordered[0]['cycle_ids']), 3.)
+        computed = time.perf_counter()
+        meta = summary(result, total)
+        with self.lock:
+            self.stage_seconds['compute'] += computed - started
+            self.results[batch] = (meta, result)
+            self.completed += 1
+            self.raw_bytes += total
+            del self.parts[batch]
 
     def take(self, batch, binary=False):
         with self.lock:
