@@ -1,0 +1,5 @@
+**
+!examples/
+!examples/hydraulic-cloud-edge/
+!examples/hydraulic-cloud-edge/resident/
+!examples/hydraulic-cloud-edge/resident/*.py

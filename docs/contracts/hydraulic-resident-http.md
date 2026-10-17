@@ -1,0 +1,13 @@
+# HC-05 实验内部HTTP协议
+
+仅存在于本批实验服务，不新增平台API/持久化表或通用工作流状态。
+
+- `GET /health`：就绪。
+- `POST /reset`，JSON `{run}`：前一轮没有未消费批次才能开启新的计量窗口。
+- `POST /process/{run}/{batch}`：发往对应边缘，body为未压缩NPZ（二进制），包含该组原始float32通道与cycle_ids；完成真实edge计算并向中心转发后返回200。单独这个200不代表整个批次融合完成。
+- `POST /partial/{run}/{batch}`：仅中心消费，body为NPZ特征，X-Group声明三组之一、X-Raw-Bytes为该边缘实际消费的原始信号数组字节。中心按组去重，三组索引对齐后执行fuse并生成结果。批次身份是现实的三路关联需求，不引入hash、持久化版本或幂等表。
+- `GET /result/{run}/{batch}`：仅在融合完成后返回inputBytes/cycles/scoreSum/flagCount，消费并释放结果。k6校验与预先独立执行的原算法参考一致才计成功字节。
+- `GET /binary/{run}/{batch}`：正确性测试取全量实际结果NPZ，与原完整数据算法逐元素比较，同时消费结果。
+- `GET /stats`：阶段累计秒、处理数、原始字节、错误、未收齐/未消费数、每250ms cgroup v2资源采样及实际配额。CPU为容器累计usage_usec差；内存同时保留memory.current和扣inactive_file的working set，平均/积分明确为采样估计，非内核内置平均。
+
+不存在跨物理机可靠消息交付、持久队列或重试保证；失败原样计入本批结果并保留诊断，不将其伪装为成功。仅隔离内部测试网络，无公网入口。实验结束后移除本批命名空间和派生大文件，原数据不删。

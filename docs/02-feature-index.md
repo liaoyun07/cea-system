@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+HC-05（2026-10-17，常驻链实测完成）：三边缘1核/1GiB处理＋中心1核/512MiB融合，HTTP真实上传、原算法逐批计算；8并发三次60秒均值899.08MB/s，14775批零错误，P95为127～132ms。完整2205周期175数组一致，13Python/5Node及结构检查通过；清理与33原容器/47旧对象审计通过。未达2GB/s，不含持久化，不与纯计算速率混比，无新增普通流任务能力或资源15%收益结论。[功能](features/HC-05-resident-http.md)、[验证](verification/VER-HC-05.md)。
+
 FL-RESOURCE95-01（2026-10-17，实测完成）：原强非IID MNIST、seed31/40轮各一次，FedAvg第21轮95.12%、FedCADS第8轮95.49%；首达标CPU381.42→141.21核秒（降62.98%）、内存101.55→40.47GiB·s（降60.15%），平均内存124.49→141.19MiB（增13.41%）。402 Job/1206容器摘要、独立模型复评、旧环境及8项汇总单测通过；同40轮不省资源，单seed/首次达标不作稳定达标声明。[方案](../examples/federated/resource95/README.md)、[验证](verification/VER-FL-RESOURCE95-01.md)。
 
 JOB-USAGE-01（2026-10-17，已部署）：通用Job三容器CPU核秒/内存积分/采样峰值、每Attempt持久化、流程汇总READ接口。四集群4成功Job、2失败尝试及清理后记录保留通过；业务镜像/前端不改，历史缺失不填0。完整回归的2项契约遗漏已修复并专项复测通过。[功能](features/JOB-USAGE-01.md)、[协议](contracts/job-resource-usage.md)、[验证](verification/VER-JOB-USAGE-01.md)。
