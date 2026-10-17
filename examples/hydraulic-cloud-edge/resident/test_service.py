@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from unittest import mock
 import numpy as np
-from app import GROUPS
+from app import GROUPS, fuse
 from service import Handler, ResidentHTTPServer, State, pack, unpack, reference_for
 
 
@@ -58,6 +58,119 @@ class ResidentTest(unittest.TestCase):
         actual = unpack(pack(part))
         for key in part:
             np.testing.assert_array_equal(actual[key], part[key])
+
+    def test_receiving_and_reading_other_batches_do_not_wait_for_fusion(self):
+        for group in GROUPS:
+            self.state.add_part('finished', group, self.part(group), 10)
+        for group in ('edge-a', 'edge-b'):
+            self.state.add_part('computing', group, self.part(group), 10)
+        entered, release = threading.Event(), threading.Event()
+
+        def blocked_fuse(*args):
+            entered.set()
+            self.assertTrue(release.wait(5), 'test did not release fusion')
+            return fuse(*args)
+
+        with mock.patch('service.fuse', side_effect=blocked_fuse), ThreadPoolExecutor(3) as pool:
+            computing = pool.submit(self.state.add_part, 'computing', 'edge-c', self.part('edge-c'), 10)
+            try:
+                self.assertTrue(entered.wait(2))
+                receiving = pool.submit(self.state.add_part, 'next', 'edge-a', self.part('edge-a'), 10)
+                receiving.result(timeout=2)
+                result = json.loads(pool.submit(self.state.take, 'finished').result(timeout=2))
+                self.assertEqual(result['inputBytes'], 30)
+                self.assertFalse(computing.done())
+                self.assertEqual(len(self.state.parts['computing']), 3)
+                with self.assertRaisesRegex(ValueError, 'duplicate'):
+                    self.state.add_part('computing', 'edge-c', self.part('edge-c'), 10)
+                with self.assertRaisesRegex(ValueError, 'unconsumed'):
+                    self.state.reset('new-run')
+                with self.assertRaises(KeyError):
+                    self.state.take('computing')
+            finally:
+                release.set()
+            computing.result(timeout=2)
+        self.assertEqual(self.state.completed, 2)
+        self.assertNotIn('computing', self.state.parts)
+        self.assertEqual(json.loads(self.state.take('computing'))['cycles'], 2)
+
+    def test_compute_wait_does_not_hold_state_lock_and_fusion_stays_serial(self):
+        entered, release, queued = threading.Event(), threading.Event(), threading.Event()
+        actual_semaphore = threading.Semaphore(1)
+
+        class ObservedSemaphore:
+            def __enter__(self):
+                if entered.is_set():
+                    queued.set()
+                actual_semaphore.acquire()
+
+            def __exit__(self, *_):
+                actual_semaphore.release()
+
+        self.state.compute = ObservedSemaphore()
+        calls = []
+
+        def blocked_first(*args):
+            calls.append(1)
+            if len(calls) == 1:
+                entered.set()
+                self.assertTrue(release.wait(5))
+            return fuse(*args)
+
+        for batch in ('first', 'second'):
+            for group in ('edge-a', 'edge-b'):
+                self.state.add_part(batch, group, self.part(group), 10)
+        with mock.patch('service.fuse', side_effect=blocked_first), ThreadPoolExecutor(3) as pool:
+            first = pool.submit(self.state.add_part, 'first', 'edge-c', self.part('edge-c'), 10)
+            try:
+                self.assertTrue(entered.wait(2))
+                second = pool.submit(self.state.add_part, 'second', 'edge-c', self.part('edge-c'), 10)
+                self.assertTrue(queued.wait(2))
+                pool.submit(self.state.add_part, 'third', 'edge-a', self.part('edge-a'), 10).result(timeout=2)
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(second.done())
+            finally:
+                release.set()
+            first.result(timeout=2)
+            second.result(timeout=2)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.state.completed, 2)
+        self.assertGreater(self.state.stage_seconds['queue'], 0)
+
+    def test_simultaneous_final_parts_compute_each_batch_exactly_once(self):
+        for batch in range(20):
+            self.state.add_part(str(batch), 'edge-a', self.part('edge-a'), 10)
+        ready = threading.Barrier(40)
+
+        def send(pair):
+            batch, group = pair
+            ready.wait(timeout=5)
+            self.state.add_part(str(batch), group, self.part(group), 10)
+
+        with mock.patch('service.fuse', wraps=fuse) as fusion, ThreadPoolExecutor(40) as pool:
+            list(pool.map(send, [(batch, group) for batch in range(20) for group in ('edge-b', 'edge-c')]))
+        self.assertEqual(fusion.call_count, 20)
+        self.assertEqual(self.state.completed, 20)
+        self.assertEqual(self.state.raw_bytes, 600)
+        self.assertEqual(self.state.parts, {})
+        for batch in range(20):
+            self.assertEqual(json.loads(self.state.take(str(batch)))['inputBytes'], 30)
+
+    def test_fusion_failure_retains_evidence_and_releases_compute_slot(self):
+        for group in ('edge-a', 'edge-b'):
+            self.state.add_part('bad', group, self.part(group), 10)
+        with mock.patch('service.fuse', side_effect=ValueError('bad fusion')):
+            with self.assertRaisesRegex(ValueError, 'bad fusion'):
+                self.state.add_part('bad', 'edge-c', self.part('edge-c'), 10)
+        self.assertEqual(self.state.completed, 0)
+        self.assertEqual(len(self.state.parts['bad']), 3)
+        self.assertNotIn('bad', self.state.results)
+        with self.assertRaisesRegex(ValueError, 'unconsumed'):
+            self.state.reset('new-run')
+        for group in GROUPS:
+            self.state.add_part('good', group, self.part(group), 10)
+        self.assertEqual(self.state.completed, 1)
+        self.assertEqual(json.loads(self.state.take('good'))['inputBytes'], 30)
 
 
 class ConnectionTest(unittest.TestCase):

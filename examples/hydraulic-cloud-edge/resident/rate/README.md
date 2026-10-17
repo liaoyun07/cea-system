@@ -1,4 +1,27 @@
-# HC-14/15/16/17：3 GB/s 目标输入下的完整业务压测
+# HC-14/15/16/17/18：3 GB/s 目标输入下的完整业务压测
+
+## HC-18：仅缩小中心共享锁范围
+
+顺序 `baseline → short-lock → return`，每阶段清理审计完成后进入下一阶段。新目录/命名空间 `hc18-<阶段>-20261018` / `cea-hc18-<阶段>-20261018`，NodePort31098；baseline/return使用已有hc17-views，candidate使用hc18-short-lock。所有阶段都使用array-view原始输入和NPZ中间特征，单批融合计算、32VU、273批/s和原资源额度完全不变，不允许configure。实际镜像内的源码和测试归档到protocol，不能以当前源码替代旧镜像证据。
+
+```powershell
+$env:HC_EXPERIMENT='HC-18'
+$env:HC_REVISION='baseline' # 清理审计后依次short-lock、return
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs setup
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs verify
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial probe-10s 10s 32 32
+# 检查健康，等上一load Pod正常删除，才执行下一档。
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs trial compare-60s 60s 32 32
+node examples/hydraulic-cloud-edge/resident/rate/run.mjs report
+```
+
+仅short-lock比较零错且比本批baseline快，并显式检查健康后，执行者设置`HC18_CONFIRM_APPROVED=1`，依次追加`trial confirm-2 60s 32 32`、`trial confirm-3 60s 32 32`，每轮单独检查。候选三次60秒包括compare-60s，不再混用短测平均。未提速则不追加；任一错误/保护触发保留证据、不重跑、不继续加压。
+
+每阶段最后执行report、cleanup，等命名空间正常删除后audit。只清理本批派生文件和资源，保留源码/报告/旧镜像/旧服务。2.5GB/s按三次有效完整链吞吐分别检查；掉落的计划到达仍必须报告。
+
+中心`stages.queue`现在表示等待单批融合计算信号量的累计时间，不包含接收数据/解包，也不是原版本共享锁等待的等价计数（旧版未单独采集）。共享表中的三份特征在计算期间保留，防止reset或重复请求造成丢失；计算/摘要在共享锁外，发布结果/计数/删除特征仍原子完成。计算失败保留原特征，不自动重试。
+
+HC18实测：前后旧版60秒1.922980/1.953568GB/s，候选2.013376/1.918567/2.062720、均1.998221，未达2.5也未稳定达2。八轮58561批全部成功，31532漏发和7迟发保留；小幅观测改善不等于稳定大幅收益。三阶段已执行，不得重用目录重跑，见[验证记录](../../../../docs/verification/VER-HC-18.md)。
 
 ## HC-17：低复制输入的隔离对照
 

@@ -1,6 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
+import {initialAllocation,assertBudget,changedAllocation,parseServiceStats,loadPodSpec,validateProcessing,businessSummary,experimentConfig,parseNetworkCounters,networkDelta,auditContainers,experimentProtocol,hc16Sequence,validateTrialParameters,hc17Sequence,hc18Sequence,fixturePrepareArgs,validateFixtureFormat,assertConfirmationGate} from './run.mjs';
+
+test('HC18 changes only the candidate image, not input format, quotas or computation concurrency',()=>{
+  const phases=['baseline','short-lock','return'].map(revision=>experimentConfig('HC-18',revision));
+  assert(phases.every(p=>p.nodePort===31098&&p.logPrefix==='HC18'));
+  assert.equal(phases[0].image,'cea/hydraulic-resident:hc17-views');assert.equal(phases[2].image,phases[0].image);
+  assert.equal(phases[1].image,'cea/hydraulic-resident:hc18-short-lock');
+  assert.equal(new Set(phases.map(p=>p.namespace)).size,3);assert(phases.every(p=>p.batch.endsWith('20261018')));
+  for(const p of phases){
+    assert.deepEqual(fixturePrepareArgs('HC-18',p.revision),['prepare','/source','/fixtures','arrays']);
+    validateFixtureFormat([{files:[{contentType:'application/vnd.cea.hydraulic-arrays'}]}],'HC-18',p.revision);
+    assert.throws(()=>validateFixtureFormat([{files:[{}]}],'HC-18',p.revision));
+    for(const row of hc18Sequence(p.revision))validateTrialParameters(row.label,row.duration,row.preVUs,row.maxVUs,'HC-18',p.revision);
+  }
+  assert.throws(()=>experimentConfig('HC-18','views'));
+  assert.throws(()=>changedAllocation(initialAllocation,'cloud',3,1024,18,'HC-18'));
+  assert.throws(()=>validateTrialParameters('compare-60s','60s',48,48,'HC-18','short-lock'));
+  assert.throws(()=>validateTrialParameters('confirm-2','60s',32,32,'HC-18','baseline'));
+  assert.equal(experimentProtocol('HC-18','short-lock').sequence.filter(r=>r.duration==='60s').length,3);
+});
+
+test('HC18 confirmation uses current equal 60s comparison, not older short results',()=>{
+  const row={run:'compare-60s',durationSeconds:60,preAllocatedVUs:32,maxVUs:32,rate:273,allocation:initialAllocation,
+    processingValid:true,failed:0,started:10,batches:10,exitCode:0,GBps:2};
+  assertConfirmationGate(row,{...row,GBps:2.1},'1','HC-18');
+  assert.throws(()=>assertConfirmationGate(row,{...row,GBps:1.9},'1','HC-18'));
+  assert.throws(()=>assertConfirmationGate(row,{...row,GBps:2.1},undefined,'HC-18'));
+  assert.throws(()=>assertConfirmationGate({...row,run:'compare-30s',durationSeconds:30},{...row,GBps:2.1},'1','HC-18'));
+  assert.throws(()=>assertConfirmationGate(row,{...row,GBps:2.1,failed:1},'1','HC-18'));
+  const message='HC18_STATS cloud '+JSON.stringify({completed:3});
+  assert.equal(parseServiceStats('msg='+JSON.stringify(message)+' source=console','HC18').cloud.completed,3);
+});
 
 test('initial allocation stays within 16-core host minus reserve',()=>{assertBudget(initialAllocation,16);assert.throws(()=>assertBudget(initialAllocation,15));});
 test('single business increase requires spare quota and leaves other services untouched',()=>{

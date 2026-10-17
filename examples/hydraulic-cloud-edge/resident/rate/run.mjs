@@ -9,7 +9,12 @@ import {arrivalBoundaryAllowance} from './metrics.mjs';
 
 // Distinct revisions own distinct evidence/failed markers. Never reset an old run.
 export function experimentConfig(experiment='HC-14',revision){
-  assert(['HC-14','HC-15','HC-16','HC-17'].includes(experiment),'Unknown experiment');
+  assert(['HC-14','HC-15','HC-16','HC-17','HC-18'].includes(experiment),'Unknown experiment');
+  if(experiment==='HC-18'){
+    assert(['baseline','short-lock','return'].includes(revision),'HC-18 requires explicit HC_REVISION=baseline|short-lock|return');
+    const batch='hc18-'+revision+'-20261018';
+    return {experiment,revision,batch,namespace:'cea-'+batch,nodePort:31098,image:'cea/hydraulic-resident:'+(revision==='short-lock'?'hc18-short-lock':'hc17-views'),logPrefix:'HC18'};
+  }
   if(experiment==='HC-14')return {experiment,revision:null,batch:'hc14-20261017',namespace:'cea-hc14-20261017',nodePort:31094,image:'cea/hydraulic-resident:hc05-v1',logPrefix:'HC14'};
   if(experiment==='HC-16'){
     assert(revision===undefined||revision==='fixed','HC-16 only uses the existing HC-15 fixed image');
@@ -42,23 +47,34 @@ export function hc17Sequence(runRevision){
   return sequence;
 }
 export function fixturePrepareArgs(experimentName=experiment,runRevision=revision){
-  return ['prepare','/source','/fixtures',...(experimentName==='HC-17'&&runRevision==='views'?['arrays']:[])];
+  return ['prepare','/source','/fixtures',...(experimentName==='HC-18'||experimentName==='HC-17'&&runRevision==='views'?['arrays']:[])];
 }
 export function validateFixtureFormat(manifest,experimentName=experiment,runRevision=revision){
-  if(experimentName!=='HC-17')return;
-  const expected=runRevision==='views'?'application/vnd.cea.hydraulic-arrays':'application/octet-stream';
+  if(!['HC-17','HC-18'].includes(experimentName))return;
+  const expected=experimentName==='HC-18'||runRevision==='views'?'application/vnd.cea.hydraulic-arrays':'application/octet-stream';
   for(const item of manifest)for(const file of item.files)assert.equal(file.contentType||'application/octet-stream',expected,'Input format differs from the frozen phase');
 }
-export function assertConfirmationGate(baseline,candidate,approval){
-  assert.equal(approval,'1','Confirmations require explicit review approval: HC17_CONFIRM_APPROVED=1');
+export function assertConfirmationGate(baseline,candidate,approval,experimentName='HC-17'){
+  assert(['HC-17','HC-18'].includes(experimentName));
+  assert.equal(approval,'1','Confirmations require explicit review approval: '+experimentName.replace('-','')+'_CONFIRM_APPROVED=1');
   for(const row of [baseline,candidate]){
     assert(row.processingValid&&row.failed===0&&row.started===row.batches&&row.exitCode===0,'Comparison must be complete and zero-error');
-    assert.equal(row.run,'compare-30s');assert.equal(row.durationSeconds,30);assert.equal(row.preAllocatedVUs,32);assert.equal(row.maxVUs,32);assert.equal(row.rate,273);
+    assert.equal(row.run,experimentName==='HC-18'?'compare-60s':'compare-30s');assert.equal(row.durationSeconds,experimentName==='HC-18'?60:30);assert.equal(row.preAllocatedVUs,32);assert.equal(row.maxVUs,32);assert.equal(row.rate,273);
     assert.deepEqual(row.allocation,initialAllocation,'Compare quotas must remain frozen');
   }
   assert(candidate.GBps>baseline.GBps,'Candidate has no throughput gain over this batch baseline');
 }
+export function hc18Sequence(runRevision){
+  assert(['baseline','short-lock','return'].includes(runRevision));
+  const sequence=[{label:'probe-10s',duration:'10s',preVUs:32,maxVUs:32},{label:'compare-60s',duration:'60s',preVUs:32,maxVUs:32}];
+  if(runRevision==='short-lock')for(let i=2;i<=3;i++)sequence.push({label:'confirm-'+i,duration:'60s',preVUs:32,maxVUs:32});
+  return sequence;
+}
 export function experimentProtocol(experimentName=experiment,runRevision=revision){
+  if(experimentName==='HC-18')return {rate,revision:runRevision,sequence:hc18Sequence(runRevision),optionalConfirmations:runRevision==='short-lock',defaultPreAllocatedVUs:32,defaultMaxVUs:32,
+    freeze:'HC17 views baseline/return versus HC18 short state lock; all phases array-view input, NPZ features, identical algorithm/precision/single compute slot/35 batches/64 cycles/32 VUs/273 batches per second/quotas/full HTTP chain',
+    adjustment:'only center shared-state lock scope changes; no reconfiguration or retries; clean/audit each phase; two additional candidate 60s runs only after reviewed zero-error gain over the current baseline',
+    acceptance:'175 arrays per phase, 10s probe and 60s comparison; candidate comparison plus two confirmations form three equal 60s measurements; report drops, return drift and actual 2.5GB/s attainment'};
   if(experimentName==='HC-17')return {rate,revision:runRevision,sequence:hc17Sequence(runRevision),optionalConfirmations:runRevision==='views',defaultPreAllocatedVUs:32,defaultMaxVUs:32,
     freeze:'HC-15 fixed image/NPZ for baseline and return; HC-17 views image/array-view input for candidate; same algorithm/35 batches/64 cycles/HTTP result verification, 32 VUs, 273 batches/s, CPU/memory quotas and raw-byte complete-chain measurement',
     adjustment:'no resource reconfiguration; clean and audit each isolated phase before the next; no automatic retry or confirmation; views confirmations require zero errors and explicitly reviewed clear gain over the HC-17 baseline comparison',
@@ -77,6 +93,7 @@ export function validateTrialParameters(label,duration,preVUs,maxVUs,experimentN
   assert(/^[a-z0-9-]+$/.test(label));assert(['10s','30s','60s'].includes(duration));assert([12,24,32,48].includes(preVUs)&&[32,48].includes(maxVUs)&&preVUs<=maxVUs);
   if(experimentName==='HC-16')assert.deepEqual({label,duration,preVUs,maxVUs},hc16Sequence.find(row=>row.label===label),'HC-16 trial must match frozen concurrency comparison');
   if(experimentName==='HC-17')assert.deepEqual({label,duration,preVUs,maxVUs},hc17Sequence(runRevision).find(row=>row.label===label),'HC-17 trial must match the frozen phase');
+  if(experimentName==='HC-18')assert.deepEqual({label,duration,preVUs,maxVUs},hc18Sequence(runRevision).find(row=>row.label===label),'HC-18 trial must match the frozen phase');
 }
 const docker=(args,input,timeout=30000)=>execFileSync('docker',args,{input,encoding:'utf8',windowsHide:true,timeout,maxBuffer:64*1024*1024}).trim();
 const kube=(cluster,args,input)=>docker(['exec','-i',`cea-${cluster}-1`,'kubectl',...args],input);
@@ -151,8 +168,8 @@ function copiedInput(label,input,target,args,network,memory,output){
   const name=namespace+'-'+label;
   const id=docker(['create','--name',name,'--network',network,'--cpus','1','--memory',memory,image,'python','/app/fixtures.py',...args]);
   save(label+'-container.json',{id,name});docker(['cp',input,id+':'+target],undefined,120000);
-  if(experiment==='HC-17'&&label==='prepare'){
-    const archived=['service.py','fixtures.py','test_service.py',...(revision==='views'?['input_codec.py']:[])];
+  if(['HC-17','HC-18'].includes(experiment)&&label==='prepare'){
+    const archived=['service.py','fixtures.py','test_service.py',...(experiment==='HC-18'||revision==='views'?['input_codec.py','test_input_codec.py']:[])];
     for(const file of archived)docker(['cp',id+':/app/'+file,path.join(folder,'protocol',file)]);
     save('protocol/image-source.json',{image,imageId:load('plan.json').imageId,files:archived,source:'Copied from the actual preparation image container; not current working-tree service source'});
   }
@@ -165,6 +182,11 @@ function copiedInput(label,input,target,args,network,memory,output){
   assert.equal(final.Name,'/'+name);docker(['rm',id]);return log;
 }
 async function setup(){
+  if(experiment==='HC-18'&&revision!=='baseline'){
+    const previous=revision==='short-lock'?'baseline':'short-lock';
+    const audit=JSON.parse(readFileSync(path.resolve('.local/cea/hc18-'+previous+'-20261018/audit.json'),'utf8'));
+    assert.equal(audit.status,'PASS','Previous phase must be cleaned and audited');assert.equal(audit.newPodsRemaining,0);
+  }
   if(experiment==='HC-17'&&revision!=='baseline'){
     const previous=revision==='views'?'baseline':'views';
     const audit=JSON.parse(readFileSync(path.resolve('.local/cea/hc17-'+previous+'-20261017/audit.json'),'utf8'));
@@ -188,9 +210,8 @@ async function setup(){
   const archiveFolder=path.join(folder,'protocol');mkdirSync(archiveFolder);
   for(const f of ['run.mjs','load.js'])copyFileSync(path.join(source,f),path.join(archiveFolder,f));
   copyFileSync(path.join(source,'metrics.mjs'),path.join(archiveFolder,'load-metrics.mjs'));
-  for(const f of ['host-monitor.mjs','metrics.mjs',...(experiment==='HC-17'?[]:['fixtures.py'])])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
-  if(experiment!=='HC-14'&&experiment!=='HC-17')for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
-  if(experiment==='HC-17'&&revision==='views')copyFileSync(path.join(source,'../test_input_codec.py'),path.join(archiveFolder,'test_input_codec.py'));
+  for(const f of ['host-monitor.mjs','metrics.mjs',...(['HC-17','HC-18'].includes(experiment)?[]:['fixtures.py'])])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
+  if(!['HC-14','HC-17','HC-18'].includes(experiment))for(const f of ['service.py','test_service.py'])copyFileSync(path.join(source,'..',f),path.join(archiveFolder,f));
   console.log(copiedInput('prepare',path.resolve('.local/cea/hc01/full'),'/source',fixturePrepareArgs(),'none','1g','/fixtures'));
   save('manifest.json',JSON.parse(readFileSync(path.join(folder,'fixtures/manifest.json'),'utf8')));
   validateFixtureFormat(load('manifest.json'));
@@ -228,7 +249,7 @@ export function assertBudget(allocation,cpuCores){
   assert(Object.values(allocation).reduce((n,a)=>n+a.cpu,0)<=cpuCores-1,'Experiment CPU quotas exceed WSL budget');
 }
 export function changedAllocation(before,target,cpu,memoryMiB,cpuCores,experimentName=experiment){
-  assert(!['HC-16','HC-17'].includes(experimentName),experimentName+' freezes all resource quotas; configure is not allowed');
+  assert(!['HC-16','HC-17','HC-18'].includes(experimentName),experimentName+' freezes all resource quotas; configure is not allowed');
   assert([...clusters,'load'].includes(target),'Unknown allocation target');
   if(target==='load'){assert([5,6,7].includes(cpu));assert.equal(memoryMiB,5120);}
   else {assert([2,3,4].includes(cpu));assert(cpu>=before[target].cpu,'Business CPU cannot decrease in this exploration');assert(Number.isInteger(memoryMiB)&&memoryMiB>=before[target].memoryMiB);}
@@ -250,7 +271,7 @@ function configure(target,cpu,memoryMiB){
 }
 export function parseServiceStats(log,prefix=logPrefix){
   const stats={};
-  assert(['HC14','HC15','HC16','HC17'].includes(prefix));
+  assert(['HC14','HC15','HC16','HC17','HC18'].includes(prefix));
   for(const line of log.split('\n')){
     const match=line.match(/msg=("(?:[^"\\]|\\.)*") source=console/);if(!match)continue;
     const stat=JSON.parse(match[1]).match(new RegExp('^'+prefix+'_STATS (edge-[abc]|cloud) (\\{[\\s\\S]*\\})\\s*$'));if(stat)stats[stat[1]]=JSON.parse(stat[2]);
@@ -280,6 +301,16 @@ export function validateProcessing(result,stats,manifest){
 }
 async function trial(label,duration,preVUs=32,maxVUs=32){
   validateTrialParameters(label,duration,preVUs,maxVUs);assertIdle();
+  if(experiment==='HC-18'){
+    const sequence=hc18Sequence(revision),index=sequence.findIndex(row=>row.label===label);
+    for(const previous of sequence.slice(0,index))assert.equal(load(previous.label+'/validation.json').status,'PASS','Previous HC-18 trial must pass');
+    if(label.startsWith('confirm-')){
+      const baseline=JSON.parse(readFileSync(path.resolve('.local/cea/hc18-baseline-20261018/report.json'),'utf8')).rows.find(row=>row.run==='compare-60s');
+      const candidate=load('report.json').rows.find(row=>row.run==='compare-60s');
+      assertConfirmationGate(baseline,candidate,process.env.HC18_CONFIRM_APPROVED,'HC-18');
+      if(label==='confirm-2')save('confirmation-review.json',{at:new Date().toISOString(),baselineGBps:baseline.GBps,candidateGBps:candidate.GBps,reviewApproved:true,reviewer:'experiment-runner'});
+    }
+  }
   if(experiment==='HC-16'){
     const index=hc16Sequence.findIndex(row=>row.label===label);
     for(const previous of hc16Sequence.slice(0,index))assert.equal(load(previous.label+'/validation.json').status,'PASS','Previous HC-16 trial must pass before continuing');
@@ -295,7 +326,7 @@ async function trial(label,duration,preVUs=32,maxVUs=32){
     }
   }
   const allocation=load('allocation.json');assertBudget(allocation,load('capacity.json').cpuCores);assert.deepEqual(load('correctness.json').allocation,allocation,'Reverify changed allocation first');
-  if(['HC-16','HC-17'].includes(experiment))assert.deepEqual(allocation,initialAllocation,experiment+' resource quotas are frozen');
+  if(['HC-16','HC-17','HC-18'].includes(experiment))assert.deepEqual(allocation,initialAllocation,experiment+' resource quotas are frozen');
   const target=path.join(folder,label);assert(!existsSync(target),'Trial label exists; never overwrite');mkdirSync(target);
   const host=[sampleHost()];assert(allocation.load.memoryMiB+512<=host[0].linux.MemAvailable/2**20,'Insufficient available WSL RAM for k6 plus reserve');
   assert(!hostStopReasons(host,'capacity').length,'Critical host pressure');appendFileSync(path.join(target,'host.jsonl'),JSON.stringify(host[0])+'\n');write(target,'allocation.json',allocation);
@@ -373,6 +404,13 @@ function report(){
     rows.push(row);
   }
   const confirmed=rows.filter(r=>r.run.startsWith('confirm-')&&r.processingValid);
+  if(experiment==='HC-18'){
+    const longRuns=rows.filter(r=>r.durationSeconds===60&&r.processingValid);
+    const result={rows,revision,comparisonRun:'compare-60s',confirmedMeanGBps:longRuns.length===3?longRuns.reduce((n,r)=>n+r.GBps,0)/3:null,
+      allThreeAbove2_5GBps:longRuns.length===3&&longRuns.every(r=>r.GBps>=2.5),allThreeOfferedLoadAchieved:longRuns.length===3&&longRuns.every(r=>r.offeredLoadAchieved),
+      scope:'HC18 center lock-scope-only comparison; complete original signal bytes / full HTTP chain; baseline and return 60s, candidate up to three 60s runs; drops are not sustained offered load'};
+    save('report.json',result);console.log(JSON.stringify(result,null,2));return;
+  }
   const result=experiment==='HC-17'?{rows,revision,shortComparisonRun:'compare-30s',
     confirmationRuns:rows.filter(r=>r.run.startsWith('confirm-')).map(r=>r.run),confirmedMeanGBps:confirmed.length===3?confirmed.reduce((n,r)=>n+r.GBps,0)/3:null,
     allThreeAbove2GBps:confirmed.length===3&&confirmed.every(r=>r.GBps>=2),allThreeOfferedLoadAchieved:confirmed.length===3&&confirmed.every(r=>r.offeredLoadAchieved),
