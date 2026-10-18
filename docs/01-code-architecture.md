@@ -1,5 +1,13 @@
 # 项目结构与 Java 文件索引
 
+DEP-WARM-04：同一部署 API 的两种 Kubernetes 实现；伸缩历史不拥有期望状态。
+
+| Java 文件 | 当前职责 |
+|---|---|
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentWorkloads.java` | 普通 Deployment 与 WarmService/模板/池的共享编辑模型转换和 CRUD；命名空间预算 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/JdbcScalingRepository.java` | 副本采样、伸缩事件及 Pod 身份证据持久化与查询 |
+| `platform-deployment/src/main/java/com/project/platform/deployment/service/DeploymentScalingTracker.java` | 观察目标/业务 Pod/Service 端点，记录真实伸缩耗时和预热身份复用 |
+
 FLOW-DEP-01：新增有限时长的服务部署任务适配器；复用公开 DeploymentService / KubernetesManagementService，执行状态仍由既有 Executor/Worker 管理。无新表或模块依赖。
 
 | Java 文件 | 当前职责 |

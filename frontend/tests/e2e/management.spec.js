@@ -454,7 +454,7 @@ test('real registry and Kubernetes deployment create, ready, stale delete reject
   await page.getByLabel('自定义启动命令', { exact: true }).check();
   await page.getByLabel('启动命令 JSON', { exact: true }).fill('["/bin/sh","-c","exec sleep 3600"]');
   await page.getByRole('button', { name: '创建部署', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('部署配置已被接受', { timeout: 60000 });
+  await expect(page.getByRole('status')).toContainText('部署已提交', { timeout: 60000 });
   const path = `/clusters/runtime-edge/kubernetes/namespaces/ui-test/deployments/${id}`;
   await expect.poll(async () => (await get(request, path)).readyReplicas, { timeout: 60000 }).toBe(1);
   await page.getByRole('button', { name: '↻ 刷新状态', exact: true }).click();

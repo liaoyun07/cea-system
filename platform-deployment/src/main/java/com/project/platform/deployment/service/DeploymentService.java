@@ -23,21 +23,24 @@ public final class DeploymentService {
     public record Readiness(String path,Integer port) {}
     public record Resources(String cpuRequest,String memoryRequest,String cpuLimit,String memoryLimit) {}
     public record Request(String applicationId,String version,Integer replicas,Map<String,Object> parameters,
-                          List<String> command,String resourceVersion,Readiness readiness,Resources resources) {
+                          List<String> command,String resourceVersion,Readiness readiness,Resources resources,Boolean warmPool,DeploymentAutoscaling.Request autoscaling) {
         public Request { parameters=parameters==null?Map.of():Map.copyOf(parameters);command=command==null?List.of():List.copyOf(command); }
+        public Request(String applicationId,String version,Integer replicas,Map<String,Object> parameters,List<String> command,String resourceVersion,Readiness readiness,Resources resources) {
+            this(applicationId,version,replicas,parameters,command,resourceVersion,readiness,resources,null,null);
+        }
         public Request(String applicationId,String version,Integer replicas,Map<String,Object> parameters,List<String> command,String resourceVersion,Readiness readiness) {
             this(applicationId,version,replicas,parameters,command,resourceVersion,readiness,null);
         }
     }
     public record ScaleRequest(Integer replicas,String resourceVersion) {}
     public record Configuration(String applicationId,String version,int replicas,Map<String,Object> parameters,
-                                List<String> command,String resourceVersion,Readiness readiness,Resources resources) {}
-    public record PodInstance(String name,String phase,boolean ready,String node,int restarts,List<String> reasons) {}
+                                List<String> command,String resourceVersion,Readiness readiness,Resources resources,boolean warmPool) {}
+    public record PodInstance(String name,String phase,boolean ready,String node,int restarts,List<String> reasons,boolean standby) {}
     public record RuntimeView(String namespace,Map<String,String> selector,Map<String,String> labels,List<PodInstance> pods) {}
     public record DeploymentRecord(String id,String applicationId,String version,String operation,int targetReplicas,
                                    String state,Instant startedAt,Instant finishedAt,Long durationMs,String error) {}
     public record View(String name,String clusterId,String kubeNamespace,String applicationId,String version,String image,String resourceVersion,
-                       int replicas,int readyReplicas,boolean observed,List<String> conditions,DeploymentRecord latestOperation) {}
+                       int replicas,int readyReplicas,boolean observed,List<String> conditions,DeploymentRecord latestOperation,boolean warmPool,Resources resources) {}
     private final AccessPolicy access;
     private final ApplicationCatalogService applications;
     private final ResourceCatalogService resources;
@@ -46,11 +49,18 @@ public final class DeploymentService {
     private final JdbcDeploymentRecordRepository records;
     private final Clock clock;
     private final Duration timeout;
+    private final DeploymentWorkloads workloads;
+    private final JdbcScalingRepository scaling;
     public DeploymentService(AccessPolicy access,ApplicationCatalogService applications,ResourceCatalogService resources,
                              ImageDistributionService images,KubernetesConnections connections,
                              JdbcDeploymentRecordRepository records,Clock clock,Duration timeout) {
+        this(access,applications,resources,images,connections,records,clock,timeout,new DeploymentWorkloads(List.of()),null);
+    }
+    public DeploymentService(AccessPolicy access,ApplicationCatalogService applications,ResourceCatalogService resources,
+                             ImageDistributionService images,KubernetesConnections connections,
+                             JdbcDeploymentRecordRepository records,Clock clock,Duration timeout,DeploymentWorkloads workloads,JdbcScalingRepository scaling) {
         this.access=access;this.applications=applications;this.resources=resources;this.images=images;this.connections=connections;
-        this.records=records;this.clock=clock;this.timeout=timeout;
+        this.records=records;this.clock=clock;this.timeout=timeout;this.workloads=workloads;this.scaling=scaling;
         if(timeout.compareTo(Duration.ofSeconds(30))<0 || timeout.compareTo(Duration.ofHours(1))>0)
             throw new IllegalArgumentException("deployment observation timeout must be 30 seconds..1 hour");
     }
@@ -65,10 +75,14 @@ public final class DeploymentService {
         if(!resources.cluster(actor,namespace,clusterId).enabled())throw ApplicationException.invalid("cluster is disabled");
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            var existing=client.apps().deployments().inNamespace(kubeNamespace).withName(name).get();
+            var existing=workloads.get(client,namespace,clusterId,kubeNamespace,name);
+            boolean warm=request.warmPool()==null?existing!=null && DeploymentWorkloads.warm(existing):request.warmPool();
+            if(warm && !workloads.enabled(namespace,clusterId,kubeNamespace))throw ApplicationException.invalid("此命名空间未启用预热池");
+            if(warm && request.replicas()>20)throw ApplicationException.invalid("预热部署副本上限为20");
             if(existing!=null) {
                 owned(existing,namespace);
                 revision(existing,request.resourceVersion());
+                if(warm!=DeploymentWorkloads.warm(existing))throw ApplicationException.invalid("部署方式在创建时选择");
             } else if(request.resourceVersion()!=null)throw ApplicationException.conflict("deployment no longer exists");
             Configuration current=existing==null?null:configuration(actor,namespace,existing);
             var hpas=existing==null?List.<io.fabric8.kubernetes.api.model.autoscaling.v2.HorizontalPodAutoscaler>of():DeploymentAutoscaling.find(client,existing);
@@ -76,8 +90,10 @@ public final class DeploymentService {
             if(current!=null && current.applicationId().equals(app.applicationId()) && current.version().equals(app.version())
                     && current.parameters().equals(parameters) && current.command().equals(request.command())
                     && Objects.equals(current.readiness(),request.readiness())
-                    && (request.resources()==null || Objects.equals(current.resources(),normalized(request.resources()))))
-                return hpas.isEmpty()?scale(client,namespace,clusterId,existing,replicas):view(existing,namespace,clusterId);
+                    && (request.resources()==null || Objects.equals(current.resources(),normalized(request.resources())))) {
+                if(request.autoscaling()!=null)DeploymentAutoscaling.put(client,existing,request.autoscaling());
+                return hpas.isEmpty() && request.autoscaling()==null?scale(client,namespace,clusterId,existing,replicas):view(existing,namespace,clusterId);
+            }
             String id=begin(namespace,clusterId,kubeNamespace,name,app.applicationId(),app.version(),existing==null?"CREATE":"UPDATE",replicas);
             boolean submitted=false;
             try {
@@ -86,6 +102,7 @@ public final class DeploymentService {
                 desired.getSpec().setReplicas(replicas);
                 var annotations=new HashMap<>(Optional.ofNullable(desired.getMetadata().getAnnotations()).orElse(Map.of()));
                 annotations.put(PREFIX+"application",app.applicationId());annotations.put(PREFIX+"version",app.version());
+                if(warm)annotations.put(DeploymentWorkloads.MODE,"warm");
                 desired.getMetadata().setAnnotations(annotations);
                 var container=container(desired);container.setImage(image);container.setCommand(request.command());
                 var managed=new HashSet<>(app.parameters().keySet());
@@ -95,11 +112,15 @@ public final class DeploymentService {
                 if(current==null || !Objects.equals(current.readiness(),request.readiness()))
                     container.setReadinessProbe(probe(request.readiness(),container.getReadinessProbe()));
                 if(request.resources()!=null)applyResources(container,request.resources());
+                if(warm && (container.getResources()==null || resourceValue(container.getResources().getLimits(),"memory")==null))
+                    throw ApplicationException.invalid("预热部署需要内存上限");
+                if(request.autoscaling()!=null)DeploymentAutoscaling.validate(desired,request.autoscaling());
                 DeploymentAutoscaling.validateRequests(desired,hpas);
                 submitted=true;
-                Deployment saved=existing==null?client.apps().deployments().inNamespace(kubeNamespace).resource(desired).create():client.apps().deployments().inNamespace(kubeNamespace).resource(desired).lockResourceVersion(request.resourceVersion()).replace();
+                Deployment saved=workloads.save(client,desired,existing,warm);
                 records.submitted(id,saved.getMetadata().getUid(),saved.getMetadata().getGeneration(),clock.instant(),
                         existing==null || !Objects.equals(existing.getSpec(),desired.getSpec()));
+                if(request.autoscaling()!=null)DeploymentAutoscaling.put(client,saved,request.autoscaling());
                 return view(saved,namespace,clusterId);
             } catch(RuntimeException ex) { failed(id,submitted,ex);throw ex; }
         }
@@ -119,7 +140,7 @@ public final class DeploymentService {
         var cluster=resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            var current=required(client,namespace,kubeNamespace,name);revision(current,request.resourceVersion());
+            var current=required(client,namespace,clusterId,kubeNamespace,name);revision(current,request.resourceVersion());
             if(!DeploymentAutoscaling.find(client,current).isEmpty())throw ApplicationException.conflict("Disable HPA before manually scaling replicas");
             if(!cluster.enabled() && request.replicas()>current.getSpec().getReplicas())throw ApplicationException.invalid("cluster is disabled");
             return scale(client,namespace,clusterId,current,request.replicas());
@@ -129,7 +150,7 @@ public final class DeploymentService {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            return DeploymentAutoscaling.read(client,required(client,namespace,kubeNamespace,name));
+            return DeploymentAutoscaling.read(client,required(client,namespace,clusterId,kubeNamespace,name));
         }
     }
     public DeploymentAutoscaling.View autoscale(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,DeploymentAutoscaling.Request request) {
@@ -137,14 +158,14 @@ public final class DeploymentService {
         if(!resources.cluster(actor,namespace,clusterId).enabled())throw ApplicationException.invalid("cluster is disabled");
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            return DeploymentAutoscaling.put(client,required(client,namespace,kubeNamespace,name),request);
+            return DeploymentAutoscaling.put(client,required(client,namespace,clusterId,kubeNamespace,name),request);
         }
     }
     public void disableAutoscaling(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,String version) {
         access.require(actor,namespace,Action.WRITE);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            DeploymentAutoscaling.delete(client,required(client,namespace,kubeNamespace,name),version);
+            DeploymentAutoscaling.delete(client,required(client,namespace,clusterId,kubeNamespace,name),version);
         }
     }
     private View scale(KubernetesClient client,String namespace,String clusterId,Deployment current,int replicas) {
@@ -153,8 +174,7 @@ public final class DeploymentService {
         var annotations=current.getMetadata().getAnnotations();
         String id=begin(namespace,clusterId,kubeNamespace,current.getMetadata().getName(),annotations.get(PREFIX+"application"),annotations.get(PREFIX+"version"),"SCALE",replicas);
         try {
-            var desired=new DeploymentBuilder(current).editSpec().withReplicas(replicas).endSpec().build();
-            var saved=client.apps().deployments().inNamespace(kubeNamespace).resource(desired).lockResourceVersion(current.getMetadata().getResourceVersion()).replace();
+            var saved=workloads.scale(client,current,replicas);
             records.submitted(id,saved.getMetadata().getUid(),saved.getMetadata().getGeneration(),clock.instant(),true);
             return view(saved,namespace,clusterId);
         } catch(RuntimeException ex) { failed(id,true,ex);throw ex; }
@@ -170,7 +190,7 @@ public final class DeploymentService {
     public Configuration configuration(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
-            KubernetesManagementService.allowed(client,namespace,kubeNamespace); return configuration(actor,namespace,required(client,namespace,kubeNamespace,name)); }
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace); return configuration(actor,namespace,required(client,namespace,clusterId,kubeNamespace,name)); }
     }
     private Configuration configuration(Actor actor,String namespace,Deployment value) {
         var annotations=value.getMetadata().getAnnotations();
@@ -193,22 +213,29 @@ public final class DeploymentService {
             readiness=new Readiness(http.getPath()==null?"/":http.getPath(),http.getPort().getIntVal());
         }
         return new Configuration(app.applicationId(),app.version(),value.getSpec().getReplicas(),parameters,
-                Optional.ofNullable(container.getCommand()).orElse(List.of()),value.getMetadata().getResourceVersion(),readiness,resources(container));
+                Optional.ofNullable(container.getCommand()).orElse(List.of()),value.getMetadata().getResourceVersion(),readiness,resources(container),DeploymentWorkloads.warm(value));
     }
     /** Read only the Pods owned by this Deployment's ReplicaSets, including an old rolling revision. */
     public RuntimeView runtime(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            var deployment=required(client,namespace,kubeNamespace,name);
+            var deployment=required(client,namespace,clusterId,kubeNamespace,name);
             var selector=deployment.getSpec().getSelector().getMatchLabels();
+            if(DeploymentWorkloads.warm(deployment)) {
+                var labels=new HashMap<>(deployment.getMetadata().getLabels());
+                var pods=client.pods().inNamespace(kubeNamespace).withLabels(labels).list().getItems().stream()
+                        .sorted(Comparator.comparing(p->p.getMetadata().getName())).map(p->podInstance(p,true)).toList();
+                labels.put(DeploymentWorkloads.ONLINE,"true");
+                return new RuntimeView(kubeNamespace,labels,labels,pods);
+            }
             var replicaSets=new HashSet<String>();
             client.apps().replicaSets().inNamespace(kubeNamespace).withLabels(selector).list().getItems().stream()
                     .filter(rs->ownedBy(rs.getMetadata(),deployment.getMetadata().getUid()))
                     .forEach(rs->replicaSets.add(rs.getMetadata().getUid()));
             var pods=client.pods().inNamespace(kubeNamespace).withLabels(selector).list().getItems().stream()
                     .filter(p->replicaSets.stream().anyMatch(uid->ownedBy(p.getMetadata(),uid)))
-                    .sorted(Comparator.comparing(p->p.getMetadata().getName())).map(DeploymentService::podInstance).toList();
+                    .sorted(Comparator.comparing(p->p.getMetadata().getName())).map(p->podInstance(p,false)).toList();
             return new RuntimeView(kubeNamespace,selector,deployment.getSpec().getTemplate().getMetadata().getLabels(),pods);
         }
     }
@@ -216,7 +243,7 @@ public final class DeploymentService {
         return Optional.ofNullable(meta.getOwnerReferences()).orElse(List.of()).stream()
                 .anyMatch(owner->Boolean.TRUE.equals(owner.getController()) && uid.equals(owner.getUid()));
     }
-    private static PodInstance podInstance(Pod pod) {
+    private static PodInstance podInstance(Pod pod,boolean warm) {
         var status=pod.getStatus();var reasons=new LinkedHashSet<String>();int restarts=0;boolean ready=false;
         if(status!=null) {
             if(status.getReason()!=null)reasons.add(status.getReason()+": "+Objects.toString(status.getMessage(),""));
@@ -237,7 +264,7 @@ public final class DeploymentService {
             }
         }
         return new PodInstance(pod.getMetadata().getName(),pod.getMetadata().getDeletionTimestamp()!=null?"Terminating":status==null?"Pending":status.getPhase(),
-                ready,pod.getSpec().getNodeName(),restarts,List.copyOf(reasons));
+                ready,pod.getSpec().getNodeName(),restarts,List.copyOf(reasons),warm && !"true".equals(pod.getMetadata().getLabels().get(DeploymentWorkloads.ONLINE)));
     }
     private static String quantity(String value) { return value==null || value.isBlank()?null:value.trim(); }
     private static Resources normalized(Resources value) {
@@ -285,34 +312,34 @@ public final class DeploymentService {
     public View get(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
-            KubernetesManagementService.allowed(client,namespace,kubeNamespace); return view(required(client,namespace,kubeNamespace,name),namespace,clusterId); }
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace); return view(required(client,namespace,clusterId,kubeNamespace,name),namespace,clusterId); }
     }
     public boolean ready(Actor actor,String namespace,String clusterId,String kubeNamespace,String name) {
         access.require(actor,namespace,Action.READ);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            return DeploymentRolloutTracker.ready(required(client,namespace,kubeNamespace,name));
+            return DeploymentRolloutTracker.ready(required(client,namespace,clusterId,kubeNamespace,name));
         }
     }
     public List<View> list(Actor actor,String namespace,String clusterId,String kubeNamespace) {
         access.require(actor,namespace,Action.READ);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            return client.apps().deployments().inNamespace(kubeNamespace).withLabel(PREFIX+"owner",OWNER).withLabel(PREFIX+"namespace",namespace).list().getItems().stream().map(d->view(d,namespace,clusterId)).toList();
+            return workloads.list(client,namespace,clusterId,kubeNamespace).stream().map(d->view(d,namespace,clusterId)).toList();
         }
     }
     public void delete(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,String resourceVersion) {
         access.require(actor,namespace,Action.WRITE);name(name);resources.cluster(actor,namespace,clusterId);
         try(var client=connections.open(namespace,clusterId)) {
             KubernetesManagementService.allowed(client,namespace,kubeNamespace);
-            var existing=required(client,namespace,kubeNamespace,name);
+            var existing=required(client,namespace,clusterId,kubeNamespace,name);
             if(!existing.getMetadata().getResourceVersion().equals(resourceVersion))throw ApplicationException.conflict("deployment changed; read current resourceVersion before deleting");
             // A resourceVersion precondition prevents deletion by a stale request, including after recreation.
-            client.apps().deployments().inNamespace(kubeNamespace).resource(existing).lockResourceVersion(resourceVersion).delete();
+            workloads.delete(client,existing);
         }
     }
-    private Deployment required(KubernetesClient client,String namespace,String kubeNamespace,String name) {
-        var value=client.apps().deployments().inNamespace(kubeNamespace).withName(name).get();
+    private Deployment required(KubernetesClient client,String namespace,String clusterId,String kubeNamespace,String name) {
+        var value=workloads.get(client,namespace,clusterId,kubeNamespace,name);
         if(value==null)throw ApplicationException.missing("deployment not found");owned(value,namespace);return value;
     }
     private void owned(Deployment deployment,String namespace) {
@@ -328,7 +355,22 @@ public final class DeploymentService {
                 container(value).getImage(),value.getMetadata().getResourceVersion(),
                 value.getSpec().getReplicas(),status==null || status.getReadyReplicas()==null?0:status.getReadyReplicas(),
                 status!=null && status.getObservedGeneration()!=null && status.getObservedGeneration()>=value.getMetadata().getGeneration(),
-                status==null || status.getConditions()==null?List.of():status.getConditions().stream().map(c->c.getType()+":"+c.getStatus()+":"+c.getReason()).toList(),history.isEmpty()?null:history.getFirst());
+                status==null || status.getConditions()==null?List.of():status.getConditions().stream().map(c->c.getType()+":"+c.getStatus()+":"+c.getReason()).toList(),history.isEmpty()?null:history.getFirst(),DeploymentWorkloads.warm(value),resources(container(value)));
+    }
+    public DeploymentWorkloads.Budget warmPool(Actor actor,String namespace,String clusterId,String kubeNamespace,DeploymentWorkloads.Budget request) {
+        access.require(actor,namespace,request==null?Action.READ:Action.WRITE);resources.cluster(actor,namespace,clusterId);
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            return request==null?workloads.budget(client,namespace,clusterId,kubeNamespace):workloads.budget(client,namespace,clusterId,kubeNamespace,request);
+        }
+    }
+    public JdbcScalingRepository.History scaling(Actor actor,String namespace,String clusterId,String kubeNamespace,String name,Instant since) {
+        access.require(actor,namespace,Action.READ);resources.cluster(actor,namespace,clusterId);name(name);
+        try(var client=connections.open(namespace,clusterId)) {
+            KubernetesManagementService.allowed(client,namespace,kubeNamespace);
+            var current=required(client,namespace,clusterId,kubeNamespace,name);
+            return scaling.history(new DeploymentWorkloads.Scope(namespace,clusterId,kubeNamespace),name,current.getMetadata().getUid(),since==null?clock.instant().minus(Duration.ofHours(2)):since);
+        }
     }
     private static Container container(Deployment value) {
         return value.getSpec().getTemplate().getSpec().getContainers().stream().filter(c->"application".equals(c.getName())).findFirst()

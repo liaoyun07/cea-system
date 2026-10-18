@@ -4,8 +4,10 @@ import { errorText } from '../api.js';
 import { readCatalog } from '../no-code/document.js';
 import { deploymentBody, deploymentDraft, deploymentFields, enc } from './catalogs.js';
 import DeploymentParameters from './DeploymentParameters.vue';
+import AutoscalingFields from './AutoscalingFields.vue';
+import DeploymentScaling from './DeploymentScaling.vue';
 import { time } from '../model.js';
-import { durationText, deploymentTarget, operationName, stateName, ingressRouteUrl } from './operations.js';
+import { durationText, operationName, stateName, ingressRouteUrl } from './operations.js';
 const props = defineProps({ api: Function });
 const emit = defineEmits(['dirty', 'pending', 'access']);
 const clusters = ref([]),
@@ -30,6 +32,10 @@ const runtime = ref(null),
   ingresses = ref([]),
   ingressClasses = ref([]);
 const abort = new AbortController();
+const warmPool = ref(null),
+  budgetDraft = ref(null);
+let refreshTimer,
+  refreshing = false;
 const history = ref([]),
   historyOffset = ref(0),
   scaleReplicas = ref(1);
@@ -49,6 +55,7 @@ watch(
 watch(writing, (v) => emit('pending', v), { flush: 'sync' });
 onBeforeUnmount(() => {
   alive = false;
+  clearInterval(refreshTimer);
   abort.abort();
 });
 const namespacePath = () => `/clusters/${enc(cluster.value)}/kubernetes/namespaces`;
@@ -94,6 +101,7 @@ async function list() {
   loaded.value = false;
   if (!cluster.value || !kubeNamespace.value) return;
   const result = await api(path());
+  warmPool.value = await api(`${path()}/-/warm-pool`);
   if (alive) {
     rows.value = result;
     loaded.value = true;
@@ -118,6 +126,9 @@ function create() {
     name: '',
     application: '',
     replicas: 1,
+    warmPool: false,
+    autoscalingEnabled: false,
+    autoscaling: { minReplicas: 1, maxReplicas: 4, cpuUtilization: 60, memoryUtilization: '' },
     parameters: [],
     command: '[]',
     customCommand: false,
@@ -155,7 +166,7 @@ async function save() {
       selected.value = result;
       scaleReplicas.value = result.replicas;
       historyOffset.value = 0;
-      success.value = '部署配置已被接受；是否就绪以实际状态为准。';
+      success.value = '部署已提交';
       await loadHistory();
       await loadRuntime();
     }
@@ -174,22 +185,28 @@ async function detail(row) {
   });
 }
 async function loadHistory() {
-  const result = await api(`${path(selected.value.name)}/history?limit=20&offset=${historyOffset.value}`);
-  if (alive) history.value = result;
+  const name = selected.value.name;
+  const result = await api(`${path(name)}/history?limit=20&offset=${historyOffset.value}`);
+  if (alive && selected.value?.name === name) history.value = result;
 }
 function changeApplication() {
   draft.value.parameters = deploymentFields(app.value?.parameters);
 }
-async function loadRuntime() {
-  await loadAutoscaling();
-  runtime.value = null;
+async function loadRuntime(quiet = false) {
+  const name = selected.value?.name;
+  if (!name) return;
+  await loadAutoscaling(quiet);
+  if (!alive || selected.value?.name !== name) return;
+  if (!quiet) runtime.value = null;
   runtimeError.value = '';
   accessError.value = '';
-  services.value = [];
-  ingresses.value = [];
+  if (!quiet) {
+    services.value = [];
+    ingresses.value = [];
+  }
   try {
-    const value = await api(`${path(selected.value.name)}/runtime`);
-    if (!alive) return;
+    const value = await api(`${path(name)}/runtime`);
+    if (!alive || selected.value?.name !== name) return;
     runtime.value = value;
     const scope = `/clusters/${enc(cluster.value)}/kubernetes/namespaces/${enc(value.namespace)}`;
     try {
@@ -198,7 +215,7 @@ async function loadRuntime() {
         api(`${scope}/ingresses`),
         api(`/clusters/${enc(cluster.value)}/kubernetes/ingress-classes`),
       ]);
-      if (!alive) return;
+      if (!alive || selected.value?.name !== name) return;
       services.value = allServices.filter(
         (s) =>
           Object.keys(s.selector || {}).length &&
@@ -216,14 +233,19 @@ async function loadRuntime() {
     if (alive) runtimeError.value = errorText(e);
   }
 }
-async function loadAutoscaling() {
-  autoscaling.value = null;
+async function loadAutoscaling(quiet = false) {
+  const name = selected.value?.name;
+  if (!name) return;
+  if (!quiet) autoscaling.value = null;
   autoscalingError.value = '';
   try {
-    const value = await api(`${path(selected.value.name)}/autoscaling`);
-    if (alive) autoscaling.value = value;
+    const value = await api(`${path(name)}/autoscaling`);
+    if (alive && selected.value?.name === name) autoscaling.value = value;
   } catch (e) {
-    if (alive) autoscalingError.value = errorText(e);
+    if (alive && selected.value?.name === name) {
+      autoscaling.value = null;
+      autoscalingError.value = errorText(e);
+    }
   }
 }
 function editAutoscaling() {
@@ -322,7 +344,32 @@ async function remove() {
         : '删除请求已接受，列表中已无该部署；不保证全部 Pod 已退出。';
   }, true);
 }
-onMounted(() => action(catalogs));
+async function saveBudget() {
+  await action(async () => {
+    warmPool.value = await api(`${path()}/-/warm-pool`, { method: 'PUT', body: budgetDraft.value });
+    budgetDraft.value = null;
+    success.value = '预热预算已保存';
+  }, true);
+}
+onMounted(() => {
+  action(catalogs);
+  refreshTimer = setInterval(async () => {
+    if (busy.value || refreshing || draft.value || hpaDraft.value || !selected.value) return;
+    refreshing = true;
+    const name = selected.value.name;
+    try {
+      const result = await api(path(name));
+      if (!alive || selected.value?.name !== name || draft.value || hpaDraft.value || busy.value) return;
+      selected.value = result;
+      await loadHistory();
+      await loadRuntime(true);
+    } catch (e) {
+      if (alive) error.value = errorText(e);
+    } finally {
+      refreshing = false;
+    }
+  }, 5000);
+});
 </script>
 <template>
   <section class="list-page management-page">
@@ -380,6 +427,20 @@ onMounted(() => action(catalogs));
         {{ busy ? '读取中…' : '↻ 刷新状态' }}
       </button>
     </div>
+    <div v-if="warmPool?.available && !draft && !selected" class="list-toolbar">
+      <span>预热预算：{{ warmPool.count }} 个备用实例 / {{ warmPool.memoryMiB }} MiB</span>
+      <button v-if="!budgetDraft" @click="budgetDraft = { ...warmPool }">设置</button>
+      <form v-else class="inline-form" @submit.prevent="saveBudget">
+        <label
+          >备用实例上限<input v-model.number="budgetDraft.count" type="number" min="0" max="20" required
+        /></label>
+        <label
+          >备用内存预算（MiB）<input v-model.number="budgetDraft.memoryMiB" type="number" min="0" required
+        /></label>
+        <button type="submit" :disabled="busy">保存</button
+        ><button type="button" @click="budgetDraft = null">取消</button>
+      </form>
+    </div>
     <form v-if="draft" class="management-editor" @submit.prevent="save">
       <h2>{{ draft.resourceVersion ? '编辑部署' : '创建常驻部署' }}</h2>
       <fieldset class="catalog-fields" :disabled="busy">
@@ -416,10 +477,24 @@ onMounted(() => action(catalogs));
               :disabled="autoscaling?.enabled"
               required
               min="0"
-              max="100"
+              :max="draft.warmPool ? 20 : 100"
               step="1"
           /></label>
         </div>
+        <section v-if="!draft.resourceVersion" class="deployment-section">
+          <h3>弹性伸缩</h3>
+          <label class="probe-toggle"
+            ><input type="checkbox" v-model="draft.autoscalingEnabled" />启用自动扩缩容（HPA）</label
+          >
+          <AutoscalingFields
+            v-if="draft.autoscalingEnabled"
+            :value="draft.autoscaling"
+            :max="draft.warmPool ? 20 : 100"
+          />
+          <label v-if="warmPool?.available" class="probe-toggle"
+            ><input type="checkbox" v-model="draft.warmPool" />启用预热池加速</label
+          >
+        </section>
         <section class="deployment-section">
           <h3>应用参数</h3>
           <DeploymentParameters v-if="app" :fields="draft.parameters" />
@@ -441,7 +516,6 @@ onMounted(() => action(catalogs));
               >内存上限<input v-model="draft.resources.memoryLimit" placeholder="例如 512Mi 或 1Gi"
             /></label>
           </div>
-          <p class="muted">留空不显式设置；申请量用于调度，上限用于约束用量。</p>
         </section>
         <section class="deployment-section">
           <h3>健康检查</h3>
@@ -460,13 +534,6 @@ onMounted(() => action(catalogs));
                 step="1"
             /></label>
           </div>
-          <p class="muted">
-            {{
-              draft.readinessEnabled
-                ? '检查容器内部的 HTTP 接口，不会创建访问入口；路径必须由程序实际提供。'
-                : '未启用时，容器就绪不代表业务接口已通过检查。'
-            }}
-          </p>
         </section>
         <details class="deployment-section" :open="draft.customCommand || undefined">
           <summary>高级配置</summary>
@@ -500,12 +567,22 @@ onMounted(() => action(catalogs));
         <dd>{{ selected.applicationId }}/{{ selected.version }}</dd>
         <dt>期望 / 就绪副本</dt>
         <dd>{{ selected.replicas }} / {{ selected.readyReplicas }}</dd>
-        <dt>控制器已观测当前配置</dt>
-        <dd>{{ selected.observed ? '是' : '否' }}</dd>
-        <dt>资源版本</dt>
-        <dd class="mono">{{ selected.resourceVersion }}</dd>
-        <dt>实际镜像</dt>
-        <dd class="mono">{{ selected.image }}</dd>
+        <dt>部署方式</dt>
+        <dd>
+          {{
+            selected.warmPool
+              ? autoscaling?.enabled
+                ? 'HPA + 预热池'
+                : '预热池'
+              : autoscaling?.enabled
+                ? 'HPA'
+                : '固定副本'
+          }}
+        </dd>
+        <dt>CPU 申请 / 上限（每副本）</dt>
+        <dd>{{ selected.resources?.cpuRequest || '—' }} / {{ selected.resources?.cpuLimit || '—' }}</dd>
+        <dt>内存申请 / 上限（每副本）</dt>
+        <dd>{{ selected.resources?.memoryRequest || '—' }} / {{ selected.resources?.memoryLimit || '—' }}</dd>
         <dt>最近操作</dt>
         <dd>
           {{ operationName(selected.latestOperation?.operation) }} ·
@@ -513,9 +590,13 @@ onMounted(() => action(catalogs));
         </dd>
         <dt>最近操作耗时</dt>
         <dd>{{ durationText(selected.latestOperation?.durationMs) }}</dd>
-        <dt>部署目标（30 s）</dt>
-        <dd>{{ deploymentTarget(selected.latestOperation) }}</dd>
       </dl>
+      <DeploymentScaling
+        v-if="warmPool?.available"
+        :api="api"
+        :path="path(selected.name)"
+        :warm="selected.warmPool"
+      />
       <section class="deployment-section" aria-label="自动扩缩容">
         <div class="section-heading">
           <h3>自动扩缩容 · HPA</h3>
@@ -534,43 +615,7 @@ onMounted(() => action(catalogs));
         <p v-if="autoscalingError" class="notice error" role="alert">{{ autoscalingError }}</p>
         <form v-if="hpaDraft" @submit.prevent="saveAutoscaling">
           <fieldset class="catalog-fields" :disabled="busy">
-            <div class="form-grid">
-              <label
-                >最小副本数<input
-                  v-model.number="hpaDraft.minReplicas"
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="1"
-                  required
-              /></label>
-              <label
-                >最大副本数<input
-                  v-model.number="hpaDraft.maxReplicas"
-                  type="number"
-                  :min="hpaDraft.minReplicas"
-                  max="100"
-                  step="1"
-                  required
-              /></label>
-              <label
-                >CPU 目标利用率（%）<input
-                  v-model.number="hpaDraft.cpuUtilization"
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="留空不使用"
-              /></label>
-              <label
-                >内存目标利用率（%）<input
-                  v-model.number="hpaDraft.memoryUtilization"
-                  type="number"
-                  min="1"
-                  step="1"
-                  placeholder="留空不使用"
-              /></label>
-            </div>
-            <p class="muted">至少选择一项指标。利用率以资源申请量 requests 为基准。</p>
+            <AutoscalingFields :value="hpaDraft" :max="selected.warmPool ? 20 : 100" />
             <div class="inline-form">
               <button class="primary" type="submit">保存自动扩缩容</button
               ><button type="button" @click="hpaDraft = null">取消</button>
@@ -610,7 +655,7 @@ onMounted(() => action(catalogs));
             v-model.number="scaleReplicas"
             required
             min="0"
-            max="100"
+            :max="selected.warmPool ? 20 : 100"
             step="1"
             :disabled="busy"
         /></label>
@@ -624,6 +669,7 @@ onMounted(() => action(catalogs));
             <thead>
               <tr>
                 <th>Pod</th>
+                <th v-if="selected.warmPool">用途</th>
                 <th>状态</th>
                 <th>就绪</th>
                 <th>节点</th>
@@ -634,6 +680,7 @@ onMounted(() => action(catalogs));
             <tbody>
               <tr v-for="pod in runtime.pods" :key="pod.name">
                 <td>{{ pod.name }}</td>
+                <td v-if="selected.warmPool">{{ pod.standby ? '备用' : '业务' }}</td>
                 <td>{{ pod.phase }}</td>
                 <td>{{ pod.ready ? '是' : '否' }}</td>
                 <td>{{ pod.node || '—' }}</td>
@@ -688,60 +735,61 @@ onMounted(() => action(catalogs));
           </div>
         </template>
       </section>
-      <h3>控制器条件</h3>
-      <ul v-if="selected.conditions.length">
-        <li v-for="c in selected.conditions" :key="c" class="mono">{{ c }}</li>
-      </ul>
-      <p v-else class="muted">尚无条件记录。</p>
-      <h3>部署操作历史</h3>
-      <div class="table-wrap">
-        <table aria-label="部署操作历史">
-          <thead>
-            <tr>
-              <th>操作</th>
-              <th>应用版本</th>
-              <th>副本</th>
-              <th>状态</th>
-              <th>开始时间</th>
-              <th>耗时</th>
-              <th>部署目标</th>
-              <th>错误</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in history" :key="r.id">
-              <td>{{ operationName(r.operation) }}</td>
-              <td>{{ r.applicationId }}/{{ r.version }}</td>
-              <td>{{ r.targetReplicas }}</td>
-              <td>{{ stateName(r.state) }}</td>
-              <td>{{ time(r.startedAt) }}</td>
-              <td>{{ durationText(r.durationMs) }}</td>
-              <td>{{ deploymentTarget(r) }}</td>
-              <td>{{ r.error || '—' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination">
-        <button
-          :disabled="busy || historyOffset === 0"
-          @click="
-            historyOffset -= 20;
-            action(loadHistory);
-          "
-        >
-          上一页</button
-        ><span>第 {{ historyOffset / 20 + 1 }} 页</span
-        ><button
-          :disabled="busy || history.length < 20"
-          @click="
-            historyOffset += 20;
-            action(loadHistory);
-          "
-        >
-          下一页
-        </button>
-      </div>
+      <details v-if="selected.conditions.length" class="deployment-section">
+        <summary>控制器状态</summary>
+        <ul>
+          <li v-for="c in selected.conditions" :key="c" class="mono">{{ c }}</li>
+        </ul>
+      </details>
+      <details class="deployment-section">
+        <summary>配置操作历史</summary>
+        <div class="table-wrap">
+          <table aria-label="部署操作历史">
+            <thead>
+              <tr>
+                <th>操作</th>
+                <th>应用版本</th>
+                <th>副本</th>
+                <th>状态</th>
+                <th>开始时间</th>
+                <th>耗时</th>
+                <th>错误</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in history" :key="r.id">
+                <td>{{ operationName(r.operation) }}</td>
+                <td>{{ r.applicationId }}/{{ r.version }}</td>
+                <td>{{ r.targetReplicas }}</td>
+                <td>{{ stateName(r.state) }}</td>
+                <td>{{ time(r.startedAt) }}</td>
+                <td>{{ durationText(r.durationMs) }}</td>
+                <td>{{ r.error || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination">
+          <button
+            :disabled="busy || historyOffset === 0"
+            @click="
+              historyOffset -= 20;
+              action(loadHistory);
+            "
+          >
+            上一页</button
+          ><span>第 {{ historyOffset / 20 + 1 }} 页</span
+          ><button
+            :disabled="busy || history.length < 20"
+            @click="
+              historyOffset += 20;
+              action(loadHistory);
+            "
+          >
+            下一页
+          </button>
+        </div>
+      </details>
     </section>
     <div v-else class="table-wrap">
       <table>
@@ -751,7 +799,7 @@ onMounted(() => action(catalogs));
             <th>应用版本</th>
             <th>期望副本</th>
             <th>就绪副本</th>
-            <th>配置已观测</th>
+            <th>部署类型</th>
             <th>最近操作 / 耗时</th>
             <th>操作</th>
           </tr>
@@ -762,7 +810,7 @@ onMounted(() => action(catalogs));
             <td>{{ r.applicationId }}/{{ r.version }}</td>
             <td>{{ r.replicas }}</td>
             <td>{{ r.readyReplicas }}</td>
-            <td>{{ r.observed ? '是' : '否' }}</td>
+            <td>{{ r.warmPool ? '预热池' : '常规' }}</td>
             <td>
               {{ stateName(r.latestOperation?.state) }} · {{ durationText(r.latestOperation?.durationMs) }}
             </td>

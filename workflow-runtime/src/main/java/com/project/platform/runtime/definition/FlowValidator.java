@@ -205,6 +205,14 @@ public final class FlowValidator {
         kubeName(value.name(),"deployment.name");
         if(value.kubeNamespace()!=null)kubeName(value.kubeNamespace(),"deployment.kubeNamespace");
         if(value.replicas()<0 || value.replicas()>100)throw WorkflowException.invalid("deployment.replicas","0..100 required");
+        int max=Boolean.TRUE.equals(value.warmPool())?20:100;
+        if(value.replicas()>max)throw WorkflowException.invalid("deployment.replicas","warm pool replicas must not exceed 20");
+        if(value.autoscaling()!=null) {
+            var a=value.autoscaling();
+            if(value.replicas()==0 || a.minReplicas()==null || a.maxReplicas()==null || a.minReplicas()<1 || a.maxReplicas()<a.minReplicas() || a.maxReplicas()>max
+                    || (a.cpuUtilization()==null && a.memoryUtilization()==null) || (a.cpuUtilization()!=null && a.cpuUtilization()<1) || (a.memoryUtilization()!=null && a.memoryUtilization()<1))
+                throw WorkflowException.invalid("deployment.autoscaling","HPA replica range and positive utilization target required");
+        }
         if(value.readiness()!=null) {
             port(value.readiness().port());
             if(value.readiness().path()==null || !value.readiness().path().startsWith("/") || value.readiness().path().length()>1024)

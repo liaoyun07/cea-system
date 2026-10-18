@@ -252,6 +252,18 @@ export function deploymentBody(draft) {
     replicas: draft.replicas,
     parameters,
     command,
+    ...(draft.warmPool != null ? { warmPool: draft.warmPool } : {}),
+    ...(draft.autoscalingEnabled
+      ? {
+          autoscaling: {
+            ...draft.autoscaling,
+            cpuUtilization:
+              draft.autoscaling.cpuUtilization === '' ? null : Number(draft.autoscaling.cpuUtilization),
+            memoryUtilization:
+              draft.autoscaling.memoryUtilization === '' ? null : Number(draft.autoscaling.memoryUtilization),
+          },
+        }
+      : {}),
     ...(draft.resources ? { resources: draft.resources } : {}),
     ...(draft.resourceVersion ? { resourceVersion: draft.resourceVersion } : {}),
     ...(draft.readinessEnabled
@@ -282,6 +294,7 @@ export function deploymentDraft(name, value, contract = {}) {
     name,
     application: `${value.applicationId}/${value.version}`,
     replicas: value.replicas,
+    warmPool: !!value.warmPool,
     parameters: deploymentFields(contract, value.parameters),
     command: JSON.stringify(value.command, null, 2),
     customCommand: !!value.command?.length,

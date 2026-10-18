@@ -270,8 +270,26 @@ class DurableWorkflowTest {
 
     @Test void realMysqlAndFlywayMigrations() {
         assertTrue(jdbc().queryForObject("SELECT VERSION()",String.class).startsWith("8.0."));
-        assertEquals(34,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
+        assertEquals(35,jdbc().queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class));
         assertEquals(3,jdbc().queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('res_terminal_reservation','off_task_observation','off_dqn_model')",Integer.class));
+    }
+    @Test void scalingHistoryPersistsAcrossRepositoryRecreationAndSeparatesNamespaces() {
+        var repo=new com.project.platform.deployment.service.JdbcScalingRepository(jdbc());
+        var scope=new com.project.platform.deployment.service.DeploymentWorkloads.Scope("lab","cloud","test-one");
+        var other=new com.project.platform.deployment.service.DeploymentWorkloads.Scope("lab","cloud","test-two");
+        var start=java.time.Instant.parse("2026-10-18T00:00:00Z");
+        repo.sample(scope,"app","uid",new com.project.platform.deployment.service.JdbcScalingRepository.Sample(start,2,1,1));
+        var event=repo.begin(scope,"app","uid",start,1,2,"{}","{}");
+        repo.finish(event,start.plusSeconds(1),"SUCCEEDED",1000L,1,"{}");
+        var restored=new com.project.platform.deployment.service.JdbcScalingRepository(jdbc());
+        var history=restored.history(scope,"app","uid",start.minusSeconds(1));
+        assertEquals(1,history.samples().size());assertEquals(1,history.events().size());
+        assertEquals(1000L,history.events().getFirst().durationMs());assertEquals(1,history.events().getFirst().warmHits());
+        assertTrue(restored.history(other,"app","uid",start.minusSeconds(1)).events().isEmpty());
+        assertTrue(restored.history(scope,"app","replacement-uid",start.minusSeconds(1)).events().isEmpty());
+        assertTrue(restored.history(scope,"app","replacement-uid",start.minusSeconds(1)).samples().isEmpty());
+        restored.begin(scope,"app","uid",start.plusSeconds(2),2,3,"{}","{}");restored.interrupted();
+        assertEquals("INTERRUPTED",restored.history(scope,"app","uid",start.minusSeconds(1)).events().getFirst().state());
     }
     @Test void priorityUpgradeRequiresIdleAndKeepsExistingHistory() throws Exception {
         var created=mysql.execInContainer("mysql","-uroot","-p"+mysql.getPassword(),"-e","CREATE DATABASE priority_upgrade; GRANT ALL ON priority_upgrade.* TO 'backend_test'@'%';");

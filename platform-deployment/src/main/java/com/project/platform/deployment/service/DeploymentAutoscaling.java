@@ -17,14 +17,14 @@ public final class DeploymentAutoscaling {
 
     static List<HorizontalPodAutoscaler> find(KubernetesClient client,Deployment deployment) {
         return client.autoscaling().v2().horizontalPodAutoscalers().inNamespace(deployment.getMetadata().getNamespace()).list().getItems().stream()
-                .filter(h->"Deployment".equals(h.getSpec().getScaleTargetRef().getKind())
-                        && "apps/v1".equals(h.getSpec().getScaleTargetRef().getApiVersion())
+                .filter(h->DeploymentWorkloads.kind(deployment).equals(h.getSpec().getScaleTargetRef().getKind())
+                        && DeploymentWorkloads.api(deployment).equals(h.getSpec().getScaleTargetRef().getApiVersion())
                         && deployment.getMetadata().getName().equals(h.getSpec().getScaleTargetRef().getName())).toList();
     }
     private static boolean owned(HorizontalPodAutoscaler h,Deployment d) {
         return "cea-system".equals(Optional.ofNullable(h.getMetadata().getLabels()).orElse(Map.of()).get("cea-system/owner"))
                 && Optional.ofNullable(h.getMetadata().getOwnerReferences()).orElse(List.of()).stream()
-                .anyMatch(o->"Deployment".equals(o.getKind()) && d.getMetadata().getUid().equals(o.getUid()));
+                .anyMatch(o->DeploymentWorkloads.kind(d).equals(o.getKind()) && d.getMetadata().getUid().equals(o.getUid()));
     }
     static View read(KubernetesClient client,Deployment deployment) {
         var values=find(client,deployment);
@@ -63,21 +63,28 @@ public final class DeploymentAutoscaling {
         return new MetricSpecBuilder().withType("Resource").withNewResource().withName(resource)
                 .withNewTarget().withType("Utilization").withAverageUtilization(target).endTarget().endResource().build();
     }
-    static View put(KubernetesClient client,Deployment deployment,Request request) {
+    static void validate(Deployment deployment,Request request) {
         if(request==null || request.minReplicas()==null || request.maxReplicas()==null || request.minReplicas()<1
                 || request.maxReplicas()<request.minReplicas() || request.maxReplicas()>100
                 || (request.cpuUtilization()==null && request.memoryUtilization()==null)
                 || (request.cpuUtilization()!=null && request.cpuUtilization()<1) || (request.memoryUtilization()!=null && request.memoryUtilization()<1))
             throw ApplicationException.invalid("HPA requires replicas 1..100 and at least one positive target utilization");
         if(deployment.getSpec().getReplicas()==0)throw ApplicationException.invalid("Start at least one replica before enabling HPA");
+        if(DeploymentWorkloads.warm(deployment) && request.maxReplicas()>20)throw ApplicationException.invalid("预热部署副本上限为20");
+        var metrics=new ArrayList<MetricSpec>();if(request.cpuUtilization()!=null)metrics.add(metric("cpu",request.cpuUtilization()));
+        if(request.memoryUtilization()!=null)metrics.add(metric("memory",request.memoryUtilization()));
+        validateRequests(deployment,List.of(new HorizontalPodAutoscalerBuilder().withNewSpec().withMetrics(metrics).endSpec().build()));
+    }
+    static View put(KubernetesClient client,Deployment deployment,Request request) {
+        validate(deployment,request);
         var values=find(client,deployment);var current=values.isEmpty()?null:values.getFirst();
         if(current!=null && (values.size()!=1 || !read(client,deployment).editable()))throw ApplicationException.conflict("HPA is not editable by this deployment");
         if(!Objects.equals(current==null?null:current.getMetadata().getResourceVersion(),request.resourceVersion()))throw ApplicationException.conflict("HPA changed; refresh before saving");
         var h=current==null?new HorizontalPodAutoscalerBuilder().withNewMetadata().withName(deployment.getMetadata().getName())
                 .withNamespace(deployment.getMetadata().getNamespace()).withLabels(deployment.getMetadata().getLabels())
-                .addNewOwnerReference().withApiVersion("apps/v1").withKind("Deployment").withName(deployment.getMetadata().getName())
+                .addNewOwnerReference().withApiVersion(DeploymentWorkloads.api(deployment)).withKind(DeploymentWorkloads.kind(deployment)).withName(deployment.getMetadata().getName())
                 .withUid(deployment.getMetadata().getUid()).withController(true).endOwnerReference().endMetadata()
-                .withNewSpec().withNewScaleTargetRef().withApiVersion("apps/v1").withKind("Deployment").withName(deployment.getMetadata().getName()).endScaleTargetRef().endSpec().build()
+                .withNewSpec().withNewScaleTargetRef().withApiVersion(DeploymentWorkloads.api(deployment)).withKind(DeploymentWorkloads.kind(deployment)).withName(deployment.getMetadata().getName()).endScaleTargetRef().endSpec().build()
                 :new HorizontalPodAutoscalerBuilder(current).build();
         var metrics=new ArrayList<MetricSpec>();if(request.cpuUtilization()!=null)metrics.add(metric("cpu",request.cpuUtilization()));
         if(request.memoryUtilization()!=null)metrics.add(metric("memory",request.memoryUtilization()));

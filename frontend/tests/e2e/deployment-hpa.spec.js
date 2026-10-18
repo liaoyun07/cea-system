@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-async function fixture(page, failRead = false) {
+async function fixture(page, failRead = false, warm = false) {
   let hpa = { enabled: false, editable: true, metrics: [], conditions: [] },
     sent,
     failSave = false;
@@ -14,6 +14,8 @@ async function fixture(page, failRead = false) {
     resourceVersion: 'd1',
     conditions: [],
     image: 'example@sha256:123',
+    warmPool: warm,
+    resources: { cpuRequest: '100m', cpuLimit: '1', memoryRequest: '128Mi', memoryLimit: '512Mi' },
   };
   await page.route('**/api/namespaces/lab/resources/clusters*', (r) =>
     r.fulfill({ json: [{ id: 'edge-a', kind: 'EDGE', enabled: true }] }),
@@ -25,7 +27,27 @@ async function fixture(page, failRead = false) {
     const path = new URL(r.request().url()).pathname,
       method = r.request().method();
     let data;
-    if (path.endsWith('/autoscaling')) {
+    if (path.endsWith('/-/warm-pool'))
+      data = { available: warm, count: 4, memoryMiB: 2048, resourceVersion: 'b1' };
+    else if (path.endsWith('/scaling'))
+      data = {
+        samples: [{ at: new Date().toISOString(), desired: 2, ready: 2, standby: 1 }],
+        events: [
+          {
+            id: 'e1',
+            startedAt: new Date().toISOString(),
+            fromReplicas: 1,
+            toReplicas: 2,
+            state: 'SUCCEEDED',
+            durationMs: 800,
+            warmHits: 1,
+          },
+        ],
+      };
+    else if (path.endsWith('/new-warm')) {
+      sent = r.request().postDataJSON();
+      data = { ...deployment, name: 'new-warm', warmPool: true };
+    } else if (path.endsWith('/autoscaling')) {
       if (failRead && method === 'GET') return r.fulfill({ status: 503, json: { message: 'HPA 查询失败' } });
       if (method === 'PUT') {
         sent = r.request().postDataJSON();
@@ -65,7 +87,32 @@ async function fixture(page, failRead = false) {
         resources: { cpuRequest: '100m', memoryRequest: '32Mi' },
       };
     else if (path.endsWith('/runtime'))
-      data = { namespace: 'cea-lab', labels: { app: 'hpa-demo' }, pods: [] };
+      data = {
+        namespace: 'cea-lab',
+        labels: { app: 'hpa-demo' },
+        pods: warm
+          ? [
+              {
+                name: 'active',
+                phase: 'Running',
+                ready: true,
+                node: 'cloud',
+                restarts: 0,
+                reasons: [],
+                standby: false,
+              },
+              {
+                name: 'reserve',
+                phase: 'Running',
+                ready: true,
+                node: 'cloud',
+                restarts: 0,
+                reasons: [],
+                standby: true,
+              },
+            ]
+          : [],
+      };
     else data = [];
     await r.fulfill({ json: data });
   });
@@ -127,4 +174,31 @@ test('HPA lookup failure is not presented as disabled and blocks manual scaling'
   await expect(page.getByRole('alert')).toContainText('HPA 查询失败');
   await expect(page.getByLabel('调整副本数', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '启用自动扩缩容', exact: true })).toHaveCount(0);
+});
+
+test('warm deployment shows resources and real-style history, create reuses HPA fields', async ({ page }) => {
+  const result = await fixture(page, false, true);
+  await expect(page.getByRole('heading', { name: '副本变化', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: /运行期间/ })).toBeVisible();
+  await expect(page.getByText('1 / 1', { exact: true })).toBeVisible();
+  await expect(page.getByText('CPU 申请 / 上限（每副本）', { exact: true })).toBeVisible();
+  await expect(page.getByText('资源版本', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: '备用', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '业务', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '← 返回列表', exact: true }).click();
+  await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
+  await page.getByLabel('部署名称', { exact: true }).fill('new-warm');
+  await page.getByLabel('应用版本', { exact: true }).selectOption('hpa-demo/v1');
+  await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).check();
+  await page.getByLabel('启用预热池加速', { exact: true }).check();
+  await expect(page.getByLabel('最大副本数', { exact: true })).toHaveAttribute('max', '20');
+  await page.getByLabel('CPU 申请量', { exact: true }).fill('100m');
+  await page.getByLabel('内存上限', { exact: true }).fill('512Mi');
+  await page.getByRole('button', { name: '创建部署', exact: true }).click();
+  await expect
+    .poll(() => result.sent())
+    .toMatchObject({
+      warmPool: true,
+      autoscaling: { minReplicas: 1, maxReplicas: 4, cpuUtilization: 60, memoryUtilization: null },
+    });
 });

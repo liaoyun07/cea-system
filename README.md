@@ -1,5 +1,7 @@
 # 云边端协同平台新后端
 
+DEP-WARM-04（2026-10-18，已发布）：同一部署入口可选 HPA＋预热池，详情显示资源、副本轨迹和伸缩耗时；流任务复用相同字段。中心云两授权命名空间已接通，真实HPA扩容、备用复用、更新/回收与页面验证通过；本批不追加性能收益结论。[功能](docs/features/DEP-WARM-04.md)、[验证](docs/verification/VER-DEP-WARM-04.md)。
+
 FLOW-DEP-01（2026-10-18，已部署并验证）：编排新增“服务部署”任务，复用应用契约、参数绑定及原边缘服务管理。真实Flow `hydraulic-resident-services` 完成中心＋三边缘创建、重复执行、配置更新和全量正确性核验；经批准仅补Service update权限。60秒单轮端到端2.209GB/s，6199批零错、2202漏发，不代表达到目标3GB/s或重复稳定性；四个业务服务保留，旧环境审计通过。[功能](docs/features/FLOW-DEP-01.md)、[验证](docs/verification/VER-FLOW-DEP-01.md)。
 
 JOB-USAGE-01（2026-10-17，已部署）：普通Job自动采集三容器CPU核秒与内存时间积分，每Attempt持久化、按流程汇总，失败重试计入；无需修改业务镜像。四集群4个成功Job与2次失败尝试通过，删除6个测试Job后记录保持，2938旧执行/85旧Flow/19非后端服务未变。前端未新增展示，历史不补采，不代表算法资源降低指标已达标。[功能](docs/features/JOB-USAGE-01.md)、[验证](docs/verification/VER-JOB-USAGE-01.md)。

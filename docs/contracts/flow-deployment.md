@@ -27,6 +27,7 @@ deployment:
 
 - 共用 `container.applicationId/version/parameters/command/resources/candidateClusters`。候选字段保留原数组或 Binding 语法，本任务解析后必须恰好一个目标，不进行 Job 槽位调度。
 - `deployment.name` 必填；`kubeNamespace` 默认现有集群连接的执行命名空间；`replicas` 默认1，可设0～100。
+- `deployment.warmPool` 和 `deployment.autoscaling` 复用部署接口的同名设置；预热模式最多20副本，作用域和预算见[预热协议](deployment-warm-pool.md)。省略不改变已有模式/HPA；创建时省略为常规 Deployment。
 - `readiness` 可选，复用已有 HTTP path/port；Deployment 当前 generation 已被观察且 updated/available/ready/total副本数均满足才成功。
 - `service` 可选，port/targetPort必填；有nodePort为NodePort，无则ClusterIP。仅TCP单端口；沿既有工作空间与命名空间权限校验创建/更新同名受管Service。
 - `endpoint` 可选 HTTP(S) 地址，任务就绪后作为同名输出返回；缺失返回空字符串。绑定沿 `TASK_OUTPUT`，不增新表达式体系。

@@ -295,7 +295,7 @@ test('deployment config edit and scale use current CAS, show real timing and pre
     await expect(page.getByLabel('LABEL', { exact: true })).toHaveValue('before');
     await page.getByLabel('LABEL', { exact: true }).fill('after');
     await page.getByRole('button', { name: '保存部署', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('部署配置已被接受', { timeout: 60000 });
+    await expect(page.getByRole('status')).toContainText('部署已提交', { timeout: 60000 });
     await expect
       .poll(async () => (await get(request, path)).latestOperation.state, { timeout: 60000 })
       .toBe('SUCCEEDED');
@@ -312,6 +312,7 @@ test('deployment config edit and scale use current CAS, show real timing and pre
     expect((await get(request, path)).latestOperation.durationMs).toBeNull();
     expect((await get(request, `/applications/${id}/versions/v1/preparations`)).length).toBe(before);
     await page.getByRole('button', { name: '↻ 刷新状态', exact: true }).click();
+    await page.getByText('配置操作历史', { exact: true }).click();
     await expect(page.getByRole('table', { name: '部署操作历史' })).toContainText('扩缩容');
     await expect(page.getByRole('button', { name: '编辑配置', exact: true })).toBeEnabled();
     await page.setViewportSize({ width: 650, height: 900 });

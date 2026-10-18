@@ -61,9 +61,11 @@ public record FlowDefinition(
         public boolean dynamic() {return repeat!=null || loop!=null;}
         public int effectivePriority() {return priority==null?0:priority;}
     }
-    public record Deployment(String name,String kubeNamespace,Integer replicas,Readiness readiness,Service service) {
+    public record Deployment(String name,String kubeNamespace,Integer replicas,Readiness readiness,Service service,Boolean warmPool,Autoscaling autoscaling) {
         public Deployment { replicas=replicas==null?1:replicas; }
+        public Deployment(String name,String kubeNamespace,Integer replicas,Readiness readiness,Service service) { this(name,kubeNamespace,replicas,readiness,service,null,null); }
     }
+    public record Autoscaling(Integer minReplicas,Integer maxReplicas,Integer cpuUtilization,Integer memoryUtilization) {}
     public record Readiness(String path,Integer port) {}
     public record Service(Integer port,Integer targetPort,Integer nodePort,String endpoint) {}
     public record Repeat(Binding iterations,Map<String,Binding> initial,Map<String,Binding> feedback) {

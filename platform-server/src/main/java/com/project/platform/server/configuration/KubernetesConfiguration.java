@@ -20,8 +20,15 @@ public class KubernetesConfiguration {
         public Settings { connections=connections==null?Map.of():Map.copyOf(connections); }
     }
     @ConfigurationProperties("platform.deployment")
-    public record DeploymentSettings(Duration timeout) {
-        public DeploymentSettings { timeout=timeout==null?Duration.ofMinutes(10):timeout; }
+    public record DeploymentSettings(Duration timeout,java.util.List<DeploymentWorkloads.Scope> warmScopes) {
+        public DeploymentSettings { timeout=timeout==null?Duration.ofMinutes(10):timeout;warmScopes=warmScopes==null?java.util.List.of():java.util.List.copyOf(warmScopes); }
+    }
+    @Bean DeploymentWorkloads deploymentWorkloads(DeploymentSettings settings) { return new DeploymentWorkloads(settings.warmScopes()); }
+    @Bean @org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization
+    JdbcScalingRepository scalingRepository(JdbcTemplate jdbc) { return new JdbcScalingRepository(jdbc); }
+    @Bean(initMethod="start",destroyMethod="close") DeploymentScalingTracker deploymentScalingTracker(
+            JdbcScalingRepository repository,KubernetesConnections connections,DeploymentWorkloads workloads,Clock clock) {
+        return new DeploymentScalingTracker(repository,connections,workloads,clock);
     }
     @Bean
     @org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitialization
@@ -32,8 +39,8 @@ public class KubernetesConfiguration {
         return records;
     }
     @Bean(initMethod="start",destroyMethod="close") DeploymentRolloutTracker deploymentRolloutTracker(
-            JdbcDeploymentRecordRepository records,KubernetesConnections connections,Clock clock) {
-        return new DeploymentRolloutTracker(records,connections,clock);
+            JdbcDeploymentRecordRepository records,KubernetesConnections connections,Clock clock,DeploymentWorkloads workloads) {
+        return new DeploymentRolloutTracker(records,connections,clock,workloads);
     }
     @Bean KubernetesConnections kubernetesConnections(Settings settings) { return new KubernetesConnections(settings.connections()); }
     @Bean com.project.platform.resource.kubernetes.KubernetesManagementService kubernetesManagementService(
@@ -48,7 +55,7 @@ public class KubernetesConfiguration {
             com.project.platform.deployment.application.ApplicationCatalogService applications,
             com.project.platform.resource.catalog.ResourceCatalogService resources,
             com.project.platform.deployment.distribution.ImageDistributionService images,KubernetesConnections connections,
-            JdbcDeploymentRecordRepository records,Clock clock,DeploymentSettings settings) {
-        return new com.project.platform.deployment.service.DeploymentService(access,applications,resources,images,connections,records,clock,settings.timeout());
+            JdbcDeploymentRecordRepository records,Clock clock,DeploymentSettings settings,DeploymentWorkloads workloads,JdbcScalingRepository scaling) {
+        return new com.project.platform.deployment.service.DeploymentService(access,applications,resources,images,connections,records,clock,settings.timeout(),workloads,scaling);
     }
 }

@@ -2,6 +2,8 @@ package com.project.platform.server.api;
 
 import com.project.platform.deployment.service.DeploymentService;
 import com.project.platform.deployment.service.DeploymentAutoscaling;
+import com.project.platform.deployment.service.DeploymentWorkloads;
+import com.project.platform.deployment.service.JdbcScalingRepository;
 import com.project.platform.server.security.IdentityDirectory;
 import java.security.Principal;
 import java.util.List;
@@ -14,6 +16,14 @@ public final class DeploymentController {
     private final DeploymentService deployments;
     private final IdentityDirectory identities;
     public DeploymentController(DeploymentService deployments,IdentityDirectory identities) { this.deployments=deployments;this.identities=identities; }
+    @GetMapping("/-/warm-pool")
+    public DeploymentWorkloads.Budget warmPool(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace) {
+        return deployments.warmPool(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,null);
+    }
+    @PutMapping("/-/warm-pool")
+    public DeploymentWorkloads.Budget warmPool(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@RequestBody DeploymentWorkloads.Budget request) {
+        return deployments.warmPool(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,request);
+    }
     @PutMapping("/{name}")
     public DeploymentService.View put(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,@RequestBody DeploymentService.Request request) {
         return deployments.put(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,request);
@@ -50,6 +60,11 @@ public final class DeploymentController {
     public List<DeploymentService.DeploymentRecord> history(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,
             @RequestParam(defaultValue="20") int limit,@RequestParam(defaultValue="0") int offset) {
         return deployments.history(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,limit,offset);
+    }
+    @GetMapping("/{name}/scaling")
+    public JdbcScalingRepository.History scaling(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace,@PathVariable String name,
+            @RequestParam(required=false) java.time.Instant since) {
+        return deployments.scaling(identities.actor(principal.getName()),namespace,clusterId,kubeNamespace,name,since);
     }
     @GetMapping
     public List<DeploymentService.View> list(Principal principal,@PathVariable String namespace,@PathVariable String clusterId,@PathVariable String kubeNamespace) {

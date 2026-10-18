@@ -42,6 +42,15 @@ class DeploymentDefinitionTest {
         assertEquals(flow,parser.parse(new JsonCodec().write(flow)));
         assertTrue(new FlowSchema().generate().toString().contains("platform.Deployment"));
     }
+    @Test void warmDeploymentReusesAutoscalingFieldsAndRoundTrips() {
+        String warm=source.replace("name: resident-cloud","name: resident-cloud\n      warmPool: true\n      autoscaling: {minReplicas: 1, maxReplicas: 4, cpuUtilization: 60}");
+        var flow=parser.parse(warm);
+        assertTrue(flow.tasks().getFirst().deployment().warmPool());
+        assertEquals(4,flow.tasks().getFirst().deployment().autoscaling().maxReplicas());
+        assertEquals(flow,parser.parse(new JsonCodec().write(flow)));
+        for(String invalid:new String[]{warm.replace("maxReplicas: 4","maxReplicas: 21"),warm.replace("minReplicas: 1","minReplicas: 5"),warm.replace("cpuUtilization: 60","cpuUtilization: 0")})
+            assertThrows(WorkflowException.class,()->parser.parse(invalid));
+    }
     @Test void rejectsJobFieldsAndAmbiguousClusterButRetainsSharedValidation() {
         for(String invalid:new String[]{source.replace("[cloud]","[cloud, edge-a]"),source.replace("[cloud]","[]"),
                 source.replace("resources: {limits:","outputFiles: [result.json]\n      resources: {limits:"),

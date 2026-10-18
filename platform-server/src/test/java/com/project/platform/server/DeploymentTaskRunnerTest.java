@@ -22,7 +22,7 @@ class DeploymentTaskRunnerTest {
     private final AtomicReference<String> prepared=new AtomicReference<>();
     private final DeploymentTaskRunner runner=new DeploymentTaskRunner(deployments,management,connections,new BindingResolver(),job->actor);
     private final DeploymentService.DeploymentRecord operation=new DeploymentService.DeploymentRecord("op1","resident","v1","CREATE",1,"OBSERVING",null,null,null,null);
-    private final DeploymentService.View view=new DeploymentService.View("edge","cloud","cea-lab","resident","v1","image","v2",1,1,true,List.of(),operation);
+    private final DeploymentService.View view=new DeploymentService.View("edge","cloud","cea-lab","resident","v1","image","v2",1,1,true,List.of(),operation,false,null);
     private void setup() throws Exception {
         var flow=new FlowParser(new FlowValidator(new TemplateRenderer())).parse("""
             schemaVersion: 1
@@ -51,6 +51,7 @@ class DeploymentTaskRunnerTest {
         when(deployments.get(actor,"lab","cloud","cea-lab","edge")).thenReturn(view);
         when(deployments.put(eq(actor),eq("lab"),eq("cloud"),eq("cea-lab"),eq("edge"),any())).thenReturn(view);
         when(deployments.ready(actor,"lab","cloud","cea-lab","edge")).thenReturn(true);
+        when(deployments.runtime(actor,"lab","cloud","cea-lab","edge")).thenReturn(new DeploymentService.RuntimeView("cea-lab",Map.of(),Map.of("cea-system/deployment","edge"),List.of()));
     }
     @Test void resolvesParametersAndReusesDeploymentAndServiceForUpdate() throws Exception {
         setup();var result=runner.run(context);
@@ -78,6 +79,7 @@ class DeploymentTaskRunnerTest {
         var result=runner.run(context);assertFalse(result.success());assertEquals("execution cancelled",result.error());
         verify(deployments).get(actor,"lab","cloud","cea-lab","edge");
         verify(deployments).put(any(),anyString(),anyString(),anyString(),anyString(),any());
+        verify(deployments).runtime(actor,"lab","cloud","cea-lab","edge");
         verify(management).putService(any(),anyString(),anyString(),anyString(),any());
         verifyNoMoreInteractions(deployments,management);assertEquals("op1",prepared.get());
     }

@@ -12,8 +12,13 @@ public final class DeploymentRolloutTracker implements AutoCloseable {
     private final KubernetesConnections connections;
     private final Clock clock;
     private ScheduledExecutorService timer;
+    private final DeploymentWorkloads workloads;
     public DeploymentRolloutTracker(JdbcDeploymentRecordRepository records,KubernetesConnections connections,Clock clock) {
+        this(records,connections,clock,new DeploymentWorkloads(java.util.List.of()));
+    }
+    public DeploymentRolloutTracker(JdbcDeploymentRecordRepository records,KubernetesConnections connections,Clock clock,DeploymentWorkloads workloads) {
         this.records=records;this.connections=connections;this.clock=clock;
+        this.workloads=workloads;
     }
     public synchronized void start() {
         if(timer!=null)return;
@@ -31,7 +36,7 @@ public final class DeploymentRolloutTracker implements AutoCloseable {
             // A restart, stalled observer or failed query cannot silently yield a precise measurement.
             boolean continuous=!now.isBefore(item.lastObservedAt()) && Duration.between(item.lastObservedAt(),now).compareTo(Duration.ofSeconds(5))<=0;
             try(var client=connections.open(item.namespace(),item.clusterId())) {
-                Deployment deployment=client.apps().deployments().inNamespace(item.kubeNamespace()).withName(item.name()).get();
+                Deployment deployment=workloads.get(client,item.namespace(),item.clusterId(),item.kubeNamespace(),item.name());
                 now=clock.instant();
                 if(now.isAfter(item.deadline())) { records.finish(item.id(),"UNKNOWN","Observation completed after deadline",now,false);continue; }
                 continuous=continuous && !now.isBefore(item.lastObservedAt()) && Duration.between(item.lastObservedAt(),now).compareTo(Duration.ofSeconds(5))<=0;

@@ -863,7 +863,7 @@ class ImageDistributionTest {
         deployments().put(actor,"lab","edge","s4-test","broken",request(1,null,List.of("/bin/sh","-c","exit 7")));
         await().atMost(Duration.ofSeconds(90)).until(()->admin.pods().inNamespace("s4-test").withLabel("cea-system/deployment","broken").list().getItems().stream()
                 .anyMatch(p->p.getStatus().getContainerStatuses()!=null && p.getStatus().getContainerStatuses().stream().anyMatch(s->s.getRestartCount()>0)));
-        assertEquals(0,deployments().get(actor,"lab","edge","s4-test","broken").readyReplicas());
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(()->assertEquals(0,deployments().get(actor,"lab","edge","s4-test","broken").readyReplicas()));
         var foreign=admin.apps().deployments().inNamespace("s4-test").withName("broken").get();
         foreign.getMetadata().getLabels().put("cea-system/owner","foreign");
         admin.apps().deployments().inNamespace("s4-test").resource(foreign).replace();

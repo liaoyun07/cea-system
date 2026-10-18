@@ -19,6 +19,9 @@ platform:
     concurrency: 2
   deployment:
     timeout: PT10M
+    warm-scopes:
+      - { namespace: lab, cluster-id: cloud, kube-namespace: cea-lab }
+      - { namespace: lab, cluster-id: cloud, kube-namespace: cea-lab-warm-ui-20261018 }
   worker:
     concurrency: 24
   distribution:

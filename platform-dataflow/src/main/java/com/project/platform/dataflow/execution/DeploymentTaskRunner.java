@@ -49,16 +49,23 @@ public final class DeploymentTaskRunner implements TaskRunner {
             // Kubernetes defaults requests to limits, as it does for the existing Application Job task.
             var resources=limits==null?null:new DeploymentService.Resources(limits.cpu(),limits.memory(),limits.cpu(),limits.memory());
             var readiness=d.readiness()==null?null:new DeploymentService.Readiness(d.readiness().path(),d.readiness().port());
+            com.project.platform.deployment.service.DeploymentAutoscaling.Request autoscaling=null;
+            if(d.autoscaling()!=null) {
+                var a=d.autoscaling();
+                String hpaVersion=version==null?null:deployments.autoscaling(actor,workspace,cluster,namespace,d.name()).resourceVersion();
+                autoscaling=new com.project.platform.deployment.service.DeploymentAutoscaling.Request(a.minReplicas(),a.maxReplicas(),a.cpuUtilization(),a.memoryUtilization(),hpaVersion);
+            }
             context.check();
             var saved=deployments.put(actor,workspace,cluster,namespace,d.name(),new DeploymentService.Request(
-                    c.applicationId(),c.version(),d.replicas(),parameters,c.command(),version,readiness,resources));
+                    c.applicationId(),c.version(),d.replicas(),parameters,c.command(),version,readiness,resources,d.warmPool(),autoscaling));
             context.prepare(saved.latestOperation().id());
         }
         if(context.cancellation()!=null)return WorkerJob.Result.failed(context.cancellation());
         if(d.service()!=null) {
             var s=d.service();
+            var selector=deployments.runtime(actor,workspace,cluster,namespace,d.name()).labels();
             management.putService(actor,workspace,cluster,namespace,new KubernetesManagementService.ServiceRequest(d.name(),s.nodePort()==null?"ClusterIP":"NodePort",
-                    Map.of("cea-system/owner","cea-system","cea-system/namespace",workspace,"cea-system/deployment",d.name()),
+                    selector,
                     List.of(new KubernetesManagementService.Port("http",s.port(),s.targetPort().toString(),"TCP",s.nodePort()))));
         }
         while(true) {

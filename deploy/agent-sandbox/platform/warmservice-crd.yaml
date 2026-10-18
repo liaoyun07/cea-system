@@ -1,0 +1,45 @@
+# Reference definition already installed by DEP-WARM-03. The namespace installer does not apply this file.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: warmservices.elastic.cea.io
+  labels: {elastic.cea.io/component: hpa-bridge}
+spec:
+  group: elastic.cea.io
+  scope: Namespaced
+  names:
+    plural: warmservices
+    singular: warmservice
+    kind: WarmService
+    shortNames: [wsvc]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+        scale:
+          specReplicasPath: .spec.replicas
+          statusReplicasPath: .status.replicas
+          labelSelectorPath: .status.selector
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [replicas, poolName]
+              properties:
+                replicas: {type: integer, minimum: 0, maximum: 20}
+                poolName: {type: string, minLength: 1}
+            status:
+              type: object
+              properties:
+                replicas: {type: integer}
+                readyReplicas: {type: integer}
+                selector: {type: string}
+                observedGeneration: {type: integer, format: int64}
+      additionalPrinterColumns:
+        - {name: Desired, type: integer, jsonPath: .spec.replicas}
+        - {name: Current, type: integer, jsonPath: .status.replicas}
+        - {name: Ready, type: integer, jsonPath: .status.readyReplicas}

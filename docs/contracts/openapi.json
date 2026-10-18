@@ -16,6 +16,15 @@
     }
   ],
   "paths": {
+    "/api/namespaces/{namespace}/clusters/{clusterId}/kubernetes/namespaces/{kubeNamespace}/deployments/-/warm-pool": {
+      "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},{"name":"clusterId","in":"path","required":true,"schema":{"type":"string"}},{"name":"kubeNamespace","in":"path","required":true,"schema":{"type":"string"}}],
+      "get":{"operationId":"deploymentWarmPool","responses":{"200":{"description":"Namespace warm budget","content":{"application/json":{"schema":{"$ref":"#/components/schemas/WarmPoolBudget"}}}}}},
+      "put":{"operationId":"saveDeploymentWarmPool","requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/WarmPoolBudget"}}}},"responses":{"200":{"description":"Updated budget"}}}
+    },
+    "/api/namespaces/{namespace}/clusters/{clusterId}/kubernetes/namespaces/{kubeNamespace}/deployments/{name}/scaling": {
+      "parameters": [{"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},{"name":"clusterId","in":"path","required":true,"schema":{"type":"string"}},{"name":"kubeNamespace","in":"path","required":true,"schema":{"type":"string"}},{"name":"name","in":"path","required":true,"schema":{"type":"string"}},{"name":"since","in":"query","schema":{"type":"string","format":"date-time"}}],
+      "get":{"operationId":"deploymentScalingHistory","responses":{"200":{"description":"Observed replica timeline and scaling events","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ScalingHistory"}}}}}}
+    },
     "/api/namespaces/{namespace}/executions/{id}/resource-usage": {
       "parameters": [
         {"name":"namespace","in":"path","required":true,"schema":{"type":"string"}},
@@ -6144,10 +6153,14 @@
       "ImageDistribution": {"type":"object","properties":{"id":{"type":"string"},"applicationId":{"type":"string"},"version":{"type":"string"},"clusterId":{"type":"string"},"requestedBy":{"type":"string"},"sourceImage":{"type":"string"},"targetImage":{"type":["string","null"]},"state":{"type":"string","enum":["RUNNING","SUCCEEDED","FAILED","UNKNOWN"]},"startedAt":{"type":"string"},"finishedAt":{"type":["string","null"]},"error":{"type":["string","null"]}},"required":["id","applicationId","version","clusterId","requestedBy","sourceImage","targetImage","state","startedAt","finishedAt","error"]},
       "DeploymentReadiness": {"type":"object","properties":{"path":{"type":"string","pattern":"^/","maxLength":1024},"port":{"type":"integer","minimum":1,"maximum":65535}},"required":["path","port"]},
       "DeploymentScale": {"type":"object","properties":{"replicas":{"type":"integer","minimum":0,"maximum":100},"resourceVersion":{"type":"string"}},"required":["replicas","resourceVersion"]},
-      "DeploymentConfiguration": {"type":"object","properties":{"applicationId":{"type":"string"},"version":{"type":"string"},"replicas":{"type":"integer","minimum":0,"maximum":100},"parameters":{"type":"object","additionalProperties":true},"command":{"type":"array","items":{"type":"string"}},"resourceVersion":{"type":["string","null"],"description":"Omit for creation; exact current Kubernetes value for update."},"readiness":{"anyOf":[{"$ref":"#/components/schemas/DeploymentReadiness"},{"type":"null"}]},"resources":{"$ref":"#/components/schemas/DeploymentResources"}},"required":["applicationId","version","replicas","parameters","command","resourceVersion","readiness","resources"]},
+      "WarmPoolBudget":{"type":"object","properties":{"available":{"type":"boolean"},"count":{"type":"integer","minimum":0,"maximum":20},"memoryMiB":{"type":"integer","minimum":0},"resourceVersion":{"type":["string","null"]}}},
+      "ReplicaSample":{"type":"object","properties":{"at":{"type":"string","format":"date-time"},"desired":{"type":"integer"},"ready":{"type":"integer"},"standby":{"type":"integer"}}},
+      "ScalingEvent":{"type":"object","properties":{"id":{"type":"string"},"startedAt":{"type":"string","format":"date-time"},"finishedAt":{"type":["string","null"]},"fromReplicas":{"type":"integer"},"toReplicas":{"type":"integer"},"state":{"type":"string"},"durationMs":{"type":["integer","null"]},"warmHits":{"type":["integer","null"]}}},
+      "ScalingHistory":{"type":"object","properties":{"samples":{"type":"array","items":{"$ref":"#/components/schemas/ReplicaSample"}},"events":{"type":"array","items":{"$ref":"#/components/schemas/ScalingEvent"}}}},
+      "DeploymentConfiguration": {"type":"object","properties":{"applicationId":{"type":"string"},"version":{"type":"string"},"replicas":{"type":"integer","minimum":0,"maximum":100},"parameters":{"type":"object","additionalProperties":true},"command":{"type":"array","items":{"type":"string"}},"resourceVersion":{"type":["string","null"],"description":"Omit for creation; exact current Kubernetes value for update."},"readiness":{"anyOf":[{"$ref":"#/components/schemas/DeploymentReadiness"},{"type":"null"}]},"resources":{"$ref":"#/components/schemas/DeploymentResources"},"warmPool":{"type":"boolean"}},"required":["applicationId","version","replicas","parameters","command","resourceVersion","readiness","resources","warmPool"]},
       "DeploymentResources": {"type":"object","description":"Per application-container Kubernetes quantities. Omitted/null request object preserves existing resources; supplied object replaces only CPU/memory requests and limits. Blank/null fields remove explicit values; Kubernetes admission/defaulting still applies. Positive quantities, request <= limit when both supplied.","properties":{"cpuRequest":{"type":["string","null"]},"memoryRequest":{"type":["string","null"]},"cpuLimit":{"type":["string","null"]},"memoryLimit":{"type":["string","null"]}}},
       "DeploymentRuntime": {"type":"object","required":["namespace","selector","labels","pods"],"properties":{"namespace":{"type":"string"},"selector":{"type":"object","additionalProperties":{"type":"string"}},"labels":{"type":"object","additionalProperties":{"type":"string"}},"pods":{"type":"array","items":{"$ref":"#/components/schemas/DeploymentPod"}}}},
-      "DeploymentPod": {"type":"object","required":["name","phase","ready","node","restarts","reasons"],"properties":{"name":{"type":"string"},"phase":{"type":["string","null"]},"ready":{"type":"boolean"},"node":{"type":["string","null"]},"restarts":{"type":"integer"},"reasons":{"type":"array","items":{"type":"string"}}}},
+      "DeploymentPod": {"type":"object","required":["name","phase","ready","node","restarts","reasons","standby"],"properties":{"name":{"type":"string"},"phase":{"type":["string","null"]},"ready":{"type":"boolean"},"node":{"type":["string","null"]},"restarts":{"type":"integer"},"reasons":{"type":"array","items":{"type":"string"}},"standby":{"type":"boolean"}}},
       "DeploymentRecord": {"type":"object","properties":{"id":{"type":"string"},"applicationId":{"type":"string"},"version":{"type":"string"},"operation":{"type":"string","enum":["CREATE","UPDATE","SCALE"]},"targetReplicas":{"type":"integer"},"state":{"type":"string","enum":["PREPARING","OBSERVING","SUCCEEDED","FAILED","UNKNOWN","SUPERSEDED"]},"startedAt":{"type":"string"},"finishedAt":{"type":["string","null"]},"durationMs":{"type":["integer","null"],"minimum":0,"description":"Only SUCCEEDED, positive replicas, continuous observation of same UID/generation. Includes on-request distribution and rollout. SCALE is not a deployment benchmark."},"error":{"type":["string","null"]}},"required":["id","applicationId","version","operation","targetReplicas","state","startedAt","finishedAt","durationMs","error"]},
       "KubernetesUsage": {"type":"object","properties":{"cpuCores":{"type":["number","null"]},"memoryBytes":{"type":["integer","null"]},"cpuPercent":{"type":["number","null"]},"memoryPercent":{"type":["number","null"]},"timestamp":{"type":["string","null"]},"window":{"type":["string","null"]},"status":{"type":"string","enum":["AVAILABLE","MISSING","INVALID","STALE"]}},"required":["cpuCores","memoryBytes","cpuPercent","memoryPercent","timestamp","window","status"]},
       "KubernetesNodeUsage": {"type":"object","properties":{"name":{"type":"string"},"usage":{"$ref":"#/components/schemas/KubernetesUsage"}},"required":["name","usage"]},
@@ -7070,10 +7083,13 @@
           "name": {"type": "string"},
           "kubeNamespace": {"type": ["string", "null"]},
           "replicas": {"type": ["integer", "null"], "minimum": 0, "maximum": 100, "default": 1},
+          "warmPool": {"type": ["boolean", "null"]},
+          "autoscaling": {"anyOf": [{"$ref": "#/components/schemas/FlowAutoscaling"}, {"type": "null"}]},
           "readiness": {"anyOf": [{"$ref": "#/components/schemas/FlowDeploymentReadiness"}, {"type": "null"}]},
           "service": {"anyOf": [{"$ref": "#/components/schemas/FlowDeploymentService"}, {"type": "null"}]}
         }
       },
+      "FlowAutoscaling": {"type":"object","required":["minReplicas","maxReplicas"],"properties":{"minReplicas":{"type":"integer","minimum":1,"maximum":100},"maxReplicas":{"type":"integer","minimum":1,"maximum":100},"cpuUtilization":{"type":["integer","null"],"minimum":1},"memoryUtilization":{"type":["integer","null"],"minimum":1}}},
       "FlowDeploymentReadiness": {
         "type": "object", "required": ["path", "port"],
         "properties": {"path": {"type": "string"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}}
@@ -8269,6 +8285,8 @@
           "replicas"
         ],
         "properties": {
+          "warmPool": {"type": ["boolean", "null"]},
+          "autoscaling": {"anyOf": [{"$ref":"#/components/schemas/DeploymentAutoscalingRequest"},{"type":"null"}]},
           "resources": {
             "anyOf": [{"$ref":"#/components/schemas/DeploymentResources"},{"type":"null"}]
           },
@@ -8315,6 +8333,8 @@
       "DeploymentView": {
         "type": "object",
         "properties": {
+          "warmPool": {"type": "boolean"},
+          "resources": {"$ref":"#/components/schemas/DeploymentResources"},
           "kubeNamespace": {"type": "string"},
           "name": {
             "type": "string"

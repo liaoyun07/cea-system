@@ -15,6 +15,7 @@ test('deployment edit roundtrip retains resource version, false/zero and readine
     applicationId: 'http',
     version: 'v1',
     replicas: 2,
+    warmPool: false,
     parameters: { N: 0, FLAG: false },
     command: ['server'],
     resourceVersion: '27',

@@ -207,7 +207,7 @@ test('typed deployment, resources and readiness reach Kubernetes; access setup r
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('button', { name: '创建部署', exact: true }).click();
-    await expect(page.getByRole('status')).toContainText('部署配置已被接受', { timeout: 60000 });
+    await expect(page.getByRole('status')).toContainText('部署已提交', { timeout: 60000 });
     created = true;
     await expect.poll(async () => (await api(request, path)).readyReplicas, { timeout: 90000 }).toBe(1);
     const configuration = await api(request, `${path}/configuration`);
