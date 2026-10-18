@@ -189,9 +189,16 @@ test('warm deployment shows resources and real-style history, create reuses HPA 
   await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
   await page.getByLabel('部署名称', { exact: true }).fill('new-warm');
   await page.getByLabel('应用版本', { exact: true }).selectOption('hpa-demo/v1');
+  await expect(page.getByLabel('启用预热池加速', { exact: true })).toHaveCount(0);
   await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).check();
   await page.getByLabel('启用预热池加速', { exact: true }).check();
   await expect(page.getByLabel('最大副本数', { exact: true })).toHaveAttribute('max', '20');
+  await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).uncheck();
+  await expect(page.getByLabel('启用预热池加速', { exact: true })).toHaveCount(0);
+  await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).check();
+  await expect(page.getByLabel('启用预热池加速', { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('最大副本数', { exact: true })).toHaveAttribute('max', '100');
+  await page.getByLabel('启用预热池加速', { exact: true }).check();
   await page.getByLabel('CPU 申请量', { exact: true }).fill('100m');
   await page.getByLabel('内存上限', { exact: true }).fill('512Mi');
   await page.getByRole('button', { name: '创建部署', exact: true }).click();
@@ -201,4 +208,18 @@ test('warm deployment shows resources and real-style history, create reuses HPA 
       warmPool: true,
       autoscaling: { minReplicas: 1, maxReplicas: 4, cpuUtilization: 60, memoryUtilization: null },
     });
+});
+
+test('disabling HPA in the creation form submits an ordinary deployment', async ({ page }) => {
+  const result = await fixture(page, false, true);
+  await page.getByRole('button', { name: '← 返回列表', exact: true }).click();
+  await page.getByRole('button', { name: '＋ 创建部署', exact: true }).click();
+  await page.getByLabel('部署名称', { exact: true }).fill('new-warm');
+  await page.getByLabel('应用版本', { exact: true }).selectOption('hpa-demo/v1');
+  await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).check();
+  await page.getByLabel('启用预热池加速', { exact: true }).check();
+  await page.getByLabel('启用自动扩缩容（HPA）', { exact: true }).uncheck();
+  await page.getByRole('button', { name: '创建部署', exact: true }).click();
+  await expect.poll(() => result.sent()).toMatchObject({ warmPool: false });
+  expect(result.sent()).not.toHaveProperty('autoscaling');
 });

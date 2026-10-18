@@ -10,6 +10,25 @@ import {
 } from '../../src/management/operations.js';
 import { createApi } from '../../src/api.js';
 
+test('warm creation requires HPA while editing preserves the existing workload mode', () => {
+  const draft = {
+    application: 'http/v1',
+    replicas: 1,
+    parameters: [],
+    warmPool: true,
+    autoscalingEnabled: false,
+  };
+  assert.equal(deploymentBody(draft).warmPool, false);
+  assert.equal(Object.hasOwn(deploymentBody(draft), 'autoscaling'), false);
+  draft.autoscalingEnabled = true;
+  draft.autoscaling = { minReplicas: 1, maxReplicas: 4, cpuUtilization: 60, memoryUtilization: '' };
+  assert.equal(deploymentBody(draft).warmPool, true);
+  assert.equal(deploymentBody(draft).autoscaling.maxReplicas, 4);
+  draft.autoscalingEnabled = false;
+  draft.resourceVersion = '27';
+  assert.equal(deploymentBody(draft).warmPool, true);
+});
+
 test('deployment edit roundtrip retains resource version, false/zero and readiness removal', () => {
   const value = {
     applicationId: 'http',

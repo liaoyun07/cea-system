@@ -1,5 +1,7 @@
 # 功能与验证索引
 
+DEP-WARM-04-UI（已发布）：创建表单中预热加速作为HPA下级选项，关闭HPA清除选择，再次开启不恢复；76单元/8页面回归和线上宽窄屏表单通过，已有部署编辑不转换类型。[验证](verification/VER-DEP-WARM-04.md#创建表单联动修正-dep-warm-04-ui)。
+
 DEP-WARM-04（已发布并验证）：服务部署共用应用契约/配置/API，增加可选预热模式和创建时HPA；详情显示资源、业务/备用实例、真实副本轨迹与每次伸缩记录。中心云两个授权命名空间，真实HPA及Flow、UID复用、更新删除通过，旧部署不改。[功能](features/DEP-WARM-04.md)、[协议](contracts/deployment-warm-pool.md)、[验证](verification/VER-DEP-WARM-04.md)。
 
 FLOW-DEP-01（已部署并验证）：现有编排新增服务部署叶任务，复用应用契约与参数绑定；四集群创建、上游地址传递、重复执行、配置更新及全量正确性通过。经批准仅新增Service update权限，首次权限失败记录保留。60秒单轮端到端2.209GB/s，6199批零错、2202漏发；未达到3GB/s目标，不宣称重复稳定性。无新表，旧Job文件执行不变，四业务服务保留。[功能](features/FLOW-DEP-01.md)、[验证](verification/VER-FLOW-DEP-01.md)。

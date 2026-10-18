@@ -484,16 +484,18 @@ onMounted(() => {
         <section v-if="!draft.resourceVersion" class="deployment-section">
           <h3>弹性伸缩</h3>
           <label class="probe-toggle"
-            ><input type="checkbox" v-model="draft.autoscalingEnabled" />启用自动扩缩容（HPA）</label
+            ><input
+              type="checkbox"
+              v-model="draft.autoscalingEnabled"
+              @change="draft.warmPool = draft.autoscalingEnabled && draft.warmPool"
+            />启用自动扩缩容（HPA）</label
           >
-          <AutoscalingFields
-            v-if="draft.autoscalingEnabled"
-            :value="draft.autoscaling"
-            :max="draft.warmPool ? 20 : 100"
-          />
-          <label v-if="warmPool?.available" class="probe-toggle"
-            ><input type="checkbox" v-model="draft.warmPool" />启用预热池加速</label
-          >
+          <div v-if="draft.autoscalingEnabled" class="hpa-options">
+            <AutoscalingFields :value="draft.autoscaling" :max="draft.warmPool ? 20 : 100" />
+            <label v-if="warmPool?.available" class="probe-toggle"
+              ><input type="checkbox" v-model="draft.warmPool" />启用预热池加速</label
+            >
+          </div>
         </section>
         <section class="deployment-section">
           <h3>应用参数</h3>
@@ -847,6 +849,9 @@ onMounted(() => {
 .probe-toggle input {
   width: auto;
   margin: 0;
+}
+.hpa-options {
+  padding-left: 24px;
 }
 .catalog-fields > button[type='submit'] {
   margin-top: 20px;

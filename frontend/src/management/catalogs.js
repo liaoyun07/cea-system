@@ -252,7 +252,9 @@ export function deploymentBody(draft) {
     replicas: draft.replicas,
     parameters,
     command,
-    ...(draft.warmPool != null ? { warmPool: draft.warmPool } : {}),
+    ...(draft.warmPool != null
+      ? { warmPool: draft.resourceVersion || draft.autoscalingEnabled ? draft.warmPool : false }
+      : {}),
     ...(draft.autoscalingEnabled
       ? {
           autoscaling: {

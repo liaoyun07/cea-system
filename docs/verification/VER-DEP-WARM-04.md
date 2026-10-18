@@ -40,3 +40,9 @@
 证据位于本机 `.local/cea/dep-warm-04-20261018/`（不上传数据库备份或凭据）：`hpa.json`、`identity-and-budget-audit.json`、`load-result.json`、`update.json`、`page-created.json`、`warm-history*.png`、`flow-fixed-result.json`、`deleted.json`、`before.json/after.json`、`data-audit.json`。完整回归和独立候选日志位于 `.local/dep-warm-04-*`。
 
 本批没有重新跑30分钟热点切换性能对照，没有证明固定20%或其他新的效率提升；提供的是正式系统内可操作、可观察、可保存记录的接入能力。
+
+## 创建表单联动修正 DEP-WARM-04-UI
+
+2026-10-18，基于 `6af45c7`。按用户确认，预热选项移入创建表单的HPA配置下面，只在HPA开启时显示；取消HPA会清除选择，再次开启保持未选。创建请求不提交无HPA的预热选择；已有部署编辑仍保持原类型，不因编辑表单没有创建开关而误改模式。
+
+仅修改两个前端生产文件；无Java/表/接口/权限/通用工作流语义变更，调用链不变，不涉及Kestra能力迁移。76项前端单元、8项部署/HPA页面回归、生产构建和脚手架检查通过。只更新frontend且健康，backend容器ID保持；保留镜像 `cea/frontend:before-dep-warm-04-ui`。线上1366px/650px表单显隐与清除选择通过、无JS错误和横向溢出，未提交新工作负载。证据 `.local/cea/dep-warm-04-ui-20261018/`，测试日志 `.local/dep-warm-04-ui-*.log`。本次未修改或重新构建Java，不将上一批后端测试当本次重跑。
